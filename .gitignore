@@ -27,7 +27,9 @@ wheels/
 start_aider.sh
 linting.sh
 .env
-_*.py
 .coverage
+
+# scratch docs
 _*.md
+_*.py
 
