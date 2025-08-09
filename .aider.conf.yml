@@ -1,0 +1,8 @@
+read:
+  - CONVENTIONS.md
+  - APP_SPEC.md
+  - docstrings_parser.md
+  - DOCSTRINGS.md
+auto-accept-architect: false
+auto-lint: false
+gitignore: false

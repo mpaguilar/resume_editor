@@ -1,0 +1,11 @@
+- name: anthropic/claude-opus-4-20250514
+  edit_format: diff
+  cache_control: true
+
+- name: openrouter/anthropic/claude-opus-4
+  edit_format: diff
+  cache_control: true
+
+- name: openrouter/qwen/qwen3-coder
+  edit_format: diff
+  cache_control: true

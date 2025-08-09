@@ -1,0 +1,33 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+
+# aider
+.aider.chat.history.md
+.aider.input.history
+.aider.tags.cache.v3/
+.aider.tags.cache.v4/
+.aider/
+.aider.model.settings.yml
+.aider.model.metadata.json
+
+# caches and config
+.vscode/
+.mypy_cache/
+.pytest_cache/
+
+# utilities
+start_aider.sh
+linting.sh
+.env
+_*.py
+.coverage
+_*.md
+
