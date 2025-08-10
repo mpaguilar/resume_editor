@@ -2,6 +2,8 @@
 
 A web-based application for multi-user resume authoring, editing, and export, utilizing Markdown format and LLM assistance.
 
+It is written using Python version 3.12.
+
 # Core Functionality
 
 ## User Management

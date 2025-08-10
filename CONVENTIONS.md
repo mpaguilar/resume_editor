@@ -6,6 +6,7 @@
     * `python` related commands are prefixed with `uv run`, for example `uv run pytest tests`
     * New dependencies are added with `uv add <package>`
 * Functions **must** be short, and serve a single purpose. Avoid long functions, create new functions as needed.
+* Functions **must** be easily mocked, avoid complexity.
 * All text output for questions and answers **must** be in Markdown format
 
 # Preferred libraries
@@ -16,8 +17,7 @@
 * `pytest` for unit testing
 * `httpx` for web-related calls, unless a specific library is offered
 * `langchain_community.retrievers.WikipediaRetriever` for Wikipedia searches
-* `serpapi.GoogleSearch` for web searches
-    * `SERPER_API_KEY` will be passed as an environment variable
+* `htmx` for web page rendering
     
 # LLM calls
 * All calls to an LLM **must** use a `PydanticOutputParser` object
@@ -44,10 +44,13 @@
 * arguments to functions should check for valid inputs using `assert`
 * returned values from called functions should check for validity using `assert`
 * call functions using named arguments
+* Code should be written to be easily mocked and tested
+* No secret keys should be in code, not even defaults. **Always** get secrets from an external source.
 
 # Exceptions
 * `try` blocks should not `return` from within the `try`
 * `try` blocks should use `else` to `return`
+* Exceptions should have an error log before being raised.
 
 # Logging
 * Every source file must have logging setup using the following in it's header:

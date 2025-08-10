@@ -1,0 +1,226 @@
+{
+  "./resume_editor/app/__init__.py": {
+    "filepath": "./resume_editor/app/__init__.py",
+    "filename": "__init__.py",
+    "functions": [],
+    "classes": {}
+  },
+  "./resume_editor/app/main.py": {
+    "filepath": "./resume_editor/app/main.py",
+    "filename": "main.py",
+    "functions": [
+      [
+        "create_app() -> FastAPI",
+        "Create and configure the FastAPI application.\n\nArgs:\n    None\n\nReturns:\n    FastAPI: The configured FastAPI application instance.\n\nNotes:\n    1. Initialize the FastAPI application with the title \"Resume Editor API\".\n    2. Create the database tables by calling Base.metadata.create_all with the database engine.\n    3. Add CORS middleware to allow requests from any origin (for development only).\n    4. Include the user router to handle user-related API endpoints.\n    5. Define a health check endpoint at \"/health\" that returns a JSON object with status \"ok\".\n    6. Log a success message indicating the application was created."
+      ]
+    ],
+    "classes": {}
+  },
+  "./resume_editor/app/api/__init__.py": {
+    "filepath": "./resume_editor/app/api/__init__.py",
+    "filename": "__init__.py",
+    "functions": [],
+    "classes": {}
+  },
+  "./resume_editor/app/api/routes/user.py": {
+    "filepath": "./resume_editor/app/api/routes/user.py",
+    "filename": "user.py",
+    "functions": [
+      [
+        "get_user_by_username(db: Session, username: str) -> User | None",
+        "Retrieve a user from the database using their username.\n\nArgs:\n    db: Database session dependency used to query the database.\n    username: The unique username to search for in the database.\n\nReturns:\n    User | None: The User object if found, otherwise None.\n\nNotes:\n    1. Query the database for a user with the given username.\n    2. Return the first match or None if no user is found.\n    3. Database access: Performs a read operation on the User table."
+      ],
+      [
+        "get_user_by_email(db: Session, email: str) -> User | None",
+        "Retrieve a user from the database using their email address.\n\nArgs:\n    db: Database session dependency used to query the database.\n    email: The unique email address to search for in the database.\n\nReturns:\n    User | None: The User object if found, otherwise None.\n\nNotes:\n    1. Query the database for a user with the given email.\n    2. Return the first match or None if no user is found.\n    3. Database access: Performs a read operation on the User table."
+      ],
+      [
+        "create_new_user(db: Session, user_data: UserCreate) -> User",
+        "Create a new user in the database with the provided data.\n\nArgs:\n    db: Database session dependency used to persist the new user.\n    user_data: Data required to create a new user, including username, email, and password.\n\nReturns:\n    User: The newly created User object with all fields populated.\n\nNotes:\n    1. Hash the provided password using a secure hashing algorithm.\n    2. Instantiate a new User object with the username, email, and hashed password.\n    3. Add the new user object to the database session.\n    4. Commit the transaction to persist the user to the database.\n    5. Refresh the object to ensure it contains the latest state from the database.\n    6. Database access: Performs a write operation on the User table."
+      ],
+      [
+        "register_user(user: UserCreate, db: Session) -> UserResponse",
+        "Register a new user with the provided credentials.\n\nArgs:\n    user: Data containing username, email, and password for the new user.\n    db: Database session dependency used to interact with the user database.\n\nReturns:\n    UserResponse: The created user's data, excluding the password.\n\nNotes:\n    1. Check if the provided username already exists in the database.\n    2. If the username exists, raise a 400 error.\n    3. Check if the provided email already exists in the database.\n    4. If the email exists, raise a 400 error.\n    5. Create a new user with the provided data and store it in the database.\n    6. Return the newly created user's data (without the password).\n    7. Database access: Performs read and write operations on the User table."
+      ],
+      [
+        "login_user(form_data: Annotated[OAuth2PasswordRequestForm, Depends()], db: Session) -> Token",
+        "Authenticate a user and return an access token.\n\nArgs:\n    form_data: Form data containing username and password for authentication.\n    db: Database session dependency used to verify user credentials.\n\nReturns:\n    Token: An access token for the authenticated user, formatted as a JWT.\n\nNotes:\n    1. Attempt to authenticate the user using the provided username and password.\n    2. If authentication fails, raise a 401 error.\n    3. Generate a JWT access token with a defined expiration time.\n    4. Return the access token to the client.\n    5. Database access: Performs a read operation on the User table to verify credentials."
+      ]
+    ],
+    "classes": {}
+  },
+  "./resume_editor/app/utils/__init__.py": {
+    "filepath": "./resume_editor/app/utils/__init__.py",
+    "filename": "__init__.py",
+    "functions": [],
+    "classes": {}
+  },
+  "./resume_editor/app/core/__init__.py": {
+    "filepath": "./resume_editor/app/core/__init__.py",
+    "filename": "__init__.py",
+    "functions": [],
+    "classes": {}
+  },
+  "./resume_editor/app/core/config.py": {
+    "filepath": "./resume_editor/app/core/config.py",
+    "filename": "config.py",
+    "functions": [
+      [
+        "get_settings() -> Settings",
+        "Get the global settings instance.\n\nThis function returns a singleton instance of the Settings class,\nwhich contains all application configuration values.\n\nArgs:\n    None: This function does not take any arguments.\n\nReturns:\n    Settings: The global settings instance, containing all configuration values.\n        The instance is created by loading environment variables and applying defaults.\n\nNotes:\n    1. The function reads configuration from environment variables using the .env file.\n    2. If environment variables are not set, default values are used.\n    3. The Settings class uses Pydantic's validation and configuration features to ensure correct values.\n    4. The function returns a cached instance to avoid repeated parsing of the .env file.\n    5. This function does not perform any disk or network access beyond reading the .env file at startup."
+      ]
+    ],
+    "classes": {}
+  },
+  "./resume_editor/app/core/security.py": {
+    "filepath": "./resume_editor/app/core/security.py",
+    "filename": "security.py",
+    "functions": [
+      [
+        "verify_password(plain_password: str, hashed_password: str) -> bool",
+        "Verify a plain password against a hashed password.\n\nArgs:\n    plain_password (str): The plain text password to verify.\n    hashed_password (str): The hashed password to compare against.\n\nReturns:\n    bool: True if the password matches, False otherwise.\n\nNotes:\n    1. Use bcrypt to verify the password.\n    2. No database or network access in this function."
+      ],
+      [
+        "get_password_hash(password: str) -> str",
+        "Hash a plain password.\n\nArgs:\n    password (str): The plain text password to hash.\n\nReturns:\n    str: The hashed password.\n\nNotes:\n    1. Use bcrypt to hash the password.\n    2. No database or network access in this function."
+      ],
+      [
+        "authenticate_user(db: Session, username: str, password: str) -> Optional['User']",
+        "Authenticate a user by username and password.\n\nArgs:\n    db (Session): Database session used to query for user records.\n    username (str): Username to authenticate.\n    password (str): Password to verify.\n\nReturns:\n    Optional[User]: The authenticated user if successful, None otherwise.\n\nNotes:\n    1. Query the database for a user with the given username.\n    2. If user exists and password is correct, return the user.\n    3. Otherwise, return None."
+      ],
+      [
+        "create_access_token(data: dict, expires_delta: Optional[timedelta]) -> str",
+        "Create a JWT access token.\n\nArgs:\n    data (dict): Data to encode in the token (e.g., user ID, role).\n    expires_delta (Optional[timedelta]): Custom expiration time for the token. If None, uses default.\n\nReturns:\n    str: The encoded JWT token as a string.\n\nNotes:\n    1. Copy the data to avoid modifying the original.\n    2. Set expiration time based on expires_delta or default.\n    3. Encode the data with the secret key and algorithm.\n    4. No database or network access in this function."
+      ]
+    ],
+    "classes": {
+      "SecurityManager": [
+        "Manages user authentication and authorization using password hashing and JWT tokens.\n\nAttributes:\n    settings (Settings): Configuration settings for the security system.\n    access_token_expire_minutes (int): Duration in minutes for access token expiration.\n    secret_key (str): Secret key used for signing JWT tokens.\n    algorithm (str): Algorithm used for JWT encoding.",
+        [
+          [
+            "__init__(self: UnknownType) -> UnknownType",
+            "Initialize the SecurityManager with configuration settings."
+          ]
+        ]
+      ]
+    }
+  },
+  "./resume_editor/app/core/auth.py": {
+    "filepath": "./resume_editor/app/core/auth.py",
+    "filename": "auth.py",
+    "functions": [
+      [
+        "get_current_user(db: Session, token: str) -> User",
+        "Retrieve the authenticated user from the provided JWT token.\n\nArgs:\n    db: Database session dependency used to query the database for the user.\n    token: JWT token extracted from the request header, used to authenticate the user.\n\nReturns:\n    User: The authenticated User object corresponding to the token's subject (username).\n\nNotes:\n    1. Initialize an HTTP 401 exception with a generic error message and \"Bearer\" authentication header.\n    2. Decode the JWT token using the secret key and algorithm to extract the subject (username).\n    3. If the subject (username) is missing from the token payload, raise the credentials exception.\n    4. If the JWT token is invalid or malformed, catch the JWTError and raise the credentials exception.\n    5. Query the database using the retrieved username to find the corresponding User record.\n    6. If the user is not found in the database, raise the credentials exception.\n    7. Return the User object if all authentication checks pass."
+      ]
+    ],
+    "classes": {}
+  },
+  "./resume_editor/app/database/__init__.py": {
+    "filepath": "./resume_editor/app/database/__init__.py",
+    "filename": "__init__.py",
+    "functions": [],
+    "classes": {}
+  },
+  "./resume_editor/app/database/database.py": {
+    "filepath": "./resume_editor/app/database/database.py",
+    "filename": "database.py",
+    "functions": [
+      [
+        "get_engine() -> UnknownType",
+        "Get or create the database engine.\n\nArgs:\n    None\n    \nReturns:\n    Engine: The SQLAlchemy engine instance used to connect to the database.\n    \nNotes:\n    1. Create the engine only when first accessed to avoid premature connection.\n    2. Reuse the same engine instance on subsequent calls to ensure consistency.\n    3. Network access occurs when creating the engine, using the database URL from settings."
+      ],
+      [
+        "get_session_local() -> UnknownType",
+        "Get or create the session local factory.\n\nArgs:\n    None\n    \nReturns:\n    sessionmaker: The SQLAlchemy sessionmaker instance used to create database sessions.\n    \nNotes:\n    1. Create the sessionmaker only when first accessed to avoid premature configuration.\n    2. Reuse the same sessionmaker instance on subsequent calls to ensure consistent session behavior.\n    3. No network access in this function itself; it uses the previously created engine."
+      ],
+      [
+        "get_db() -> Generator[Session, None, None]",
+        "Dependency to provide database sessions to route handlers.\n\nArgs:\n    None\n\nReturns:\n    Generator[Session, None, None]: A generator that yields a database session for use in route handlers.\n\nNotes:\n    1. Create a new database session using the sessionmaker factory.\n    2. Yield the session to be used in route handlers.\n    3. Ensure the session is closed after use to release resources.\n    4. No network access in this function itself; the session is created from the existing engine."
+      ]
+    ],
+    "classes": {}
+  },
+  "./resume_editor/app/models/__init__.py": {
+    "filepath": "./resume_editor/app/models/__init__.py",
+    "filename": "__init__.py",
+    "functions": [],
+    "classes": {}
+  },
+  "./resume_editor/app/models/user.py": {
+    "filepath": "./resume_editor/app/models/user.py",
+    "filename": "user.py",
+    "functions": [],
+    "classes": {
+      "User": [
+        "User model for authentication and session management.\n\nAttributes:\n    id (int): Unique identifier for the user.\n    username (str): Unique username for the user.\n    email (str): Unique email address for the user.\n    hashed_password (str): Hashed password for the user.\n    is_active (bool): Whether the user account is active.",
+        [
+          [
+            "__init__(self: UnknownType, username: str, email: str, hashed_password: str, is_active: bool) -> UnknownType",
+            "Initialize a User instance.\n\nArgs:\n    username (str): Unique username for the user. Must be a non-empty string.\n    email (str): Unique email address for the user. Must be a non-empty string.\n    hashed_password (str): Hashed password for the user. Must be a non-empty string.\n    is_active (bool): Whether the user account is active. Must be a boolean.\n\nReturns:\n    None\n\nNotes:\n    1. Validate that username is a non-empty string.\n    2. Validate that email is a non-empty string.\n    3. Validate that hashed_password is a non-empty string.\n    4. Validate that is_active is a boolean.\n    5. Assign all values to instance attributes.\n    6. Log the initialization of the user with their username."
+          ],
+          [
+            "validate_username(self: UnknownType, key: UnknownType, username: UnknownType) -> UnknownType",
+            "Validate the username field.\n\nArgs:\n    key (str): The field name being validated (should be 'username').\n    username (str): The username value to validate. Must be a non-empty string.\n\nReturns:\n    str: The validated username (stripped of leading/trailing whitespace).\n\nNotes:\n    1. Ensure username is a string.\n    2. Ensure username is not empty after stripping whitespace."
+          ],
+          [
+            "validate_email(self: UnknownType, key: UnknownType, email: UnknownType) -> UnknownType",
+            "Validate the email field.\n\nArgs:\n    key (str): The field name being validated (should be 'email').\n    email (str): The email value to validate. Must be a non-empty string.\n\nReturns:\n    str: The validated email (stripped of leading/trailing whitespace).\n\nNotes:\n    1. Ensure email is a string.\n    2. Ensure email is not empty after stripping whitespace."
+          ],
+          [
+            "validate_hashed_password(self: UnknownType, key: UnknownType, hashed_password: UnknownType) -> UnknownType",
+            "Validate the hashed_password field.\n\nArgs:\n    key (str): The field name being validated (should be 'hashed_password').\n    hashed_password (str): The hashed password value to validate. Must be a non-empty string.\n\nReturns:\n    str: The validated hashed password (stripped of leading/trailing whitespace).\n\nNotes:\n    1. Ensure hashed_password is a string.\n    2. Ensure hashed_password is not empty after stripping whitespace."
+          ],
+          [
+            "validate_is_active(self: UnknownType, key: UnknownType, is_active: UnknownType) -> UnknownType",
+            "Validate the is_active field.\n\nArgs:\n    key (str): The field name being validated (should be 'is_active').\n    is_active (bool): The is_active value to validate. Must be a boolean.\n\nReturns:\n    bool: The validated is_active value.\n\nNotes:\n    1. Ensure is_active is a boolean."
+          ]
+        ]
+      ]
+    }
+  },
+  "./resume_editor/app/schemas/user.py": {
+    "filepath": "./resume_editor/app/schemas/user.py",
+    "filename": "user.py",
+    "functions": [],
+    "classes": {}
+  },
+  "./resume_editor/app/schemas/__init__.py": {
+    "filepath": "./resume_editor/app/schemas/__init__.py",
+    "filename": "__init__.py",
+    "functions": [],
+    "classes": {}
+  },
+  "resume_editor/app/models/user.py": {
+    "filepath": "resume_editor/app/models/user.py",
+    "filename": "user.py",
+    "functions": [],
+    "classes": {
+      "User": [
+        "User model for authentication and session management.\n\nAttributes:\n    id (int): Unique identifier for the user.\n    username (str): Unique username for the user.\n    email (str): Unique email address for the user.\n    hashed_password (str): Hashed password for the user.\n    is_active (bool): Whether the user account is active.",
+        [
+          [
+            "__init__(self: UnknownType, username: str, email: str, hashed_password: str, is_active: bool) -> UnknownType",
+            "Initialize a User instance.\n\nArgs:\n    username (str): Unique username for the user. Must be a non-empty string.\n    email (str): Unique email address for the user. Must be a non-empty string.\n    hashed_password (str): Hashed password for the user. Must be a non-empty string.\n    is_active (bool): Whether the user account is active. Must be a boolean.\n\nReturns:\n    None\n\nNotes:\n    1. Validate that username is a non-empty string.\n    2. Validate that email is a non-empty string.\n    3. Validate that hashed_password is a non-empty string.\n    4. Validate that is_active is a boolean.\n    5. Assign all values to instance attributes.\n    6. Log the initialization of the user with their username."
+          ],
+          [
+            "validate_username(self: UnknownType, key: UnknownType, username: UnknownType) -> UnknownType",
+            "Validate the username field.\n\nArgs:\n    key (str): The field name being validated (should be 'username').\n    username (str): The username value to validate. Must be a non-empty string.\n\nReturns:\n    str: The validated username (stripped of leading/trailing whitespace).\n\nNotes:\n    1. Ensure username is a string.\n    2. Ensure username is not empty after stripping whitespace."
+          ],
+          [
+            "validate_email(self: UnknownType, key: UnknownType, email: UnknownType) -> UnknownType",
+            "Validate the email field.\n\nArgs:\n    key (str): The field name being validated (should be 'email').\n    email (str): The email value to validate. Must be a non-empty string.\n\nReturns:\n    str: The validated email (stripped of leading/trailing whitespace).\n\nNotes:\n    1. Ensure email is a string.\n    2. Ensure email is not empty after stripping whitespace."
+          ],
+          [
+            "validate_hashed_password(self: UnknownType, key: UnknownType, hashed_password: UnknownType) -> UnknownType",
+            "Validate the hashed_password field.\n\nArgs:\n    key (str): The field name being validated (should be 'hashed_password').\n    hashed_password (str): The hashed password value to validate. Must be a non-empty string.\n\nReturns:\n    str: The validated hashed password (stripped of leading/trailing whitespace).\n\nNotes:\n    1. Ensure hashed_password is a string.\n    2. Ensure hashed_password is not empty after stripping whitespace."
+          ],
+          [
+            "validate_is_active(self: UnknownType, key: UnknownType, is_active: UnknownType) -> UnknownType",
+            "Validate the is_active field.\n\nArgs:\n    key (str): The field name being validated (should be 'is_active').\n    is_active (bool): The is_active value to validate. Must be a boolean.\n\nReturns:\n    bool: The validated is_active value.\n\nNotes:\n    1. Ensure is_active is a boolean."
+          ]
+        ]
+      ]
+    }
+  }
+}

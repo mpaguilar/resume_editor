@@ -30,6 +30,5 @@ linting.sh
 .coverage
 
 # scratch docs
-_*.md
-_*.py
-
+/_* 
+!/_*/
