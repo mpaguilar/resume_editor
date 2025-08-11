@@ -24,7 +24,6 @@ def test_settings_default_values():
 
         # Test API keys
         assert settings.llm_api_key is None
-        assert settings.serper_api_key is None
 
 
 def test_settings_from_environment():
@@ -35,7 +34,6 @@ def test_settings_from_environment():
         "ALGORITHM": "HS512",
         "ACCESS_TOKEN_EXPIRE_MINUTES": "60",
         "LLM_API_KEY": "test-llm-key",
-        "SERPER_API_KEY": "test-serper-key",
     }
 
     with patch.dict(os.environ, env_vars):
@@ -54,7 +52,6 @@ def test_settings_from_environment():
 
         # Test API keys
         assert settings.llm_api_key == "test-llm-key"
-        assert settings.serper_api_key == "test-serper-key"
 
 
 def test_settings_invalid_database_url():

@@ -23,8 +23,6 @@ class Settings(BaseSettings):
         access_token_expire_minutes (int): Duration in minutes for which access tokens remain valid.
         llm_api_key (str | None): API key for accessing LLM services.
             Optional; used when LLM functionality is needed.
-        serper_api_key (str | None): API key for accessing Serper search service.
-            Optional; used for search functionality.
 
     """
 
@@ -54,10 +52,6 @@ class Settings(BaseSettings):
 
     # API keys
     llm_api_key: str | None = Field(default=None, validation_alias="LLM_API_KEY")
-    serper_api_key: str | None = Field(
-        default=None,
-        validation_alias="SERPER_API_KEY",
-    )
 
 
 def get_settings() -> Settings:
