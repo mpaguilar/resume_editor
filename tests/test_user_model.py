@@ -53,7 +53,9 @@ class TestUserModel:
         """Test User validation with empty username."""
         with pytest.raises(ValueError, match="Username cannot be empty"):
             User(
-                username="", email="test@example.com", hashed_password="hashed_password",
+                username="",
+                email="test@example.com",
+                hashed_password="hashed_password",
             )
 
     def test_user_validation_email_empty(self):

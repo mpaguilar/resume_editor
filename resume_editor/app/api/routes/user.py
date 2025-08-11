@@ -158,7 +158,8 @@ def register_user(user: UserCreate, db: Session = Depends(get_db)) -> UserRespon
         _msg = f"Email {user.email} already registered"
         log.debug(_msg)
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="Email already registered",
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Email already registered",
         )
 
     # Create user
@@ -212,7 +213,8 @@ def login_user(
     log.debug(_msg)
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
-        data={"sub": user.username}, expires_delta=access_token_expires,
+        data={"sub": user.username},
+        expires_delta=access_token_expires,
     )
 
     _msg = f"Returning access token for user: {form_data.username}"

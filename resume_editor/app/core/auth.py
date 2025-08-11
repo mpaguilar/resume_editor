@@ -35,6 +35,8 @@ def get_current_user(
         6. If the user is not found in the database, raise the credentials exception.
         7. Return the User object if all authentication checks pass.
 
+    Database Access:
+        - Queries the User table to retrieve a user record by username.
     """
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,

@@ -1,5 +1,5 @@
 import logging
-from datetime import datetime, timedelta, timezone, UTC
+from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING, Optional
 
 import bcrypt
@@ -28,7 +28,6 @@ class SecurityManager:
         access_token_expire_minutes (int): Duration in minutes for access token expiration.
         secret_key (str): Secret key used for signing JWT tokens.
         algorithm (str): Algorithm used for JWT encoding.
-
     """
 
     def __init__(self):
@@ -52,12 +51,12 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     Notes:
         1. Use bcrypt to verify the password.
         2. No database or network access in this function.
-
     """
     _msg = "Verifying password"
     log.debug(_msg)
     return bcrypt.checkpw(
-        plain_password.encode("utf-8"), hashed_password.encode("utf-8"),
+        plain_password.encode("utf-8"),
+        hashed_password.encode("utf-8"),
     )
 
 
@@ -73,7 +72,6 @@ def get_password_hash(password: str) -> str:
     Notes:
         1. Use bcrypt to hash the password.
         2. No database or network access in this function.
-
     """
     _msg = "Hashing password"
     log.debug(_msg)
@@ -97,7 +95,6 @@ def authenticate_user(db: Session, username: str, password: str) -> Optional["Us
         1. Query the database for a user with the given username.
         2. If user exists and password is correct, return the user.
         3. Otherwise, return None.
-
     """
     _msg = f"Authenticating user: {username}"
     log.debug(_msg)
@@ -127,7 +124,6 @@ def create_access_token(data: dict, expires_delta: timedelta | None = None) -> s
         2. Set expiration time based on expires_delta or default.
         3. Encode the data with the secret key and algorithm.
         4. No database or network access in this function.
-
     """
     _msg = "Creating access token"
     log.debug(_msg)
@@ -141,6 +137,8 @@ def create_access_token(data: dict, expires_delta: timedelta | None = None) -> s
         )
     to_encode.update({"exp": expire})
     encoded_jwt = jwt.encode(
-        to_encode, settings.secret_key, algorithm=settings.algorithm,
+        to_encode,
+        settings.secret_key,
+        algorithm=settings.algorithm,
     )
     return encoded_jwt

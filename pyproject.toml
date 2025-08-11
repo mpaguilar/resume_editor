@@ -28,7 +28,7 @@ dev = [
 ]
 
 [tool.uv.sources]
-resume-writer = { path = "../resume_writer", editable = true }
+resume-writer = { path = "../resume_writer" }
 
 [tool.pytest.ini_options]
 pythonpath = [".", "./resume_editor", "./tests"]

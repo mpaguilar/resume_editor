@@ -79,7 +79,10 @@ class TestUserRoutes:
     @patch("resume_editor.app.api.routes.user.get_user_by_username")
     @patch("resume_editor.app.api.routes.user.get_db")
     def test_register_user_duplicate_username(
-        self, mock_get_db, mock_get_user_by_username, client,
+        self,
+        mock_get_db,
+        mock_get_user_by_username,
+        client,
     ):
         """Test user registration with duplicate username."""
         # Setup mocks
@@ -109,7 +112,11 @@ class TestUserRoutes:
     @patch("resume_editor.app.api.routes.user.create_access_token")
     @patch("resume_editor.app.api.routes.user.get_db")
     def test_login_user(
-        self, mock_get_db, mock_create_access_token, mock_authenticate_user, client,
+        self,
+        mock_get_db,
+        mock_create_access_token,
+        mock_authenticate_user,
+        client,
     ):
         """Test user login."""
         # Setup mocks
@@ -137,7 +144,10 @@ class TestUserRoutes:
     @patch("resume_editor.app.api.routes.user.authenticate_user")
     @patch("resume_editor.app.api.routes.user.get_db")
     def test_login_user_invalid_credentials(
-        self, mock_get_db, mock_authenticate_user, client,
+        self,
+        mock_get_db,
+        mock_authenticate_user,
+        client,
     ):
         """Test user login with invalid credentials."""
         # Setup mocks

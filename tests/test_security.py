@@ -70,7 +70,8 @@ class TestSecurity:
         result = verify_password("plain", "hashed")
 
         mock_bcrypt.checkpw.assert_called_once_with(
-            b"plain", b"hashed",
+            b"plain",
+            b"hashed",
         )
         assert result is True
 
@@ -84,7 +85,8 @@ class TestSecurity:
 
         mock_bcrypt.gensalt.assert_called_once()
         mock_bcrypt.hashpw.assert_called_once_with(
-            b"plain_password", b"salt",
+            b"plain_password",
+            b"salt",
         )
         assert result == "hashed_password"
 

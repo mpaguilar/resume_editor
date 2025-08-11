@@ -2,15 +2,12 @@
 
 It defines the main entry points and configurations for the core functionality.
 
-Classes:
-    - None
-
-Functions:
+Attributes:
     - None
 
 Notes:
-    - This file is intentionally empty as it is used to initialize the package.
-    - The core functionality is organized in submodules within the core directory.
-    - This file does not perform any operations and is used solely for package initialization.
+    1. This file is intentionally empty as it is used to initialize the package.
+    2. The core functionality is organized in submodules within the core directory.
+    3. This file does not perform any operations and is used solely for package initialization.
 
 """

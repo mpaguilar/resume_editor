@@ -11,7 +11,11 @@
     "functions": [
       [
         "create_app() -> FastAPI",
-        "Create and configure the FastAPI application.\n\nArgs:\n    None\n\nReturns:\n    FastAPI: The configured FastAPI application instance.\n\nNotes:\n    1. Initialize the FastAPI application with the title \"Resume Editor API\".\n    2. Create the database tables by calling Base.metadata.create_all with the database engine.\n    3. Add CORS middleware to allow requests from any origin (for development only).\n    4. Include the user router to handle user-related API endpoints.\n    5. Define a health check endpoint at \"/health\" that returns a JSON object with status \"ok\".\n    6. Log a success message indicating the application was created."
+        "Create and configure the FastAPI application.\n\nArgs:\n    None\n\nReturns:\n    FastAPI: The configured FastAPI application instance.\n\nNotes:\n    1. Initialize the FastAPI application with the title \"Resume Editor API\".\n    2. Create the database tables by calling Base.metadata.create_all with the database engine.\n    3. Add CORS middleware to allow requests from any origin (for development only).\n    4. Include the user router to handle user-related API endpoints.\n    5. Include the resume router to handle resume-related API endpoints.\n    6. Define a health check endpoint at \"/health\" that returns a JSON object with status \"ok\".\n    7. Log a success message indicating the application was created."
+      ],
+      [
+        "initialize_database() -> UnknownType",
+        "Initialize the database tables.\n\nArgs:\n    None\n\nReturns:\n    None\n\nNotes:\n    1. Create database tables by calling Base.metadata.create_all with the database engine.\n    2. This function should be called after the app is created but before it starts serving requests.\n    3. Database access is performed via the engine returned by get_engine()."
       ]
     ],
     "classes": {}
@@ -19,7 +23,23 @@
   "./resume_editor/app/api/__init__.py": {
     "filepath": "./resume_editor/app/api/__init__.py",
     "filename": "__init__.py",
-    "functions": [],
+    "functions": [
+      [
+        "get_app() -> FastAPI",
+        "Creates and configures the FastAPI application instance.\n\nThis function initializes a FastAPI app with the following features:\n- Includes the authentication and resume management routes.\n- Configures middleware for logging and error handling.\n- Sets up CORS to allow frontend access from different origins.\n\nArgs:\n    None.\n\nReturns:\n    FastAPI: A configured FastAPI application instance.\n\nNotes:\n    1. The application is initialized with a title, version, and description.\n    2. Routes are included from the main application setup.\n    3. CORS is enabled with allow_origins set to allow requests from 'http://localhost:3000'.\n    4. The middleware stack includes logging and exception handling.\n    5. The database session is provided via dependency injection through the 'get_db' function.\n    6. The function performs no disk or network I/O.\n    7. The function does not perform any database access."
+      ]
+    ],
+    "classes": {}
+  },
+  "./resume_editor/app/api/routes/resume.py": {
+    "filepath": "./resume_editor/app/api/routes/resume.py",
+    "filename": "resume.py",
+    "functions": [
+      [
+        "get_current_user() -> UnknownType",
+        "Placeholder for current user dependency.\n\nIn a real implementation, this would verify the user's authentication token\nand return the current user object.\n\nReturns:\n    User: The current authenticated user."
+      ]
+    ],
     "classes": {}
   },
   "./resume_editor/app/api/routes/user.py": {
@@ -67,7 +87,7 @@
     "functions": [
       [
         "get_settings() -> Settings",
-        "Get the global settings instance.\n\nThis function returns a singleton instance of the Settings class,\nwhich contains all application configuration values.\n\nArgs:\n    None: This function does not take any arguments.\n\nReturns:\n    Settings: The global settings instance, containing all configuration values.\n        The instance is created by loading environment variables and applying defaults.\n\nNotes:\n    1. The function reads configuration from environment variables using the .env file.\n    2. If environment variables are not set, default values are used.\n    3. The Settings class uses Pydantic's validation and configuration features to ensure correct values.\n    4. The function returns a cached instance to avoid repeated parsing of the .env file.\n    5. This function does not perform any disk or network access beyond reading the .env file at startup."
+        "Get the global settings instance.\n\nThis function returns a singleton instance of the Settings class,\nwhich contains all application configuration values.\n\nArgs:\n    None: This function does not take any arguments.\n\nReturns:\n    Settings: The global settings instance, containing all configuration values.\n        The instance is created by loading environment variables and applying defaults.\n\nNotes:\n    1. The function reads configuration from environment variables using the .env file.\n    2. If environment variables are not set, default values are used.\n    3. The Settings class uses Pydantic's validation and configuration features to ensure correct values.\n    4. The function returns a cached instance to avoid repeated parsing of the .env file.\n    5. This function performs disk access to read the .env file at startup."
       ]
     ],
     "classes": {}
@@ -89,7 +109,7 @@
         "Authenticate a user by username and password.\n\nArgs:\n    db (Session): Database session used to query for user records.\n    username (str): Username to authenticate.\n    password (str): Password to verify.\n\nReturns:\n    Optional[User]: The authenticated user if successful, None otherwise.\n\nNotes:\n    1. Query the database for a user with the given username.\n    2. If user exists and password is correct, return the user.\n    3. Otherwise, return None."
       ],
       [
-        "create_access_token(data: dict, expires_delta: Optional[timedelta]) -> str",
+        "create_access_token(data: dict, expires_delta: timedelta | None) -> str",
         "Create a JWT access token.\n\nArgs:\n    data (dict): Data to encode in the token (e.g., user ID, role).\n    expires_delta (Optional[timedelta]): Custom expiration time for the token. If None, uses default.\n\nReturns:\n    str: The encoded JWT token as a string.\n\nNotes:\n    1. Copy the data to avoid modifying the original.\n    2. Set expiration time based on expires_delta or default.\n    3. Encode the data with the secret key and algorithm.\n    4. No database or network access in this function."
       ]
     ],
@@ -111,7 +131,7 @@
     "functions": [
       [
         "get_current_user(db: Session, token: str) -> User",
-        "Retrieve the authenticated user from the provided JWT token.\n\nArgs:\n    db: Database session dependency used to query the database for the user.\n    token: JWT token extracted from the request header, used to authenticate the user.\n\nReturns:\n    User: The authenticated User object corresponding to the token's subject (username).\n\nNotes:\n    1. Initialize an HTTP 401 exception with a generic error message and \"Bearer\" authentication header.\n    2. Decode the JWT token using the secret key and algorithm to extract the subject (username).\n    3. If the subject (username) is missing from the token payload, raise the credentials exception.\n    4. If the JWT token is invalid or malformed, catch the JWTError and raise the credentials exception.\n    5. Query the database using the retrieved username to find the corresponding User record.\n    6. If the user is not found in the database, raise the credentials exception.\n    7. Return the User object if all authentication checks pass."
+        "Retrieve the authenticated user from the provided JWT token.\n\nArgs:\n    db: Database session dependency used to query the database for the user.\n    token: JWT token extracted from the request header, used to authenticate the user.\n\nReturns:\n    User: The authenticated User object corresponding to the token's subject (username).\n\nNotes:\n    1. Initialize an HTTP 401 exception with a generic error message and \"Bearer\" authentication header.\n    2. Decode the JWT token using the secret key and algorithm to extract the subject (username).\n    3. If the subject (username) is missing from the token payload, raise the credentials exception.\n    4. If the JWT token is invalid or malformed, catch the JWTError and raise the credentials exception.\n    5. Query the database using the retrieved username to find the corresponding User record.\n    6. If the user is not found in the database, raise the credentials exception.\n    7. Return the User object if all authentication checks pass.\n\nDatabase Access:\n    - Queries the User table to retrieve a user record by username."
       ]
     ],
     "classes": {}
@@ -128,11 +148,11 @@
     "functions": [
       [
         "get_engine() -> UnknownType",
-        "Get or create the database engine.\n\nArgs:\n    None\n    \nReturns:\n    Engine: The SQLAlchemy engine instance used to connect to the database.\n    \nNotes:\n    1. Create the engine only when first accessed to avoid premature connection.\n    2. Reuse the same engine instance on subsequent calls to ensure consistency.\n    3. Network access occurs when creating the engine, using the database URL from settings."
+        "Get or create the database engine.\n\nArgs:\n    None\n\nReturns:\n    Engine: The SQLAlchemy engine instance used to connect to the database.\n\nNotes:\n    1. Create the engine only when first accessed to avoid premature connection.\n    2. Reuse the same engine instance on subsequent calls to ensure consistency.\n    3. Network access occurs when creating the engine, using the database URL from settings."
       ],
       [
         "get_session_local() -> UnknownType",
-        "Get or create the session local factory.\n\nArgs:\n    None\n    \nReturns:\n    sessionmaker: The SQLAlchemy sessionmaker instance used to create database sessions.\n    \nNotes:\n    1. Create the sessionmaker only when first accessed to avoid premature configuration.\n    2. Reuse the same sessionmaker instance on subsequent calls to ensure consistent session behavior.\n    3. No network access in this function itself; it uses the previously created engine."
+        "Get or create the session local factory.\n\nArgs:\n    None\n\nReturns:\n    sessionmaker: The SQLAlchemy sessionmaker instance used to create database sessions.\n\nNotes:\n    1. Create the sessionmaker only when first accessed to avoid premature configuration.\n    2. Reuse the same sessionmaker instance on subsequent calls to ensure consistent session behavior.\n    3. No network access in this function itself; it uses the previously created engine."
       ],
       [
         "get_db() -> Generator[Session, None, None]",
@@ -157,23 +177,413 @@
         [
           [
             "__init__(self: UnknownType, username: str, email: str, hashed_password: str, is_active: bool) -> UnknownType",
-            "Initialize a User instance.\n\nArgs:\n    username (str): Unique username for the user. Must be a non-empty string.\n    email (str): Unique email address for the user. Must be a non-empty string.\n    hashed_password (str): Hashed password for the user. Must be a non-empty string.\n    is_active (bool): Whether the user account is active. Must be a boolean.\n\nReturns:\n    None\n\nNotes:\n    1. Validate that username is a non-empty string.\n    2. Validate that email is a non-empty string.\n    3. Validate that hashed_password is a non-empty string.\n    4. Validate that is_active is a boolean.\n    5. Assign all values to instance attributes.\n    6. Log the initialization of the user with their username."
+            "Initialize a User instance.\n\nArgs:\n    username (str): Unique username for the user. Must be a non-empty string.\n    email (str): Unique email address for the user. Must be a non-empty string.\n    hashed_password (str): Hashed password for the user. Must be a non-empty string.\n    is_active (bool): Whether the user account is active. Must be a boolean.\n\nReturns:\n    None\n\nNotes:\n    1. Validate that username is a non-empty string.\n    2. Validate that email is a non-empty string.\n    3. Validate that hashed_password is a non-empty string.\n    4. Validate that is_active is a boolean.\n    5. Assign all values to instance attributes.\n    6. Log the initialization of the user with their username.\n    7. This operation does not involve network, disk, or database access."
           ],
           [
             "validate_username(self: UnknownType, key: UnknownType, username: UnknownType) -> UnknownType",
-            "Validate the username field.\n\nArgs:\n    key (str): The field name being validated (should be 'username').\n    username (str): The username value to validate. Must be a non-empty string.\n\nReturns:\n    str: The validated username (stripped of leading/trailing whitespace).\n\nNotes:\n    1. Ensure username is a string.\n    2. Ensure username is not empty after stripping whitespace."
+            "Validate the username field.\n\nArgs:\n    key (str): The field name being validated (should be 'username').\n    username (str): The username value to validate. Must be a non-empty string.\n\nReturns:\n    str: The validated username (stripped of leading/trailing whitespace).\n\nNotes:\n    1. Ensure username is a string.\n    2. Ensure username is not empty after stripping whitespace.\n    3. This operation does not involve network, disk, or database access."
           ],
           [
             "validate_email(self: UnknownType, key: UnknownType, email: UnknownType) -> UnknownType",
-            "Validate the email field.\n\nArgs:\n    key (str): The field name being validated (should be 'email').\n    email (str): The email value to validate. Must be a non-empty string.\n\nReturns:\n    str: The validated email (stripped of leading/trailing whitespace).\n\nNotes:\n    1. Ensure email is a string.\n    2. Ensure email is not empty after stripping whitespace."
+            "Validate the email field.\n\nArgs:\n    key (str): The field name being validated (should be 'email').\n    email (str): The email value to validate. Must be a non-empty string.\n\nReturns:\n    str: The validated email (stripped of leading/trailing whitespace).\n\nNotes:\n    1. Ensure email is a string.\n    2. Ensure email is not empty after stripping whitespace.\n    3. This operation does not involve network, disk, or database access."
           ],
           [
             "validate_hashed_password(self: UnknownType, key: UnknownType, hashed_password: UnknownType) -> UnknownType",
-            "Validate the hashed_password field.\n\nArgs:\n    key (str): The field name being validated (should be 'hashed_password').\n    hashed_password (str): The hashed password value to validate. Must be a non-empty string.\n\nReturns:\n    str: The validated hashed password (stripped of leading/trailing whitespace).\n\nNotes:\n    1. Ensure hashed_password is a string.\n    2. Ensure hashed_password is not empty after stripping whitespace."
+            "Validate the hashed_password field.\n\nArgs:\n    key (str): The field name being validated (should be 'hashed_password').\n    hashed_password (str): The hashed password value to validate. Must be a non-empty string.\n\nReturns:\n    str: The validated hashed password (stripped of leading/trailing whitespace).\n\nNotes:\n    1. Ensure hashed_password is a string.\n    2. Ensure hashed_password is not empty after stripping whitespace.\n    3. This operation does not involve network, disk, or database access."
           ],
           [
             "validate_is_active(self: UnknownType, key: UnknownType, is_active: UnknownType) -> UnknownType",
-            "Validate the is_active field.\n\nArgs:\n    key (str): The field name being validated (should be 'is_active').\n    is_active (bool): The is_active value to validate. Must be a boolean.\n\nReturns:\n    bool: The validated is_active value.\n\nNotes:\n    1. Ensure is_active is a boolean."
+            "Validate the is_active field.\n\nArgs:\n    key (str): The field name being validated (should be 'is_active').\n    is_active (bool): The is_active value to validate. Must be a boolean.\n\nReturns:\n    bool: The validated is_active value.\n\nNotes:\n    1. Ensure is_active is a boolean.\n    2. This operation does not involve network, disk, or database access."
+          ]
+        ]
+      ]
+    }
+  },
+  "./resume_editor/app/models/resume_model.py": {
+    "filepath": "./resume_editor/app/models/resume_model.py",
+    "filename": "resume_model.py",
+    "functions": [],
+    "classes": {
+      "Resume": [
+        "Resume model for storing user resumes.\n\nAttributes:\n    id (int): Unique identifier for the resume.\n    user_id (int): Foreign key to User model.\n    name (str): User-assigned descriptive name for the resume.\n    content (str): The Markdown text content of the resume.\n    created_at (datetime): Timestamp when the resume was created.\n    updated_at (datetime): Timestamp when the resume was last updated.\n    is_active (bool): Whether the resume is active.",
+        [
+          [
+            "__init__(self: UnknownType, user_id: int, name: str, content: str, is_active: bool) -> UnknownType",
+            "Initialize a Resume instance.\n\nArgs:\n    user_id (int): Foreign key to User model, identifying the user who owns the resume.\n    name (str): User-assigned descriptive name for the resume, must be non-empty.\n    content (str): The Markdown text content of the resume, must be non-empty.\n    is_active (bool): Whether the resume is currently active, defaults to True.\n\nReturns:\n    None\n\nNotes:\n    1. Validate that user_id is an integer.\n    2. Validate that name is a non-empty string.\n    3. Validate that content is a non-empty string.\n    4. Validate that is_active is a boolean.\n    5. Assign all values to instance attributes.\n    6. Log the initialization of the resume with its name.\n    7. This function performs no database access."
+          ]
+        ]
+      ]
+    }
+  },
+  "./resume_editor/app/models/resume/resume.py": {
+    "filepath": "./resume_editor/app/models/resume/resume.py",
+    "filename": "resume.py",
+    "functions": [],
+    "classes": {}
+  },
+  "./resume_editor/app/models/resume/education.py": {
+    "filepath": "./resume_editor/app/models/resume/education.py",
+    "filename": "education.py",
+    "functions": [],
+    "classes": {
+      "Degree": [
+        "Represents details of a specific academic degree earned.\n\nAttributes:\n    school (str): The name of the educational institution.\n    degree (str | None): The type of degree (e.g., Bachelor, Master).\n    start_date (datetime | None): The start date of the program.\n    end_date (datetime | None): The end date of the program.\n    major (str | None): The major field of study.\n    gpa (str | None): The grade point average.",
+        [
+          [
+            "validate_school(cls: UnknownType, v: UnknownType) -> UnknownType",
+            "Validate the school field.\n\nArgs:\n    v: The school value to validate. Must be a non-empty string.\n\nReturns:\n    str: The validated school (stripped of leading/trailing whitespace).\n\nNotes:\n    1. Ensure school is a string.\n    2. Ensure school is not empty after stripping whitespace."
+          ],
+          [
+            "validate_degree(cls: UnknownType, v: UnknownType) -> UnknownType",
+            "Validate the degree field.\n\nArgs:\n    v: The degree value to validate. Must be a non-empty string or None.\n\nReturns:\n    str: The validated degree (stripped of leading/trailing whitespace).\n\nNotes:\n    1. Ensure degree is a string or None.\n    2. Ensure degree is not empty after stripping whitespace."
+          ],
+          [
+            "validate_major(cls: UnknownType, v: UnknownType) -> UnknownType",
+            "Validate the major field.\n\nArgs:\n    v: The major value to validate. Must be a non-empty string or None.\n\nReturns:\n    str: The validated major (stripped of leading/trailing whitespace).\n\nNotes:\n    1. Ensure major is a string or None.\n    2. Ensure major is not empty after stripping whitespace."
+          ],
+          [
+            "validate_gpa(cls: UnknownType, v: UnknownType) -> UnknownType",
+            "Validate the gpa field.\n\nArgs:\n    v: The gpa value to validate. Must be a non-empty string or None.\n\nReturns:\n    str: The validated gpa (stripped of leading/trailing whitespace).\n\nNotes:\n    1. Ensure gpa is a string or None.\n    2. Ensure gpa is not empty after stripping whitespace."
+          ],
+          [
+            "validate_dates(cls: UnknownType, v: UnknownType) -> UnknownType",
+            "Validate the date fields.\n\nArgs:\n    v: The date value to validate. Must be a datetime object or None.\n\nReturns:\n    datetime: The validated date.\n\nNotes:\n    1. Ensure date is a datetime object or None."
+          ],
+          [
+            "validate_end_date(cls: UnknownType, v: UnknownType, info: UnknownType) -> UnknownType",
+            "Validate that start_date is not after end_date.\n\nArgs:\n    v: The date value to validate.\n    info: Validation info containing data.\n\nReturns:\n    datetime: The validated date.\n\nNotes:\n    1. If both start_date and end_date are provided, ensure start_date is not after end_date."
+          ]
+        ]
+      ],
+      "Degrees": [
+        "Represents a collection of academic degrees earned.\n\nAttributes:\n    degrees (list[Degree]): A list of Degree objects representing educational achievements.",
+        [
+          [
+            "validate_degrees(cls: UnknownType, v: UnknownType) -> UnknownType",
+            "Validate the degrees field.\n\nArgs:\n    v: The degrees value to validate. Must be a list of Degree objects.\n\nReturns:\n    list[Degree]: The validated degrees list.\n\nNotes:\n    1. Ensure degrees is a list.\n    2. Ensure all items in degrees are instances of Degree."
+          ],
+          [
+            "__iter__(self: UnknownType) -> UnknownType",
+            "Iterate over the degrees.\n\nReturns:\n    Iterator over the degrees list."
+          ],
+          [
+            "__len__(self: UnknownType) -> UnknownType",
+            "Return the number of degrees.\n\nReturns:\n    int: The number of degrees in the list."
+          ],
+          [
+            "__getitem__(self: UnknownType, index: UnknownType) -> UnknownType",
+            "Return the degree at the given index.\n\nArgs:\n    index: The index of the degree to retrieve.\n\nReturns:\n    The Degree object at the specified index."
+          ]
+        ]
+      ]
+    }
+  },
+  "./resume_editor/app/models/resume/certifications.py": {
+    "filepath": "./resume_editor/app/models/resume/certifications.py",
+    "filename": "certifications.py",
+    "functions": [],
+    "classes": {
+      "Certification": [
+        "Represents a professional certification.\n\nAttributes:\n    name (str): The name of the certification.\n    issuer (str | None): The organization that issued the certification.\n    issued (datetime | None): The date the certification was issued.\n    expires (datetime | None): The date the certification expires.\n    certification_id (str | None): An identifier for the certification.",
+        [
+          [
+            "validate_name(cls: UnknownType, v: UnknownType) -> UnknownType",
+            "Validate the name field.\n\nArgs:\n    v: The name value to validate. Must be a non-empty string.\n\nReturns:\n    str: The validated name.\n\nNotes:\n    1. Ensure name is a string.\n    2. Ensure name is not empty."
+          ],
+          [
+            "validate_optional_strings(cls: UnknownType, v: UnknownType) -> UnknownType",
+            "Validate optional string fields.\n\nArgs:\n    v: The field value to validate. Must be a string or None.\n\nReturns:\n    str: The validated field value.\n\nNotes:\n    1. Ensure field is a string or None."
+          ],
+          [
+            "validate_dates(cls: UnknownType, v: UnknownType) -> UnknownType",
+            "Validate the date fields.\n\nArgs:\n    v: The date value to validate. Must be a datetime object or None.\n\nReturns:\n    datetime: The validated date.\n\nNotes:\n    1. Ensure date is a datetime object or None."
+          ],
+          [
+            "validate_date_order(cls: UnknownType, v: UnknownType, info: UnknownType) -> UnknownType",
+            "Validate that issued date is not after expires date.\n\nArgs:\n    v: The expires date value to validate.\n    info: Validation info containing data.\n\nReturns:\n    datetime: The validated expires date.\n\nNotes:\n    1. If both issued and expires dates are provided, ensure issued is not after expires."
+          ]
+        ]
+      ],
+      "Certifications": [
+        "Represents a collection of professional certifications.\n\nAttributes:\n    certifications (list[Certification]): A list of Certification objects.",
+        [
+          [
+            "validate_certifications(cls: UnknownType, v: UnknownType) -> UnknownType",
+            "Validate the certifications field.\n\nArgs:\n    v: The certifications value to validate. Must be a list of Certification objects.\n\nReturns:\n    list[Certification]: The validated certifications list.\n\nNotes:\n    1. Ensure certifications is a list.\n    2. Ensure all items in certifications are instances of Certification."
+          ],
+          [
+            "__iter__(self: UnknownType) -> UnknownType",
+            "Iterate over the certifications.\n\nReturns:\n    An iterator over the list of certification objects.\n\nNotes:\n    1. Return an iterator over the certifications list."
+          ],
+          [
+            "__len__(self: UnknownType) -> UnknownType",
+            "Return the number of certifications.\n\nReturns:\n    The integer count of certifications in the list.\n\nNotes:\n    1. Return the length of the certifications list."
+          ],
+          [
+            "__getitem__(self: UnknownType, index: UnknownType) -> UnknownType",
+            "Return the certification at the given index.\n\nArgs:\n    index: The index of the certification to retrieve.\n\nReturns:\n    The Certification object at the specified index.\n\nNotes:\n    1. Retrieve and return the certification at the given index."
+          ],
+          [
+            "list_class(self: UnknownType) -> UnknownType",
+            "Return the type that will be contained in the list.\n\nReturns:\n    The Certification class.\n\nNotes:\n    1. Return the Certification class."
+          ]
+        ]
+      ]
+    }
+  },
+  "./resume_editor/app/models/resume/personal.py": {
+    "filepath": "./resume_editor/app/models/resume/personal.py",
+    "filename": "personal.py",
+    "functions": [],
+    "classes": {
+      "ContactInfo": [
+        "Holds personal contact details such as name, email, phone, and location.\n\nAttributes:\n    name (str): The full name of the person.\n    email (str | None): The email address of the person, or None if not provided.\n    phone (str | None): The phone number of the person, or None if not provided.\n    location (str | None): The physical location (e.g., city and country) of the person, or None if not provided.",
+        [
+          [
+            "validate_name(cls: UnknownType, v: UnknownType) -> UnknownType",
+            "Validate the name field.\n\nArgs:\n    v: The name value to validate. Must be a non-empty string.\n\nReturns:\n    str: The validated name (stripped of leading/trailing whitespace).\n\nNotes:\n    1. Ensure name is a string.\n    2. Ensure name is not empty after stripping whitespace."
+          ],
+          [
+            "validate_email(cls: UnknownType, v: UnknownType) -> UnknownType",
+            "Validate the email field.\n\nArgs:\n    v: The email value to validate. Must be a non-empty string or None.\n\nReturns:\n    str: The validated email (stripped of leading/trailing whitespace).\n\nNotes:\n    1. Ensure email is a string or None.\n    2. Ensure email is not empty after stripping whitespace."
+          ],
+          [
+            "validate_phone(cls: UnknownType, v: UnknownType) -> UnknownType",
+            "Validate the phone field.\n\nArgs:\n    v: The phone value to validate. Must be a non-empty string or None.\n\nReturns:\n    str: The validated phone (stripped of leading/trailing whitespace).\n\nNotes:\n    1. Ensure phone is a string or None.\n    2. Ensure phone is not empty after stripping whitespace."
+          ],
+          [
+            "validate_location(cls: UnknownType, v: UnknownType) -> UnknownType",
+            "Validate the location field.\n\nArgs:\n    v: The location value to validate. Must be a non-empty string or None.\n\nReturns:\n    str: The validated location (stripped of leading/trailing whitespace).\n\nNotes:\n    1. Ensure location is a string or None.\n    2. Ensure location is not empty after stripping whitespace."
+          ]
+        ]
+      ],
+      "Websites": [
+        "Holds personal website and social media links.\n\nAttributes:\n    website (str | None): The personal website URL, or None if not provided.\n    github (str | None): The GitHub profile URL, or None if not provided.\n    linkedin (str | None): The LinkedIn profile URL, or None if not provided.\n    twitter (str | None): The Twitter profile URL, or None if not provided.",
+        [
+          [
+            "validate_website(cls: UnknownType, v: UnknownType) -> UnknownType",
+            "Validate the website field.\n\nArgs:\n    v: The website value to validate. Must be a non-empty string or None.\n\nReturns:\n    str: The validated website (stripped of leading/trailing whitespace).\n\nNotes:\n    1. Ensure website is a string or None.\n    2. Ensure website is not empty after stripping whitespace."
+          ],
+          [
+            "validate_github(cls: UnknownType, v: UnknownType) -> UnknownType",
+            "Validate the github field.\n\nArgs:\n    v: The github value to validate. Must be a non-empty string or None.\n\nReturns:\n    str: The validated github (stripped of leading/trailing whitespace).\n\nNotes:\n    1. Ensure github is a string or None.\n    2. Ensure github is not empty after stripping whitespace."
+          ],
+          [
+            "validate_linkedin(cls: UnknownType, v: UnknownType) -> UnknownType",
+            "Validate the linkedin field.\n\nArgs:\n    v: The linkedin value to validate. Must be a non-empty string or None.\n\nReturns:\n    str: The validated linkedin (stripped of leading/trailing whitespace).\n\nNotes:\n    1. Ensure linkedin is a string or None.\n    2. Ensure linkedin is not empty after stripping whitespace."
+          ],
+          [
+            "validate_twitter(cls: UnknownType, v: UnknownType) -> UnknownType",
+            "Validate the twitter field.\n\nArgs:\n    v: The twitter value to validate. Must be a non-empty string or None.\n\nReturns:\n    str: The validated twitter (stripped of leading/trailing whitespace).\n\nNotes:\n    1. Ensure twitter is a string or None.\n    2. Ensure twitter is not empty after stripping whitespace."
+          ]
+        ]
+      ],
+      "VisaStatus": [
+        "Holds information about work authorization and sponsorship requirements.\n\nAttributes:\n    work_authorization (str | None): The current work authorization status (e.g., \"US Citizen\", \"H-1B\"), or None if not provided.\n    require_sponsorship (bool | None): A boolean indicating if sponsorship is required, or None if not provided.",
+        [
+          [
+            "validate_work_authorization(cls: UnknownType, v: UnknownType) -> UnknownType",
+            "Validate the work_authorization field.\n\nArgs:\n    v: The work_authorization value to validate. Must be a non-empty string or None.\n\nReturns:\n    str: The validated work_authorization (stripped of leading/trailing whitespace).\n\nNotes:\n    1. Ensure work_authorization is a string or None.\n    2. Ensure work_authorization is not empty after stripping whitespace."
+          ],
+          [
+            "validate_require_sponsorship(cls: UnknownType, v: UnknownType) -> UnknownType",
+            "Validate the require_sponsorship field.\n\nArgs:\n    v: The require_sponsorship value to validate. Must be a boolean, string (\"yes\"/\"no\"), or None.\n\nReturns:\n    bool: The validated require_sponsorship value.\n\nNotes:\n    1. Ensure require_sponsorship is a boolean, string (\"yes\"/\"no\"), or None.\n    2. If require_sponsorship is a string, convert \"yes\" to True and \"no\" to False.\n    3. If require_sponsorship is not None and not a string, assign it directly.\n    4. Otherwise, set require_sponsorship to None."
+          ]
+        ]
+      ],
+      "Banner": [
+        "Holds a personal banner message with cleaned text content.\n\nAttributes:\n    text (str): The cleaned text content of the banner, with leading/trailing and internal blank lines removed.",
+        [
+          [
+            "validate_text(cls: UnknownType, v: UnknownType) -> UnknownType",
+            "Validate the text field and clean it.\n\nArgs:\n    v: The raw text content of the banner, potentially including leading/trailing or internal blank lines.\n\nReturns:\n    str: The cleaned text content of the banner.\n\nNotes:\n    1. Ensure text is a string.\n    2. Split the input text into lines.\n    3. Remove leading blank lines.\n    4. Remove trailing blank lines.\n    5. Filter out any lines that are blank after stripping whitespace.\n    6. Join the remaining lines back into a single string."
+          ]
+        ]
+      ],
+      "Note": [
+        "Holds a personal note with cleaned text content.\n\nAttributes:\n    text (str): The cleaned text content of the note, with leading/trailing and internal blank lines removed.",
+        [
+          [
+            "validate_text(cls: UnknownType, v: UnknownType) -> UnknownType",
+            "Validate the text field and clean it.\n\nArgs:\n    v: The raw text content of the note, potentially including leading/trailing or internal blank lines.\n\nReturns:\n    str: The cleaned text content of the note.\n\nNotes:\n    1. Ensure text is a string.\n    2. Split the input text into lines.\n    3. Remove leading blank lines.\n    4. Remove trailing blank lines.\n    5. Filter out any lines that are blank after stripping whitespace.\n    6. Join the remaining lines back into a single string."
+          ]
+        ]
+      ]
+    }
+  },
+  "./resume_editor/app/models/resume/__init__.py": {
+    "filepath": "./resume_editor/app/models/resume/__init__.py",
+    "filename": "__init__.py",
+    "functions": [],
+    "classes": {}
+  },
+  "./resume_editor/app/models/resume/experience.py": {
+    "filepath": "./resume_editor/app/models/resume/experience.py",
+    "filename": "experience.py",
+    "functions": [],
+    "classes": {
+      "RoleSummary": [
+        "Represents a brief description of a professional role.\n\nAttributes:\n    summary (str): The text content of the role summary.",
+        [
+          [
+            "validate_summary(cls: UnknownType, v: UnknownType) -> UnknownType",
+            "Validate the summary field.\n\nArgs:\n    v: The summary value to validate. Must be a string.\n\nReturns:\n    str: The validated summary.\n\nNotes:\n    1. Ensure summary is a string.\n    2. Raise a ValueError if summary is not a string."
+          ]
+        ]
+      ],
+      "RoleResponsibilities": [
+        "Represents detailed descriptions of role responsibilities.\n\nAttributes:\n    text (str): The text content of the responsibilities.",
+        [
+          [
+            "validate_text(cls: UnknownType, v: UnknownType) -> UnknownType",
+            "Validate the text field.\n\nArgs:\n    v: The text value to validate. Must be a string.\n\nReturns:\n    str: The validated text.\n\nNotes:\n    1. Ensure text is a string.\n    2. Raise a ValueError if text is not a string."
+          ]
+        ]
+      ],
+      "RoleSkills": [
+        "Represents skills used in a professional role.\n\nAttributes:\n    skills (List[str]): A list of non-empty, stripped skill strings.",
+        [
+          [
+            "validate_skills(cls: UnknownType, v: UnknownType) -> UnknownType",
+            "Validate the skills field.\n\nArgs:\n    v: The skills value to validate. Must be a list of strings.\n\nReturns:\n    list[str]: The validated and cleaned skills list.\n\nNotes:\n    1. Ensure skills is a list.\n    2. Ensure all items in skills are strings.\n    3. Strip whitespace from each skill and filter out empty strings.\n    4. Raise a ValueError if skills is not a list or if any skill is not a string.\n    5. Return the cleaned list of non-empty skills."
+          ],
+          [
+            "__iter__(self: UnknownType) -> UnknownType",
+            "Iterate over the skills.\n\nReturns:\n    Iterator over the skills list."
+          ],
+          [
+            "__len__(self: UnknownType) -> UnknownType",
+            "Return the number of skills.\n\nReturns:\n    int: The number of skills."
+          ],
+          [
+            "__getitem__(self: UnknownType, index: UnknownType) -> UnknownType",
+            "Return the skill at the given index.\n\nArgs:\n    index (int): The index of the skill to return.\n\nReturns:\n    str: The skill at the specified index."
+          ]
+        ]
+      ],
+      "RoleBasics": [
+        "Represents basic information about a professional role.\n\nAttributes:\n    company (str): The name of the company.\n    start_date (datetime): The start date of the role.\n    end_date (datetime | None): The end date of the role or None if still ongoing.\n    title (str): The job title.\n    reason_for_change (str | None): The reason for leaving the role or None.\n    location (str | None): The job location or None.\n    job_category (str | None): The category of the job or None.\n    employment_type (str | None): The employment type or None.\n    agency_name (str | None): The name of the agency or None.",
+        [
+          [
+            "validate_company(cls: UnknownType, v: UnknownType) -> UnknownType",
+            "Validate the company field.\n\nArgs:\n    v: The company value to validate. Must be a non-empty string.\n\nReturns:\n    str: The validated company.\n\nNotes:\n    1. Ensure company is a string.\n    2. Ensure company is not empty.\n    3. Strip whitespace from the company name.\n    4. Raise a ValueError if company is not a string or is empty."
+          ],
+          [
+            "validate_title(cls: UnknownType, v: UnknownType) -> UnknownType",
+            "Validate the title field.\n\nArgs:\n    v: The title value to validate. Must be a non-empty string.\n\nReturns:\n    str: The validated title.\n\nNotes:\n    1. Ensure title is a string.\n    2. Ensure title is not empty.\n    3. Strip whitespace from the title.\n    4. Raise a ValueError if title is not a string or is empty."
+          ],
+          [
+            "validate_start_date(cls: UnknownType, v: UnknownType) -> UnknownType",
+            "Validate the start_date field.\n\nArgs:\n    v: The start_date value to validate. Must be a datetime object.\n\nReturns:\n    datetime: The validated start_date.\n\nNotes:\n    1. Ensure start_date is a datetime object.\n    2. Raise a ValueError if start_date is not a datetime object."
+          ],
+          [
+            "validate_end_date(cls: UnknownType, v: UnknownType, info: UnknownType) -> UnknownType",
+            "Validate the end_date field.\n\nArgs:\n    v: The end_date value to validate. Must be a datetime object or None.\n    info: Validation info containing data.\n\nReturns:\n    datetime: The validated end_date.\n\nNotes:\n    1. Ensure end_date is a datetime object or None.\n    2. If end_date is provided, ensure it is not before start_date.\n    3. Raise a ValueError if end_date is not a datetime object or None, or if end_date is before start_date."
+          ],
+          [
+            "validate_optional_string_fields(cls: UnknownType, v: UnknownType) -> UnknownType",
+            "Validate optional string fields.\n\nArgs:\n    v: The field value to validate. Must be a string or None.\n\nReturns:\n    str: The validated field value.\n\nNotes:\n    1. Ensure field is a string or None.\n    2. Raise a ValueError if field is neither a string nor None."
+          ]
+        ]
+      ],
+      "Roles": [
+        "Represents a collection of professional roles.\n\nAttributes:\n    roles (List[Role]): A list of Role objects.",
+        [
+          [
+            "validate_roles(cls: UnknownType, v: UnknownType) -> UnknownType",
+            "Validate the roles field.\n\nArgs:\n    v: The roles value to validate. Must be a list of Role objects.\n\nReturns:\n    list[Role]: The validated roles list.\n\nNotes:\n    1. Ensure roles is a list.\n    2. Ensure all items in roles are Role objects.\n    3. Raise a ValueError if roles is not a list or if any item is not a Role object.\n    4. Return the validated list of roles."
+          ],
+          [
+            "__iter__(self: UnknownType) -> UnknownType",
+            "Iterate over the roles.\n\nReturns:\n    Iterator over the roles list."
+          ],
+          [
+            "__len__(self: UnknownType) -> UnknownType",
+            "Return the number of roles.\n\nReturns:\n    int: The number of roles."
+          ],
+          [
+            "__getitem__(self: UnknownType, index: UnknownType) -> UnknownType",
+            "Return the role at the given index.\n\nArgs:\n    index (int): The index of the role to return.\n\nReturns:\n    Role: The role at the specified index."
+          ],
+          [
+            "list_class(self: UnknownType) -> UnknownType",
+            "Return the class for the list.\n\nReturns:\n    The Role class."
+          ]
+        ]
+      ],
+      "ProjectSkills": [
+        "Represents skills used in a project.\n\nAttributes:\n    skills (List[str]): A list of non-empty, stripped skill strings.",
+        [
+          [
+            "validate_skills(cls: UnknownType, v: UnknownType) -> UnknownType",
+            "Validate the skills field.\n\nArgs:\n    v: The skills value to validate. Must be a list of strings.\n\nReturns:\n    list[str]: The validated and cleaned skills list.\n\nNotes:\n    1. Ensure skills is a list.\n    2. Ensure all items in skills are strings.\n    3. Strip whitespace from each skill and filter out empty strings.\n    4. Raise a ValueError if skills is not a list or if any skill is not a string.\n    5. Return the cleaned list of non-empty skills."
+          ],
+          [
+            "__iter__(self: UnknownType) -> UnknownType",
+            "Iterate over the skills.\n\nReturns:\n    Iterator over the skills list."
+          ],
+          [
+            "__len__(self: UnknownType) -> UnknownType",
+            "Return the number of skills.\n\nReturns:\n    int: The number of skills."
+          ],
+          [
+            "__getitem__(self: UnknownType, index: UnknownType) -> UnknownType",
+            "Return the skill at the given index.\n\nArgs:\n    index (int): The index of the skill to return.\n\nReturns:\n    str: The skill at the specified index."
+          ]
+        ]
+      ],
+      "ProjectOverview": [
+        "Represents basic details of a project.\n\nAttributes:\n    title (str): The title of the project.\n    url (str | None): The URL for the project or None.\n    url_description (str | None): A description of the URL or None.\n    start_date (datetime | None): The start date as a datetime object or None.\n    end_date (datetime | None): The end date as a datetime object or None.",
+        [
+          [
+            "validate_title(cls: UnknownType, v: UnknownType) -> UnknownType",
+            "Validate the title field.\n\nArgs:\n    v: The title value to validate. Must be a non-empty string.\n\nReturns:\n    str: The validated title.\n\nNotes:\n    1. Ensure title is a string.\n    2. Ensure title is not empty.\n    3. Strip whitespace from the title.\n    4. Raise a ValueError if title is not a string or is empty."
+          ],
+          [
+            "validate_optional_strings(cls: UnknownType, v: UnknownType) -> UnknownType",
+            "Validate optional string fields.\n\nArgs:\n    v: The field value to validate. Must be a string or None.\n\nReturns:\n    str: The validated field value.\n\nNotes:\n    1. Ensure field is a string or None.\n    2. Raise a ValueError if field is neither a string nor None."
+          ],
+          [
+            "validate_dates(cls: UnknownType, v: UnknownType) -> UnknownType",
+            "Validate the date fields.\n\nArgs:\n    v: The date value to validate. Must be a datetime object or None.\n\nReturns:\n    datetime: The validated date.\n\nNotes:\n    1. Ensure date is a datetime object or None.\n    2. Raise a ValueError if date is not a datetime object or None."
+          ],
+          [
+            "validate_date_order(cls: UnknownType, v: UnknownType, info: UnknownType) -> UnknownType",
+            "Validate that start_date is not after end_date.\n\nArgs:\n    v: The end_date value to validate.\n    info: Validation info containing data.\n\nReturns:\n    datetime: The validated end_date.\n\nNotes:\n    1. If both start_date and end_date are provided, ensure start_date is not after end_date.\n    2. Raise a ValueError if end_date is before start_date."
+          ]
+        ]
+      ],
+      "ProjectDescription": [
+        "Represents a brief description of a project.\n\nAttributes:\n    text (str): The text content of the project description.",
+        [
+          [
+            "validate_text(cls: UnknownType, v: UnknownType) -> UnknownType",
+            "Validate the text field.\n\nArgs:\n    v: The text value to validate. Must be a string.\n\nReturns:\n    str: The validated text.\n\nNotes:\n    1. Ensure text is a string.\n    2. Raise a ValueError if text is not a string."
+          ]
+        ]
+      ],
+      "Projects": [
+        "Represents a collection of projects.\n\nAttributes:\n    projects (List[Project]): A list of Project objects.",
+        [
+          [
+            "validate_projects(cls: UnknownType, v: UnknownType) -> UnknownType",
+            "Validate the projects field.\n\nArgs:\n    v: The projects value to validate. Must be a list of Project objects.\n\nReturns:\n    list[Project]: The validated projects list.\n\nNotes:\n    1. Ensure projects is a list.\n    2. Ensure all items in projects are Project objects.\n    3. Raise a ValueError if projects is not a list or if any item is not a Project object.\n    4. Return the validated list of projects."
+          ],
+          [
+            "__iter__(self: UnknownType) -> UnknownType",
+            "Iterate over the projects.\n\nReturns:\n    Iterator over the projects list."
+          ],
+          [
+            "__len__(self: UnknownType) -> UnknownType",
+            "Return the number of projects.\n\nReturns:\n    int: The number of projects."
+          ],
+          [
+            "__getitem__(self: UnknownType, index: UnknownType) -> UnknownType",
+            "Return the project at the given index.\n\nArgs:\n    index (int): The index of the project to return.\n\nReturns:\n    Project: The project at the specified index."
+          ],
+          [
+            "list_class(self: UnknownType) -> UnknownType",
+            "Return the class of the list.\n\nReturns:\n    The Project class."
           ]
         ]
       ]
@@ -190,37 +600,5 @@
     "filename": "__init__.py",
     "functions": [],
     "classes": {}
-  },
-  "resume_editor/app/models/user.py": {
-    "filepath": "resume_editor/app/models/user.py",
-    "filename": "user.py",
-    "functions": [],
-    "classes": {
-      "User": [
-        "User model for authentication and session management.\n\nAttributes:\n    id (int): Unique identifier for the user.\n    username (str): Unique username for the user.\n    email (str): Unique email address for the user.\n    hashed_password (str): Hashed password for the user.\n    is_active (bool): Whether the user account is active.",
-        [
-          [
-            "__init__(self: UnknownType, username: str, email: str, hashed_password: str, is_active: bool) -> UnknownType",
-            "Initialize a User instance.\n\nArgs:\n    username (str): Unique username for the user. Must be a non-empty string.\n    email (str): Unique email address for the user. Must be a non-empty string.\n    hashed_password (str): Hashed password for the user. Must be a non-empty string.\n    is_active (bool): Whether the user account is active. Must be a boolean.\n\nReturns:\n    None\n\nNotes:\n    1. Validate that username is a non-empty string.\n    2. Validate that email is a non-empty string.\n    3. Validate that hashed_password is a non-empty string.\n    4. Validate that is_active is a boolean.\n    5. Assign all values to instance attributes.\n    6. Log the initialization of the user with their username."
-          ],
-          [
-            "validate_username(self: UnknownType, key: UnknownType, username: UnknownType) -> UnknownType",
-            "Validate the username field.\n\nArgs:\n    key (str): The field name being validated (should be 'username').\n    username (str): The username value to validate. Must be a non-empty string.\n\nReturns:\n    str: The validated username (stripped of leading/trailing whitespace).\n\nNotes:\n    1. Ensure username is a string.\n    2. Ensure username is not empty after stripping whitespace."
-          ],
-          [
-            "validate_email(self: UnknownType, key: UnknownType, email: UnknownType) -> UnknownType",
-            "Validate the email field.\n\nArgs:\n    key (str): The field name being validated (should be 'email').\n    email (str): The email value to validate. Must be a non-empty string.\n\nReturns:\n    str: The validated email (stripped of leading/trailing whitespace).\n\nNotes:\n    1. Ensure email is a string.\n    2. Ensure email is not empty after stripping whitespace."
-          ],
-          [
-            "validate_hashed_password(self: UnknownType, key: UnknownType, hashed_password: UnknownType) -> UnknownType",
-            "Validate the hashed_password field.\n\nArgs:\n    key (str): The field name being validated (should be 'hashed_password').\n    hashed_password (str): The hashed password value to validate. Must be a non-empty string.\n\nReturns:\n    str: The validated hashed password (stripped of leading/trailing whitespace).\n\nNotes:\n    1. Ensure hashed_password is a string.\n    2. Ensure hashed_password is not empty after stripping whitespace."
-          ],
-          [
-            "validate_is_active(self: UnknownType, key: UnknownType, is_active: UnknownType) -> UnknownType",
-            "Validate the is_active field.\n\nArgs:\n    key (str): The field name being validated (should be 'is_active').\n    is_active (bool): The is_active value to validate. Must be a boolean.\n\nReturns:\n    bool: The validated is_active value.\n\nNotes:\n    1. Ensure is_active is a boolean."
-          ]
-        ]
-      ]
-    }
   }
 }

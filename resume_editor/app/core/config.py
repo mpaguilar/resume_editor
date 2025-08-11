@@ -1,5 +1,4 @@
 import logging
-from typing import Optional
 
 from pydantic import Field, PostgresDsn
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -22,15 +21,18 @@ class Settings(BaseSettings):
         algorithm (str): Algorithm used for JWT token encoding.
             Currently uses HS256 (HMAC-SHA256).
         access_token_expire_minutes (int): Duration in minutes for which access tokens remain valid.
-        llm_api_key (Optional[str]): API key for accessing LLM services.
+        llm_api_key (str | None): API key for accessing LLM services.
             Optional; used when LLM functionality is needed.
-        serper_api_key (Optional[str]): API key for accessing Serper search service.
+        serper_api_key (str | None): API key for accessing Serper search service.
             Optional; used for search functionality.
 
     """
 
     model_config = SettingsConfigDict(
-        case_sensitive=True, env_file=".env", env_file_encoding="utf-8", extra="allow",
+        case_sensitive=True,
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra="allow",
     )
 
     # Database settings
@@ -41,17 +43,20 @@ class Settings(BaseSettings):
 
     # Security settings
     secret_key: str = Field(
-        default="your-secret-key-change-in-production", validation_alias="SECRET_KEY",
+        default="your-secret-key-change-in-production",
+        validation_alias="SECRET_KEY",
     )
     algorithm: str = Field(default="HS256", validation_alias="ALGORITHM")
     access_token_expire_minutes: int = Field(
-        default=30, validation_alias="ACCESS_TOKEN_EXPIRE_MINUTES",
+        default=30,
+        validation_alias="ACCESS_TOKEN_EXPIRE_MINUTES",
     )
 
     # API keys
     llm_api_key: str | None = Field(default=None, validation_alias="LLM_API_KEY")
     serper_api_key: str | None = Field(
-        default=None, validation_alias="SERPER_API_KEY",
+        default=None,
+        validation_alias="SERPER_API_KEY",
     )
 
 
@@ -73,7 +78,6 @@ def get_settings() -> Settings:
         2. If environment variables are not set, default values are used.
         3. The Settings class uses Pydantic's validation and configuration features to ensure correct values.
         4. The function returns a cached instance to avoid repeated parsing of the .env file.
-        5. This function does not perform any disk or network access beyond reading the .env file at startup.
-
+        5. This function performs disk access to read the .env file at startup.
     """
     return Settings()

@@ -45,9 +45,10 @@ class DocstringProcessor:
 * Classes should be documented.
     - Class purpose, if known
     - Members should be listed, with their type if known.
+    - Functions should have a docstring as part of the function.
+
 
 * Every function should have a docstring.
-* The purpose of the docstring is to act as a specification for the function
 * The docstring should include
     - an `Args:` section, which includes the name, type, and purpose of the function argument.
     - a `Returns:` section, which includes the type and purpose of all possible return values
@@ -57,9 +58,34 @@ class DocstringProcessor:
 
 IMPORTANT!
 ==========
-* Update **ONLY** the docstrings, do **NOT** edit code.
+* **Only** update the docstrings, do **NOT** change, delete, or edit code.
+* **Only document existing code**.
+* **Ignore** placeholder functions and docstrings.
+* **Preserve** existing code, functions, class members and methods
 * Files **must** be processed one at a time.
 * **NEVER add more files**, update **ONLY** the one file.
+
+Example:
+--------
+The input is:
+class ResumeResponse(BaseModel):
+    \"\"\"Response model for a resume.\"\"\"
+
+    id: int
+    name: str
+
+The expected output is:
+class ResumeResponse(BaseModel):
+    \"\"\"Response model for a resume.
+
+    Attributes:
+        id (int): The unique identifier for the resume.
+        name (str): The name of the resume.
+    \"\"\"
+    
+    id: int
+    name: str
+--------
         """
 
     def create_coder(self, filepath: str) -> Coder:
@@ -74,7 +100,9 @@ IMPORTANT!
         """
         io = InputOutput(yes=True)
         fnames = [filepath]
-        return Coder.create(main_model=self.model, fnames=fnames, io=io)
+        return Coder.create(
+            main_model=self.model, fnames=fnames, io=io, auto_commits=False,
+        )
 
     def update_docstrings(self, filepath: str) -> None:
         """Update docstrings in the specified file using an LLM.
@@ -89,6 +117,7 @@ IMPORTANT!
         prompt = self.create_docstring_prompt()
         coder = self.create_coder(filepath)
         coder.run(prompt)
+        print(f"Sleeping for {self.delay} seconds")
         sleep(self.delay)
 
     def parse_function_node(self, node: ast.FunctionDef) -> tuple[str, str]:

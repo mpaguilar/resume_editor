@@ -1,7 +1,7 @@
 import logging
 
 from sqlalchemy import Boolean, Column, Integer, String
-from sqlalchemy.orm import validates
+from sqlalchemy.orm import relationship, validates
 
 from resume_editor.app.models import Base
 
@@ -28,8 +28,17 @@ class User(Base):
     hashed_password = Column(String, nullable=False)
     is_active = Column(Boolean, default=True, nullable=False)
 
+    # Relationship to Resume
+    resumes = relationship(
+        "Resume", back_populates="user", cascade="all, delete-orphan",
+    )
+
     def __init__(
-        self, username: str, email: str, hashed_password: str, is_active: bool = True,
+        self,
+        username: str,
+        email: str,
+        hashed_password: str,
+        is_active: bool = True,
     ):
         """Initialize a User instance.
 
@@ -49,6 +58,7 @@ class User(Base):
             4. Validate that is_active is a boolean.
             5. Assign all values to instance attributes.
             6. Log the initialization of the user with their username.
+            7. This operation does not involve network, disk, or database access.
 
         """
         _msg = f"Initializing User with username: {username}"
@@ -73,6 +83,7 @@ class User(Base):
         Notes:
             1. Ensure username is a string.
             2. Ensure username is not empty after stripping whitespace.
+            3. This operation does not involve network, disk, or database access.
 
         """
         if not isinstance(username, str):
@@ -95,6 +106,7 @@ class User(Base):
         Notes:
             1. Ensure email is a string.
             2. Ensure email is not empty after stripping whitespace.
+            3. This operation does not involve network, disk, or database access.
 
         """
         if not isinstance(email, str):
@@ -117,6 +129,7 @@ class User(Base):
         Notes:
             1. Ensure hashed_password is a string.
             2. Ensure hashed_password is not empty after stripping whitespace.
+            3. This operation does not involve network, disk, or database access.
 
         """
         if not isinstance(hashed_password, str):
@@ -138,6 +151,7 @@ class User(Base):
 
         Notes:
             1. Ensure is_active is a boolean.
+            2. This operation does not involve network, disk, or database access.
 
         """
         if not isinstance(is_active, bool):

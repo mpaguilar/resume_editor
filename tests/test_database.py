@@ -2,7 +2,6 @@ import logging
 import sys
 from unittest.mock import MagicMock, patch
 
-
 log = logging.getLogger(__name__)
 
 

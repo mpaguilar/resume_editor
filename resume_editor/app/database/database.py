@@ -58,7 +58,9 @@ def get_session_local():
         _msg = "Creating session local factory"
         log.debug(_msg)
         _SessionLocal = sessionmaker(
-            autocommit=False, autoflush=False, bind=get_engine(),
+            autocommit=False,
+            autoflush=False,
+            bind=get_engine(),
         )
     return _SessionLocal
 

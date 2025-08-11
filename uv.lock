@@ -2129,7 +2129,7 @@ requires-dist = [
     { name = "python-dotenv", specifier = ">=1.1.1" },
     { name = "python-jose", extras = ["cryptography"], specifier = ">=3.5.0" },
     { name = "python-multipart", specifier = ">=0.0.20" },
-    { name = "resume-writer", editable = "../resume_writer" },
+    { name = "resume-writer", virtual = "../resume_writer" },
     { name = "sqlalchemy", specifier = ">=2.0.42" },
     { name = "uvicorn", specifier = ">=0.35.0" },
 ]
@@ -2144,7 +2144,7 @@ dev = [
 [[package]]
 name = "resume-writer"
 version = "0.1.0"
-source = { editable = "../resume_writer" }
+source = { virtual = "../resume_writer" }
 dependencies = [
     { name = "aider-chat" },
     { name = "click" },

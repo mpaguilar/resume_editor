@@ -6,10 +6,7 @@ database setup, authentication, and application configuration.
 The main purpose of this module is to provide a centralized point for initializing
 dependencies and starting the application.
 
-Classes:
-    None
-
-Functions:
+Attributes:
     None
 
 Notes:
