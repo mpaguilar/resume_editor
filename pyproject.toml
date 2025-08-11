@@ -23,7 +23,10 @@ dependencies = [
 [dependency-groups]
 dev = [
     "aider-chat>=0.85.5",
+    "bandit[baseline,toml]>=1.8.6",
+    "coverage>=7.10.3",
     "pytest>=8.4.1",
+    "pytest-cov>=6.2.1",
     "ruff>=0.12.8",
 ]
 
