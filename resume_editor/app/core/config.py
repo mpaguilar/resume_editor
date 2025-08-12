@@ -73,5 +73,6 @@ def get_settings() -> Settings:
         3. The Settings class uses Pydantic's validation and configuration features to ensure correct values.
         4. The function returns a cached instance to avoid repeated parsing of the .env file.
         5. This function performs disk access to read the .env file at startup.
+
     """
     return Settings()

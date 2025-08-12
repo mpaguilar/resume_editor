@@ -48,7 +48,8 @@ def test_parse_resume_success(client):
         mock_parse.return_value = mock_resume
 
         response = client.post(
-            "/api/resumes/parse", json={"markdown_content": SAMPLE_MARKDOWN},
+            "/api/resumes/parse",
+            json={"markdown_content": SAMPLE_MARKDOWN},
         )
 
         assert response.status_code == 200
@@ -61,7 +62,8 @@ def test_parse_resume_parser_not_available(client):
     """Test parsing when parser is not available."""
     with patch("resume_editor.app.api.routes.resume.PARSER_AVAILABLE", False):
         response = client.post(
-            "/api/resumes/parse", json={"markdown_content": SAMPLE_MARKDOWN},
+            "/api/resumes/parse",
+            json={"markdown_content": SAMPLE_MARKDOWN},
         )
 
         assert response.status_code == 501
@@ -78,7 +80,8 @@ def test_parse_resume_parsing_error(client):
         mock_parse.side_effect = Exception("Parsing error")
 
         response = client.post(
-            "/api/resumes/parse", json={"markdown_content": SAMPLE_MARKDOWN},
+            "/api/resumes/parse",
+            json={"markdown_content": SAMPLE_MARKDOWN},
         )
 
         assert response.status_code == 400

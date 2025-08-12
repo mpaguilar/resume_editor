@@ -26,7 +26,10 @@ Notes:
     4. Include the user router to handle user-related API endpoints.
     5. Include the resume router to handle resume-related API endpoints.
     6. Define a health check endpoint at "/health" that returns a JSON object with status "ok".
-    7. Log a success message indicating the application was created.
+    7. Add static file serving for CSS/JS assets.
+    8. Add template rendering for HTML pages.
+    9. Define dashboard routes for the HTMX-based interface.
+    10. Log a success message indicating the application was created.
 
 ---
 
@@ -557,12 +560,12 @@ Resume model for storing user resumes.
 
 Attributes:
     id (int): Unique identifier for the resume.
-    user_id (int): Foreign key to User model.
-    name (str): User-assigned descriptive name for the resume.
-    content (str): The Markdown text content of the resume.
+    user_id (int): Foreign key to User model, identifying the user who owns the resume.
+    name (str): User-assigned descriptive name for the resume, must be non-empty.
+    content (str): The Markdown text content of the resume, must be non-empty.
     created_at (datetime): Timestamp when the resume was created.
     updated_at (datetime): Timestamp when the resume was last updated.
-    is_active (bool): Whether the resume is active.
+    is_active (bool): Whether the resume is currently active.
 
 ---
 ## method: `Resume.__init__(self: UnknownType, user_id: int, name: str, content: str, is_active: bool) -> UnknownType`
@@ -732,6 +735,9 @@ Iterate over the degrees.
 Returns:
     Iterator over the degrees list.
 
+Notes:
+    No external access (network, disk, or database) is performed.
+
 ---
 ## method: `Degrees.__len__(self: UnknownType) -> UnknownType`
 
@@ -739,6 +745,9 @@ Return the number of degrees.
 
 Returns:
     int: The number of degrees in the list.
+
+Notes:
+    No external access (network, disk, or database) is performed.
 
 ---
 ## method: `Degrees.__getitem__(self: UnknownType, index: UnknownType) -> UnknownType`
@@ -750,6 +759,9 @@ Args:
 
 Returns:
     The Degree object at the specified index.
+
+Notes:
+    No external access (network, disk, or database) is performed.
 
 ---
 

@@ -136,7 +136,9 @@ class TestEducationModels:
 
         with pytest.raises(ValueError):
             Degree(
-                school="University of Example", start_date=start_date, end_date=end_date,
+                school="University of Example",
+                start_date=start_date,
+                end_date=end_date,
             )
 
     def test_degrees_collection(self):
@@ -213,7 +215,9 @@ class TestExperienceModels:
         """Test Roles collection."""
         role1 = Role(
             basics=RoleBasics(
-                company="Company 1", start_date=datetime(2020, 1, 1), title="Engineer",
+                company="Company 1",
+                start_date=datetime(2020, 1, 1),
+                title="Engineer",
             ),
         )
         role2 = Role(

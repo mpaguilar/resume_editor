@@ -1,6 +1,5 @@
 import logging
 from datetime import datetime
-from typing import List, Optional
 
 from pydantic import BaseModel, field_validator
 
@@ -202,6 +201,9 @@ class Degrees(BaseModel):
         Returns:
             Iterator over the degrees list.
 
+        Notes:
+            No external access (network, disk, or database) is performed.
+
         """
         return iter(self.degrees)
 
@@ -210,6 +212,9 @@ class Degrees(BaseModel):
 
         Returns:
             int: The number of degrees in the list.
+
+        Notes:
+            No external access (network, disk, or database) is performed.
 
         """
         return len(self.degrees)
@@ -222,6 +227,9 @@ class Degrees(BaseModel):
 
         Returns:
             The Degree object at the specified index.
+
+        Notes:
+            No external access (network, disk, or database) is performed.
 
         """
         return self.degrees[index]

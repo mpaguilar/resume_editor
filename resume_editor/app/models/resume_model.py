@@ -14,12 +14,12 @@ class Resume(Base):
 
     Attributes:
         id (int): Unique identifier for the resume.
-        user_id (int): Foreign key to User model.
-        name (str): User-assigned descriptive name for the resume.
-        content (str): The Markdown text content of the resume.
+        user_id (int): Foreign key to User model, identifying the user who owns the resume.
+        name (str): User-assigned descriptive name for the resume, must be non-empty.
+        content (str): The Markdown text content of the resume, must be non-empty.
         created_at (datetime): Timestamp when the resume was created.
         updated_at (datetime): Timestamp when the resume was last updated.
-        is_active (bool): Whether the resume is active.
+        is_active (bool): Whether the resume is currently active.
 
     """
 
@@ -31,7 +31,10 @@ class Resume(Base):
     content = Column(Text, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(
-        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False,
+        DateTime,
+        default=datetime.utcnow,
+        onupdate=datetime.utcnow,
+        nullable=False,
     )
     is_active = Column(Boolean, default=True, nullable=False)
 
@@ -64,6 +67,7 @@ class Resume(Base):
             5. Assign all values to instance attributes.
             6. Log the initialization of the resume with its name.
             7. This function performs no database access.
+
         """
         _msg = f"Initializing Resume with name: {name}"
         log.debug(_msg)

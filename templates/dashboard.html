@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Resume Editor Dashboard</title>
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .resume-item {
+            transition: background-color 0.2s;
+        }
+        .resume-item:hover {
+            background-color: #f3f4f6;
+        }
+        .resume-item.selected {
+            background-color: #dbeafe;
+            border-left: 4px solid #3b82f6;
+        }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <div class="container mx-auto px-4 py-8">
+        <header class="mb-8">
+            <h1 class="text-3xl font-bold text-gray-800">Resume Editor Dashboard</h1>
+            <p class="text-gray-600">Manage and edit your resumes</p>
+        </header>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <!-- Resume List Panel -->
+            <div class="lg:col-span-1 bg-white rounded-lg shadow p-6">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-xl font-semibold">Your Resumes</h2>
+                    <button 
+                        hx-get="/dashboard/create-resume-form" 
+                        hx-target="#resume-content" 
+                        hx-swap="innerHTML"
+                        class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-md text-sm font-medium">
+                        + New Resume
+                    </button>
+                </div>
+                
+                <div id="resume-list" hx-get="/api/resumes" hx-trigger="load" hx-swap="innerHTML">
+                    <div class="text-center py-4">
+                        <p class="text-gray-500">Loading resumes...</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Resume Content Panel -->
+            <div class="lg:col-span-2 bg-white rounded-lg shadow p-6">
+                <div id="resume-content" class="h-full">
+                    <div class="text-center py-12">
+                        <h3 class="text-xl font-medium text-gray-700 mb-2">Select a Resume</h3>
+                        <p class="text-gray-500">Choose a resume from the list to view or edit its content</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Function to select a resume and load its content
+        function selectResume(resumeId, element) {
+            // Remove selected class from all resume items
+            document.querySelectorAll('.resume-item').forEach(item => {
+                item.classList.remove('selected');
+            });
+            
+            // Add selected class to clicked item
+            element.classList.add('selected');
+            
+            // Load resume content
+            htmx.ajax('GET', `/api/resumes/${resumeId}`, {
+                target: '#resume-content',
+                swap: 'innerHTML'
+            });
+        }
+    </script>
+</body>
+</html>

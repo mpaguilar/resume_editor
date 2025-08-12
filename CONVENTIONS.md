@@ -103,3 +103,38 @@
 * Each `*.py` file should have its own test file. For example `example.py` should have a test file named `test_example.py`
 * Unit tests should be run with a logging level of DEBUG
 * Unit tests should be written before the code, and they should fail if the code is incorrect.
+
+## Special considerations for route dependency injection
+
+To successfully mock FastAPI route calls with dependency injection, `app.dependency_overrides` **must** be used.
+
+For example, for a route like this:
+```
+
+```
+@router.get("", response_model=list[str])
+async def some_function(
+    request: Request,
+    db: Session = Depends(get_db), 
+    current_user: User = Depends(get_current_user),
+):
+
+```
+@patch("resume_editor.app.api.routes.resume.get_current_user")
+@patch("resume_editor.app.api.routes.resume.get_db")
+def test_something():
+    app = create_app()
+    client = TestClient(app)
+
+    mock_db = Mock()
+
+    mock_db.query.return_value.filter.return_value.<first/all>.return_value = <correct answer>
+
+    # These next lines are **very** important
+    def get_mock_db():
+        yield mock_db
+
+    app.dependency_overrides[get_db] = get_mock_db
+
+    # perform tests and assertions
+```

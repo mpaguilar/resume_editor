@@ -101,7 +101,10 @@ class ResumeResponse(BaseModel):
         io = InputOutput(yes=True)
         fnames = [filepath]
         return Coder.create(
-            main_model=self.model, fnames=fnames, io=io, auto_commits=False,
+            main_model=self.model,
+            fnames=fnames,
+            io=io,
+            auto_commits=False,
         )
 
     def update_docstrings(self, filepath: str) -> None:

@@ -1,5 +1,4 @@
-"""
-This module serves as the initialization file for the resume-related models in the application.
+"""This module serves as the initialization file for the resume-related models in the application.
 
 It provides a central location for importing and exposing resume-related data models,
 such as certifications, education, and the main resume model, ensuring they are available
@@ -13,4 +12,5 @@ Notes:
 2. It enables clean imports from the resume package, such as:
    from app.models.resume import Certification, Degree, Resume
 3. No disk, network, or database access is performed in this file.
+
 """

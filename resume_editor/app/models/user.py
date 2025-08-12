@@ -30,7 +30,9 @@ class User(Base):
 
     # Relationship to Resume
     resumes = relationship(
-        "Resume", back_populates="user", cascade="all, delete-orphan",
+        "Resume",
+        back_populates="user",
+        cascade="all, delete-orphan",
     )
 
     def __init__(

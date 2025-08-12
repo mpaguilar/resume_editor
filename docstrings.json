@@ -11,7 +11,7 @@
     "functions": [
       [
         "create_app() -> FastAPI",
-        "Create and configure the FastAPI application.\n\nArgs:\n    None\n\nReturns:\n    FastAPI: The configured FastAPI application instance.\n\nNotes:\n    1. Initialize the FastAPI application with the title \"Resume Editor API\".\n    2. Create the database tables by calling Base.metadata.create_all with the database engine.\n    3. Add CORS middleware to allow requests from any origin (for development only).\n    4. Include the user router to handle user-related API endpoints.\n    5. Include the resume router to handle resume-related API endpoints.\n    6. Define a health check endpoint at \"/health\" that returns a JSON object with status \"ok\".\n    7. Log a success message indicating the application was created."
+        "Create and configure the FastAPI application.\n\nArgs:\n    None\n\nReturns:\n    FastAPI: The configured FastAPI application instance.\n\nNotes:\n    1. Initialize the FastAPI application with the title \"Resume Editor API\".\n    2. Create the database tables by calling Base.metadata.create_all with the database engine.\n    3. Add CORS middleware to allow requests from any origin (for development only).\n    4. Include the user router to handle user-related API endpoints.\n    5. Include the resume router to handle resume-related API endpoints.\n    6. Define a health check endpoint at \"/health\" that returns a JSON object with status \"ok\".\n    7. Add static file serving for CSS/JS assets.\n    8. Add template rendering for HTML pages.\n    9. Define dashboard routes for the HTMX-based interface.\n    10. Log a success message indicating the application was created."
       ],
       [
         "initialize_database() -> UnknownType",
@@ -205,7 +205,7 @@
     "functions": [],
     "classes": {
       "Resume": [
-        "Resume model for storing user resumes.\n\nAttributes:\n    id (int): Unique identifier for the resume.\n    user_id (int): Foreign key to User model.\n    name (str): User-assigned descriptive name for the resume.\n    content (str): The Markdown text content of the resume.\n    created_at (datetime): Timestamp when the resume was created.\n    updated_at (datetime): Timestamp when the resume was last updated.\n    is_active (bool): Whether the resume is active.",
+        "Resume model for storing user resumes.\n\nAttributes:\n    id (int): Unique identifier for the resume.\n    user_id (int): Foreign key to User model, identifying the user who owns the resume.\n    name (str): User-assigned descriptive name for the resume, must be non-empty.\n    content (str): The Markdown text content of the resume, must be non-empty.\n    created_at (datetime): Timestamp when the resume was created.\n    updated_at (datetime): Timestamp when the resume was last updated.\n    is_active (bool): Whether the resume is currently active.",
         [
           [
             "__init__(self: UnknownType, user_id: int, name: str, content: str, is_active: bool) -> UnknownType",
@@ -264,15 +264,15 @@
           ],
           [
             "__iter__(self: UnknownType) -> UnknownType",
-            "Iterate over the degrees.\n\nReturns:\n    Iterator over the degrees list."
+            "Iterate over the degrees.\n\nReturns:\n    Iterator over the degrees list.\n\nNotes:\n    No external access (network, disk, or database) is performed."
           ],
           [
             "__len__(self: UnknownType) -> UnknownType",
-            "Return the number of degrees.\n\nReturns:\n    int: The number of degrees in the list."
+            "Return the number of degrees.\n\nReturns:\n    int: The number of degrees in the list.\n\nNotes:\n    No external access (network, disk, or database) is performed."
           ],
           [
             "__getitem__(self: UnknownType, index: UnknownType) -> UnknownType",
-            "Return the degree at the given index.\n\nArgs:\n    index: The index of the degree to retrieve.\n\nReturns:\n    The Degree object at the specified index."
+            "Return the degree at the given index.\n\nArgs:\n    index: The index of the degree to retrieve.\n\nReturns:\n    The Degree object at the specified index.\n\nNotes:\n    No external access (network, disk, or database) is performed."
           ]
         ]
       ]
