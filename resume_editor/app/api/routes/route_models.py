@@ -1,4 +1,5 @@
 import logging
+from enum import Enum
 from typing import Any
 
 from fastapi import APIRouter
@@ -11,6 +12,14 @@ from resume_editor.app.models.resume.experience import Project, Role
 log = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/resumes", tags=["resumes"])
+
+
+class DocxFormat(str, Enum):
+    """Enum for DOCX export formats."""
+
+    ATS = "ats"
+    PLAIN = "plain"
+    EXECUTIVE = "executive"
 
 
 # Request/Response models

@@ -86,14 +86,21 @@ def test_parse_resume_no_model_dump():
 
     class MockResume:
         def __init__(self):
+            self.personal = None
+            self.education = None
+            self.experience = None
+            self.certifications = None
             self.name = "John Doe"
 
     with patch(
         "resume_editor.app.api.routes.route_logic.resume_parsing.WriterResume.parse",
     ) as mock_parse:
         mock_parse.return_value = MockResume()
-        result = parse_resume("markdown content")
-        assert result == {"name": "John Doe"}
+        with pytest.raises(HTTPException) as excinfo:
+            parse_resume("markdown content")
+
+        assert excinfo.value.status_code == 422
+        assert "No valid resume sections found" in excinfo.value.detail
 
 
 def test_parse_resume_content_success():
@@ -117,8 +124,8 @@ def test_validate_resume_content_failure():
             validate_resume_content("invalid markdown")
 
         assert exc_info.value.status_code == 422
-        assert (
-            "Invalid Markdown format: Test validation failure" == exc_info.value.detail
+        assert "Invalid Markdown format: Test validation failure" in str(
+            exc_info.value.detail,
         )
 
 
@@ -131,4 +138,4 @@ def test_parse_resume_content_exception():
         with pytest.raises(HTTPException) as exc_info:
             parse_resume_content("some invalid markdown")
         assert exc_info.value.status_code == 400
-        assert "Failed to parse resume: mocked error" == exc_info.value.detail
+        assert "Failed to parse resume: mocked error" in str(exc_info.value.detail)

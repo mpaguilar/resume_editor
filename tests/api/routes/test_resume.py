@@ -1,6 +1,8 @@
+from enum import Enum
 from unittest.mock import Mock, patch
 
 import pytest
+from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
 from resume_editor.app.api.routes.resume import (
@@ -896,6 +898,138 @@ def test_update_personal_info_reconstruction_error(
     mock_update_resume_db.assert_not_called()
 
 
+@patch("resume_editor.app.api.routes.resume.ats_render")
+@patch("resume_editor.app.api.routes.resume.plain_render")
+@patch("resume_editor.app.api.routes.resume.basic_render")
+@patch("resume_editor.app.api.routes.resume.Document")
+def test_export_resume_docx(
+    mock_docx_doc,
+    mock_basic_render,
+    mock_plain_render,
+    mock_ats_render,
+    client_with_auth_and_resume,
+    test_resume,
+):
+    """Test DOCX export for all formats."""
+    # Test ATS format
+    response_ats = client_with_auth_and_resume.get(
+        "/api/resumes/1/export/docx?format=ats",
+    )
+    assert response_ats.status_code == 200
+    assert (
+        response_ats.headers["content-type"]
+        == "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    )
+    assert (
+        response_ats.headers["content-disposition"]
+        == f'attachment; filename="{test_resume.name}_ats.docx"'
+    )
+    mock_ats_render.assert_called_once()
+    mock_plain_render.assert_not_called()
+    mock_basic_render.assert_not_called()
+    mock_ats_render.reset_mock()
+
+    # Test PLAIN format
+    response_plain = client_with_auth_and_resume.get(
+        "/api/resumes/1/export/docx?format=plain",
+    )
+    assert response_plain.status_code == 200
+    assert (
+        response_plain.headers["content-type"]
+        == "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    )
+    assert (
+        response_plain.headers["content-disposition"]
+        == f'attachment; filename="{test_resume.name}_plain.docx"'
+    )
+    mock_ats_render.assert_not_called()
+    mock_plain_render.assert_called_once()
+    mock_basic_render.assert_not_called()
+    mock_plain_render.reset_mock()
+
+    # Test EXECUTIVE format
+    response_exec = client_with_auth_and_resume.get(
+        "/api/resumes/1/export/docx?format=executive",
+    )
+    assert response_exec.status_code == 200
+    assert (
+        response_exec.headers["content-type"]
+        == "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    )
+    assert (
+        response_exec.headers["content-disposition"]
+        == f'attachment; filename="{test_resume.name}_executive.docx"'
+    )
+    mock_ats_render.assert_not_called()
+    mock_plain_render.assert_not_called()
+    mock_basic_render.assert_called_once()
+
+    # Check if settings were modified for executive
+    settings_arg = mock_basic_render.call_args[0][2]
+    assert settings_arg.executive_summary is True
+    assert settings_arg.skills_matrix is True
+
+
+def test_export_resume_docx_invalid_format(client_with_auth_and_resume):
+    """Test DOCX export with an invalid format."""
+    response = client_with_auth_and_resume.get(
+        "/api/resumes/1/export/docx?format=invalid_format",
+    )
+    assert response.status_code == 422
+
+
+def test_export_resume_docx_not_found(client_with_auth_no_resume):
+    """Test DOCX export for a resume that is not found."""
+    response = client_with_auth_no_resume.get(
+        "/api/resumes/999/export/docx?format=plain",
+    )
+    assert response.status_code == 404
+
+
+@patch("resume_editor.app.api.routes.resume.plain_render")
+@patch("resume_editor.app.api.routes.resume.Document")
+def test_export_resume_docx_with_leading_content(
+    mock_doc,
+    mock_plain_render,
+    client_with_auth_and_resume,
+    test_resume,
+):
+    """Test docx export with leading content before the first valid header."""
+    test_resume.content = (
+        "Some junk text\n## A subheading\n# Invalid Header\n" + TEST_RESUME_CONTENT
+    )
+
+    response = client_with_auth_and_resume.get(
+        "/api/resumes/1/export/docx?format=plain",
+    )
+    assert response.status_code == 200
+    mock_plain_render.assert_called_once()
+    # Ensure the parser still managed to get the right content
+    parsed_resume = mock_plain_render.call_args[0][1]
+    assert parsed_resume.personal.contact_info.name == "Test User"
+
+
+@patch("resume_editor.app.api.routes.resume.plain_render")
+@patch("resume_editor.app.api.routes.resume.Document")
+def test_export_resume_docx_unparseable_content(
+    mock_doc,
+    mock_plain_render,
+    client_with_auth_and_resume,
+    test_resume,
+):
+    """Test that docx export fails for unparseable Markdown content."""
+    # This content has no valid headers, so parsing will fail.
+    test_resume.content = "this is not a valid resume"
+
+    response = client_with_auth_and_resume.get(
+        "/api/resumes/1/export/docx?format=plain",
+    )
+
+    assert response.status_code == 422
+    assert "Invalid resume format" in response.json()["detail"]
+    mock_plain_render.assert_not_called()
+
+
 def test_export_resume_markdown_success(client_with_auth_and_resume, test_resume):
     """Test successful export of a resume as Markdown."""
     response = client_with_auth_and_resume.get(
@@ -1022,3 +1156,33 @@ def test_update_certifications_info_reconstruction_error(
     assert response.status_code == 422
     assert "Parsing failed" in response.json()["detail"]
     mock_update_resume_db.assert_not_called()
+
+
+@pytest.mark.asyncio
+@patch("resume_editor.app.api.routes.resume.Document")
+async def test_export_resume_docx_unhandled_format_safeguard(mock_doc):
+    """Test that the case _ safeguard is hit for unhandled DocxFormat members."""
+    from resume_editor.app.api.routes.resume import (
+        export_resume_docx,
+    )
+
+    class PatchedDocxFormat(str, Enum):
+        ATS = "ats"
+        PLAIN = "plain"
+        EXECUTIVE = "executive"
+        UNHANDLED = "unhandled"
+
+    mock_resume = Mock(spec=DatabaseResume)
+    mock_resume.name = "Test Resume"
+    mock_resume.content = VALID_MINIMAL_RESUME_CONTENT
+
+    with patch(
+        "resume_editor.app.api.routes.resume.DocxFormat",
+        PatchedDocxFormat,
+    ):
+        with pytest.raises(HTTPException) as excinfo:
+            await export_resume_docx(
+                format=PatchedDocxFormat.UNHANDLED, resume=mock_resume,
+            )
+        assert excinfo.value.status_code == 400
+        assert excinfo.value.detail == "Invalid format specified"

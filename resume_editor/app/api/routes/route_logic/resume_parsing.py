@@ -8,6 +8,61 @@ from resume_writer.models.resume import Resume as WriterResume
 log = logging.getLogger(__name__)
 
 
+def parse_resume_to_writer_object(markdown_content: str) -> WriterResume:
+    """Parse Markdown resume content into a resume_writer Resume object.
+
+    Args:
+        markdown_content (str): The Markdown content to parse.
+
+    Returns:
+        WriterResume: The parsed resume object from the resume_writer library.
+
+    Raises:
+        ValueError: If parsing results in no valid content.
+
+    Notes:
+        1. Splits the content into lines.
+        2. Skips any lines before the first valid section header.
+        3. Parses the content using the resume_writer's ParseContext and Resume.parse.
+        4. Checks if any sections were successfully parsed; raises ValueError if not.
+        5. Returns the parsed resume_writer Resume object.
+
+    """
+    lines = markdown_content.split("\n")
+
+    # To make parsing more robust, skip any content before the first valid section header
+    first_valid_line_index = -1
+    valid_headers = WriterResume.expected_blocks().keys()
+
+    for i, line in enumerate(lines):
+        stripped_line = line.strip()
+        if stripped_line.startswith("# ") and not stripped_line.startswith("##"):
+            # Extract header name
+            header_name = stripped_line[2:].lower()
+            if header_name in valid_headers:
+                first_valid_line_index = i
+                break
+
+    if first_valid_line_index != -1:
+        lines = lines[first_valid_line_index:]
+
+    parse_context = ParseContext(lines, 1)
+    parsed_resume = WriterResume.parse(parse_context)
+
+    # Check if parsing resulted in any content
+    if not any(
+        [
+            parsed_resume.personal,
+            parsed_resume.education,
+            parsed_resume.experience,
+            parsed_resume.certifications,
+        ],
+    ):
+        raise ValueError("No valid resume sections found in content.")
+
+    return parsed_resume
+
+
 def parse_resume(markdown_content: str) -> dict[str, Any]:
     """Parse Markdown resume content using resume_writer parser.
 
@@ -20,47 +75,18 @@ def parse_resume(markdown_content: str) -> dict[str, Any]:
                        The structure matches the output of the resume_writer parser.
 
     Notes:
-        1. Split the markdown_content into lines.
-        2. Identify the first valid section header by scanning lines for headers that start with "# " and not "##".
-        3. Filter the lines to start from the first valid section header, if found.
-        4. Create a ParseContext object from the filtered lines with an initial line number of 1.
-        5. Use the WriterResume.parse method to parse the resume with the context.
-        6. Convert the parsed resume object to a dictionary using vars().
-        7. Return the dictionary representation.
-        8. No disk, network, or database access is performed.
+        1. Calls `parse_resume_to_writer_object` to perform parsing.
+        2. Converts the returned resume object to a dictionary.
+        3. Handles exceptions and raises an HTTPException on failure.
+        4. Returns the dictionary representation.
+        5. No disk, network, or database access is performed.
 
     """
     _msg = "parse_resume starting"
     log.debug(_msg)
 
     try:
-        # Create parse context
-        lines = markdown_content.split("\n")
-
-        # To make parsing more robust, skip any content before the first valid section header
-        first_valid_line_index = -1
-        valid_headers = WriterResume.expected_blocks().keys()
-
-        for i, line in enumerate(lines):
-            stripped_line = line.strip()
-            if stripped_line.startswith("# ") and not stripped_line.startswith("##"):
-                # Extract header name
-                header_name = stripped_line[2:].lower()
-                if header_name in valid_headers:
-                    first_valid_line_index = i
-                    break
-
-        if first_valid_line_index != -1:
-            lines = lines[first_valid_line_index:]
-        else:
-            # If no valid headers, it's not a valid resume for our parser.
-            # We can let it fail during parsing.
-            pass
-
-        parse_context = ParseContext(lines, 1)
-
-        # Parse the resume
-        parsed_resume = WriterResume.parse(parse_context)
+        parsed_resume = parse_resume_to_writer_object(markdown_content)
 
         # Convert to dictionary
         resume_dict = vars(parsed_resume)

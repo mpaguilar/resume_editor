@@ -1,7 +1,11 @@
+import io
 import logging
 
-from fastapi import APIRouter, Depends, Form, HTTPException, Request, Response
-from fastapi.responses import HTMLResponse
+from docx import Document
+from fastapi import APIRouter, Depends, Form, HTTPException, Request, Response, Response
+from fastapi.responses import HTMLResponse, StreamingResponse
+from resume_writer.main import ats_render, basic_render, plain_render
+from resume_writer.resume_render.render_settings import ResumeRenderSettings
 from sqlalchemy.orm import Session
 
 # Import database dependencies
@@ -21,6 +25,7 @@ from resume_editor.app.api.routes.route_logic.resume_crud import (
 )
 from resume_editor.app.api.routes.route_logic.resume_parsing import (
     parse_resume_content,
+    parse_resume_to_writer_object,
     validate_resume_content,
 )
 from resume_editor.app.api.routes.route_logic.resume_reconstruction import (
@@ -38,6 +43,7 @@ from resume_editor.app.api.routes.route_logic.resume_validation import (
 from resume_editor.app.api.routes.route_models import (
     CertificationsResponse,
     CertificationUpdateRequest,
+    DocxFormat,
     EducationResponse,
     EducationUpdateRequest,
     ExperienceResponse,
@@ -483,6 +489,76 @@ async def export_resume_markdown(
         "Content-Disposition": f'attachment; filename="{resume.name}.md"',
     }
     return Response(content=resume.content, media_type="text/markdown", headers=headers)
+
+
+@router.get("/{resume_id}/export/docx")
+async def export_resume_docx(
+    format: DocxFormat,
+    resume: DatabaseResume = Depends(get_resume_for_user),
+):
+    """Export a resume as a DOCX file in the specified format.
+
+    Args:
+        format (DocxFormat): The export format ('ats', 'plain', 'executive').
+        resume (DatabaseResume): The resume object, injected by dependency.
+
+    Returns:
+        StreamingResponse: A streaming response with the generated DOCX file.
+
+    Raises:
+        HTTPException: If an invalid format is requested or if rendering fails.
+
+    Notes:
+        1. Fetches resume content from the database.
+        2. Parses the Markdown content into a `resume_writer` Resume object using `parse_resume_to_writer_object`.
+        3. Initializes a new `docx.Document`.
+        4. Initializes `ResumeRenderSettings`.
+        5. Based on the requested format, calls the appropriate renderer from `resume_writer`.
+            - For 'executive', enables `executive_summary` and `skills_matrix` in settings.
+        6. Saves the generated document to a memory stream.
+        7. Returns the stream as a downloadable file attachment.
+
+    """
+    _msg = f"export_resume_docx starting for format {format.value}"
+    log.debug(_msg)
+
+    try:
+        parsed_resume = parse_resume_to_writer_object(resume.content)
+    except Exception as e:
+        _msg = f"Failed to parse resume content for docx export: {e!s}"
+        log.exception(_msg)
+        raise HTTPException(status_code=422, detail=f"Invalid resume format: {e!s}")
+
+    # 2. Render to docx based on format
+    document = Document()
+    settings = ResumeRenderSettings(default_init=True)
+
+    match format:
+        case DocxFormat.ATS:
+            ats_render(document, parsed_resume, settings)
+        case DocxFormat.PLAIN:
+            plain_render(document, parsed_resume, settings)
+        case DocxFormat.EXECUTIVE:
+            settings.executive_summary = True
+            settings.skills_matrix = True
+            basic_render(document, parsed_resume, settings)
+        case _:
+            # This should be caught by FastAPI's validation, but as a safeguard:
+            raise HTTPException(status_code=400, detail="Invalid format specified")
+
+    # 3. Save to memory stream and return
+    file_stream = io.BytesIO()
+    document.save(file_stream)
+    file_stream.seek(0)
+
+    headers = {
+        "Content-Disposition": f'attachment; filename="{resume.name}_{format.value}.docx"',
+    }
+    return StreamingResponse(
+        file_stream,
+        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        headers=headers,
+    )
 
 
 @router.post("/{resume_id}/edit/personal")
