@@ -896,6 +896,26 @@ def test_update_personal_info_reconstruction_error(
     mock_update_resume_db.assert_not_called()
 
 
+def test_export_resume_markdown_success(client_with_auth_and_resume, test_resume):
+    """Test successful export of a resume as Markdown."""
+    response = client_with_auth_and_resume.get(
+        f"/api/resumes/{test_resume.id}/export/markdown",
+    )
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "text/markdown; charset=utf-8"
+    assert (
+        response.headers["content-disposition"]
+        == f'attachment; filename="{test_resume.name}.md"'
+    )
+    assert response.text == test_resume.content
+
+
+def test_export_resume_markdown_not_found(client_with_auth_no_resume):
+    """Test exporting a non-existent resume returns 404."""
+    response = client_with_auth_no_resume.get("/api/resumes/999/export/markdown")
+    assert response.status_code == 404
+
+
 @patch("resume_editor.app.api.routes.resume.update_resume_db")
 @patch("resume_editor.app.api.routes.resume.extract_personal_info")
 def test_update_education_info_reconstruction_error(

@@ -1,6 +1,6 @@
 import logging
 
-from fastapi import APIRouter, Depends, Form, HTTPException, Request
+from fastapi import APIRouter, Depends, Form, HTTPException, Request, Response
 from fastapi.responses import HTMLResponse
 from sqlalchemy.orm import Session
 
@@ -454,6 +454,35 @@ async def get_resume(
         name=resume.name,
         content=resume.content,
     )
+
+
+@router.get("/{resume_id}/export/markdown")
+async def export_resume_markdown(
+    resume: DatabaseResume = Depends(get_resume_for_user),
+):
+    """Export a resume as a Markdown file.
+
+    Args:
+        resume (DatabaseResume): The resume object, injected by dependency.
+
+    Returns:
+        Response: A response object containing the resume's Markdown content as a downloadable file.
+
+    Raises:
+        HTTPException: If the resume is not found or does not belong to the user (handled by dependency).
+
+    Notes:
+        1. Fetches the resume using the get_resume_for_user dependency.
+        2. Creates a Response object with the resume's content.
+        3. Sets the 'Content-Type' header to 'text/markdown'.
+        4. Sets the 'Content-Disposition' header to trigger a file download with the resume's name.
+        5. Returns the response.
+
+    """
+    headers = {
+        "Content-Disposition": f'attachment; filename="{resume.name}.md"',
+    }
+    return Response(content=resume.content, media_type="text/markdown", headers=headers)
 
 
 @router.post("/{resume_id}/edit/personal")
