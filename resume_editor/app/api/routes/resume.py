@@ -1,3 +1,4 @@
+import html
 import io
 import logging
 
@@ -58,8 +59,9 @@ from resume_editor.app.api.routes.route_models import (
     PersonalInfoResponse,
     PersonalInfoUpdateRequest,
     ProjectsResponse,
-    RefineRequest,
+    RefineAction,
     RefineResponse,
+    RefineTargetSection,
     ResumeCreateRequest,
     ResumeDetailResponse,
     ResumeResponse,
@@ -127,6 +129,31 @@ async def get_resume_for_user(
 
     """
     return get_resume_by_id_and_user(db, resume_id=resume_id, user_id=current_user.id)
+
+
+def _generate_resume_list_html(
+    resumes: list[DatabaseResume], selected_resume_id: int | None,
+) -> str:
+    """Generates HTML for a list of resumes, marking one as selected."""
+    if not resumes:
+        return """
+        <div class="text-center py-8">
+            <p class="text-gray-500">No resumes found.</p>
+            <p class="text-gray-400 text-sm mt-2">Create your first resume using the "+ New Resume" button.</p>
+        </div>
+        """
+
+    resume_items = []
+    for r in resumes:
+        selected_class = "selected" if r.id == selected_resume_id else ""
+        resume_items.append(f"""
+            <div class="resume-item p-3 rounded cursor-pointer border border-gray-200 mb-2 {selected_class}"
+                 onclick="selectResume({r.id}, this)">
+                <div class="font-medium text-gray-800">{r.name}</div>
+                <div class="text-xs text-gray-500">ID: {r.id}</div>
+            </div>
+            """)
+    return "\n".join(resume_items)
 
 
 @router.post("/parse", response_model=ParseResponse)
@@ -205,18 +232,7 @@ async def create_resume(
     if "HX-Request" in http_request.headers:
         # Return updated resume list
         resumes = get_user_resumes(db, current_user.id)
-
-        resume_items = []
-        for r in resumes:
-            selected_class = "selected" if r.id == resume.id else ""
-            resume_items.append(f"""
-            <div class="resume-item p-3 rounded cursor-pointer border border-gray-200 mb-2 {selected_class}" 
-                 onclick="selectResume({r.id}, this)">
-                <div class="font-medium text-gray-800">{r.name}</div>
-                <div class="text-xs text-gray-500">ID: {r.id}</div>
-            </div>
-            """)
-        html_content = "\n".join(resume_items)
+        html_content = _generate_resume_list_html(resumes, resume.id)
         return HTMLResponse(content=html_content)
 
     return ResumeResponse(id=resume.id, name=resume.name)
@@ -270,18 +286,7 @@ async def update_resume(
     if "HX-Request" in http_request.headers:
         # Return updated resume list
         resumes = get_user_resumes(db, current_user.id)
-
-        resume_items = []
-        for r in resumes:
-            selected_class = "selected" if r.id == resume.id else ""
-            resume_items.append(f"""
-            <div class="resume-item p-3 rounded cursor-pointer border border-gray-200 mb-2 {selected_class}" 
-                 onclick="selectResume({r.id}, this)">
-                <div class="font-medium text-gray-800">{r.name}</div>
-                <div class="text-xs text-gray-500">ID: {r.id}</div>
-            </div>
-            """)
-        html_content = "\n".join(resume_items)
+        html_content = _generate_resume_list_html(resumes, resume.id)
         return HTMLResponse(content=html_content)
 
     return ResumeResponse(id=resume.id, name=resume.name)
@@ -326,25 +331,7 @@ async def delete_resume(
     if "HX-Request" in http_request.headers:
         # Return updated resume list
         resumes = get_user_resumes(db, current_user.id)
-
-        if not resumes:
-            html_content = """
-            <div class="text-center py-8">
-                <p class="text-gray-500">No resumes found.</p>
-                <p class="text-gray-400 text-sm mt-2">Create your first resume using the "+ New Resume" button.</p>
-            </div>
-            """
-        else:
-            resume_items = []
-            for r in resumes:
-                resume_items.append(f"""
-                <div class="resume-item p-3 rounded cursor-pointer border border-gray-200 mb-2" 
-                     onclick="selectResume({r.id}, this)">
-                    <div class="font-medium text-gray-800">{r.name}</div>
-                    <div class="text-xs text-gray-500">ID: {r.id}</div>
-                </div>
-                """)
-            html_content = "\n".join(resume_items)
+        html_content = _generate_resume_list_html(resumes, None)
         return HTMLResponse(content=html_content)
 
     return {"message": "Resume deleted successfully"}
@@ -383,24 +370,7 @@ async def list_resumes(
 
     # Check if this is an HTMX request
     if "HX-Request" in request.headers:
-        if not resumes:
-            html_content = """
-            <div class="text-center py-8">
-                <p class="text-gray-500">No resumes found.</p>
-                <p class="text-gray-400 text-sm mt-2">Create your first resume using the "+ New Resume" button.</p>
-            </div>
-            """
-        else:
-            resume_items = []
-            for resume in resumes:
-                resume_items.append(f"""
-                <div class="resume-item p-3 rounded cursor-pointer border border-gray-200 mb-2" 
-                     onclick="selectResume({resume.id}, this)">
-                    <div class="font-medium text-gray-800">{resume.name}</div>
-                    <div class="text-xs text-gray-500">ID: {resume.id}</div>
-                </div>
-                """)
-            html_content = "\n".join(resume_items)
+        html_content = _generate_resume_list_html(resumes, None)
         return HTMLResponse(content=html_content)
 
     return [ResumeResponse(id=resume.id, name=resume.name) for resume in resumes]
@@ -415,9 +385,7 @@ async def get_resume(
 
     Args:
         request (Request): The HTTP request object.
-        resume_id (int): The unique identifier of the resume to retrieve.
-        db (Session): The database session dependency.
-        current_user (User): The current authenticated user.
+        resume (DatabaseResume): The resume object from dependency.
 
     Returns:
         ResumeDetailResponse | HTMLResponse: The resume's ID, name, and content, or HTML for HTMX.
@@ -436,11 +404,19 @@ async def get_resume(
     """
     # Check if this is an HTMX request
     if "HX-Request" in request.headers:
+        # NOTE to user: The modal uses simple JS for toggling visibility.
+        # Ensure htmx and potentially a script for modal interactivity are loaded on the main page.
         html_content = f"""
         <div class="h-full flex flex-col">
             <div class="flex justify-between items-center mb-4">
                 <h2 class="text-xl font-semibold">{resume.name}</h2>
                 <div class="flex space-x-2">
+                    <button
+                        type="button"
+                        onclick="document.getElementById('refine-modal-{resume.id}').classList.remove('hidden')"
+                        class="bg-purple-500 hover:bg-purple-600 text-white px-3 py-1 rounded text-sm">
+                        Refine with AI
+                    </button>
                     <button 
                         hx-get="/dashboard/create-resume-form" 
                         hx-target="#resume-content" 
@@ -458,6 +434,53 @@ async def get_resume(
             </div>
             <div class="mt-4 text-sm text-gray-500">
                 <p>Resume ID: {resume.id}</p>
+            </div>
+            <div id="refine-result-container" class="mt-4"></div>
+        </div>
+
+        <!-- Refine Modal -->
+        <div id="refine-modal-{resume.id}" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full hidden z-50">
+            <div class="relative top-20 mx-auto p-5 border w-1/2 shadow-lg rounded-md bg-white">
+                <div class="mt-3">
+                    <h3 class="text-lg leading-6 font-medium text-gray-900 text-center">Refine Resume with Job Description</h3>
+                    <div class="mt-2 px-7 py-3">
+                        <form id="refine-form-{resume.id}"
+                              hx-post="/api/resumes/{resume.id}/refine"
+                              hx-target="#refine-result-container"
+                              hx-swap="innerHTML"
+                              onsubmit="document.getElementById('refine-modal-{resume.id}').classList.add('hidden')">
+                            
+                            <label for="job_description" class="block text-sm font-medium text-gray-700">Job Description</label>
+                            <textarea name="job_description" class="mt-1 w-full h-40 p-2 border border-gray-300 rounded" placeholder="Paste job description here..." required></textarea>
+                            
+                            <div class="mt-4">
+                              <label for="target_section" class="block text-sm font-medium text-gray-700">Section to Refine</label>
+                              <select name="target_section" id="target_section" class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md">
+                                  <option value="full">Full Resume</option>
+                                  <option value="personal">Personal</option>
+                                  <option value="education">Education</option>
+                                  <option value="experience">Experience</option>
+                                  <option value="certifications">Certifications</option>
+                              </select>
+                            </div>
+
+                            <div class="mt-6">
+                                <button type="submit" class="w-full px-4 py-2 bg-blue-500 text-white text-base font-medium rounded-md shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                    Refine
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                    
+                    <div class="px-7 pb-3">
+                        <button
+                            type="button"
+                            onclick="document.getElementById('refine-modal-{resume.id}').classList.add('hidden')"
+                            class="w-full px-4 py-2 bg-gray-200 text-gray-800 text-base font-medium rounded-md shadow-sm hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-300">
+                            Cancel
+                        </button>
+                    </div>
+                </div>
             </div>
         </div>
         """
@@ -1349,32 +1372,38 @@ async def update_certifications_info_structured(
 
 @router.post("/{resume_id}/refine", response_model=RefineResponse)
 async def refine_resume(
-    request: RefineRequest,
+    http_request: Request,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
     resume: DatabaseResume = Depends(get_resume_for_user),
+    job_description: str = Form(...),
+    target_section: RefineTargetSection = Form(...),
 ):
     """Refine a resume section using an LLM to align with a job description.
 
     Args:
-        request (RefineRequest): The request containing the job description and target section.
+        http_request (Request): The HTTP request object to check for HTMX headers.
         db (Session): The database session dependency.
         current_user (User): The current authenticated user.
         resume (DatabaseResume): The resume to be refined.
+        job_description (str): The job description to align the resume with.
+        target_section (RefineTargetSection): The section of the resume to refine.
+
 
     Returns:
-        RefineResponse: The LLM's refined content as Markdown.
+        RefineResponse | HTMLResponse: The LLM's refined content as Markdown, or an HTML partial for HTMX.
 
     Notes:
         1. Fetches the user's settings, including the custom LLM endpoint and encrypted API key.
         2. Decrypts the API key if it exists.
         3. Delegates to the `refine_resume_section_with_llm` function to perform the refinement.
-        4. Returns the refined content in a `RefineResponse`.
-        5. This function performs database reads to get user settings.
-        6. This function performs network access to call the LLM.
+        4. If the request is from HTMX, returns an HTML partial with the suggestion and action buttons.
+        5. Otherwise, returns the refined content in a `RefineResponse`.
+        6. This function performs database reads to get user settings.
+        7. This function performs network access to call the LLM.
 
     """
-    _msg = f"Refining resume {resume.id} for section {request.target_section.value}"
+    _msg = f"Refining resume {resume.id} for section {target_section.value}"
     log.debug(_msg)
 
     try:
@@ -1387,19 +1416,143 @@ async def refine_resume(
 
         refined_content = refine_resume_section_with_llm(
             resume_content=resume.content,
-            job_description=request.job_description,
-            target_section=request.target_section.value,
+            job_description=job_description,
+            target_section=target_section.value,
             llm_endpoint=llm_endpoint,
             api_key=api_key,
         )
+
+        if "HX-Request" in http_request.headers:
+            target_section_val = target_section.value
+            html_content = f"""
+            <div id="refine-result" class="mt-4 p-4 border rounded-lg bg-gray-50">
+                <h4 class="font-semibold text-lg mb-2">AI Refinement Suggestion</h4>
+                <p class="text-sm text-gray-600 mb-2">Review the suggestion for the '{target_section_val}' section.</p>
+                <form 
+                    hx-post="/api/resumes/{resume.id}/refine/accept"
+                    hx-target="#left-sidebar-content" 
+                    hx-swap="innerHTML">
+                    <input type="hidden" name="target_section" value="{target_section_val}">
+                    <textarea name="refined_content" class="w-full h-48 p-2 border rounded font-mono text-sm">{html.escape(refined_content)}</textarea>
+                    <div class="mt-4 flex items-center justify-between">
+                        <div>
+                            <button type="submit" name="action" value="overwrite" class="bg-green-500 text-white px-3 py-1 rounded text-sm hover:bg-green-600">
+                                Accept & Overwrite
+                            </button>
+                            <button type="button" onclick="this.closest('#refine-result').remove()" class="bg-gray-500 text-white px-3 py-1 rounded text-sm hover:bg-gray-600 ml-2">
+                                Reject
+                            </button>
+                        </div>
+                        <div class="flex items-center">
+                            <input type="text" name="new_resume_name" placeholder="Name for new resume" class="border rounded px-2 py-1 text-sm">
+                            <button type="submit" name="action" value="save_as_new" class="bg-blue-500 text-white px-3 py-1 rounded text-sm hover:bg-blue-600 ml-2">
+                                Save as New
+                            </button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            """
+            return HTMLResponse(content=html_content)
+
         return RefineResponse(refined_content=refined_content)
     except InvalidToken:
         _msg = f"API key decryption failed for user {current_user.id}"
         log.warning(_msg)
         raise HTTPException(
-            status_code=400, detail="Invalid API key. Please update your settings.",
+            status_code=400,
+            detail="Invalid API key. Please update your settings.",
         )
     except Exception as e:
         _msg = f"LLM refinement failed for resume {resume.id}: {e!s}"
         log.exception(_msg)
         raise HTTPException(status_code=500, detail=f"LLM refinement failed: {e!s}")
+
+
+@router.post("/{resume_id}/refine/accept", response_class=HTMLResponse)
+async def accept_refined_resume(
+    resume: DatabaseResume = Depends(get_resume_for_user),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    refined_content: str = Form(...),
+    target_section: RefineTargetSection = Form(...),
+    action: RefineAction = Form(...),
+    new_resume_name: str | None = Form(None),
+):
+    """Accept a refined resume section and persist the changes.
+
+    Args:
+        resume (DatabaseResume): The original resume being modified.
+        db (Session): The database session.
+        current_user (User): The current authenticated user.
+        refined_content (str): The refined markdown from the LLM.
+        target_section (RefineTargetSection): The section that was refined.
+        action (RefineAction): The action to take (overwrite or save as new).
+        new_resume_name (str | None): The name for the new resume if saving as new.
+
+    Returns:
+        HTMLResponse: An HTML partial containing the updated list of resumes.
+
+    """
+    if action == RefineAction.SAVE_AS_NEW and not new_resume_name:
+        raise HTTPException(
+            status_code=400,
+            detail="New resume name is required for 'save as new' action.",
+        )
+
+    updated_content = ""
+    try:
+        if target_section == RefineTargetSection.FULL:
+            updated_content = refined_content
+        else:
+            # Based on the target section, use the refined content for that section
+            # and the original content for all others.
+            personal_info = extract_personal_info(
+                refined_content
+                if target_section == RefineTargetSection.PERSONAL
+                else resume.content,
+            )
+            education_info = extract_education_info(
+                refined_content
+                if target_section == RefineTargetSection.EDUCATION
+                else resume.content,
+            )
+            experience_info = extract_experience_info(
+                refined_content
+                if target_section == RefineTargetSection.EXPERIENCE
+                else resume.content,
+            )
+            certifications_info = extract_certifications_info(
+                refined_content
+                if target_section == RefineTargetSection.CERTIFICATIONS
+                else resume.content,
+            )
+
+            updated_content = build_complete_resume_from_sections(
+                personal_info=personal_info,
+                education=education_info,
+                experience=experience_info,
+                certifications=certifications_info,
+            )
+        perform_pre_save_validation(updated_content, resume.content)
+    except (ValueError, TypeError, HTTPException) as e:
+        detail = getattr(e, "detail", str(e))
+        _msg = f"Failed to reconstruct resume from refined section: {detail}"
+        log.exception(_msg)
+        raise HTTPException(status_code=422, detail=_msg)
+
+    newly_selected_id = resume.id
+    if action == RefineAction.OVERWRITE:
+        update_resume_db(db=db, resume=resume, content=updated_content)
+    else:  # This must be RefineAction.SAVE_AS_NEW
+        new_resume = create_resume_db(
+            db=db,
+            user_id=current_user.id,
+            name=new_resume_name,
+            content=updated_content,
+        )
+        newly_selected_id = new_resume.id
+
+    resumes = get_user_resumes(db, current_user.id)
+    html_content = _generate_resume_list_html(resumes, newly_selected_id)
+    return HTMLResponse(content=html_content)

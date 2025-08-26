@@ -1,9 +1,18 @@
 import logging
 from datetime import datetime
+from enum import Enum
 
 from pydantic import BaseModel, field_validator
 
 log = logging.getLogger(__name__)
+
+
+class InclusionStatus(str, Enum):
+    """Represents the inclusion status of a resume item."""
+
+    INCLUDE = "Include"
+    NOT_RELEVANT = "Not Relevant"
+    OMIT = "Omit"
 
 
 class RoleSummary(BaseModel):
@@ -108,6 +117,7 @@ class RoleBasics(BaseModel):
         job_category (str | None): The category of the job or None.
         employment_type (str | None): The employment type or None.
         agency_name (str | None): The name of the agency or None.
+        inclusion_status (InclusionStatus): The inclusion status of the role.
 
     """
 
@@ -120,6 +130,7 @@ class RoleBasics(BaseModel):
     job_category: str | None = None
     employment_type: str | None = None
     agency_name: str | None = None
+    inclusion_status: InclusionStatus = InclusionStatus.INCLUDE
 
     @field_validator("company")
     @classmethod
@@ -342,6 +353,7 @@ class ProjectOverview(BaseModel):
         url_description (str | None): A description of the URL or None.
         start_date (datetime | None): The start date as a datetime object or None.
         end_date (datetime | None): The end date as a datetime object or None.
+        inclusion_status (InclusionStatus): The inclusion status of the project.
 
     """
 
@@ -350,6 +362,7 @@ class ProjectOverview(BaseModel):
     url_description: str | None = None
     start_date: datetime | None = None
     end_date: datetime | None = None
+    inclusion_status: InclusionStatus = InclusionStatus.INCLUDE
 
     @field_validator("title")
     @classmethod

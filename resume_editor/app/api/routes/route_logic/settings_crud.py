@@ -35,7 +35,9 @@ def get_user_settings(db: Session, user_id: int) -> UserSettings | None:
 
 
 def update_user_settings(
-    db: Session, user_id: int, settings_data: "UserSettingsUpdateRequest",
+    db: Session,
+    user_id: int,
+    settings_data: "UserSettingsUpdateRequest",
 ) -> UserSettings:
     """Creates or updates settings for a user.
 
@@ -68,7 +70,10 @@ def update_user_settings(
         db.add(settings)
 
     if settings_data.llm_endpoint is not None:
-        settings.llm_endpoint = settings_data.llm_endpoint
+        if settings_data.llm_endpoint:
+            settings.llm_endpoint = settings_data.llm_endpoint
+        else:
+            settings.llm_endpoint = None
 
     if settings_data.api_key is not None:
         if settings_data.api_key:

@@ -52,10 +52,10 @@ class DocstringProcessor:
 * The docstring should include
     - an `Args:` section, which includes the name, type, and purpose of the function argument.
     - a `Returns:` section, which includes the type and purpose of all possible return values
+    - an optional "Raises:" section, which includes any potential exceptions raised
     - a `Notes:` section, which should include a numbered step-by-step description of the function internals.
         - The numbered steps should exclude logging statements.
         - The "Notes:" should mention any network, disk, or database access.
-        - Any exceptions potentially raised
 
 IMPORTANT!
 ==========

@@ -9,6 +9,7 @@ from resume_editor.app.api.routes.route_models import (
     ExperienceResponse,
     PersonalInfoResponse,
 )
+from resume_editor.app.models.resume.experience import InclusionStatus
 
 log = logging.getLogger(__name__)
 
@@ -204,12 +205,15 @@ def extract_experience_info(resume_content: str) -> ExperienceResponse:
                             "reason_for_change",
                             None,
                         ),
+                        "inclusion_status": getattr(
+                            role_basics, "inclusion_status", None
+                        ),
                     }
 
                 # Summary
                 summary = getattr(role, "summary", None)
-                if summary and hasattr(summary, "summary"):
-                    role_dict["summary"] = {"text": summary.summary}
+                if summary and hasattr(summary, "text"):
+                    role_dict["summary"] = {"text": summary.text}
 
                 # Responsibilities
                 responsibilities = getattr(role, "responsibilities", None)
@@ -244,6 +248,9 @@ def extract_experience_info(resume_content: str) -> ExperienceResponse:
                         ),
                         "start_date": start_date.isoformat() if start_date else None,
                         "end_date": end_date.isoformat() if end_date else None,
+                        "inclusion_status": getattr(
+                            project_overview, "inclusion_status", None
+                        ),
                     }
 
                 # Description
@@ -493,120 +500,134 @@ def serialize_experience_to_markdown(experience) -> str:
             c. Adds a blank line after each role.
         4. Joins the lines with newlines.
         5. Returns the formatted string with a trailing newline.
-        6. Returns an empty string if no experience data is present.
+        6. Returns an empty string if no experience data is present or all is filtered out.
         7. No network, disk, or database access is performed during this function.
 
     """
     if not experience:
         experience = ExperienceResponse(roles=[], projects=[])
 
-    # Check if we have any experience data (roles or projects)
-    has_roles = hasattr(experience, "roles") and experience.roles
-    has_projects = hasattr(experience, "projects") and experience.projects
+    project_lines = []
+    if hasattr(experience, "projects") and experience.projects:
+        for project in experience.projects:
+            overview = getattr(project, "overview", None)
+            if not overview:
+                continue
 
-    if not has_roles and not has_projects:
+            inclusion_status = getattr(
+                overview, "inclusion_status", InclusionStatus.INCLUDE
+            )
+            if inclusion_status == InclusionStatus.OMIT:
+                continue
+
+            project_content = ["### Project", ""]
+
+            project_content.extend(["#### Overview", ""])
+            if getattr(overview, "title", None):
+                project_content.append(f"Title: {overview.title}")
+            project_content.append(f"Inclusion Status: {inclusion_status.value}")
+            if getattr(overview, "url", None):
+                project_content.append(f"Url: {overview.url}")
+            if getattr(overview, "url_description", None):
+                project_content.append(
+                    f"Url Description: {overview.url_description}",
+                )
+            if getattr(overview, "start_date", None):
+                project_content.append(
+                    f"Start date: {overview.start_date.strftime('%m/%Y')}",
+                )
+            if getattr(overview, "end_date", None):
+                project_content.append(
+                    f"End date: {overview.end_date.strftime('%m/%Y')}",
+                )
+            project_content.append("")
+
+            if inclusion_status != InclusionStatus.NOT_RELEVANT:
+                description = getattr(project, "description", None)
+                if description:
+                    project_content.extend(
+                        ["#### Description", "", description.text, ""],
+                    )
+
+                skills = getattr(project, "skills", None)
+                if skills and hasattr(skills, "skills") and skills.skills:
+                    project_content.extend(["#### Skills", ""])
+                    project_content.extend([f"* {skill}" for skill in skills.skills])
+                    project_content.append("")
+            project_lines.extend(project_content)
+
+    role_lines = []
+    if hasattr(experience, "roles") and experience.roles:
+        for role in experience.roles:
+            basics = getattr(role, "basics", None)
+            if not basics:
+                continue
+
+            inclusion_status = getattr(
+                basics, "inclusion_status", InclusionStatus.INCLUDE
+            )
+            if inclusion_status == InclusionStatus.OMIT:
+                continue
+
+            role_content = ["### Role", ""]
+
+            role_content.extend(["#### Basics", ""])
+            if getattr(basics, "company", None):
+                role_content.append(f"Company: {basics.company}")
+            if getattr(basics, "title", None):
+                role_content.append(f"Title: {basics.title}")
+            role_content.append(f"Inclusion Status: {inclusion_status.value}")
+            if getattr(basics, "employment_type", None):
+                role_content.append(f"Employment type: {basics.employment_type}")
+            if getattr(basics, "job_category", None):
+                role_content.append(f"Job category: {basics.job_category}")
+            if getattr(basics, "agency_name", None):
+                role_content.append(f"Agency: {basics.agency_name}")
+            if getattr(basics, "start_date", None):
+                role_content.append(
+                    f"Start date: {basics.start_date.strftime('%m/%Y')}",
+                )
+            if getattr(basics, "end_date", None):
+                role_content.append(f"End date: {basics.end_date.strftime('%m/%Y')}")
+            if getattr(basics, "reason_for_change", None):
+                role_content.append(f"Reason for change: {basics.reason_for_change}")
+            if getattr(basics, "location", None):
+                role_content.append(f"Location: {basics.location}")
+            role_content.append("")
+
+            if inclusion_status != InclusionStatus.NOT_RELEVANT:
+                summary = getattr(role, "summary", None)
+                if summary:
+                    role_content.extend(["#### Summary", "", summary.text, ""])
+
+                responsibilities = getattr(role, "responsibilities", None)
+                if responsibilities:
+                    role_content.extend(
+                        [
+                            "#### Responsibilities",
+                            "",
+                            responsibilities.text,
+                            "",
+                        ],
+                    )
+
+                skills = getattr(role, "skills", None)
+                if skills and hasattr(skills, "skills") and skills.skills:
+                    role_content.extend(["#### Skills", ""])
+                    role_content.extend([f"* {skill}" for skill in skills.skills])
+                    role_content.append("")
+            role_lines.extend(role_content)
+
+    if not project_lines and not role_lines:
         return ""
 
-    lines = []
-
-    # Add main experience section header
-    lines.append("# Experience")
-    lines.append("")
-
-    # Add projects section first if projects exist
-    if has_projects:
-        lines.append("## Projects")
-        lines.append("")
-
-        for project in experience.projects:
-            lines.append("### Project")
-            lines.append("")
-
-            overview = getattr(project, "overview", None)
-            if overview:
-                lines.append("#### Overview")
-                lines.append("")
-                if getattr(overview, "title", None):
-                    lines.append(f"Title: {overview.title}")
-                if getattr(overview, "url", None):
-                    lines.append(f"Url: {overview.url}")
-                if getattr(overview, "url_description", None):
-                    lines.append(f"Url Description: {overview.url_description}")
-                if getattr(overview, "start_date", None):
-                    lines.append(f"Start date: {overview.start_date.strftime('%m/%Y')}")
-                if getattr(overview, "end_date", None):
-                    lines.append(f"End date: {overview.end_date.strftime('%m/%Y')}")
-                lines.append("")
-
-            description = getattr(project, "description", None)
-            if description:
-                lines.append("#### Description")
-                lines.append("")
-                lines.append(description.text)
-                lines.append("")
-
-            skills = getattr(project, "skills", None)
-            if skills and hasattr(skills, "skills") and skills.skills:
-                lines.append("#### Skills")
-                lines.append("")
-                for skill in skills.skills:
-                    lines.append(f"* {skill}")
-                lines.append("")
-
-    # Add roles section
-    if has_roles:
-        lines.append("## Roles")
-        lines.append("")
-
-        for role in experience.roles:
-            lines.append("### Role")
-            lines.append("")
-
-            basics = getattr(role, "basics", None)
-            if basics:
-                lines.append("#### Basics")
-                lines.append("")
-                if getattr(basics, "company", None):
-                    lines.append(f"Company: {basics.company}")
-                if getattr(basics, "title", None):
-                    lines.append(f"Title: {basics.title}")
-                if getattr(basics, "employment_type", None):
-                    lines.append(f"Employment type: {basics.employment_type}")
-                if getattr(basics, "job_category", None):
-                    lines.append(f"Job category: {basics.job_category}")
-                if getattr(basics, "agency_name", None):
-                    lines.append(f"Agency: {basics.agency_name}")
-                if getattr(basics, "start_date", None):
-                    lines.append(f"Start date: {basics.start_date.strftime('%m/%Y')}")
-                if getattr(basics, "end_date", None):
-                    lines.append(f"End date: {basics.end_date.strftime('%m/%Y')}")
-                if getattr(basics, "reason_for_change", None):
-                    lines.append(f"Reason for change: {basics.reason_for_change}")
-                if getattr(basics, "location", None):
-                    lines.append(f"Location: {basics.location}")
-                lines.append("")
-
-            summary = getattr(role, "summary", None)
-            if summary:
-                lines.append("#### Summary")
-                lines.append("")
-                lines.append(summary.text)
-                lines.append("")
-
-            responsibilities = getattr(role, "responsibilities", None)
-            if responsibilities:
-                lines.append("#### Responsibilities")
-                lines.append("")
-                lines.append(responsibilities.text)
-                lines.append("")
-
-            skills = getattr(role, "skills", None)
-            if skills and hasattr(skills, "skills") and skills.skills:
-                lines.append("#### Skills")
-                lines.append("")
-                for skill in skills.skills:
-                    lines.append(f"* {skill}")
-                lines.append("")
+    lines = ["# Experience", ""]
+    if project_lines:
+        lines.extend(["## Projects", ""])
+        lines.extend(project_lines)
+    if role_lines:
+        lines.extend(["## Roles", ""])
+        lines.extend(role_lines)
 
     return "\n".join(lines) + "\n"
 

@@ -2,6 +2,8 @@ import textwrap
 from datetime import datetime
 from unittest.mock import Mock, patch
 
+import pytest
+
 from resume_editor.app.api.routes.route_logic.resume_serialization import (
     extract_certifications_info,
     extract_education_info,
@@ -19,6 +21,226 @@ from resume_editor.app.api.routes.route_models import (
     ExperienceResponse,
     PersonalInfoResponse,
 )
+from resume_editor.app.models.resume.experience import InclusionStatus
+
+
+@pytest.fixture
+def sample_experience_data():
+    """Provides sample experience data for testing."""
+    return {
+        "roles": [
+            {
+                "basics": {
+                    "company": "Include Corp",
+                    "title": "Full-Stack Dev",
+                    "start_date": datetime(2020, 1, 1),
+                    "inclusion_status": InclusionStatus.INCLUDE,
+                },
+                "summary": {"text": "A summary."},
+            },
+            {
+                "basics": {
+                    "company": "Not Relevant Inc",
+                    "title": "Backend Dev",
+                    "start_date": datetime(2018, 1, 1),
+                    "inclusion_status": InclusionStatus.NOT_RELEVANT,
+                },
+                "summary": {"text": "Another summary."},
+            },
+            {
+                "basics": {
+                    "company": "Omit Ltd",
+                    "title": "Frontend Dev",
+                    "start_date": datetime(2016, 1, 1),
+                    "inclusion_status": InclusionStatus.OMIT,
+                },
+            },
+        ],
+        "projects": [
+            {
+                "overview": {
+                    "title": "Include Project",
+                    "inclusion_status": InclusionStatus.INCLUDE,
+                },
+                "description": {"text": "Project description."},
+            },
+            {
+                "overview": {
+                    "title": "Not Relevant Project",
+                    "inclusion_status": InclusionStatus.NOT_RELEVANT,
+                },
+                "description": {"text": "Another project description."},
+            },
+            {
+                "overview": {
+                    "title": "Omit Project",
+                    "inclusion_status": InclusionStatus.OMIT,
+                },
+                "description": {"text": "This project is omitted."},
+            },
+        ],
+    }
+
+
+def test_serialize_experience_with_inclusion_controls(sample_experience_data):
+    """Test that inclusion controls are correctly applied during serialization."""
+    experience = ExperienceResponse(**sample_experience_data)
+    markdown = serialize_experience_to_markdown(experience)
+
+    # Omitted items should not be present
+    assert "Omit Ltd" not in markdown
+    assert "Omit Project" not in markdown
+
+    # Not Relevant items should have basics/overview only
+    assert "Not Relevant Inc" in markdown
+    assert "Backend Dev" in markdown
+    assert "Another summary." not in markdown
+    assert "Not Relevant Project" in markdown
+    assert "Another project description." not in markdown
+
+    # Included items should be fully present
+    assert "Include Corp" in markdown
+    assert "Full-Stack Dev" in markdown
+    assert "A summary." in markdown
+    assert "Include Project" in markdown
+    assert "Project description." in markdown
+
+    # Check for Inclusion Status field persistence
+    assert "Inclusion Status: Include" in markdown
+    assert "Inclusion Status: Not Relevant" in markdown
+    assert "Inclusion Status: Omit" not in markdown
+
+
+def test_extract_experience_info_from_markdown():
+    """Test that experience data can be correctly extracted from Markdown."""
+    markdown_content = """
+# Experience
+
+## Roles
+### Role
+#### Basics
+
+Company: Test Corp
+Title: Developer
+Start date: 01/2020
+Inclusion Status: Include
+
+#### Summary
+
+This is a summary.
+
+### Role
+#### Basics
+
+Company: Omitter Inc
+Title: PM
+Start date: 01/2019
+Inclusion Status: Omit
+
+## Projects
+### Project
+#### Overview
+
+Title: A Project
+Inclusion Status: Not Relevant
+#### Description
+
+A description of the project.
+"""
+    experience = extract_experience_info(markdown_content)
+
+    # Roles validation
+    assert len(experience.roles) == 2
+    # Included role
+    assert experience.roles[0].basics.company == "Test Corp"
+    assert experience.roles[0].basics.inclusion_status == InclusionStatus.INCLUDE
+    assert experience.roles[0].summary.text == "This is a summary."
+    # Omitted role should be parsed but its status should be known
+    assert experience.roles[1].basics.company == "Omitter Inc"
+    assert experience.roles[1].basics.inclusion_status == InclusionStatus.OMIT
+    assert experience.roles[1].summary is None
+
+    # Projects validation
+    assert len(experience.projects) == 1
+    assert experience.projects[0].overview.title == "A Project"
+    assert (
+        experience.projects[0].overview.inclusion_status == InclusionStatus.NOT_RELEVANT
+    )
+    assert experience.projects[0].description.text == "A description of the project."
+
+
+def test_serialize_empty_experience():
+    """Test serializing an empty experience section returns an empty string."""
+    assert serialize_experience_to_markdown(None) == ""
+    assert serialize_experience_to_markdown(ExperienceResponse()) == ""
+
+
+def test_extract_experience_info_with_no_experience_section():
+    """Test extracting experience from markdown with no experience section."""
+    markdown_content = """
+# Personal
+## Contact Information
+Name: John Doe
+"""
+    experience = extract_experience_info(markdown_content)
+    assert experience.roles == []
+    assert experience.projects == []
+
+
+def test_extract_experience_info_with_invalid_markdown():
+    """Test extracting experience from malformed markdown raises ValueError."""
+    markdown_content = """
+# Experience
+### Role
+Company: Test Corp
+"""  # Invalid structure
+    with pytest.raises(ValueError, match="Failed to parse experience info"):
+        extract_experience_info(markdown_content)
+
+
+@pytest.mark.parametrize(
+    "experience_data",
+    [
+        # All items are omitted
+        pytest.param(
+            {
+                "roles": [
+                    {
+                        "basics": {
+                            "company": "Omit Ltd",
+                            "title": "Dev",
+                            "start_date": datetime(2022, 1, 1),
+                            "inclusion_status": InclusionStatus.OMIT,
+                        }
+                    }
+                ],
+                "projects": [
+                    {
+                        "overview": {
+                            "title": "Omit Proj",
+                            "inclusion_status": InclusionStatus.OMIT,
+                        },
+                        "description": {"text": "desc"},
+                    }
+                ],
+            },
+            id="all_omitted",
+        ),
+        # Malformed items (missing basics/overview)
+        pytest.param(
+            {
+                "roles": [{"summary": {"text": "No basics"}}],
+                "projects": [{"description": {"text": "No overview"}}],
+            },
+            id="malformed_data",
+        ),
+    ],
+)
+def test_serialize_experience_is_empty_if_no_content(experience_data):
+    """Test serializing experience returns empty string if all content is filtered."""
+    experience = ExperienceResponse(**experience_data)
+    markdown = serialize_experience_to_markdown(experience)
+    assert markdown == ""
 
 
 class TestResumeSerialization:
@@ -115,8 +337,6 @@ class TestResumeSerialization:
     )
     def test_extract_personal_info_parse_fails(self, mock_parse):
         """Test personal info extraction when parsing fails."""
-        import pytest
-
         with pytest.raises(ValueError, match="Failed to parse personal info"):
             extract_personal_info("invalid content")
 
@@ -182,8 +402,6 @@ class TestResumeSerialization:
     )
     def test_extract_education_info_parse_fails(self, mock_parse):
         """Test education info extraction when parsing fails."""
-        import pytest
-
         with pytest.raises(ValueError, match="Failed to parse education info"):
             extract_education_info("invalid content")
 
@@ -286,8 +504,6 @@ class TestResumeSerialization:
     )
     def test_extract_experience_info_parse_fails(self, mock_parse):
         """Test experience info extraction when parsing fails."""
-        import pytest
-
         with pytest.raises(ValueError, match="Failed to parse experience info"):
             extract_experience_info("invalid content")
 
@@ -334,8 +550,6 @@ class TestResumeSerialization:
     )
     def test_extract_certifications_info_parse_fails(self, mock_parse):
         """Test certifications extraction when parsing fails."""
-        import pytest
-
         with pytest.raises(ValueError, match="Failed to parse certifications info"):
             extract_certifications_info("invalid content")
 

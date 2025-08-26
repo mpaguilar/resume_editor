@@ -201,6 +201,32 @@ class RefineResponse(BaseModel):
     refined_content: str
 
 
+class RefineAction(str, Enum):
+    """Enum for actions after accepting LLM refinement."""
+
+    OVERWRITE = "overwrite"
+    SAVE_AS_NEW = "save_as_new"
+
+
+class RefineAcceptRequest(BaseModel):
+    """Request model for accepting a refined resume section.
+
+    This model can be populated from form data.
+
+    Attributes:
+        refined_content (str): The markdown content of the refined section.
+        target_section (RefineTargetSection): The section that was refined.
+        action (RefineAction): The action to take (overwrite or save as new).
+        new_resume_name (str | None): The name for the new resume if action is 'save_as_new'.
+
+    """
+
+    refined_content: str
+    target_section: RefineTargetSection
+    action: RefineAction
+    new_resume_name: str | None = None
+
+
 # Response models for structured data
 class PersonalInfoResponse(BaseModel):
     """Response model for personal information.

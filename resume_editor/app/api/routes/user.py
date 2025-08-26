@@ -182,7 +182,8 @@ def register_user(user: UserCreate, db: Session = Depends(get_db)) -> UserRespon
 
 @router.get("/settings", response_model=UserSettingsResponse)
 def get_user_settings(
-    db: Session = Depends(get_db), current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """Get the current user's settings.
 
