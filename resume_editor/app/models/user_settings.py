@@ -17,6 +17,7 @@ class UserSettings(Base):
         llm_endpoint (str | None): Custom LLM API endpoint URL.
         encrypted_api_key (str | None): Encrypted API key for the LLM service.
         user (User): Relationship to the User model.
+
     """
 
     __tablename__ = "user_settings"
@@ -48,6 +49,7 @@ class UserSettings(Base):
             1. Assign all values to instance attributes.
             2. Log the initialization of the user settings.
             3. This operation does not involve network, disk, or database access.
+
         """
         _msg = f"Initializing UserSettings for user_id: {user_id}"
         log.debug(_msg)

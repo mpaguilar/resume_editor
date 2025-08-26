@@ -55,6 +55,7 @@ class DocstringProcessor:
     - a `Notes:` section, which should include a numbered step-by-step description of the function internals.
         - The numbered steps should exclude logging statements.
         - The "Notes:" should mention any network, disk, or database access.
+        - Any exceptions potentially raised
 
 IMPORTANT!
 ==========

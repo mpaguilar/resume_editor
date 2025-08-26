@@ -44,7 +44,7 @@ def test_user_settings_endpoints(monkeypatch):
     mock_db.reset_mock()
     mock_db.query.return_value.filter.return_value.first.return_value = None
     with patch(
-        "resume_editor.app.api.routes.route_logic.settings_crud.encrypt_data"
+        "resume_editor.app.api.routes.route_logic.settings_crud.encrypt_data",
     ) as mock_encrypt:
         mock_encrypt.return_value = "encrypted_key"
         response = client.put(
@@ -66,9 +66,7 @@ def test_user_settings_endpoints(monkeypatch):
         llm_endpoint="http://existing.com",
         encrypted_api_key="existing_key",
     )
-    mock_db.query.return_value.filter.return_value.first.return_value = (
-        mock_settings
-    )
+    mock_db.query.return_value.filter.return_value.first.return_value = mock_settings
     response = client.get("/api/users/settings")
     assert response.status_code == 200
     assert response.json() == {
@@ -83,11 +81,9 @@ def test_user_settings_endpoints(monkeypatch):
         llm_endpoint="http://existing.com",
         encrypted_api_key="existing_key",
     )
-    mock_db.query.return_value.filter.return_value.first.return_value = (
-        mock_settings
-    )
+    mock_db.query.return_value.filter.return_value.first.return_value = mock_settings
     with patch(
-        "resume_editor.app.api.routes.route_logic.settings_crud.encrypt_data"
+        "resume_editor.app.api.routes.route_logic.settings_crud.encrypt_data",
     ) as mock_encrypt:
         mock_encrypt.return_value = "new_encrypted_key"
         response = client.put(
@@ -106,11 +102,9 @@ def test_user_settings_endpoints(monkeypatch):
         llm_endpoint="http://existing.com",
         encrypted_api_key="existing_key",
     )
-    mock_db.query.return_value.filter.return_value.first.return_value = (
-        mock_settings
-    )
+    mock_db.query.return_value.filter.return_value.first.return_value = mock_settings
     with patch(
-        "resume_editor.app.api.routes.route_logic.settings_crud.encrypt_data"
+        "resume_editor.app.api.routes.route_logic.settings_crud.encrypt_data",
     ) as mock_encrypt:
         response = client.put(
             "/api/users/settings",
@@ -128,11 +122,9 @@ def test_user_settings_endpoints(monkeypatch):
         llm_endpoint="http://existing.com",
         encrypted_api_key="existing_key",
     )
-    mock_db.query.return_value.filter.return_value.first.return_value = (
-        mock_settings
-    )
+    mock_db.query.return_value.filter.return_value.first.return_value = mock_settings
     with patch(
-        "resume_editor.app.api.routes.route_logic.settings_crud.encrypt_data"
+        "resume_editor.app.api.routes.route_logic.settings_crud.encrypt_data",
     ) as mock_encrypt:
         response = client.put(
             "/api/users/settings",
@@ -150,11 +142,9 @@ def test_user_settings_endpoints(monkeypatch):
         llm_endpoint="http://existing.com",
         encrypted_api_key="existing_key",
     )
-    mock_db.query.return_value.filter.return_value.first.return_value = (
-        mock_settings
-    )
+    mock_db.query.return_value.filter.return_value.first.return_value = mock_settings
     with patch(
-        "resume_editor.app.api.routes.route_logic.settings_crud.encrypt_data"
+        "resume_editor.app.api.routes.route_logic.settings_crud.encrypt_data",
     ) as mock_encrypt:
         mock_encrypt.return_value = "only-key-encrypted"
         response = client.put(

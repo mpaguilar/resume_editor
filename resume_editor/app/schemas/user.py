@@ -35,6 +35,11 @@ class UserCreate(UserBase):
     Attributes:
         password (str): Plain text password provided by the user during registration.
 
+    Notes:
+        1. The password is stored in plain text temporarily for hashing.
+        2. The password is not returned in any response.
+        3. The schema is used during user registration to validate input.
+
     """
 
     password: str
@@ -52,6 +57,11 @@ class UserLogin(BaseModel):
     Attributes:
         username (str): Username provided by the user during login.
         password (str): Plain text password provided by the user during login.
+
+    Notes:
+        1. The credentials are validated against the user database.
+        2. The password is not stored after authentication.
+        3. This schema is used in the login endpoint to accept user input.
 
     """
 
@@ -76,10 +86,9 @@ class UserResponse(UserBase):
         is_active (bool): Indicates whether the user account is active and can log in.
 
     Notes:
-        1. The schema includes user identification and status information.
+        1. Data is retrieved from the user database during user lookup.
         2. The password field is omitted to maintain security.
-        3. Data is retrieved from the user database during user lookup.
-        4. The model uses ConfigDict(from_attributes=True) to support ORM attribute mapping.
+        3. The model uses ConfigDict(from_attributes=True) to support ORM attribute mapping.
 
     """
 
@@ -139,9 +148,21 @@ class TokenData(BaseModel):
 class UserSettingsUpdateRequest(BaseModel):
     """Schema for updating user settings.
 
+    This schema is used to update the user's LLM service configuration.
+
+    Args:
+        llm_endpoint (str | None): Custom LLM endpoint URL.
+        api_key (str | None): Plaintext API key for the LLM service.
+
     Attributes:
         llm_endpoint (str | None): Custom LLM endpoint URL.
         api_key (str | None): Plaintext API key for the LLM service.
+
+    Notes:
+        1. The API key is not returned in the response for security.
+        2. The settings are stored in the user database.
+        3. Network access may occur when the LLM service is accessed using the endpoint.
+
     """
 
     llm_endpoint: str | None = None
@@ -153,9 +174,19 @@ class UserSettingsResponse(BaseModel):
 
     The API key is not returned for security.
 
+    Args:
+        llm_endpoint (str | None): Custom LLM endpoint URL.
+        api_key_is_set (bool): Whether an API key has been set.
+
     Attributes:
         llm_endpoint (str | None): Custom LLM endpoint URL.
         api_key_is_set (bool): Whether an API key has been set.
+
+    Notes:
+        1. The API key is not returned in the response.
+        2. The data is retrieved from the user database.
+        3. The model uses ConfigDict(from_attributes=True) to support ORM attribute mapping.
+
     """
 
     llm_endpoint: str | None = None

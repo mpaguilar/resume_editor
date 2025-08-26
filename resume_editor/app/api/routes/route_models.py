@@ -167,6 +167,40 @@ class CertificationUpdateRequest(BaseModel):
     certifications: list[Certification]
 
 
+class RefineTargetSection(str, Enum):
+    """Enum for target sections for LLM refinement."""
+
+    FULL = "full"
+    PERSONAL = "personal"
+    EDUCATION = "education"
+    EXPERIENCE = "experience"
+    CERTIFICATIONS = "certifications"
+
+
+class RefineRequest(BaseModel):
+    """Request model for refining resume content.
+
+    Attributes:
+        job_description (str): The job description to align the resume with.
+        target_section (RefineTargetSection): The section of the resume to refine.
+
+    """
+
+    job_description: str
+    target_section: RefineTargetSection
+
+
+class RefineResponse(BaseModel):
+    """Response model for refined resume content.
+
+    Attributes:
+        refined_content (str): The LLM-refined resume content in Markdown format.
+
+    """
+
+    refined_content: str
+
+
 # Response models for structured data
 class PersonalInfoResponse(BaseModel):
     """Response model for personal information.

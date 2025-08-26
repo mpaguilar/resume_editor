@@ -169,6 +169,11 @@ def encrypt_data(data: str) -> str:
 
     Returns:
         str: The encrypted data, encoded as a string.
+
+    Notes:
+        1. Use Fernet to encrypt the data.
+        2. No database or network access in this function.
+
     """
     _msg = "Encrypting data"
     log.debug(_msg)
@@ -183,6 +188,11 @@ def decrypt_data(encrypted_data: str) -> str:
 
     Returns:
         str: The decrypted plaintext data.
+
+    Notes:
+        1. Use Fernet to decrypt the data.
+        2. No database or network access in this function.
+
     """
     _msg = "Decrypting data"
     log.debug(_msg)

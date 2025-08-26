@@ -1,8 +1,9 @@
 import io
 import logging
 
+from cryptography.fernet import InvalidToken
 from docx import Document
-from fastapi import APIRouter, Depends, Form, HTTPException, Request, Response, Response
+from fastapi import APIRouter, Depends, Form, HTTPException, Request, Response
 from fastapi.responses import HTMLResponse, StreamingResponse
 from resume_writer.main import ats_render, basic_render, plain_render
 from resume_writer.resume_render.render_settings import ResumeRenderSettings
@@ -23,6 +24,9 @@ from resume_editor.app.api.routes.route_logic.resume_crud import (
 from resume_editor.app.api.routes.route_logic.resume_crud import (
     update_resume as update_resume_db,
 )
+from resume_editor.app.api.routes.route_logic.resume_llm import (
+    refine_resume_section_with_llm,
+)
 from resume_editor.app.api.routes.route_logic.resume_parsing import (
     parse_resume_content,
     parse_resume_to_writer_object,
@@ -40,6 +44,7 @@ from resume_editor.app.api.routes.route_logic.resume_serialization import (
 from resume_editor.app.api.routes.route_logic.resume_validation import (
     perform_pre_save_validation,
 )
+from resume_editor.app.api.routes.route_logic.settings_crud import get_user_settings
 from resume_editor.app.api.routes.route_models import (
     CertificationsResponse,
     CertificationUpdateRequest,
@@ -53,11 +58,14 @@ from resume_editor.app.api.routes.route_models import (
     PersonalInfoResponse,
     PersonalInfoUpdateRequest,
     ProjectsResponse,
+    RefineRequest,
+    RefineResponse,
     ResumeCreateRequest,
     ResumeDetailResponse,
     ResumeResponse,
     ResumeUpdateRequest,
 )
+from resume_editor.app.core.security import decrypt_data
 from resume_editor.app.database.database import get_db
 from resume_editor.app.models.resume_model import Resume as DatabaseResume
 from resume_editor.app.models.user import User
@@ -1337,3 +1345,61 @@ async def update_certifications_info_structured(
         )
         log.exception(_msg)
         raise HTTPException(status_code=422, detail=_msg)
+
+
+@router.post("/{resume_id}/refine", response_model=RefineResponse)
+async def refine_resume(
+    request: RefineRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    resume: DatabaseResume = Depends(get_resume_for_user),
+):
+    """Refine a resume section using an LLM to align with a job description.
+
+    Args:
+        request (RefineRequest): The request containing the job description and target section.
+        db (Session): The database session dependency.
+        current_user (User): The current authenticated user.
+        resume (DatabaseResume): The resume to be refined.
+
+    Returns:
+        RefineResponse: The LLM's refined content as Markdown.
+
+    Notes:
+        1. Fetches the user's settings, including the custom LLM endpoint and encrypted API key.
+        2. Decrypts the API key if it exists.
+        3. Delegates to the `refine_resume_section_with_llm` function to perform the refinement.
+        4. Returns the refined content in a `RefineResponse`.
+        5. This function performs database reads to get user settings.
+        6. This function performs network access to call the LLM.
+
+    """
+    _msg = f"Refining resume {resume.id} for section {request.target_section.value}"
+    log.debug(_msg)
+
+    try:
+        settings = get_user_settings(db, current_user.id)
+
+        llm_endpoint = settings.llm_endpoint if settings else None
+        api_key = None
+        if settings and settings.encrypted_api_key:
+            api_key = decrypt_data(settings.encrypted_api_key)
+
+        refined_content = refine_resume_section_with_llm(
+            resume_content=resume.content,
+            job_description=request.job_description,
+            target_section=request.target_section.value,
+            llm_endpoint=llm_endpoint,
+            api_key=api_key,
+        )
+        return RefineResponse(refined_content=refined_content)
+    except InvalidToken:
+        _msg = f"API key decryption failed for user {current_user.id}"
+        log.warning(_msg)
+        raise HTTPException(
+            status_code=400, detail="Invalid API key. Please update your settings.",
+        )
+    except Exception as e:
+        _msg = f"LLM refinement failed for resume {resume.id}: {e!s}"
+        log.exception(_msg)
+        raise HTTPException(status_code=500, detail=f"LLM refinement failed: {e!s}")

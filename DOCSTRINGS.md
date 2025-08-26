@@ -195,6 +195,43 @@ Notes:
 
 ---
 
+## function: `get_user_settings(db: Session, current_user: User) -> UnknownType`
+
+Get the current user's settings.
+
+Args:
+    db (Session): The database session.
+    current_user (User): The authenticated user.
+
+Returns:
+    UserSettingsResponse: The user's settings.
+
+Notes:
+    1. Retrieve the user's settings from the database.
+    2. If no settings exist, return an empty response.
+    3. Database access: Performs a read operation on the UserSettings table.
+
+---
+
+## function: `update_user_settings(settings_data: UserSettingsUpdateRequest, db: Session, current_user: User) -> UnknownType`
+
+Update the current user's settings.
+
+Args:
+    settings_data (UserSettingsUpdateRequest): The settings data to update.
+    db (Session): The database session.
+    current_user (User): The authenticated user.
+
+Returns:
+    UserSettingsResponse: The updated user's settings.
+
+Notes:
+    1. Update the user's settings in the database with the provided data.
+    2. Return the updated settings.
+    3. Database access: Performs a write operation on the UserSettings table.
+
+---
+
 ## function: `login_user(form_data: Annotated[OAuth2PasswordRequestForm, Depends()], db: Session) -> Token`
 
 Authenticate a user and return an access token.
@@ -725,6 +762,8 @@ Notes:
     3. The Settings class uses Pydantic's validation and configuration features to ensure correct values.
     4. The function returns a cached instance to avoid repeated parsing of the .env file.
     5. This function performs disk access to read the .env file at startup.
+    6. If the .env file is missing or cannot be read, a ValidationError may be raised.
+    7. The function may raise a ValueError if required environment variables are not provided and no default is available.
 
 ---
 
@@ -1935,6 +1974,53 @@ Returns:
 
 ===
 # File: `__init__.py`
+
+
+===
+
+===
+# File: `settings_crud.py`
+
+## function: `get_user_settings(db: Session, user_id: int) -> UserSettings | None`
+
+Retrieves the settings for a given user.
+
+Args:
+    db (Session): The database session used to query the database.
+    user_id (int): The unique identifier of the user whose settings are being retrieved.
+
+Returns:
+    UserSettings | None: The user's settings if found, otherwise None.
+
+Notes:
+    1. Queries the database for a UserSettings record where user_id matches the provided user_id.
+    2. Returns the first matching record or None if no record is found.
+    3. This function performs a single database read operation.
+
+---
+
+## function: `update_user_settings(db: Session, user_id: int, settings_data: 'UserSettingsUpdateRequest') -> UserSettings`
+
+Creates or updates settings for a user.
+
+Args:
+    db (Session): The database session used to perform database operations.
+    user_id (int): The unique identifier of the user whose settings are being updated.
+    settings_data (UserSettingsUpdateRequest): The data containing the updated settings.
+
+Returns:
+    UserSettings: The updated or newly created UserSettings object.
+
+Notes:
+    1. Attempts to retrieve existing settings for the given user_id using get_user_settings.
+    2. If no settings are found, creates a new UserSettings object with the provided user_id and adds it to the session.
+    3. Updates the llm_endpoint field if settings_data.llm_endpoint is provided and not None.
+    4. If settings_data.api_key is provided and not empty, encrypts the API key using encrypt_data and stores it in encrypted_api_key; otherwise, sets encrypted_api_key to None.
+    5. Commits the transaction to the database.
+    6. Refreshes the session to ensure the returned object has the latest data from the database.
+    7. This function performs a database read and possibly a write operation.
+
+---
 
 
 ===

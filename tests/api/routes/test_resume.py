@@ -2,6 +2,7 @@ from enum import Enum
 from unittest.mock import Mock, patch
 
 import pytest
+from cryptography.fernet import InvalidToken
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
@@ -12,6 +13,7 @@ from resume_editor.app.api.routes.resume import (
 from resume_editor.app.main import create_app
 from resume_editor.app.models.resume_model import Resume as DatabaseResume
 from resume_editor.app.models.user import User as DBUser
+from resume_editor.app.models.user_settings import UserSettings
 
 # A sample resume content for testing purposes.
 TEST_RESUME_CONTENT = """
@@ -1182,7 +1184,168 @@ async def test_export_resume_docx_unhandled_format_safeguard(mock_doc):
     ):
         with pytest.raises(HTTPException) as excinfo:
             await export_resume_docx(
-                format=PatchedDocxFormat.UNHANDLED, resume=mock_resume,
+                format=PatchedDocxFormat.UNHANDLED,
+                resume=mock_resume,
             )
         assert excinfo.value.status_code == 400
         assert excinfo.value.detail == "Invalid format specified"
+
+
+@patch("resume_editor.app.api.routes.resume.refine_resume_section_with_llm")
+@patch("resume_editor.app.api.routes.resume.decrypt_data")
+@patch("resume_editor.app.api.routes.resume.get_user_settings")
+def test_refine_resume_success_with_key(
+    mock_get_user_settings,
+    mock_decrypt_data,
+    mock_refine_llm,
+    client_with_auth_and_resume,
+    test_user,
+):
+    """Test successful resume refinement when user has settings and API key."""
+    # Arrange
+    mock_db_session = next(
+        client_with_auth_and_resume.app.dependency_overrides[get_db](),
+    )
+
+    mock_settings = UserSettings(
+        user_id=test_user.id, llm_endpoint="http://llm.test", encrypted_api_key="key",
+    )
+    mock_get_user_settings.return_value = mock_settings
+    mock_decrypt_data.return_value = "decrypted_key"
+    mock_refine_llm.return_value = "refined"
+
+    # Act
+    response = client_with_auth_and_resume.post(
+        "/api/resumes/1/refine",
+        json={"job_description": "job", "target_section": "experience"},
+    )
+
+    # Assert
+    assert response.status_code == 200
+    assert response.json() == {"refined_content": "refined"}
+    mock_get_user_settings.assert_called_once_with(mock_db_session, test_user.id)
+    mock_decrypt_data.assert_called_once_with("key")
+    mock_refine_llm.assert_called_once_with(
+        resume_content=TEST_RESUME_CONTENT,
+        job_description="job",
+        target_section="experience",
+        llm_endpoint="http://llm.test",
+        api_key="decrypted_key",
+    )
+
+
+@patch("resume_editor.app.api.routes.resume.refine_resume_section_with_llm")
+@patch("resume_editor.app.api.routes.resume.get_user_settings")
+def test_refine_resume_no_settings(
+    mock_get_user_settings, mock_refine_llm, client_with_auth_and_resume, test_user,
+):
+    """Test resume refinement when user has no settings."""
+    # Arrange
+    mock_db_session = next(
+        client_with_auth_and_resume.app.dependency_overrides[get_db](),
+    )
+    mock_get_user_settings.return_value = None
+    mock_refine_llm.return_value = "refined"
+
+    # Act
+    response = client_with_auth_and_resume.post(
+        "/api/resumes/1/refine",
+        json={"job_description": "job", "target_section": "experience"},
+    )
+
+    # Assert
+    assert response.status_code == 200
+    assert response.json() == {"refined_content": "refined"}
+    mock_get_user_settings.assert_called_once_with(mock_db_session, test_user.id)
+    mock_refine_llm.assert_called_once_with(
+        resume_content=TEST_RESUME_CONTENT,
+        job_description="job",
+        target_section="experience",
+        llm_endpoint=None,
+        api_key=None,
+    )
+
+
+@patch("resume_editor.app.api.routes.resume.refine_resume_section_with_llm")
+@patch("resume_editor.app.api.routes.resume.get_user_settings")
+def test_refine_resume_no_api_key(
+    mock_get_user_settings, mock_refine_llm, client_with_auth_and_resume, test_user,
+):
+    """Test resume refinement when user settings exist but have no API key."""
+    # Arrange
+    mock_settings = UserSettings(user_id=test_user.id, llm_endpoint="http://llm.test")
+    mock_settings.encrypted_api_key = None
+    mock_get_user_settings.return_value = mock_settings
+    mock_refine_llm.return_value = "refined"
+
+    # Act
+    response = client_with_auth_and_resume.post(
+        "/api/resumes/1/refine",
+        json={"job_description": "job", "target_section": "experience"},
+    )
+
+    # Assert
+    assert response.status_code == 200
+    assert response.json() == {"refined_content": "refined"}
+    mock_refine_llm.assert_called_once_with(
+        resume_content=TEST_RESUME_CONTENT,
+        job_description="job",
+        target_section="experience",
+        llm_endpoint="http://llm.test",
+        api_key=None,
+    )
+
+
+@patch("resume_editor.app.api.routes.resume.refine_resume_section_with_llm")
+@patch("resume_editor.app.api.routes.resume.get_user_settings")
+def test_refine_resume_llm_failure(
+    mock_get_user_settings, mock_refine_llm, client_with_auth_and_resume,
+):
+    """Test resume refinement when the LLM call fails."""
+    # Arrange
+    mock_get_user_settings.return_value = None
+    mock_refine_llm.side_effect = Exception("LLM call failed")
+
+    # Act
+    response = client_with_auth_and_resume.post(
+        "/api/resumes/1/refine",
+        json={"job_description": "job", "target_section": "experience"},
+    )
+
+    # Assert
+    assert response.status_code == 500
+    assert response.json() == {"detail": "LLM refinement failed: LLM call failed"}
+
+
+@patch("resume_editor.app.api.routes.resume.refine_resume_section_with_llm")
+@patch("resume_editor.app.api.routes.resume.decrypt_data")
+@patch("resume_editor.app.api.routes.resume.get_user_settings")
+def test_refine_resume_decryption_failure(
+    mock_get_user_settings,
+    mock_decrypt_data,
+    mock_refine_llm,
+    client_with_auth_and_resume,
+    test_user,
+):
+    """Test resume refinement when API key decryption fails."""
+    # Arrange
+    mock_settings = UserSettings(
+        user_id=test_user.id, llm_endpoint="http://llm.test", encrypted_api_key="key",
+    )
+    mock_get_user_settings.return_value = mock_settings
+    mock_decrypt_data.side_effect = InvalidToken
+
+    # Act
+    response = client_with_auth_and_resume.post(
+        "/api/resumes/1/refine",
+        json={"job_description": "job", "target_section": "experience"},
+    )
+
+    # Assert
+    assert response.status_code == 400
+    assert response.json() == {
+        "detail": "Invalid API key. Please update your settings.",
+    }
+    mock_get_user_settings.assert_called_once()
+    mock_decrypt_data.assert_called_once_with("key")
+    mock_refine_llm.assert_not_called()

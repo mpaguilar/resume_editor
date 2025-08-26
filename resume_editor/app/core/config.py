@@ -23,6 +23,7 @@ class Settings(BaseSettings):
         access_token_expire_minutes (int): Duration in minutes for which access tokens remain valid.
         llm_api_key (str | None): API key for accessing LLM services.
             Optional; used when LLM functionality is needed.
+        encryption_key (str): Key used for encrypting sensitive data.
 
     """
 
@@ -76,6 +77,8 @@ def get_settings() -> Settings:
         3. The Settings class uses Pydantic's validation and configuration features to ensure correct values.
         4. The function returns a cached instance to avoid repeated parsing of the .env file.
         5. This function performs disk access to read the .env file at startup.
+        6. If the .env file is missing or cannot be read, a ValidationError may be raised.
+        7. The function may raise a ValueError if required environment variables are not provided and no default is available.
 
     """
     return Settings()

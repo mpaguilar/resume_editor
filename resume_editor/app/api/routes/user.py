@@ -182,7 +182,7 @@ def register_user(user: UserCreate, db: Session = Depends(get_db)) -> UserRespon
 
 @router.get("/settings", response_model=UserSettingsResponse)
 def get_user_settings(
-    db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
+    db: Session = Depends(get_db), current_user: User = Depends(get_current_user),
 ):
     """Get the current user's settings.
 
@@ -192,6 +192,12 @@ def get_user_settings(
 
     Returns:
         UserSettingsResponse: The user's settings.
+
+    Notes:
+        1. Retrieve the user's settings from the database.
+        2. If no settings exist, return an empty response.
+        3. Database access: Performs a read operation on the UserSettings table.
+
     """
     _msg = "Getting settings for current user"
     log.debug(_msg)
@@ -220,6 +226,12 @@ def update_user_settings(
 
     Returns:
         UserSettingsResponse: The updated user's settings.
+
+    Notes:
+        1. Update the user's settings in the database with the provided data.
+        2. Return the updated settings.
+        3. Database access: Performs a write operation on the UserSettings table.
+
     """
     _msg = "Updating settings for current user"
     log.debug(_msg)

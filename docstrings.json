@@ -67,6 +67,14 @@
         "Register a new user with the provided credentials.\n\nArgs:\n    user: Data containing username, email, and password for the new user.\n    db: Database session dependency used to interact with the user database.\n\nReturns:\n    UserResponse: The created user's data, excluding the password.\n\nNotes:\n    1. Check if the provided username already exists in the database.\n    2. If the username exists, raise a 400 error.\n    3. Check if the provided email already exists in the database.\n    4. If the email exists, raise a 400 error.\n    5. Create a new user with the provided data and store it in the database.\n    6. Return the newly created user's data (without the password).\n    7. Database access: Performs read and write operations on the User table."
       ],
       [
+        "get_user_settings(db: Session, current_user: User) -> UnknownType",
+        "Get the current user's settings.\n\nArgs:\n    db (Session): The database session.\n    current_user (User): The authenticated user.\n\nReturns:\n    UserSettingsResponse: The user's settings.\n\nNotes:\n    1. Retrieve the user's settings from the database.\n    2. If no settings exist, return an empty response.\n    3. Database access: Performs a read operation on the UserSettings table."
+      ],
+      [
+        "update_user_settings(settings_data: UserSettingsUpdateRequest, db: Session, current_user: User) -> UnknownType",
+        "Update the current user's settings.\n\nArgs:\n    settings_data (UserSettingsUpdateRequest): The settings data to update.\n    db (Session): The database session.\n    current_user (User): The authenticated user.\n\nReturns:\n    UserSettingsResponse: The updated user's settings.\n\nNotes:\n    1. Update the user's settings in the database with the provided data.\n    2. Return the updated settings.\n    3. Database access: Performs a write operation on the UserSettings table."
+      ],
+      [
         "login_user(form_data: Annotated[OAuth2PasswordRequestForm, Depends()], db: Session) -> Token",
         "Authenticate a user and return an access token.\n\nArgs:\n    form_data: Form data containing username and password for authentication.\n    db: Database session dependency used to verify user credentials.\n\nReturns:\n    Token: An access token for the authenticated user, formatted as a JWT.\n\nNotes:\n    1. Attempt to authenticate the user using the provided username and password.\n    2. If authentication fails, raise a 401 error.\n    3. Generate a JWT access token with a defined expiration time.\n    4. Return the access token to the client.\n    5. Database access: Performs a read operation on the User table to verify credentials."
       ]
@@ -212,7 +220,7 @@
     "functions": [
       [
         "get_settings() -> Settings",
-        "Get the global settings instance.\n\nThis function returns a singleton instance of the Settings class,\nwhich contains all application configuration values.\n\nArgs:\n    None: This function does not take any arguments.\n\nReturns:\n    Settings: The global settings instance, containing all configuration values.\n        The instance is created by loading environment variables and applying defaults.\n\nNotes:\n    1. The function reads configuration from environment variables using the .env file.\n    2. If environment variables are not set, default values are used.\n    3. The Settings class uses Pydantic's validation and configuration features to ensure correct values.\n    4. The function returns a cached instance to avoid repeated parsing of the .env file.\n    5. This function performs disk access to read the .env file at startup."
+        "Get the global settings instance.\n\nThis function returns a singleton instance of the Settings class,\nwhich contains all application configuration values.\n\nArgs:\n    None: This function does not take any arguments.\n\nReturns:\n    Settings: The global settings instance, containing all configuration values.\n        The instance is created by loading environment variables and applying defaults.\n\nNotes:\n    1. The function reads configuration from environment variables using the .env file.\n    2. If environment variables are not set, default values are used.\n    3. The Settings class uses Pydantic's validation and configuration features to ensure correct values.\n    4. The function returns a cached instance to avoid repeated parsing of the .env file.\n    5. This function performs disk access to read the .env file at startup.\n    6. If the .env file is missing or cannot be read, a ValidationError may be raised.\n    7. The function may raise a ValueError if required environment variables are not provided and no default is available."
       ]
     ],
     "classes": {}
@@ -665,6 +673,21 @@
     "filepath": "resume_editor/app/schemas/__init__.py",
     "filename": "__init__.py",
     "functions": [],
+    "classes": {}
+  },
+  "resume_editor/app/api/routes/route_logic/settings_crud.py": {
+    "filepath": "resume_editor/app/api/routes/route_logic/settings_crud.py",
+    "filename": "settings_crud.py",
+    "functions": [
+      [
+        "get_user_settings(db: Session, user_id: int) -> UserSettings | None",
+        "Retrieves the settings for a given user.\n\nArgs:\n    db (Session): The database session used to query the database.\n    user_id (int): The unique identifier of the user whose settings are being retrieved.\n\nReturns:\n    UserSettings | None: The user's settings if found, otherwise None.\n\nNotes:\n    1. Queries the database for a UserSettings record where user_id matches the provided user_id.\n    2. Returns the first matching record or None if no record is found.\n    3. This function performs a single database read operation."
+      ],
+      [
+        "update_user_settings(db: Session, user_id: int, settings_data: 'UserSettingsUpdateRequest') -> UserSettings",
+        "Creates or updates settings for a user.\n\nArgs:\n    db (Session): The database session used to perform database operations.\n    user_id (int): The unique identifier of the user whose settings are being updated.\n    settings_data (UserSettingsUpdateRequest): The data containing the updated settings.\n\nReturns:\n    UserSettings: The updated or newly created UserSettings object.\n\nNotes:\n    1. Attempts to retrieve existing settings for the given user_id using get_user_settings.\n    2. If no settings are found, creates a new UserSettings object with the provided user_id and adds it to the session.\n    3. Updates the llm_endpoint field if settings_data.llm_endpoint is provided and not None.\n    4. If settings_data.api_key is provided and not empty, encrypts the API key using encrypt_data and stores it in encrypted_api_key; otherwise, sets encrypted_api_key to None.\n    5. Commits the transaction to the database.\n    6. Refreshes the session to ensure the returned object has the latest data from the database.\n    7. This function performs a database read and possibly a write operation."
+      ]
+    ],
     "classes": {}
   }
 }
