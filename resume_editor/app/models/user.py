@@ -35,6 +35,14 @@ class User(Base):
         cascade="all, delete-orphan",
     )
 
+    # Relationship to UserSettings
+    settings = relationship(
+        "UserSettings",
+        back_populates="user",
+        cascade="all, delete-orphan",
+        uselist=False,
+    )
+
     def __init__(
         self,
         username: str,

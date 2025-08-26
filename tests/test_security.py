@@ -23,6 +23,7 @@ class TestSecurity:
             mock_settings.secret_key = "test-secret-key"
             mock_settings.algorithm = "HS256"
             mock_settings.access_token_expire_minutes = 30
+            mock_settings.encryption_key = "dGVzdF9rZXlfbXVzdF9iZV8zMl9ieXRlc19sb25n"
             mock_get_settings.return_value = mock_settings
 
             # Mock database imports
@@ -38,11 +39,15 @@ class TestSecurity:
                     authenticate_user, \
                     create_access_token, \
                     settings, \
-                    SecurityManager
+                    SecurityManager, \
+                    encrypt_data, \
+                    decrypt_data
                 from resume_editor.app.core.security import (
                     SecurityManager,
                     authenticate_user,
                     create_access_token,
+                    decrypt_data,
+                    encrypt_data,
                     get_password_hash,
                     settings,
                     verify_password,
@@ -181,3 +186,17 @@ class TestSecurity:
 
         assert result is None
         mock_verify_password.assert_called_once_with("wrongpassword", "hashed_password")
+
+    def test_encrypt_decrypt_data(self):
+        """Test data encryption and decryption."""
+        plain_text = "my secret data"
+        encrypted = encrypt_data(plain_text)
+        decrypted = decrypt_data(encrypted)
+
+        assert encrypted != plain_text
+        assert decrypted == plain_text
+
+    def test_decrypt_invalid_data(self):
+        """Test decryption of invalid data."""
+        with pytest.raises(Exception):
+            decrypt_data("invalid_encrypted_data")

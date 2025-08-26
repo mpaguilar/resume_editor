@@ -53,6 +53,9 @@ class Settings(BaseSettings):
     # API keys
     llm_api_key: str | None = Field(default=None, validation_alias="LLM_API_KEY")
 
+    # Encryption key
+    encryption_key: str = Field(validation_alias="ENCRYPTION_KEY")
+
 
 def get_settings() -> Settings:
     """Get the global settings instance.

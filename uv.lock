@@ -2219,6 +2219,7 @@ source = { virtual = "." }
 dependencies = [
     { name = "alembic" },
     { name = "bcrypt" },
+    { name = "cryptography" },
     { name = "fastapi" },
     { name = "passlib" },
     { name = "psycopg2-binary" },
@@ -2248,6 +2249,7 @@ dev = [
 requires-dist = [
     { name = "alembic", specifier = ">=1.16.4" },
     { name = "bcrypt", specifier = ">=4.3.0" },
+    { name = "cryptography", specifier = ">=45.0.6" },
     { name = "fastapi", specifier = ">=0.116.1" },
     { name = "passlib", specifier = ">=1.7.4" },
     { name = "psycopg2-binary", specifier = ">=2.9.10" },

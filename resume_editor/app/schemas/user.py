@@ -134,3 +134,31 @@ class TokenData(BaseModel):
     """
 
     username: str | None = None
+
+
+class UserSettingsUpdateRequest(BaseModel):
+    """Schema for updating user settings.
+
+    Attributes:
+        llm_endpoint (str | None): Custom LLM endpoint URL.
+        api_key (str | None): Plaintext API key for the LLM service.
+    """
+
+    llm_endpoint: str | None = None
+    api_key: str | None = None
+
+
+class UserSettingsResponse(BaseModel):
+    """Schema for returning user settings.
+
+    The API key is not returned for security.
+
+    Attributes:
+        llm_endpoint (str | None): Custom LLM endpoint URL.
+        api_key_is_set (bool): Whether an API key has been set.
+    """
+
+    llm_endpoint: str | None = None
+    api_key_is_set: bool = False
+
+    model_config = ConfigDict(from_attributes=True)

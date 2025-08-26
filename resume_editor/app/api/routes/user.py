@@ -6,6 +6,8 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 
+from resume_editor.app.api.routes.route_logic import settings_crud
+from resume_editor.app.core.auth import get_current_user
 from resume_editor.app.core.security import (
     ACCESS_TOKEN_EXPIRE_MINUTES,
     authenticate_user,
@@ -14,7 +16,13 @@ from resume_editor.app.core.security import (
 )
 from resume_editor.app.database.database import get_db
 from resume_editor.app.models.user import User
-from resume_editor.app.schemas.user import Token, UserCreate, UserResponse
+from resume_editor.app.schemas.user import (
+    Token,
+    UserCreate,
+    UserResponse,
+    UserSettingsResponse,
+    UserSettingsUpdateRequest,
+)
 
 log = logging.getLogger(__name__)
 
@@ -170,6 +178,56 @@ def register_user(user: UserCreate, db: Session = Depends(get_db)) -> UserRespon
     _msg = f"Returning registered user: {user.username}"
     log.debug(_msg)
     return db_user
+
+
+@router.get("/settings", response_model=UserSettingsResponse)
+def get_user_settings(
+    db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
+):
+    """Get the current user's settings.
+
+    Args:
+        db (Session): The database session.
+        current_user (User): The authenticated user.
+
+    Returns:
+        UserSettingsResponse: The user's settings.
+    """
+    _msg = "Getting settings for current user"
+    log.debug(_msg)
+    settings = settings_crud.get_user_settings(db, current_user.id)
+    if not settings:
+        return UserSettingsResponse()
+
+    return UserSettingsResponse(
+        llm_endpoint=settings.llm_endpoint,
+        api_key_is_set=bool(settings.encrypted_api_key),
+    )
+
+
+@router.put("/settings", response_model=UserSettingsResponse)
+def update_user_settings(
+    settings_data: UserSettingsUpdateRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Update the current user's settings.
+
+    Args:
+        settings_data (UserSettingsUpdateRequest): The settings data to update.
+        db (Session): The database session.
+        current_user (User): The authenticated user.
+
+    Returns:
+        UserSettingsResponse: The updated user's settings.
+    """
+    _msg = "Updating settings for current user"
+    log.debug(_msg)
+    settings = settings_crud.update_user_settings(db, current_user.id, settings_data)
+    return UserSettingsResponse(
+        llm_endpoint=settings.llm_endpoint,
+        api_key_is_set=bool(settings.encrypted_api_key),
+    )
 
 
 @router.post("/login", response_model=Token)

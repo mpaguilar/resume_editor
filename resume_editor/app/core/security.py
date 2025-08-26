@@ -3,6 +3,7 @@ from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING, Optional
 
 import bcrypt
+from cryptography.fernet import Fernet
 from jose import jwt
 from sqlalchemy.orm import Session
 
@@ -15,6 +16,9 @@ log = logging.getLogger(__name__)
 
 # Get settings instance
 settings = get_settings()
+
+# Initialize Fernet with encryption key
+fernet = Fernet(settings.encryption_key.encode())
 
 # Constants for JWT
 ACCESS_TOKEN_EXPIRE_MINUTES = settings.access_token_expire_minutes
@@ -155,3 +159,31 @@ def create_access_token(data: dict, expires_delta: timedelta | None = None) -> s
         algorithm=settings.algorithm,
     )
     return encoded_jwt
+
+
+def encrypt_data(data: str) -> str:
+    """Encrypts data using Fernet symmetric encryption.
+
+    Args:
+        data (str): The plaintext data to encrypt.
+
+    Returns:
+        str: The encrypted data, encoded as a string.
+    """
+    _msg = "Encrypting data"
+    log.debug(_msg)
+    return fernet.encrypt(data.encode()).decode()
+
+
+def decrypt_data(encrypted_data: str) -> str:
+    """Decrypts data using Fernet symmetric encryption.
+
+    Args:
+        encrypted_data (str): The encrypted data to decrypt.
+
+    Returns:
+        str: The decrypted plaintext data.
+    """
+    _msg = "Decrypting data"
+    log.debug(_msg)
+    return fernet.decrypt(encrypted_data.encode()).decode()
