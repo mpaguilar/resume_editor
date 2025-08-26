@@ -1,8 +1,8 @@
 read:
   - CONVENTIONS.md
   - APP_SPEC.md
-  - docstrings_parser.md
   - DOCSTRINGS.md
+  - resume_writer_docs.md
 auto-accept-architect: false
 auto-lint: false
 gitignore: false

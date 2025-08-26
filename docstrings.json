@@ -1,12 +1,12 @@
 {
-  "./resume_editor/app/__init__.py": {
-    "filepath": "./resume_editor/app/__init__.py",
+  "resume_editor/app/__init__.py": {
+    "filepath": "resume_editor/app/__init__.py",
     "filename": "__init__.py",
     "functions": [],
     "classes": {}
   },
-  "./resume_editor/app/main.py": {
-    "filepath": "./resume_editor/app/main.py",
+  "resume_editor/app/main.py": {
+    "filepath": "resume_editor/app/main.py",
     "filename": "main.py",
     "functions": [
       [
@@ -16,12 +16,16 @@
       [
         "initialize_database() -> UnknownType",
         "Initialize the database tables.\n\nArgs:\n    None\n\nReturns:\n    None\n\nNotes:\n    1. Create database tables by calling Base.metadata.create_all with the database engine.\n    2. This function should be called after the app is created but before it starts serving requests.\n    3. Database access is performed via the engine returned by get_engine()."
+      ],
+      [
+        "main() -> UnknownType",
+        "Entry point for running the application directly."
       ]
     ],
     "classes": {}
   },
-  "./resume_editor/app/api/__init__.py": {
-    "filepath": "./resume_editor/app/api/__init__.py",
+  "resume_editor/app/api/__init__.py": {
+    "filepath": "resume_editor/app/api/__init__.py",
     "filename": "__init__.py",
     "functions": [
       [
@@ -31,19 +35,19 @@
     ],
     "classes": {}
   },
-  "./resume_editor/app/api/routes/resume.py": {
-    "filepath": "./resume_editor/app/api/routes/resume.py",
+  "resume_editor/app/api/routes/resume.py": {
+    "filepath": "resume_editor/app/api/routes/resume.py",
     "filename": "resume.py",
     "functions": [
       [
         "get_current_user() -> UnknownType",
-        "Placeholder for current user dependency.\n\nIn a real implementation, this would verify the user's authentication token\nand return the current user object.\n\nReturns:\n    User: The current authenticated user."
+        "Placeholder for current user dependency.\n\nIn a real implementation, this would verify the user's authentication token\nand return the current user object.\n\nReturns:\n    User: The current authenticated user.\n\nNotes:\n    1. This is a placeholder implementation.\n    2. In reality, this would use JWT token verification or similar."
       ]
     ],
     "classes": {}
   },
-  "./resume_editor/app/api/routes/user.py": {
-    "filepath": "./resume_editor/app/api/routes/user.py",
+  "resume_editor/app/api/routes/user.py": {
+    "filepath": "resume_editor/app/api/routes/user.py",
     "filename": "user.py",
     "functions": [
       [
@@ -69,20 +73,141 @@
     ],
     "classes": {}
   },
-  "./resume_editor/app/utils/__init__.py": {
-    "filepath": "./resume_editor/app/utils/__init__.py",
+  "resume_editor/app/api/routes/route_models.py": {
+    "filepath": "resume_editor/app/api/routes/route_models.py",
+    "filename": "route_models.py",
+    "functions": [],
+    "classes": {}
+  },
+  "resume_editor/app/api/routes/route_logic/resume_crud.py": {
+    "filepath": "resume_editor/app/api/routes/route_logic/resume_crud.py",
+    "filename": "resume_crud.py",
+    "functions": [
+      [
+        "get_resume_by_id_and_user(db: Session, resume_id: int, user_id: int) -> DatabaseResume",
+        "Retrieve a resume by its ID and verify it belongs to the specified user.\n\nArgs:\n    db (Session): The SQLAlchemy database session used to query the database.\n    resume_id (int): The unique identifier for the resume to retrieve.\n    user_id (int): The unique identifier for the user who owns the resume.\n\nReturns:\n    DatabaseResume: The resume object matching the provided ID and user ID.\n\nRaises:\n    HTTPException: If no resume is found with the given ID and user ID, raises a 404 error.\n\nNotes:\n    1. Query the DatabaseResume table for a record where the id matches resume_id and the user_id matches user_id.\n    2. If no matching record is found, raise an HTTPException with status code 404 and detail \"Resume not found\".\n    3. Return the found DatabaseResume object.\n    4. This function performs a single database query to retrieve a resume."
+      ],
+      [
+        "get_user_resumes(db: Session, user_id: int) -> list[DatabaseResume]",
+        "Retrieve all resumes associated with a specific user.\n\nArgs:\n    db (Session): The SQLAlchemy database session used to query the database.\n    user_id (int): The unique identifier for the user whose resumes are to be retrieved.\n\nReturns:\n    list[DatabaseResume]: A list of DatabaseResume objects belonging to the specified user.\n\nNotes:\n    1. Query the DatabaseResume table for all records where the user_id matches the provided user_id.\n    2. Return the list of matching DatabaseResume objects.\n    3. This function performs a single database query to retrieve all resumes for a user."
+      ],
+      [
+        "create_resume(db: Session, user_id: int, name: str, content: str) -> DatabaseResume",
+        "Create and save a new resume.\n\nArgs:\n    db (Session): The database session.\n    user_id (int): The ID of the user who owns the resume.\n    name (str): The name of the resume.\n    content (str): The content of the resume.\n\nReturns:\n    DatabaseResume: The newly created resume object.\n\nNotes:\n    1. Create a new DatabaseResume instance.\n    2. Add the instance to the database session.\n    3. Commit the transaction.\n    4. Refresh the instance to get the new ID.\n    5. Return the created resume.\n    6. This function performs a database write operation."
+      ],
+      [
+        "update_resume(db: Session, resume: DatabaseResume, name: str | None, content: str | None) -> DatabaseResume",
+        "Update a resume's name and/or content.\n\nArgs:\n    db (Session): The database session.\n    resume (DatabaseResume): The resume to update.\n    name (str, optional): The new name for the resume. Defaults to None.\n    content (str, optional): The new content for the resume. Defaults to None.\n\nReturns:\n    DatabaseResume: The updated resume object.\n\nNotes:\n    1. If a new name is provided, update the resume's name.\n    2. If new content is provided, update the resume's content.\n    3. Commit the transaction to save changes.\n    4. Refresh the resume object to get the latest state.\n    5. Return the updated resume.\n    6. This function performs a database write operation."
+      ],
+      [
+        "delete_resume(db: Session, resume: DatabaseResume) -> None",
+        "Delete a resume.\n\nArgs:\n    db (Session): The database session.\n    resume (DatabaseResume): The resume to delete.\n\nReturns:\n    None\n\nNotes:\n    1. Delete the resume object from the database session.\n    2. Commit the transaction.\n    3. This function performs a database write operation."
+      ]
+    ],
+    "classes": {}
+  },
+  "resume_editor/app/api/routes/route_logic/resume_validation.py": {
+    "filepath": "resume_editor/app/api/routes/route_logic/resume_validation.py",
+    "filename": "resume_validation.py",
+    "functions": [
+      [
+        "perform_pre_save_validation(markdown_content: str, original_content: str | None) -> None",
+        "Perform comprehensive pre-save validation on resume content.\n\nArgs:\n    markdown_content (str): The updated resume Markdown content to validate.\n    original_content (str | None): The original resume content for comparison.\n\nReturns:\n    None: This function does not return any value.\n\nRaises:\n    HTTPException: If validation fails with status code 422.\n\nNotes:\n    1. Run the updated Markdown through the existing parser to ensure it's still valid.\n    2. If any validation fails, raise an HTTPException with detailed error messages.\n    3. This function performs validation checks on resume content before saving to ensure data integrity.\n    4. Validation includes parsing the Markdown content to verify its structure and format."
+      ]
+    ],
+    "classes": {}
+  },
+  "resume_editor/app/api/routes/route_logic/resume_reconstruction.py": {
+    "filepath": "resume_editor/app/api/routes/route_logic/resume_reconstruction.py",
+    "filename": "resume_reconstruction.py",
+    "functions": [
+      [
+        "reconstruct_resume_markdown(personal_info: PersonalInfoResponse | None, education: EducationResponse | None, experience: ExperienceResponse | None, certifications: CertificationsResponse | None) -> str",
+        "Reconstruct a complete resume Markdown document from structured data sections.\n\nArgs:\n    personal_info (PersonalInfoResponse | None): Personal information data structure. If None, the personal info section is omitted.\n    education (EducationResponse | None): Education information data structure. If None, the education section is omitted.\n    experience (ExperienceResponse | None): Experience information data structure, containing roles and projects. If None, the experience section is omitted.\n    certifications (CertificationsResponse | None): Certifications information data structure. If None, the certifications section is omitted.\n\nReturns:\n    str: A complete Markdown formatted resume document with all provided sections joined by double newlines.\n\nNotes:\n    1. Initialize an empty list to collect resume sections.\n    2. Serialize each provided section using the corresponding serialization function.\n    3. Append each serialized section to the sections list if it is not empty.\n    4. Filter out any empty strings and strip whitespace from each section.\n    5. Join all sections with double newlines to ensure proper spacing.\n    6. Return the complete Markdown resume content.\n    7. No network, disk, or database access is performed."
+      ],
+      [
+        "build_complete_resume_from_sections(personal_info: PersonalInfoResponse, education: EducationResponse, experience: ExperienceResponse, certifications: CertificationsResponse) -> str",
+        "Build a complete resume Markdown document from all structured sections.\n\nArgs:\n    personal_info (PersonalInfoResponse): Personal information data structure.\n    education (EducationResponse): Education information data structure.\n    experience (ExperienceResponse): Experience information data structure.\n    certifications (CertificationsResponse): Certifications information data structure.\n\nReturns:\n    str: A complete Markdown formatted resume document with all sections in the order: personal, education, experience, certifications.\n\nNotes:\n    1. Calls reconstruct_resume_markdown with all sections.\n    2. Ensures proper section ordering (personal, education, experience, certifications).\n    3. Returns the complete Markdown resume content.\n    4. No network, disk, or database access is performed."
+      ]
+    ],
+    "classes": {}
+  },
+  "resume_editor/app/api/routes/route_logic/resume_parsing.py": {
+    "filepath": "resume_editor/app/api/routes/route_logic/resume_parsing.py",
+    "filename": "resume_parsing.py",
+    "functions": [
+      [
+        "parse_resume(markdown_content: str) -> dict[str, Any]",
+        "Parse Markdown resume content using resume_writer parser.\n\nArgs:\n    markdown_content (str): The Markdown content to parse, expected to follow a valid resume format.\n\nReturns:\n    dict[str, Any]: A dictionary representation of the parsed resume data structure,\n                   including sections like personal info, experience, education, etc.\n                   The structure matches the output of the resume_writer parser.\n\nNotes:\n    1. Split the markdown_content into lines.\n    2. Identify the first valid section header by scanning lines for headers that start with \"# \" and not \"##\".\n    3. Filter the lines to start from the first valid section header, if found.\n    4. Create a ParseContext object from the filtered lines with an initial line number of 1.\n    5. Use the WriterResume.parse method to parse the resume with the context.\n    6. Convert the parsed resume object to a dictionary using vars().\n    7. Return the dictionary representation.\n    8. No disk, network, or database access is performed."
+      ],
+      [
+        "parse_resume_content(markdown_content: str) -> dict[str, Any]",
+        "Parse Markdown resume content and return structured data.\n\nArgs:\n    markdown_content (str): The Markdown content to parse, expected to follow a valid resume format.\n\nReturns:\n    dict: A dictionary containing the structured resume data, including sections like personal info, experience, education, etc.\n          The structure matches the expected output of the resume_writer parser.\n\nNotes:\n    1. Use the parse_resume function to parse the provided markdown_content.\n    2. Return the result of parse_resume as a dictionary.\n    3. No disk, network, or database access is performed."
+      ],
+      [
+        "validate_resume_content(content: str) -> None",
+        "Validate resume Markdown content.\n\nArgs:\n    content (str): The Markdown content to validate, expected to be in a format compatible with resume_writer.\n\nReturns:\n    None: The function returns nothing on success.\n\nNotes:\n    1. Attempt to parse the provided content using the parse_resume function.\n    2. If parsing fails, raise an HTTPException with status 422 and a descriptive message.\n    3. No disk, network, or database access is performed."
+      ]
+    ],
+    "classes": {}
+  },
+  "resume_editor/app/api/routes/route_logic/resume_serialization.py": {
+    "filepath": "resume_editor/app/api/routes/route_logic/resume_serialization.py",
+    "filename": "resume_serialization.py",
+    "functions": [
+      [
+        "extract_personal_info(resume_content: str) -> PersonalInfoResponse",
+        "Extract personal information from resume content.\n\nArgs:\n    resume_content (str): The Markdown content of the resume to parse.\n\nReturns:\n    PersonalInfoResponse: Extracted personal information containing name, email, phone, location, and website.\n\nNotes:\n    1. Splits the resume content into lines.\n    2. Creates a ParseContext for parsing.\n    3. Parses the resume using the resume_writer module.\n    4. Retrieves the personal section from the parsed resume.\n    5. Checks if contact information is present; if not, returns an empty response.\n    6. Extracts contact info and websites from the parsed personal section.\n    7. Maps the extracted data to the PersonalInfoResponse fields.\n    8. Returns the populated response or an empty one if parsing fails.\n    9. No network, disk, or database access is performed during this function."
+      ],
+      [
+        "extract_education_info(resume_content: str) -> EducationResponse",
+        "Extract education information from resume content.\n\nArgs:\n    resume_content (str): The Markdown content of the resume to parse.\n\nReturns:\n    EducationResponse: Extracted education information containing a list of degree entries.\n\nNotes:\n    1. Splits the resume content into lines.\n    2. Creates a ParseContext for parsing.\n    3. Parses the resume using the resume_writer module.\n    4. Retrieves the education section from the parsed resume.\n    5. Checks if education data is present; if not, returns an empty response.\n    6. Loops through each degree and extracts school, degree, major, start_date, end_date, and gpa.\n    7. Maps each degree's fields into a dictionary.\n    8. Returns a list of dictionaries wrapped in the EducationResponse model.\n    9. If parsing fails, returns an empty response.\n    10. No network, disk, or database access is performed during this function."
+      ],
+      [
+        "extract_experience_info(resume_content: str) -> ExperienceResponse",
+        "Extract experience information from resume content.\n\nArgs:\n    resume_content (str): The Markdown content of the resume to parse.\n\nReturns:\n    ExperienceResponse: Extracted experience information containing a list of roles and projects.\n\nNotes:\n    1. Splits the resume content into lines.\n    2. Creates a ParseContext for parsing.\n    3. Parses the resume using the resume_writer module.\n    4. Retrieves the experience section from the parsed resume.\n    5. Checks if experience data is present; if not, returns an empty response.\n    6. Loops through each role and extracts basics, summary, responsibilities and skills.\n    7. Loops through each project and extracts overview, description, and skills.\n    8. Maps the extracted data into a dictionary with nested structure.\n    9. Returns a list of dictionaries wrapped in the ExperienceResponse model.\n    10. If parsing fails, returns an empty response.\n    11. No network, disk, or database access is performed during this function."
+      ],
+      [
+        "extract_certifications_info(resume_content: str) -> CertificationsResponse",
+        "Extract certifications information from resume content.\n\nArgs:\n    resume_content (str): The Markdown content of the resume to parse.\n\nReturns:\n    CertificationsResponse: Extracted certifications information containing a list of certifications.\n\nNotes:\n    1. Splits the resume content into lines.\n    2. Creates a ParseContext for parsing.\n    3. Parses the resume using the resume_writer module.\n    4. Retrieves the certifications section from the parsed resume.\n    5. Checks if certifications data is present; if not, returns an empty response.\n    6. Loops through each certification and extracts name, issuer, certification_id, issued, and expires.\n    7. Maps the extracted data into a dictionary.\n    8. Returns a list of dictionaries wrapped in the CertificationsResponse model.\n    9. If parsing fails, returns an empty response.\n    10. No network, disk, or database access is performed during this function."
+      ],
+      [
+        "serialize_personal_info_to_markdown(personal_info: UnknownType) -> str",
+        "Serialize personal information to Markdown format.\n\nArgs:\n    personal_info: Personal information to serialize, containing name, email, phone, location, and website.\n\nReturns:\n    str: Markdown formatted personal information section.\n\nNotes:\n    1. Initializes an empty list of lines and adds a heading.\n    2. Adds each field (name, email, phone, location) as a direct field if present.\n    3. Adds a Websites section if website is present.\n    4. Joins the lines with newlines.\n    5. Returns the formatted string with a trailing newline.\n    6. Returns an empty string if no personal data is present.\n    7. No network, disk, or database access is performed during this function."
+      ],
+      [
+        "serialize_education_to_markdown(education: UnknownType) -> str",
+        "Serialize education information to Markdown format.\n\nArgs:\n    education: Education information to serialize, containing a list of degree entries.\n\nReturns:\n    str: Markdown formatted education section.\n\nNotes:\n    1. Initializes an empty list of lines and adds a heading.\n    2. For each degree in the list:\n        a. Adds a subsection header.\n        b. Adds each field (school, degree, major, start_date, end_date, gpa) as a direct field if present.\n        c. Adds a blank line after each degree.\n    3. Joins the lines with newlines.\n    4. Returns the formatted string with a trailing newline.\n    5. No network, disk, or database access is performed during this function."
+      ],
+      [
+        "serialize_experience_to_markdown(experience: UnknownType) -> str",
+        "Serialize experience information to Markdown format.\n\nArgs:\n    experience: Experience information to serialize, containing a list of roles.\n\nReturns:\n    str: Markdown formatted experience section.\n\nNotes:\n    1. Checks if the experience list is empty.\n    2. Initializes an empty list of lines and adds a heading.\n    3. For each role in the list:\n        a. Adds a subsection header.\n        b. Adds each field (company, title, start_date, end_date, location, description) using proper subsection structure.\n        c. Adds a blank line after each role.\n    4. Joins the lines with newlines.\n    5. Returns the formatted string with a trailing newline.\n    6. Returns an empty string if no experience data is present.\n    7. No network, disk, or database access is performed during this function."
+      ],
+      [
+        "serialize_certifications_to_markdown(certifications: UnknownType) -> str",
+        "Serialize certifications information to Markdown format.\n\nArgs:\n    certifications: Certifications information to serialize, containing a list of certifications.\n\nReturns:\n    str: Markdown formatted certifications section.\n\nNotes:\n    1. Initializes an empty list of lines and adds a heading.\n    2. For each certification in the list:\n        a. Adds a subsection header.\n        b. Adds each field (name, issuer, id, issued_date, expiry_date) as direct fields if present.\n        c. Adds a blank line after each certification.\n    3. Joins the lines with newlines.\n    4. Returns the formatted string with a trailing newline.\n    5. No network, disk, or database access is performed during this function."
+      ],
+      [
+        "update_resume_content_with_structured_data(current_content: str, personal_info: UnknownType, education: UnknownType, experience: UnknownType, certifications: UnknownType) -> str",
+        "Update resume content with structured data by replacing specific sections.\n\nArgs:\n    current_content (str): Current resume Markdown content to update.\n    personal_info: Updated personal information to insert. If None, the existing info is preserved.\n    education: Updated education information to insert. If None, the existing info is preserved.\n    experience: Updated experience information to insert. If None, the existing info is preserved.\n    certifications: Updated certifications information to insert. If None, the existing info is preserved.\n\nReturns:\n    str: Updated resume content with new structured data.\n\nNotes:\n    1. Extracts existing sections from `current_content` if they are not provided as arguments.\n    2. reconstructs the full resume using the combination of new and existing data."
+      ]
+    ],
+    "classes": {}
+  },
+  "resume_editor/app/utils/__init__.py": {
+    "filepath": "resume_editor/app/utils/__init__.py",
     "filename": "__init__.py",
     "functions": [],
     "classes": {}
   },
-  "./resume_editor/app/core/__init__.py": {
-    "filepath": "./resume_editor/app/core/__init__.py",
+  "resume_editor/app/core/__init__.py": {
+    "filepath": "resume_editor/app/core/__init__.py",
     "filename": "__init__.py",
     "functions": [],
     "classes": {}
   },
-  "./resume_editor/app/core/config.py": {
-    "filepath": "./resume_editor/app/core/config.py",
+  "resume_editor/app/core/config.py": {
+    "filepath": "resume_editor/app/core/config.py",
     "filename": "config.py",
     "functions": [
       [
@@ -92,8 +217,8 @@
     ],
     "classes": {}
   },
-  "./resume_editor/app/core/security.py": {
-    "filepath": "./resume_editor/app/core/security.py",
+  "resume_editor/app/core/security.py": {
+    "filepath": "resume_editor/app/core/security.py",
     "filename": "security.py",
     "functions": [
       [
@@ -119,14 +244,14 @@
         [
           [
             "__init__(self: UnknownType) -> UnknownType",
-            "Initialize the SecurityManager with configuration settings."
+            "Initialize the SecurityManager with configuration settings.\n\nNotes:\n    1. Retrieve the application settings using get_settings().\n    2. Assign the access token expiration time from settings.\n    3. Set the secret key for JWT signing from settings.\n    4. Set the JWT algorithm from settings."
           ]
         ]
       ]
     }
   },
-  "./resume_editor/app/core/auth.py": {
-    "filepath": "./resume_editor/app/core/auth.py",
+  "resume_editor/app/core/auth.py": {
+    "filepath": "resume_editor/app/core/auth.py",
     "filename": "auth.py",
     "functions": [
       [
@@ -136,14 +261,14 @@
     ],
     "classes": {}
   },
-  "./resume_editor/app/database/__init__.py": {
-    "filepath": "./resume_editor/app/database/__init__.py",
+  "resume_editor/app/database/__init__.py": {
+    "filepath": "resume_editor/app/database/__init__.py",
     "filename": "__init__.py",
     "functions": [],
     "classes": {}
   },
-  "./resume_editor/app/database/database.py": {
-    "filepath": "./resume_editor/app/database/database.py",
+  "resume_editor/app/database/database.py": {
+    "filepath": "resume_editor/app/database/database.py",
     "filename": "database.py",
     "functions": [
       [
@@ -161,14 +286,14 @@
     ],
     "classes": {}
   },
-  "./resume_editor/app/models/__init__.py": {
-    "filepath": "./resume_editor/app/models/__init__.py",
+  "resume_editor/app/models/__init__.py": {
+    "filepath": "resume_editor/app/models/__init__.py",
     "filename": "__init__.py",
     "functions": [],
     "classes": {}
   },
-  "./resume_editor/app/models/user.py": {
-    "filepath": "./resume_editor/app/models/user.py",
+  "resume_editor/app/models/user.py": {
+    "filepath": "resume_editor/app/models/user.py",
     "filename": "user.py",
     "functions": [],
     "classes": {
@@ -199,8 +324,8 @@
       ]
     }
   },
-  "./resume_editor/app/models/resume_model.py": {
-    "filepath": "./resume_editor/app/models/resume_model.py",
+  "resume_editor/app/models/resume_model.py": {
+    "filepath": "resume_editor/app/models/resume_model.py",
     "filename": "resume_model.py",
     "functions": [],
     "classes": {
@@ -209,20 +334,20 @@
         [
           [
             "__init__(self: UnknownType, user_id: int, name: str, content: str, is_active: bool) -> UnknownType",
-            "Initialize a Resume instance.\n\nArgs:\n    user_id (int): Foreign key to User model, identifying the user who owns the resume.\n    name (str): User-assigned descriptive name for the resume, must be non-empty.\n    content (str): The Markdown text content of the resume, must be non-empty.\n    is_active (bool): Whether the resume is currently active, defaults to True.\n\nReturns:\n    None\n\nNotes:\n    1. Validate that user_id is an integer.\n    2. Validate that name is a non-empty string.\n    3. Validate that content is a non-empty string.\n    4. Validate that is_active is a boolean.\n    5. Assign all values to instance attributes.\n    6. Log the initialization of the resume with its name.\n    7. This function performs no database access."
+            "Initialize a Resume instance.\n\nArgs:\n    user_id (int): The unique identifier of the user who owns the resume.\n    name (str): A descriptive name assigned by the user for the resume; must be non-empty.\n    content (str): The Markdown-formatted text content of the resume; must be non-empty.\n    is_active (bool): A flag indicating whether the resume is currently active; defaults to True.\n\nReturns:\n    None\n\nNotes:\n    1. Validate that user_id is an integer.\n    2. Validate that name is a non-empty string.\n    3. Validate that content is a non-empty string.\n    4. Validate that is_active is a boolean.\n    5. Assign all values to instance attributes.\n    6. Log the initialization of the resume with its name.\n    7. This function performs no database access."
           ]
         ]
       ]
     }
   },
-  "./resume_editor/app/models/resume/resume.py": {
-    "filepath": "./resume_editor/app/models/resume/resume.py",
+  "resume_editor/app/models/resume/resume.py": {
+    "filepath": "resume_editor/app/models/resume/resume.py",
     "filename": "resume.py",
     "functions": [],
     "classes": {}
   },
-  "./resume_editor/app/models/resume/education.py": {
-    "filepath": "./resume_editor/app/models/resume/education.py",
+  "resume_editor/app/models/resume/education.py": {
+    "filepath": "resume_editor/app/models/resume/education.py",
     "filename": "education.py",
     "functions": [],
     "classes": {
@@ -246,10 +371,6 @@
             "Validate the gpa field.\n\nArgs:\n    v: The gpa value to validate. Must be a non-empty string or None.\n\nReturns:\n    str: The validated gpa (stripped of leading/trailing whitespace).\n\nNotes:\n    1. Ensure gpa is a string or None.\n    2. Ensure gpa is not empty after stripping whitespace."
           ],
           [
-            "validate_dates(cls: UnknownType, v: UnknownType) -> UnknownType",
-            "Validate the date fields.\n\nArgs:\n    v: The date value to validate. Must be a datetime object or None.\n\nReturns:\n    datetime: The validated date.\n\nNotes:\n    1. Ensure date is a datetime object or None."
-          ],
-          [
             "validate_end_date(cls: UnknownType, v: UnknownType, info: UnknownType) -> UnknownType",
             "Validate that start_date is not after end_date.\n\nArgs:\n    v: The date value to validate.\n    info: Validation info containing data.\n\nReturns:\n    datetime: The validated date.\n\nNotes:\n    1. If both start_date and end_date are provided, ensure start_date is not after end_date."
           ]
@@ -258,10 +379,6 @@
       "Degrees": [
         "Represents a collection of academic degrees earned.\n\nAttributes:\n    degrees (list[Degree]): A list of Degree objects representing educational achievements.",
         [
-          [
-            "validate_degrees(cls: UnknownType, v: UnknownType) -> UnknownType",
-            "Validate the degrees field.\n\nArgs:\n    v: The degrees value to validate. Must be a list of Degree objects.\n\nReturns:\n    list[Degree]: The validated degrees list.\n\nNotes:\n    1. Ensure degrees is a list.\n    2. Ensure all items in degrees are instances of Degree."
-          ],
           [
             "__iter__(self: UnknownType) -> UnknownType",
             "Iterate over the degrees.\n\nReturns:\n    Iterator over the degrees list.\n\nNotes:\n    No external access (network, disk, or database) is performed."
@@ -278,8 +395,8 @@
       ]
     }
   },
-  "./resume_editor/app/models/resume/certifications.py": {
-    "filepath": "./resume_editor/app/models/resume/certifications.py",
+  "resume_editor/app/models/resume/certifications.py": {
+    "filepath": "resume_editor/app/models/resume/certifications.py",
     "filename": "certifications.py",
     "functions": [],
     "classes": {
@@ -299,8 +416,8 @@
             "Validate the date fields.\n\nArgs:\n    v: The date value to validate. Must be a datetime object or None.\n\nReturns:\n    datetime: The validated date.\n\nNotes:\n    1. Ensure date is a datetime object or None."
           ],
           [
-            "validate_date_order(cls: UnknownType, v: UnknownType, info: UnknownType) -> UnknownType",
-            "Validate that issued date is not after expires date.\n\nArgs:\n    v: The expires date value to validate.\n    info: Validation info containing data.\n\nReturns:\n    datetime: The validated expires date.\n\nNotes:\n    1. If both issued and expires dates are provided, ensure issued is not after expires."
+            "validate_date_order(self: UnknownType) -> UnknownType",
+            "Validate that issued date is not after expires date.\n\nReturns:\n    Certification: The validated model instance.\n\nNotes:\n    1. If both issued and expires dates are provided, ensure issued is not after expires."
           ]
         ]
       ],
@@ -331,8 +448,8 @@
       ]
     }
   },
-  "./resume_editor/app/models/resume/personal.py": {
-    "filepath": "./resume_editor/app/models/resume/personal.py",
+  "resume_editor/app/models/resume/personal.py": {
+    "filepath": "resume_editor/app/models/resume/personal.py",
     "filename": "personal.py",
     "functions": [],
     "classes": {
@@ -411,37 +528,19 @@
       ]
     }
   },
-  "./resume_editor/app/models/resume/__init__.py": {
-    "filepath": "./resume_editor/app/models/resume/__init__.py",
+  "resume_editor/app/models/resume/__init__.py": {
+    "filepath": "resume_editor/app/models/resume/__init__.py",
     "filename": "__init__.py",
     "functions": [],
     "classes": {}
   },
-  "./resume_editor/app/models/resume/experience.py": {
-    "filepath": "./resume_editor/app/models/resume/experience.py",
+  "resume_editor/app/models/resume/experience.py": {
+    "filepath": "resume_editor/app/models/resume/experience.py",
     "filename": "experience.py",
     "functions": [],
     "classes": {
-      "RoleSummary": [
-        "Represents a brief description of a professional role.\n\nAttributes:\n    summary (str): The text content of the role summary.",
-        [
-          [
-            "validate_summary(cls: UnknownType, v: UnknownType) -> UnknownType",
-            "Validate the summary field.\n\nArgs:\n    v: The summary value to validate. Must be a string.\n\nReturns:\n    str: The validated summary.\n\nNotes:\n    1. Ensure summary is a string.\n    2. Raise a ValueError if summary is not a string."
-          ]
-        ]
-      ],
-      "RoleResponsibilities": [
-        "Represents detailed descriptions of role responsibilities.\n\nAttributes:\n    text (str): The text content of the responsibilities.",
-        [
-          [
-            "validate_text(cls: UnknownType, v: UnknownType) -> UnknownType",
-            "Validate the text field.\n\nArgs:\n    v: The text value to validate. Must be a string.\n\nReturns:\n    str: The validated text.\n\nNotes:\n    1. Ensure text is a string.\n    2. Raise a ValueError if text is not a string."
-          ]
-        ]
-      ],
       "RoleSkills": [
-        "Represents skills used in a professional role.\n\nAttributes:\n    skills (List[str]): A list of non-empty, stripped skill strings.",
+        "Represents skills used in a professional role.\n\nAttributes:\n    skills (list[str]): A list of non-empty, stripped skill strings.",
         [
           [
             "validate_skills(cls: UnknownType, v: UnknownType) -> UnknownType",
@@ -473,26 +572,14 @@
             "Validate the title field.\n\nArgs:\n    v: The title value to validate. Must be a non-empty string.\n\nReturns:\n    str: The validated title.\n\nNotes:\n    1. Ensure title is a string.\n    2. Ensure title is not empty.\n    3. Strip whitespace from the title.\n    4. Raise a ValueError if title is not a string or is empty."
           ],
           [
-            "validate_start_date(cls: UnknownType, v: UnknownType) -> UnknownType",
-            "Validate the start_date field.\n\nArgs:\n    v: The start_date value to validate. Must be a datetime object.\n\nReturns:\n    datetime: The validated start_date.\n\nNotes:\n    1. Ensure start_date is a datetime object.\n    2. Raise a ValueError if start_date is not a datetime object."
-          ],
-          [
             "validate_end_date(cls: UnknownType, v: UnknownType, info: UnknownType) -> UnknownType",
             "Validate the end_date field.\n\nArgs:\n    v: The end_date value to validate. Must be a datetime object or None.\n    info: Validation info containing data.\n\nReturns:\n    datetime: The validated end_date.\n\nNotes:\n    1. Ensure end_date is a datetime object or None.\n    2. If end_date is provided, ensure it is not before start_date.\n    3. Raise a ValueError if end_date is not a datetime object or None, or if end_date is before start_date."
-          ],
-          [
-            "validate_optional_string_fields(cls: UnknownType, v: UnknownType) -> UnknownType",
-            "Validate optional string fields.\n\nArgs:\n    v: The field value to validate. Must be a string or None.\n\nReturns:\n    str: The validated field value.\n\nNotes:\n    1. Ensure field is a string or None.\n    2. Raise a ValueError if field is neither a string nor None."
           ]
         ]
       ],
       "Roles": [
-        "Represents a collection of professional roles.\n\nAttributes:\n    roles (List[Role]): A list of Role objects.",
+        "Represents a collection of professional roles.\n\nAttributes:\n    roles (list[Role]): A list of Role objects.",
         [
-          [
-            "validate_roles(cls: UnknownType, v: UnknownType) -> UnknownType",
-            "Validate the roles field.\n\nArgs:\n    v: The roles value to validate. Must be a list of Role objects.\n\nReturns:\n    list[Role]: The validated roles list.\n\nNotes:\n    1. Ensure roles is a list.\n    2. Ensure all items in roles are Role objects.\n    3. Raise a ValueError if roles is not a list or if any item is not a Role object.\n    4. Return the validated list of roles."
-          ],
           [
             "__iter__(self: UnknownType) -> UnknownType",
             "Iterate over the roles.\n\nReturns:\n    Iterator over the roles list."
@@ -512,7 +599,7 @@
         ]
       ],
       "ProjectSkills": [
-        "Represents skills used in a project.\n\nAttributes:\n    skills (List[str]): A list of non-empty, stripped skill strings.",
+        "Represents skills used in a project.\n\nAttributes:\n    skills (list[str]): A list of non-empty, stripped skill strings.",
         [
           [
             "validate_skills(cls: UnknownType, v: UnknownType) -> UnknownType",
@@ -540,35 +627,14 @@
             "Validate the title field.\n\nArgs:\n    v: The title value to validate. Must be a non-empty string.\n\nReturns:\n    str: The validated title.\n\nNotes:\n    1. Ensure title is a string.\n    2. Ensure title is not empty.\n    3. Strip whitespace from the title.\n    4. Raise a ValueError if title is not a string or is empty."
           ],
           [
-            "validate_optional_strings(cls: UnknownType, v: UnknownType) -> UnknownType",
-            "Validate optional string fields.\n\nArgs:\n    v: The field value to validate. Must be a string or None.\n\nReturns:\n    str: The validated field value.\n\nNotes:\n    1. Ensure field is a string or None.\n    2. Raise a ValueError if field is neither a string nor None."
-          ],
-          [
-            "validate_dates(cls: UnknownType, v: UnknownType) -> UnknownType",
-            "Validate the date fields.\n\nArgs:\n    v: The date value to validate. Must be a datetime object or None.\n\nReturns:\n    datetime: The validated date.\n\nNotes:\n    1. Ensure date is a datetime object or None.\n    2. Raise a ValueError if date is not a datetime object or None."
-          ],
-          [
             "validate_date_order(cls: UnknownType, v: UnknownType, info: UnknownType) -> UnknownType",
             "Validate that start_date is not after end_date.\n\nArgs:\n    v: The end_date value to validate.\n    info: Validation info containing data.\n\nReturns:\n    datetime: The validated end_date.\n\nNotes:\n    1. If both start_date and end_date are provided, ensure start_date is not after end_date.\n    2. Raise a ValueError if end_date is before start_date."
           ]
         ]
       ],
-      "ProjectDescription": [
-        "Represents a brief description of a project.\n\nAttributes:\n    text (str): The text content of the project description.",
-        [
-          [
-            "validate_text(cls: UnknownType, v: UnknownType) -> UnknownType",
-            "Validate the text field.\n\nArgs:\n    v: The text value to validate. Must be a string.\n\nReturns:\n    str: The validated text.\n\nNotes:\n    1. Ensure text is a string.\n    2. Raise a ValueError if text is not a string."
-          ]
-        ]
-      ],
       "Projects": [
-        "Represents a collection of projects.\n\nAttributes:\n    projects (List[Project]): A list of Project objects.",
+        "Represents a collection of projects.\n\nAttributes:\n    projects (list[Project]): A list of Project objects.",
         [
-          [
-            "validate_projects(cls: UnknownType, v: UnknownType) -> UnknownType",
-            "Validate the projects field.\n\nArgs:\n    v: The projects value to validate. Must be a list of Project objects.\n\nReturns:\n    list[Project]: The validated projects list.\n\nNotes:\n    1. Ensure projects is a list.\n    2. Ensure all items in projects are Project objects.\n    3. Raise a ValueError if projects is not a list or if any item is not a Project object.\n    4. Return the validated list of projects."
-          ],
           [
             "__iter__(self: UnknownType) -> UnknownType",
             "Iterate over the projects.\n\nReturns:\n    Iterator over the projects list."
@@ -589,14 +655,14 @@
       ]
     }
   },
-  "./resume_editor/app/schemas/user.py": {
-    "filepath": "./resume_editor/app/schemas/user.py",
+  "resume_editor/app/schemas/user.py": {
+    "filepath": "resume_editor/app/schemas/user.py",
     "filename": "user.py",
     "functions": [],
     "classes": {}
   },
-  "./resume_editor/app/schemas/__init__.py": {
-    "filepath": "./resume_editor/app/schemas/__init__.py",
+  "resume_editor/app/schemas/__init__.py": {
+    "filepath": "resume_editor/app/schemas/__init__.py",
     "filename": "__init__.py",
     "functions": [],
     "classes": {}

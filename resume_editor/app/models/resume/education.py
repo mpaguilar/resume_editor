@@ -42,8 +42,6 @@ class Degree(BaseModel):
             2. Ensure school is not empty after stripping whitespace.
 
         """
-        if not isinstance(v, str):
-            raise ValueError("school must be a string")
         if not v.strip():
             raise ValueError("school must not be empty")
         return v.strip()
@@ -66,8 +64,6 @@ class Degree(BaseModel):
         """
         if v is None:
             return v
-        if not isinstance(v, str):
-            raise ValueError("degree must be a string or None")
         if not v.strip():
             raise ValueError("degree must not be empty")
         return v.strip()
@@ -90,8 +86,6 @@ class Degree(BaseModel):
         """
         if v is None:
             return v
-        if not isinstance(v, str):
-            raise ValueError("major must be a string or None")
         if not v.strip():
             raise ValueError("major must not be empty")
         return v.strip()
@@ -114,30 +108,9 @@ class Degree(BaseModel):
         """
         if v is None:
             return v
-        if not isinstance(v, str):
-            raise ValueError("gpa must be a string or None")
         if not v.strip():
             raise ValueError("gpa must not be empty")
         return v.strip()
-
-    @field_validator("start_date", "end_date")
-    @classmethod
-    def validate_dates(cls, v):
-        """Validate the date fields.
-
-        Args:
-            v: The date value to validate. Must be a datetime object or None.
-
-        Returns:
-            datetime: The validated date.
-
-        Notes:
-            1. Ensure date is a datetime object or None.
-
-        """
-        if v is not None and not isinstance(v, datetime):
-            raise ValueError("date must be a datetime object or None")
-        return v
 
     @field_validator("end_date")
     @classmethod
@@ -171,29 +144,6 @@ class Degrees(BaseModel):
     """
 
     degrees: list[Degree] = []
-
-    @field_validator("degrees")
-    @classmethod
-    def validate_degrees(cls, v):
-        """Validate the degrees field.
-
-        Args:
-            v: The degrees value to validate. Must be a list of Degree objects.
-
-        Returns:
-            list[Degree]: The validated degrees list.
-
-        Notes:
-            1. Ensure degrees is a list.
-            2. Ensure all items in degrees are instances of Degree.
-
-        """
-        if not isinstance(v, list):
-            raise ValueError("degrees must be a list")
-        for item in v:
-            if not isinstance(item, Degree):
-                raise ValueError("all items in degrees must be Degree instances")
-        return v
 
     def __iter__(self):
         """Iterate over the degrees.

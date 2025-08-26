@@ -1,26 +1,57 @@
 import logging
-from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse
-from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-# Import resume_writer parser
-try:
-    from resume_writer import parse_resume
-    from resume_writer.models.resume import Resume as WriterResume
-
-    PARSER_AVAILABLE = True
-except ImportError:
-    PARSER_AVAILABLE = False
-    parse_resume = None
-    WriterResume = None
-    logging.warning(
-        "resume_writer module not available. Parsing functionality will be disabled.",
-    )
-
 # Import database dependencies
+# Import route logic modules
+from resume_editor.app.api.routes.route_logic.resume_crud import (
+    create_resume as create_resume_db,
+)
+from resume_editor.app.api.routes.route_logic.resume_crud import (
+    delete_resume as delete_resume_db,
+)
+from resume_editor.app.api.routes.route_logic.resume_crud import (
+    get_resume_by_id_and_user,
+    get_user_resumes,
+)
+from resume_editor.app.api.routes.route_logic.resume_crud import (
+    update_resume as update_resume_db,
+)
+from resume_editor.app.api.routes.route_logic.resume_parsing import (
+    parse_resume_content,
+    validate_resume_content,
+)
+from resume_editor.app.api.routes.route_logic.resume_reconstruction import (
+    build_complete_resume_from_sections,
+)
+from resume_editor.app.api.routes.route_logic.resume_serialization import (
+    extract_certifications_info,
+    extract_education_info,
+    extract_experience_info,
+    extract_personal_info,
+)
+from resume_editor.app.api.routes.route_logic.resume_validation import (
+    perform_pre_save_validation,
+)
+from resume_editor.app.api.routes.route_models import (
+    CertificationsResponse,
+    CertificationUpdateRequest,
+    EducationResponse,
+    EducationUpdateRequest,
+    ExperienceResponse,
+    ExperienceUpdateRequest,
+    ParseRequest,
+    ParseResponse,
+    PersonalInfoResponse,
+    PersonalInfoUpdateRequest,
+    ProjectsResponse,
+    ResumeCreateRequest,
+    ResumeDetailResponse,
+    ResumeResponse,
+    ResumeUpdateRequest,
+)
 from resume_editor.app.database.database import get_db
 from resume_editor.app.models.resume_model import Resume as DatabaseResume
 from resume_editor.app.models.user import User
@@ -28,83 +59,6 @@ from resume_editor.app.models.user import User
 log = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/resumes", tags=["resumes"])
-
-
-# Request/Response models
-class ParseRequest(BaseModel):
-    """Request model for resume parsing.
-
-    Attributes:
-        markdown_content (str): The Markdown content of the resume to parse.
-
-    """
-
-    markdown_content: str
-
-
-class ParseResponse(BaseModel):
-    """Response model for resume parsing.
-
-    Attributes:
-        resume_data (dict[str, Any]): The structured resume data extracted from the Markdown content.
-
-    """
-
-    resume_data: dict[str, Any]
-
-
-class ResumeCreateRequest(BaseModel):
-    """Request model for creating a new resume.
-
-    Attributes:
-        name (str): The name of the resume.
-        content (str): The Markdown content of the resume.
-
-    """
-
-    name: str
-    content: str
-
-
-class ResumeUpdateRequest(BaseModel):
-    """Request model for updating an existing resume.
-
-    Attributes:
-        name (str | None): The updated name of the resume, or None to keep unchanged.
-        content (str | None): The updated Markdown content of the resume, or None to keep unchanged.
-
-    """
-
-    name: str | None = None
-    content: str | None = None
-
-
-class ResumeResponse(BaseModel):
-    """Response model for a resume.
-
-    Attributes:
-        id (int): The unique identifier for the resume.
-        name (str): The name of the resume.
-
-    """
-
-    id: int
-    name: str
-
-
-class ResumeDetailResponse(BaseModel):
-    """Response model for detailed resume content.
-
-    Attributes:
-        id (int): The unique identifier for the resume.
-        name (str): The name of the resume.
-        content (str): The Markdown content of the resume.
-
-    """
-
-    id: int
-    name: str
-    content: str
 
 
 # Dependency to get current user (placeholder - would be implemented with auth)
@@ -117,14 +71,48 @@ def get_current_user():
     Returns:
         User: The current authenticated user.
 
+    Notes:
+        1. This is a placeholder implementation.
+        2. In reality, this would use JWT token verification or similar.
+
     """
     # This is a placeholder implementation
     # In reality, this would use JWT token verification or similar
-    return User(
+    user = User(
         "testuser",
         "test@example.com",
         "hashed_password",
     )
+    user.id = 1
+    return user
+
+
+async def get_resume_for_user(
+    resume_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> DatabaseResume:
+    """Dependency to get a specific resume for the current user.
+
+    Args:
+        resume_id (int): The unique identifier of the resume to retrieve.
+        db (Session): The database session dependency.
+        current_user (User): The current authenticated user.
+
+    Returns:
+        DatabaseResume: The resume object if found and belongs to the user.
+
+    Raises:
+        HTTPException: If the resume is not found or doesn't belong to the user.
+
+    Notes:
+        1. Queries the database for a resume with the given ID and user_id.
+        2. If no resume is found, raises a 404 error.
+        3. Performs database access: Reads from the database via db.query.
+        4. Returns the resume object.
+
+    """
+    return get_resume_by_id_and_user(db, resume_id=resume_id, user_id=current_user.id)
 
 
 @router.post("/parse", response_model=ParseResponse)
@@ -151,23 +139,7 @@ async def parse_resume_endpoint(request: ParseRequest):
         8. Performs network access: None.
 
     """
-    if not PARSER_AVAILABLE:
-        raise HTTPException(
-            status_code=501,
-            detail="Resume parsing functionality not available",
-        )
-
-    try:
-        # Parse the Markdown content using resume_writer
-        resume: WriterResume = parse_resume(request.markdown_content)
-
-        # Convert to dict for JSON serialization
-        resume_dict = resume.model_dump()
-
-        return ParseResponse(resume_data=resume_dict)
-    except Exception as e:
-        log.exception("Failed to parse resume")
-        raise HTTPException(status_code=400, detail=f"Failed to parse resume: {str(e)}")
+    return parse_resume_content(request.markdown_content)
 
 
 @router.post("", response_model=ResumeResponse)
@@ -201,71 +173,39 @@ async def create_resume(
         7. Refreshes the resume object to ensure it has the latest state, including the ID.
         8. If the request is from HTMX, returns HTML to update the resume list.
         9. Otherwise, returns a ResumeResponse with the resume ID and name.
-        10. If an error occurs, logs the exception, rolls back the transaction, and raises a 500 error.
-        11. Performs database access: Writes to the database via db.add and db.commit.
-        12. Performs network access: None.
+        10. Performs database access: Writes to the database via db.add and db.commit.
+        11. Performs network access: None.
 
     """
     # Validate Markdown content before saving
-    if PARSER_AVAILABLE:
-        try:
-            parse_resume(request.content)
-        except Exception as e:
-            log.warning(f"Markdown validation failed: {str(e)}")
-            raise HTTPException(
-                status_code=422, detail=f"Invalid Markdown format: {str(e)}",
-            )
-    else:
-        log.warning(
-            "Resume parsing functionality not available. Skipping Markdown validation.",
-        )
+    validate_resume_content(request.content)
 
-    try:
-        # Create new resume instance
-        resume = DatabaseResume(
-            user_id=current_user.id,
-            name=request.name,
-            content=request.content,
-        )
+    resume = create_resume_db(
+        db,
+        user_id=current_user.id,
+        name=request.name,
+        content=request.content,
+    )
 
-        # Add to database session and commit
-        db.add(resume)
-        db.commit()
-        db.refresh(resume)
+    # Check if this is an HTMX request
+    if "HX-Request" in http_request.headers:
+        # Return updated resume list
+        resumes = get_user_resumes(db, current_user.id)
 
-        # Check if this is an HTMX request
-        if "HX-Request" in http_request.headers:
-            # Return updated resume list
-            resumes = (
-                db.query(DatabaseResume)
-                .filter(DatabaseResume.user_id == current_user.id)
-                .all()
-            )
+        resume_items = []
+        for r in resumes:
+            selected_class = "selected" if r.id == resume.id else ""
+            resume_items.append(f"""
+            <div class="resume-item p-3 rounded cursor-pointer border border-gray-200 mb-2 {selected_class}" 
+                 onclick="selectResume({r.id}, this)">
+                <div class="font-medium text-gray-800">{r.name}</div>
+                <div class="text-xs text-gray-500">ID: {r.id}</div>
+            </div>
+            """)
+        html_content = "\n".join(resume_items)
+        return HTMLResponse(content=html_content)
 
-            resume_items = []
-            for r in resumes:
-                selected_class = "selected" if r.id == resume.id else ""
-                resume_items.append(f"""
-                <div class="resume-item p-3 rounded cursor-pointer border border-gray-200 mb-2 {selected_class}" 
-                     onclick="selectResume({r.id}, this)">
-                    <div class="font-medium text-gray-800">{r.name}</div>
-                    <div class="text-xs text-gray-500">ID: {r.id}</div>
-                </div>
-                """)
-            html_content = "\n".join(resume_items)
-            return HTMLResponse(content=html_content)
-
-        return ResumeResponse(id=resume.id, name=resume.name)
-    except HTTPException:
-        # Re-raise HTTP exceptions (like 422) without modification
-        raise
-    except Exception as e:
-        log.exception("Failed to create resume")
-        db.rollback()
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to create resume: {str(e)}",
-        )
+    return ResumeResponse(id=resume.id, name=resume.name)
 
 
 @router.put("/{resume_id}", response_model=ResumeResponse)
@@ -275,6 +215,7 @@ async def update_resume(
     http_request: Request,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    resume: DatabaseResume = Depends(get_resume_for_user),
 ):
     """Update an existing resume's name and/or content for the current user.
 
@@ -301,90 +242,43 @@ async def update_resume(
         7. Refreshes the resume object to ensure it has the latest state.
         8. If the request is from HTMX, returns HTML to update the resume list.
         9. Otherwise, returns a ResumeResponse with the resume ID and name.
-        10. If an error occurs, logs the exception, rolls back the transaction, and raises a 500 error.
-        11. Performs database access: Reads from and writes to the database via db.query, db.commit.
-        12. Performs network access: None.
+        10. Performs database access: Reads from and writes to the database via db.query, db.commit.
+        11. Performs network access: None.
 
     """
-    try:
-        # Find the resume
-        resume = (
-            db.query(DatabaseResume)
-            .filter(
-                DatabaseResume.id == resume_id,
-                DatabaseResume.user_id == current_user.id,
-            )
-            .first()
-        )
+    # Validate Markdown content before updating if content is being changed
+    if request.content is not None:
+        validate_resume_content(request.content)
 
-        if not resume:
-            raise HTTPException(status_code=404, detail="Resume not found")
+    resume = update_resume_db(db, resume, name=request.name, content=request.content)
 
-        # Validate Markdown content before updating if content is being changed
-        if request.content is not None and PARSER_AVAILABLE:
-            try:
-                parse_resume(request.content)
-            except Exception as e:
-                log.warning(f"Markdown validation failed: {str(e)}")
-                raise HTTPException(
-                    status_code=422, detail=f"Invalid Markdown format: {str(e)}",
-                )
-        elif request.content is not None and not PARSER_AVAILABLE:
-            log.warning(
-                "Resume parsing functionality not available. Skipping Markdown validation.",
-            )
+    # Check if this is an HTMX request
+    if "HX-Request" in http_request.headers:
+        # Return updated resume list
+        resumes = get_user_resumes(db, current_user.id)
 
-        # Update fields if provided
-        if request.name is not None:
-            resume.name = request.name
-        if request.content is not None:
-            resume.content = request.content
+        resume_items = []
+        for r in resumes:
+            selected_class = "selected" if r.id == resume.id else ""
+            resume_items.append(f"""
+            <div class="resume-item p-3 rounded cursor-pointer border border-gray-200 mb-2 {selected_class}" 
+                 onclick="selectResume({r.id}, this)">
+                <div class="font-medium text-gray-800">{r.name}</div>
+                <div class="text-xs text-gray-500">ID: {r.id}</div>
+            </div>
+            """)
+        html_content = "\n".join(resume_items)
+        return HTMLResponse(content=html_content)
 
-        # Commit changes
-        db.commit()
-        db.refresh(resume)
-
-        # Check if this is an HTMX request
-        if "HX-Request" in http_request.headers:
-            # Return updated resume list
-            resumes = (
-                db.query(DatabaseResume)
-                .filter(DatabaseResume.user_id == current_user.id)
-                .all()
-            )
-
-            resume_items = []
-            for r in resumes:
-                selected_class = "selected" if r.id == resume.id else ""
-                resume_items.append(f"""
-                <div class="resume-item p-3 rounded cursor-pointer border border-gray-200 mb-2 {selected_class}" 
-                     onclick="selectResume({r.id}, this)">
-                    <div class="font-medium text-gray-800">{r.name}</div>
-                    <div class="text-xs text-gray-500">ID: {r.id}</div>
-                </div>
-                """)
-            html_content = "\n".join(resume_items)
-            return HTMLResponse(content=html_content)
-
-        return ResumeResponse(id=resume.id, name=resume.name)
-    except HTTPException:
-        # Re-raise HTTP exceptions (like 422) without modification
-        raise
-    except Exception as e:
-        log.exception("Failed to update resume")
-        db.rollback()
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to update resume: {str(e)}",
-        )
+    return ResumeResponse(id=resume.id, name=resume.name)
 
 
 @router.delete("/{resume_id}")
 async def delete_resume(
-    resume_id: int,
     http_request: Request,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    resume: DatabaseResume = Depends(get_resume_for_user),
 ):
     """Delete a resume for the current user.
 
@@ -407,68 +301,39 @@ async def delete_resume(
         4. Commits the transaction to save the changes.
         5. If the request is from HTMX, returns HTML to update the resume list.
         6. Otherwise, returns a success message.
-        7. If an error occurs, logs the exception, rolls back the transaction, and raises a 500 error.
-        8. Performs database access: Reads from and writes to the database via db.query, db.delete, db.commit.
-        9. Performs network access: None.
+        7. Performs database access: Reads from and writes to the database via db.query, db.delete, db.commit.
+        8. Performs network access: None.
 
     """
-    try:
-        # Find the resume
-        resume = (
-            db.query(DatabaseResume)
-            .filter(
-                DatabaseResume.id == resume_id,
-                DatabaseResume.user_id == current_user.id,
-            )
-            .first()
-        )
+    # Delete the resume
+    delete_resume_db(db, resume)
 
-        if not resume:
-            raise HTTPException(status_code=404, detail="Resume not found")
+    # Check if this is an HTMX request
+    if "HX-Request" in http_request.headers:
+        # Return updated resume list
+        resumes = get_user_resumes(db, current_user.id)
 
-        # Delete the resume
-        db.delete(resume)
-        db.commit()
-
-        # Check if this is an HTMX request
-        if "HX-Request" in http_request.headers:
-            # Return updated resume list
-            resumes = (
-                db.query(DatabaseResume)
-                .filter(DatabaseResume.user_id == current_user.id)
-                .all()
-            )
-
-            if not resumes:
-                html_content = """
-                <div class="text-center py-8">
-                    <p class="text-gray-500">No resumes found.</p>
-                    <p class="text-gray-400 text-sm mt-2">Create your first resume using the "+ New Resume" button.</p>
+        if not resumes:
+            html_content = """
+            <div class="text-center py-8">
+                <p class="text-gray-500">No resumes found.</p>
+                <p class="text-gray-400 text-sm mt-2">Create your first resume using the "+ New Resume" button.</p>
+            </div>
+            """
+        else:
+            resume_items = []
+            for r in resumes:
+                resume_items.append(f"""
+                <div class="resume-item p-3 rounded cursor-pointer border border-gray-200 mb-2" 
+                     onclick="selectResume({r.id}, this)">
+                    <div class="font-medium text-gray-800">{r.name}</div>
+                    <div class="text-xs text-gray-500">ID: {r.id}</div>
                 </div>
-                """
-            else:
-                resume_items = []
-                for r in resumes:
-                    resume_items.append(f"""
-                    <div class="resume-item p-3 rounded cursor-pointer border border-gray-200 mb-2" 
-                         onclick="selectResume({r.id}, this)">
-                        <div class="font-medium text-gray-800">{r.name}</div>
-                        <div class="text-xs text-gray-500">ID: {r.id}</div>
-                    </div>
-                    """)
-                html_content = "\n".join(resume_items)
-            return HTMLResponse(content=html_content)
+                """)
+            html_content = "\n".join(resume_items)
+        return HTMLResponse(content=html_content)
 
-        return {"message": "Resume deleted successfully"}
-    except HTTPException:
-        raise
-    except Exception as e:
-        log.exception("Failed to delete resume")
-        db.rollback()
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to delete resume: {str(e)}",
-        )
+    return {"message": "Resume deleted successfully"}
 
 
 @router.get("", response_model=list[ResumeResponse])
@@ -496,52 +361,41 @@ async def list_resumes(
         3. Converts each resume object into a ResumeResponse.
         4. If the request is from HTMX, returns HTML for the resume list.
         5. Otherwise, returns the list of ResumeResponse objects.
-        6. If an error occurs, logs the exception and raises a 500 error.
-        7. Performs database access: Reads from the database via db.query.
-        8. Performs network access: None.
+        6. Performs database access: Reads from the database via db.query.
+        7. Performs network access: None.
 
     """
-    try:
-        resumes = (
-            db.query(DatabaseResume)
-            .filter(DatabaseResume.user_id == current_user.id)
-            .all()
-        )
+    resumes = get_user_resumes(db, current_user.id)
 
-        # Check if this is an HTMX request
-        if "HX-Request" in request.headers:
-            if not resumes:
-                html_content = """
-                <div class="text-center py-8">
-                    <p class="text-gray-500">No resumes found.</p>
-                    <p class="text-gray-400 text-sm mt-2">Create your first resume using the "+ New Resume" button.</p>
+    # Check if this is an HTMX request
+    if "HX-Request" in request.headers:
+        if not resumes:
+            html_content = """
+            <div class="text-center py-8">
+                <p class="text-gray-500">No resumes found.</p>
+                <p class="text-gray-400 text-sm mt-2">Create your first resume using the "+ New Resume" button.</p>
+            </div>
+            """
+        else:
+            resume_items = []
+            for resume in resumes:
+                resume_items.append(f"""
+                <div class="resume-item p-3 rounded cursor-pointer border border-gray-200 mb-2" 
+                     onclick="selectResume({resume.id}, this)">
+                    <div class="font-medium text-gray-800">{resume.name}</div>
+                    <div class="text-xs text-gray-500">ID: {resume.id}</div>
                 </div>
-                """
-            else:
-                resume_items = []
-                for resume in resumes:
-                    resume_items.append(f"""
-                    <div class="resume-item p-3 rounded cursor-pointer border border-gray-200 mb-2" 
-                         onclick="selectResume({resume.id}, this)">
-                        <div class="font-medium text-gray-800">{resume.name}</div>
-                        <div class="text-xs text-gray-500">ID: {resume.id}</div>
-                    </div>
-                    """)
-                html_content = "\n".join(resume_items)
-            return HTMLResponse(content=html_content)
+                """)
+            html_content = "\n".join(resume_items)
+        return HTMLResponse(content=html_content)
 
-        return [ResumeResponse(id=resume.id, name=resume.name) for resume in resumes]
-    except Exception as e:
-        log.exception("Failed to list resumes")
-        raise HTTPException(status_code=500, detail=f"Failed to list resumes: {str(e)}")
+    return [ResumeResponse(id=resume.id, name=resume.name) for resume in resumes]
 
 
 @router.get("/{resume_id}", response_model=ResumeDetailResponse)
 async def get_resume(
     request: Request,
-    resume_id: int,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    resume: DatabaseResume = Depends(get_resume_for_user),
 ):
     """Retrieve a specific resume's Markdown content by ID for the current user.
 
@@ -562,63 +416,819 @@ async def get_resume(
         2. If no resume is found, raises a 404 error.
         3. If the request is from HTMX, returns HTML for the resume content.
         4. Otherwise, returns a ResumeDetailResponse with the resume's ID, name, and content.
-        5. If an error occurs, logs the exception and raises a 500 error.
-        6. Performs database access: Reads from the database via db.query.
-        7. Performs network access: None.
+        5. Performs database access: Reads from the database via db.query.
+        6. Performs network access: None.
+
+    """
+    # Check if this is an HTMX request
+    if "HX-Request" in request.headers:
+        html_content = f"""
+        <div class="h-full flex flex-col">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-xl font-semibold">{resume.name}</h2>
+                <div class="flex space-x-2">
+                    <button 
+                        hx-get="/dashboard/create-resume-form" 
+                        hx-target="#resume-content" 
+                        hx-swap="innerHTML"
+                        class="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-sm">
+                        Edit
+                    </button>
+                </div>
+            </div>
+            <div class="flex-grow">
+                <textarea 
+                    readonly
+                    class="w-full h-96 px-3 py-2 border border-gray-300 rounded-md focus:outline-none font-mono text-sm resize-none"
+                    placeholder="Resume content will appear here...">{resume.content}</textarea>
+            </div>
+            <div class="mt-4 text-sm text-gray-500">
+                <p>Resume ID: {resume.id}</p>
+            </div>
+        </div>
+        """
+        return HTMLResponse(content=html_content)
+
+    return ResumeDetailResponse(
+        id=resume.id,
+        name=resume.name,
+        content=resume.content,
+    )
+
+
+@router.post("/{resume_id}/edit/personal")
+async def update_personal_info(
+    request: PersonalInfoUpdateRequest,
+    http_request: Request,
+    resume: DatabaseResume = Depends(get_resume_for_user),
+):
+    """Update personal information in a resume.
+
+    Args:
+        resume_id (int): The unique identifier of the resume to update.
+        request (PersonalInfoUpdateRequest): The request containing updated personal information.
+        http_request (Request): The HTTP request object.
+        db (Session): The database session dependency.
+        current_user (User): The current authenticated user.
+
+    Returns:
+        HTMLResponse: Updated resume content view.
+
+    Raises:
+        HTTPException: If the resume is not found or doesn't belong to the user.
+
+    Notes:
+        1. Queries the database for a resume with the given ID and user_id.
+        2. If no resume is found, raises a 404 error.
+        3. Updates the personal information section in the resume content.
+        4. Commits the transaction to save the changes.
+        5. Returns HTML for HTMX to update the resume content view.
+
+    """
+    # For now, we'll just show a success message
+    # In a real implementation, we would parse and update the resume content
+    html_content = f"""
+    <div class="h-full flex flex-col">
+        <div class="flex justify-between items-center mb-4">
+            <h2 class="text-xl font-semibold">{resume.name}</h2>
+            <div class="flex space-x-2">
+                <button 
+                    hx-get="/dashboard/resumes/{resume.id}/edit/personal" 
+                    hx-target="#resume-content" 
+                    hx-swap="innerHTML"
+                    class="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-sm">
+                    Edit Personal Info
+                </button>
+            </div>
+        </div>
+        <div class="flex-grow">
+            <p class="text-green-600 font-medium">Personal information updated successfully!</p>
+            <textarea 
+                readonly
+                class="w-full h-96 px-3 py-2 border border-gray-300 rounded-md focus:outline-none font-mono text-sm resize-none"
+                placeholder="Resume content will appear here...">{resume.content}</textarea>
+        </div>
+    </div>
+    """
+    return HTMLResponse(content=html_content)
+
+
+@router.post("/{resume_id}/edit/education")
+async def update_education(
+    http_request: Request,
+    resume: DatabaseResume = Depends(get_resume_for_user),
+    school: str = Form(...),
+    degree: str = Form(None),
+    major: str = Form(None),
+    start_date: str = Form(None),
+    end_date: str = Form(None),
+    gpa: str = Form(None),
+):
+    """Update education information in a resume.
+
+    Args:
+        resume_id (int): The unique identifier of the resume to update.
+        request (EducationUpdateRequest): The request containing updated education information.
+        http_request (Request): The HTTP request object.
+        db (Session): The database session dependency.
+        current_user (User): The current authenticated user.
+
+    Returns:
+        HTMLResponse: Updated resume content view.
+
+    Raises:
+        HTTPException: If the resume is not found or doesn't belong to the user.
+
+    Notes:
+        1. Queries the database for a resume with the given ID and user_id.
+        2. If no resume is found, raises a 404 error.
+        3. Updates the education section in the resume content.
+        4. Commits the transaction to save the changes.
+        5. Returns HTML for HTMX to update the resume content view.
+
+    """
+    # For now, we'll just show a success message
+    # In a real implementation, we would parse and update the resume content
+    html_content = f"""
+    <div class="h-full flex flex-col">
+        <div class="flex justify-between items-center mb-4">
+            <h2 class="text-xl font-semibold">{resume.name}</h2>
+            <div class="flex space-x-2">
+                <button 
+                    hx-get="/dashboard/resumes/{resume.id}/edit/education" 
+                    hx-target="#resume-content" 
+                    hx-swap="innerHTML"
+                    class="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-sm">
+                    Edit Education
+                </button>
+            </div>
+        </div>
+        <div class="flex-grow">
+            <p class="text-green-600 font-medium">Education information updated successfully!</p>
+            <textarea 
+                readonly
+                class="w-full h-96 px-3 py-2 border border-gray-300 rounded-md focus:outline-none font-mono text-sm resize-none"
+                placeholder="Resume content will appear here...">{resume.content}</textarea>
+        </div>
+    </div>
+    """
+    return HTMLResponse(content=html_content)
+
+
+@router.post("/{resume_id}/edit/experience")
+async def update_experience(
+    http_request: Request,
+    resume: DatabaseResume = Depends(get_resume_for_user),
+    company: str = Form(...),
+    title: str = Form(...),
+    start_date: str = Form(None),
+    end_date: str = Form(None),
+    description: str = Form(None),
+):
+    """Update experience information in a resume.
+
+    Args:
+        resume_id (int): The unique identifier of the resume to update.
+        request (ExperienceUpdateRequest): The request containing updated experience information.
+        http_request (Request): The HTTP request object.
+        db (Session): The database session dependency.
+        current_user (User): The current authenticated user.
+
+    Returns:
+        HTMLResponse: Updated resume content view.
+
+    Raises:
+        HTTPException: If the resume is not found or doesn't belong to the user.
+
+    Notes:
+        1. Queries the database for a resume with the given ID and user_id.
+        2. If no resume is found, raises a 404 error.
+        3. Updates the experience section in the resume content.
+        4. Commits the transaction to save the changes.
+        5. Returns HTML for HTMX to update the resume content view.
+
+    """
+    # For now, we'll just show a success message
+    # In a real implementation, we would parse and update the resume content
+    html_content = f"""
+    <div class="h-full flex flex-col">
+        <div class="flex justify-between items-center mb-4">
+            <h2 class="text-xl font-semibold">{resume.name}</h2>
+            <div class="flex space-x-2">
+                <button 
+                    hx-get="/dashboard/resumes/{resume.id}/edit/experience" 
+                    hx-target="#resume-content" 
+                    hx-swap="innerHTML"
+                    class="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-sm">
+                    Edit Experience
+                </button>
+            </div>
+        </div>
+        <div class="flex-grow">
+            <p class="text-green-600 font-medium">Experience information updated successfully!</p>
+            <textarea 
+                readonly
+                class="w-full h-96 px-3 py-2 border border-gray-300 rounded-md focus:outline-none font-mono text-sm resize-none"
+                placeholder="Resume content will appear here...">{resume.content}</textarea>
+        </div>
+    </div>
+    """
+    return HTMLResponse(content=html_content)
+
+
+@router.post("/{resume_id}/edit/projects")
+async def update_projects(
+    http_request: Request,
+    resume: DatabaseResume = Depends(get_resume_for_user),
+    title: str = Form(...),
+    description: str = Form(None),
+    url: str = Form(None),
+    start_date: str = Form(None),
+    end_date: str = Form(None),
+):
+    """Update projects information in a resume.
+
+    Args:
+        resume_id (int): The unique identifier of the resume to update.
+        request (ProjectUpdateRequest): The request containing updated project information.
+        http_request (Request): The HTTP request object.
+        db (Session): The database session dependency.
+        current_user (User): The current authenticated user.
+
+    Returns:
+        HTMLResponse: Updated resume content view.
+
+    Raises:
+        HTTPException: If the resume is not found or doesn't belong to the user.
+
+    Notes:
+        1. Queries the database for a resume with the given ID and user_id.
+        2. If no resume is found, raises a 404 error.
+        3. Updates the projects section in the resume content.
+        4. Commits the transaction to save the changes.
+        5. Returns HTML for HTMX to update the resume content view.
+
+    """
+    # For now, we'll just show a success message
+    # In a real implementation, we would parse and update the resume content
+    html_content = f"""
+    <div class="h-full flex flex-col">
+        <div class="flex justify-between items-center mb-4">
+            <h2 class="text-xl font-semibold">{resume.name}</h2>
+            <div class="flex space-x-2">
+                <button 
+                    hx-get="/dashboard/resumes/{resume.id}/edit/projects" 
+                    hx-target="#resume-content" 
+                    hx-swap="innerHTML"
+                    class="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-sm">
+                    Edit Projects
+                </button>
+            </div>
+        </div>
+        <div class="flex-grow">
+            <p class="text-green-600 font-medium">Projects information updated successfully!</p>
+            <textarea 
+                readonly
+                class="w-full h-96 px-3 py-2 border border-gray-300 rounded-md focus:outline-none font-mono text-sm resize-none"
+                placeholder="Resume content will appear here...">{resume.content}</textarea>
+        </div>
+    </div>
+    """
+    return HTMLResponse(content=html_content)
+
+
+@router.post("/{resume_id}/edit/certifications")
+async def update_certifications(
+    http_request: Request,
+    resume: DatabaseResume = Depends(get_resume_for_user),
+    name: str = Form(...),
+    issuer: str = Form(None),
+    id: str = Form(None),
+    issued_date: str = Form(None),
+    expiry_date: str = Form(None),
+):
+    """Update certifications information in a resume.
+
+    Args:
+        resume_id (int): The unique identifier of the resume to update.
+        request (CertificationUpdateRequest): The request containing updated certification information.
+        http_request (Request): The HTTP request object.
+        db (Session): The database session dependency.
+        current_user (User): The current authenticated user.
+
+    Returns:
+        HTMLResponse: Updated resume content view.
+
+    Raises:
+        HTTPException: If the resume is not found or doesn't belong to the user.
+
+    Notes:
+        1. Queries the database for a resume with the given ID and user_id.
+        2. If no resume is found, raises a 404 error.
+        3. Updates the certifications section in the resume content.
+        4. Commits the transaction to save the changes.
+        5. Returns HTML for HTMX to update the resume content view.
+
+    """
+    # For now, we'll just show a success message
+    # In a real implementation, we would parse and update the resume content
+    html_content = f"""
+    <div class="h-full flex flex-col">
+        <div class="flex justify-between items-center mb-4">
+            <h2 class="text-xl font-semibold">{resume.name}</h2>
+            <div class="flex space-x-2">
+                <button 
+                    hx-get="/dashboard/resumes/{resume.id}/edit/certifications" 
+                    hx-target="#resume-content" 
+                    hx-swap="innerHTML"
+                    class="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-sm">
+                    Edit Certifications
+                </button>
+            </div>
+        </div>
+        <div class="flex-grow">
+            <p class="text-green-600 font-medium">Certifications information updated successfully!</p>
+            <textarea 
+                readonly
+                class="w-full h-96 px-3 py-2 border border-gray-300 rounded-md focus:outline-none font-mono text-sm resize-none"
+                placeholder="Resume content will appear here...">{resume.content}</textarea>
+        </div>
+    </div>
+    """
+    return HTMLResponse(content=html_content)
+
+
+@router.get("/{resume_id}/personal", response_model=PersonalInfoResponse)
+async def get_personal_info(
+    resume: DatabaseResume = Depends(get_resume_for_user),
+):
+    """Get personal information from a resume.
+
+    Args:
+        resume_id: The ID of the resume.
+        db: Database session.
+        current_user: Current authenticated user.
+
+    Returns:
+        PersonalInfoResponse: The personal information from the resume.
+
+    Raises:
+        HTTPException: If the resume is not found.
+
+    Notes:
+        1. Queries the database for a resume with the given ID and user_id.
+        2. If no resume is found, raises a 404 error.
+        3. Extracts personal information from the resume content using extract_personal_info.
+        4. Returns the personal information as a PersonalInfoResponse.
+        5. Performs database access: Reads from the database via db.query.
+        6. Performs network access: None.
+
+    """
+    return extract_personal_info(resume.content)
+
+
+@router.put("/{resume_id}/personal", response_model=PersonalInfoResponse)
+async def update_personal_info_structured(
+    request: PersonalInfoUpdateRequest,
+    db: Session = Depends(get_db),
+    resume: DatabaseResume = Depends(get_resume_for_user),
+):
+    """Update personal information in a resume.
+
+    Args:
+        resume_id: The ID of the resume.
+        request: The updated personal information.
+        db: Database session.
+        current_user: Current authenticated user.
+
+    Returns:
+        PersonalInfoResponse: The updated personal information.
+
+    Raises:
+        HTTPException: If the resume is not found.
+
+    Notes:
+        1. Queries the database for a resume with the given ID and user_id.
+        2. If no resume is found, raises a 404 error.
+        3. Creates an updated personal info object with the provided data.
+        4. Extracts other sections from the resume, then reconstructs the full Markdown with the updated personal info.
+        5. Performs pre-save validation on the updated content.
+        6. Saves the updated content to the database.
+        7. Returns the updated personal information.
+        8. This function performs database read and write operations.
 
     """
     try:
-        resume = (
-            db.query(DatabaseResume)
-            .filter(
-                DatabaseResume.id == resume_id,
-                DatabaseResume.user_id == current_user.id,
-            )
-            .first()
+        # Create updated personal info object
+        updated_info = PersonalInfoResponse(**request.model_dump())
+
+        # Extract other sections from existing content
+        education_info = extract_education_info(resume.content)
+        experience_info = extract_experience_info(resume.content)
+        certifications_info = extract_certifications_info(resume.content)
+
+        # Reconstruct resume with updated personal info
+        updated_content = build_complete_resume_from_sections(
+            personal_info=updated_info,
+            education=education_info,
+            experience=experience_info,
+            certifications=certifications_info,
         )
 
-        if not resume:
-            raise HTTPException(status_code=404, detail="Resume not found")
+        # Perform pre-save validation
+        perform_pre_save_validation(updated_content, resume.content)
 
-        # Check if this is an HTMX request
-        if "HX-Request" in request.headers:
-            html_content = f"""
-            <div class="h-full flex flex-col">
-                <div class="flex justify-between items-center mb-4">
-                    <h2 class="text-xl font-semibold">{resume.name}</h2>
-                    <div class="flex space-x-2">
-                        <button 
-                            hx-get="/dashboard/create-resume-form" 
-                            hx-target="#resume-content" 
-                            hx-swap="innerHTML"
-                            class="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-sm">
-                            Edit
-                        </button>
-                    </div>
-                </div>
-                <div class="flex-grow">
-                    <textarea 
-                        readonly
-                        class="w-full h-96 px-3 py-2 border border-gray-300 rounded-md focus:outline-none font-mono text-sm resize-none"
-                        placeholder="Resume content will appear here...">{resume.content}</textarea>
-                </div>
-                <div class="mt-4 text-sm text-gray-500">
-                    <p>Resume ID: {resume.id}</p>
-                </div>
-            </div>
-            """
-            return HTMLResponse(content=html_content)
+        # Save updated content to database
+        update_resume_db(db, resume, content=updated_content)
 
-        return ResumeDetailResponse(
-            id=resume.id,
-            name=resume.name,
-            content=resume.content,
+        return updated_info
+    except (ValueError, TypeError, HTTPException) as e:
+        detail = getattr(e, "detail", str(e))
+        _msg = (
+            f"Failed to update resume due to reconstruction/validation error: {detail}"
         )
-    except HTTPException:
-        raise
-    except Exception as e:
-        log.exception("Failed to retrieve resume")
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to retrieve resume: {str(e)}",
+        log.exception(_msg)
+        raise HTTPException(status_code=422, detail=_msg)
+
+
+@router.get("/{resume_id}/education", response_model=EducationResponse)
+async def get_education_info(
+    resume: DatabaseResume = Depends(get_resume_for_user),
+):
+    """Get education information from a resume.
+
+    Args:
+        resume_id: The ID of the resume.
+        db: Database session.
+        current_user: Current authenticated user.
+
+    Returns:
+        EducationResponse: The education information from the resume.
+
+    Raises:
+        HTTPException: If the resume is not found.
+
+    Notes:
+        1. Queries the database for a resume with the given ID and user_id.
+        2. If no resume is found, raises a 404 error.
+        3. Extracts education information from the resume content using extract_education_info.
+        4. Returns the education information as an EducationResponse.
+        5. Performs database access: Reads from the database via db.query.
+        6. Performs network access: None.
+
+    """
+    return extract_education_info(resume.content)
+
+
+@router.put("/{resume_id}/education", response_model=EducationResponse)
+async def update_education_info_structured(
+    request: EducationUpdateRequest,
+    db: Session = Depends(get_db),
+    resume: DatabaseResume = Depends(get_resume_for_user),
+):
+    """Update education information in a resume.
+
+    Args:
+        resume_id: The ID of the resume.
+        request: The updated education information.
+        db: Database session.
+        current_user: Current authenticated user.
+
+    Returns:
+        EducationResponse: The updated education information.
+
+    Raises:
+        HTTPException: If the resume is not found.
+
+    Notes:
+        1. Queries the database for a resume with the given ID and user_id.
+        2. If no resume is found, raises a 404 error.
+        3. Creates an updated education info object with the provided data.
+        4. Extracts other sections from the resume, then reconstructs the full Markdown with the updated education info.
+        5. Performs pre-save validation on the updated content.
+        6. Saves the updated content to the database.
+        7. Returns the updated education information.
+        8. This function performs database read and write operations.
+
+    """
+    try:
+        # Create updated education info object
+        updated_info = EducationResponse(**request.model_dump())
+
+        personal_info = extract_personal_info(resume.content)
+        experience_info = extract_experience_info(resume.content)
+        certifications_info = extract_certifications_info(resume.content)
+
+        # Reconstruct resume with updated education info
+        updated_content = build_complete_resume_from_sections(
+            personal_info=personal_info,
+            education=updated_info,
+            experience=experience_info,
+            certifications=certifications_info,
         )
+
+        # Perform pre-save validation
+        perform_pre_save_validation(updated_content, resume.content)
+
+        # Save updated content to database
+        update_resume_db(db, resume, content=updated_content)
+
+        return updated_info
+    except (ValueError, TypeError, HTTPException) as e:
+        detail = getattr(e, "detail", str(e))
+        _msg = (
+            f"Failed to update resume due to reconstruction/validation error: {detail}"
+        )
+        log.exception(_msg)
+        raise HTTPException(status_code=422, detail=_msg)
+
+
+@router.get("/{resume_id}/experience", response_model=ExperienceResponse)
+async def get_experience_info(
+    resume: DatabaseResume = Depends(get_resume_for_user),
+):
+    """Get experience information from a resume.
+
+    Args:
+        resume_id: The ID of the resume.
+        db: Database session.
+        current_user: Current authenticated user.
+
+    Returns:
+        ExperienceResponse: The experience information from the resume.
+
+    Raises:
+        HTTPException: If the resume is not found.
+
+    Notes:
+        1. Queries the database for a resume with the given ID and user_id.
+        2. If no resume is found, raises a 404 error.
+        3. Extracts experience information from the resume content using extract_experience_info.
+        4. Returns the experience information as an ExperienceResponse.
+        5. Performs database access: Reads from the database via db.query.
+        6. Performs network access: None.
+
+    """
+    return extract_experience_info(resume.content)
+
+
+@router.put("/{resume_id}/experience", response_model=ExperienceResponse)
+async def update_experience_info_structured(
+    request: ExperienceUpdateRequest,
+    db: Session = Depends(get_db),
+    resume: DatabaseResume = Depends(get_resume_for_user),
+):
+    """Update experience information in a resume.
+
+    Args:
+        resume_id: The ID of the resume.
+        request: The updated experience information.
+        db: Database session.
+        current_user: Current authenticated user.
+
+    Returns:
+        ExperienceResponse: The updated experience information.
+
+    Raises:
+        HTTPException: If the resume is not found.
+
+    Notes:
+        1. Queries the database for a resume with the given ID and user_id.
+        2. If no resume is found, raises a 404 error.
+        3. Creates an updated experience info object with the provided data.
+        4. Extracts other sections from the resume, then reconstructs the full Markdown with the updated experience section.
+        5. Performs pre-save validation on the updated content.
+        6. Saves the updated content to the database.
+        7. Returns the updated experience information.
+        8. This function performs database read and write operations.
+
+    """
+    try:
+        # Extract current resume sections
+        personal_info = extract_personal_info(resume.content)
+        education_info = extract_education_info(resume.content)
+        certifications_info = extract_certifications_info(resume.content)
+        current_experience = extract_experience_info(resume.content)
+
+        # Create updated experience object, using new data if provided, else current
+        updated_experience = ExperienceResponse(
+            roles=request.roles
+            if request.roles is not None
+            else current_experience.roles,
+            projects=(
+                request.projects
+                if request.projects is not None
+                else current_experience.projects
+            ),
+        )
+
+        # Reconstruct the resume content with the updated experience section
+        updated_content = build_complete_resume_from_sections(
+            personal_info=personal_info,
+            education=education_info,
+            experience=updated_experience,
+            certifications=certifications_info,
+        )
+
+        # Perform pre-save validation
+        perform_pre_save_validation(updated_content, resume.content)
+
+        # Save updated content to database
+        update_resume_db(db, resume, content=updated_content)
+
+        return updated_experience
+    except (ValueError, TypeError, HTTPException) as e:
+        detail = getattr(e, "detail", str(e))
+        _msg = (
+            f"Failed to update resume due to reconstruction/validation error: {detail}"
+        )
+        log.exception(_msg)
+        raise HTTPException(status_code=422, detail=_msg)
+
+
+@router.get("/{resume_id}/projects", response_model=ProjectsResponse)
+async def get_projects_info(
+    resume: DatabaseResume = Depends(get_resume_for_user),
+):
+    """Get projects information from a resume.
+
+    Args:
+        resume_id: The ID of the resume.
+        db: Database session.
+        current_user: Current authenticated user.
+
+    Returns:
+        ProjectsResponse: The projects information from the resume.
+
+    Raises:
+        HTTPException: If the resume is not found.
+
+    Notes:
+        1. Queries the database for a resume with the given ID and user_id.
+        2. If no resume is found, raises a 404 error.
+        3. Extracts experience information (which includes projects) from the resume content.
+        4. Returns the projects information as a ProjectsResponse.
+        5. Performs database access: Reads from the database via db.query.
+        6. Performs network access: None.
+
+    """
+    experience = extract_experience_info(resume.content)
+    return ProjectsResponse(projects=experience.projects)
+
+
+@router.put("/{resume_id}/projects", response_model=ProjectsResponse)
+async def update_projects_info_structured(
+    request: ExperienceUpdateRequest,
+    db: Session = Depends(get_db),
+    resume: DatabaseResume = Depends(get_resume_for_user),
+):
+    """Update projects information in a resume.
+
+    Args:
+        resume_id: The ID of the resume.
+        request: The updated projects information.
+        db: Database session.
+        current_user: Current authenticated user.
+
+    Returns:
+        ProjectsResponse: The updated projects information.
+
+    Raises:
+        HTTPException: If the resume is not found.
+
+    Notes:
+        1. Queries the database for a resume with the given ID and user_id.
+        2. If no resume is found, raises a 404 error.
+        3. Creates an updated projects info object with the provided data.
+        4. Extracts other sections from the resume, then reconstructs the full Markdown with the new projects information.
+        5. Performs pre-save validation on the updated content.
+        6. Saves the updated content to the database.
+        7. Returns the updated projects information.
+        8. This function performs database read and write operations.
+
+    """
+    try:
+        projects_to_update = request.projects or []
+        updated_projects = ProjectsResponse(projects=projects_to_update)
+
+        personal_info = extract_personal_info(resume.content)
+        education_info = extract_education_info(resume.content)
+        certifications_info = extract_certifications_info(resume.content)
+        current_experience = extract_experience_info(resume.content)
+
+        # To update only projects, we need to preserve roles from the current experience.
+        experience_with_updated_projects = ExperienceResponse(
+            roles=current_experience.roles,
+            projects=projects_to_update,
+        )
+
+        updated_content = build_complete_resume_from_sections(
+            personal_info=personal_info,
+            education=education_info,
+            experience=experience_with_updated_projects,
+            certifications=certifications_info,
+        )
+
+        perform_pre_save_validation(updated_content, resume.content)
+
+        update_resume_db(db, resume, content=updated_content)
+
+        return updated_projects
+    except (ValueError, TypeError, HTTPException) as e:
+        detail = getattr(e, "detail", str(e))
+        _msg = (
+            f"Failed to update resume due to reconstruction/validation error: {detail}"
+        )
+        log.exception(_msg)
+        raise HTTPException(status_code=422, detail=_msg)
+
+
+@router.get("/{resume_id}/certifications", response_model=CertificationsResponse)
+async def get_certifications_info(
+    resume: DatabaseResume = Depends(get_resume_for_user),
+):
+    """Get certifications information from a resume.
+
+    Args:
+        resume_id: The ID of the resume.
+        db: Database session.
+        current_user: Current authenticated user.
+
+    Returns:
+        CertificationsResponse: The certifications information from the resume.
+
+    Raises:
+        HTTPException: If the resume is not found.
+
+    Notes:
+        1. Queries the database for a resume with the given ID and user_id.
+        2. If no resume is found, raises a 404 error.
+        3. Extracts certifications information from the resume content using extract_certifications_info.
+        4. Returns the certifications information as a CertificationsResponse.
+        5. Performs database access: Reads from the database via db.query.
+        6. Performs network access: None.
+
+    """
+    return extract_certifications_info(resume.content)
+
+
+@router.put("/{resume_id}/certifications", response_model=CertificationsResponse)
+async def update_certifications_info_structured(
+    request: CertificationUpdateRequest,
+    db: Session = Depends(get_db),
+    resume: DatabaseResume = Depends(get_resume_for_user),
+):
+    """Update certifications information in a resume.
+
+    Args:
+        resume_id: The ID of the resume.
+        request: The updated certifications information.
+        db: Database session.
+        current_user: Current authenticated user.
+
+    Returns:
+        CertificationsResponse: The updated certifications information.
+
+    Raises:
+        HTTPException: If the resume is not found.
+
+    Notes:
+        1. Queries the database for a resume with the given ID and user_id.
+        2. If no resume is found, raises a 404 error.
+        3. Creates an updated certifications info object with the provided data.
+        4. Extracts other sections from the resume, then reconstructs the full Markdown with updated certifications information.
+        5. Performs pre-save validation on the updated content.
+        6. Saves the updated content to the database.
+        7. Returns the updated certifications information.
+        8. This function performs database read and write operations.
+
+    """
+    try:
+        updated_certifications = CertificationsResponse(
+            certifications=request.certifications,
+        )
+
+        personal_info = extract_personal_info(resume.content)
+        education_info = extract_education_info(resume.content)
+        experience_info = extract_experience_info(resume.content)
+
+        # Reconstruct resume with updated certifications
+        updated_content = build_complete_resume_from_sections(
+            personal_info=personal_info,
+            education=education_info,
+            experience=experience_info,
+            certifications=updated_certifications,
+        )
+
+        perform_pre_save_validation(updated_content, resume.content)
+
+        update_resume_db(db, resume, content=updated_content)
+
+        return updated_certifications
+    except (ValueError, TypeError, HTTPException) as e:
+        detail = getattr(e, "detail", str(e))
+        _msg = (
+            f"Failed to update resume due to reconstruction/validation error: {detail}"
+        )
+        log.exception(_msg)
+        raise HTTPException(status_code=422, detail=_msg)

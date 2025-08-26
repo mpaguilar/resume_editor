@@ -50,6 +50,12 @@ Notes:
 
 ---
 
+## function: `main() -> UnknownType`
+
+Entry point for running the application directly.
+
+---
+
 
 ===
 
@@ -97,6 +103,10 @@ and return the current user object.
 
 Returns:
     User: The current authenticated user.
+
+Notes:
+    1. This is a placeholder implementation.
+    2. In reality, this would use JWT token verification or similar.
 
 ---
 
@@ -202,6 +212,478 @@ Notes:
     3. Generate a JWT access token with a defined expiration time.
     4. Return the access token to the client.
     5. Database access: Performs a read operation on the User table to verify credentials.
+
+---
+
+
+===
+
+===
+# File: `route_models.py`
+
+
+===
+
+===
+# File: `resume_crud.py`
+
+## function: `get_resume_by_id_and_user(db: Session, resume_id: int, user_id: int) -> DatabaseResume`
+
+Retrieve a resume by its ID and verify it belongs to the specified user.
+
+Args:
+    db (Session): The SQLAlchemy database session used to query the database.
+    resume_id (int): The unique identifier for the resume to retrieve.
+    user_id (int): The unique identifier for the user who owns the resume.
+
+Returns:
+    DatabaseResume: The resume object matching the provided ID and user ID.
+
+Raises:
+    HTTPException: If no resume is found with the given ID and user ID, raises a 404 error.
+
+Notes:
+    1. Query the DatabaseResume table for a record where the id matches resume_id and the user_id matches user_id.
+    2. If no matching record is found, raise an HTTPException with status code 404 and detail "Resume not found".
+    3. Return the found DatabaseResume object.
+    4. This function performs a single database query to retrieve a resume.
+
+---
+
+## function: `get_user_resumes(db: Session, user_id: int) -> list[DatabaseResume]`
+
+Retrieve all resumes associated with a specific user.
+
+Args:
+    db (Session): The SQLAlchemy database session used to query the database.
+    user_id (int): The unique identifier for the user whose resumes are to be retrieved.
+
+Returns:
+    list[DatabaseResume]: A list of DatabaseResume objects belonging to the specified user.
+
+Notes:
+    1. Query the DatabaseResume table for all records where the user_id matches the provided user_id.
+    2. Return the list of matching DatabaseResume objects.
+    3. This function performs a single database query to retrieve all resumes for a user.
+
+---
+
+## function: `create_resume(db: Session, user_id: int, name: str, content: str) -> DatabaseResume`
+
+Create and save a new resume.
+
+Args:
+    db (Session): The database session.
+    user_id (int): The ID of the user who owns the resume.
+    name (str): The name of the resume.
+    content (str): The content of the resume.
+
+Returns:
+    DatabaseResume: The newly created resume object.
+
+Notes:
+    1. Create a new DatabaseResume instance.
+    2. Add the instance to the database session.
+    3. Commit the transaction.
+    4. Refresh the instance to get the new ID.
+    5. Return the created resume.
+    6. This function performs a database write operation.
+
+---
+
+## function: `update_resume(db: Session, resume: DatabaseResume, name: str | None, content: str | None) -> DatabaseResume`
+
+Update a resume's name and/or content.
+
+Args:
+    db (Session): The database session.
+    resume (DatabaseResume): The resume to update.
+    name (str, optional): The new name for the resume. Defaults to None.
+    content (str, optional): The new content for the resume. Defaults to None.
+
+Returns:
+    DatabaseResume: The updated resume object.
+
+Notes:
+    1. If a new name is provided, update the resume's name.
+    2. If new content is provided, update the resume's content.
+    3. Commit the transaction to save changes.
+    4. Refresh the resume object to get the latest state.
+    5. Return the updated resume.
+    6. This function performs a database write operation.
+
+---
+
+## function: `delete_resume(db: Session, resume: DatabaseResume) -> None`
+
+Delete a resume.
+
+Args:
+    db (Session): The database session.
+    resume (DatabaseResume): The resume to delete.
+
+Returns:
+    None
+
+Notes:
+    1. Delete the resume object from the database session.
+    2. Commit the transaction.
+    3. This function performs a database write operation.
+
+---
+
+
+===
+
+===
+# File: `resume_validation.py`
+
+## function: `perform_pre_save_validation(markdown_content: str, original_content: str | None) -> None`
+
+Perform comprehensive pre-save validation on resume content.
+
+Args:
+    markdown_content (str): The updated resume Markdown content to validate.
+    original_content (str | None): The original resume content for comparison.
+
+Returns:
+    None: This function does not return any value.
+
+Raises:
+    HTTPException: If validation fails with status code 422.
+
+Notes:
+    1. Run the updated Markdown through the existing parser to ensure it's still valid.
+    2. If any validation fails, raise an HTTPException with detailed error messages.
+    3. This function performs validation checks on resume content before saving to ensure data integrity.
+    4. Validation includes parsing the Markdown content to verify its structure and format.
+
+---
+
+
+===
+
+===
+# File: `resume_reconstruction.py`
+
+## function: `reconstruct_resume_markdown(personal_info: PersonalInfoResponse | None, education: EducationResponse | None, experience: ExperienceResponse | None, certifications: CertificationsResponse | None) -> str`
+
+Reconstruct a complete resume Markdown document from structured data sections.
+
+Args:
+    personal_info (PersonalInfoResponse | None): Personal information data structure. If None, the personal info section is omitted.
+    education (EducationResponse | None): Education information data structure. If None, the education section is omitted.
+    experience (ExperienceResponse | None): Experience information data structure, containing roles and projects. If None, the experience section is omitted.
+    certifications (CertificationsResponse | None): Certifications information data structure. If None, the certifications section is omitted.
+
+Returns:
+    str: A complete Markdown formatted resume document with all provided sections joined by double newlines.
+
+Notes:
+    1. Initialize an empty list to collect resume sections.
+    2. Serialize each provided section using the corresponding serialization function.
+    3. Append each serialized section to the sections list if it is not empty.
+    4. Filter out any empty strings and strip whitespace from each section.
+    5. Join all sections with double newlines to ensure proper spacing.
+    6. Return the complete Markdown resume content.
+    7. No network, disk, or database access is performed.
+
+---
+
+## function: `build_complete_resume_from_sections(personal_info: PersonalInfoResponse, education: EducationResponse, experience: ExperienceResponse, certifications: CertificationsResponse) -> str`
+
+Build a complete resume Markdown document from all structured sections.
+
+Args:
+    personal_info (PersonalInfoResponse): Personal information data structure.
+    education (EducationResponse): Education information data structure.
+    experience (ExperienceResponse): Experience information data structure.
+    certifications (CertificationsResponse): Certifications information data structure.
+
+Returns:
+    str: A complete Markdown formatted resume document with all sections in the order: personal, education, experience, certifications.
+
+Notes:
+    1. Calls reconstruct_resume_markdown with all sections.
+    2. Ensures proper section ordering (personal, education, experience, certifications).
+    3. Returns the complete Markdown resume content.
+    4. No network, disk, or database access is performed.
+
+---
+
+
+===
+
+===
+# File: `resume_parsing.py`
+
+## function: `parse_resume(markdown_content: str) -> dict[str, Any]`
+
+Parse Markdown resume content using resume_writer parser.
+
+Args:
+    markdown_content (str): The Markdown content to parse, expected to follow a valid resume format.
+
+Returns:
+    dict[str, Any]: A dictionary representation of the parsed resume data structure,
+                   including sections like personal info, experience, education, etc.
+                   The structure matches the output of the resume_writer parser.
+
+Notes:
+    1. Split the markdown_content into lines.
+    2. Identify the first valid section header by scanning lines for headers that start with "# " and not "##".
+    3. Filter the lines to start from the first valid section header, if found.
+    4. Create a ParseContext object from the filtered lines with an initial line number of 1.
+    5. Use the WriterResume.parse method to parse the resume with the context.
+    6. Convert the parsed resume object to a dictionary using vars().
+    7. Return the dictionary representation.
+    8. No disk, network, or database access is performed.
+
+---
+
+## function: `parse_resume_content(markdown_content: str) -> dict[str, Any]`
+
+Parse Markdown resume content and return structured data.
+
+Args:
+    markdown_content (str): The Markdown content to parse, expected to follow a valid resume format.
+
+Returns:
+    dict: A dictionary containing the structured resume data, including sections like personal info, experience, education, etc.
+          The structure matches the expected output of the resume_writer parser.
+
+Notes:
+    1. Use the parse_resume function to parse the provided markdown_content.
+    2. Return the result of parse_resume as a dictionary.
+    3. No disk, network, or database access is performed.
+
+---
+
+## function: `validate_resume_content(content: str) -> None`
+
+Validate resume Markdown content.
+
+Args:
+    content (str): The Markdown content to validate, expected to be in a format compatible with resume_writer.
+
+Returns:
+    None: The function returns nothing on success.
+
+Notes:
+    1. Attempt to parse the provided content using the parse_resume function.
+    2. If parsing fails, raise an HTTPException with status 422 and a descriptive message.
+    3. No disk, network, or database access is performed.
+
+---
+
+
+===
+
+===
+# File: `resume_serialization.py`
+
+## function: `extract_personal_info(resume_content: str) -> PersonalInfoResponse`
+
+Extract personal information from resume content.
+
+Args:
+    resume_content (str): The Markdown content of the resume to parse.
+
+Returns:
+    PersonalInfoResponse: Extracted personal information containing name, email, phone, location, and website.
+
+Notes:
+    1. Splits the resume content into lines.
+    2. Creates a ParseContext for parsing.
+    3. Parses the resume using the resume_writer module.
+    4. Retrieves the personal section from the parsed resume.
+    5. Checks if contact information is present; if not, returns an empty response.
+    6. Extracts contact info and websites from the parsed personal section.
+    7. Maps the extracted data to the PersonalInfoResponse fields.
+    8. Returns the populated response or an empty one if parsing fails.
+    9. No network, disk, or database access is performed during this function.
+
+---
+
+## function: `extract_education_info(resume_content: str) -> EducationResponse`
+
+Extract education information from resume content.
+
+Args:
+    resume_content (str): The Markdown content of the resume to parse.
+
+Returns:
+    EducationResponse: Extracted education information containing a list of degree entries.
+
+Notes:
+    1. Splits the resume content into lines.
+    2. Creates a ParseContext for parsing.
+    3. Parses the resume using the resume_writer module.
+    4. Retrieves the education section from the parsed resume.
+    5. Checks if education data is present; if not, returns an empty response.
+    6. Loops through each degree and extracts school, degree, major, start_date, end_date, and gpa.
+    7. Maps each degree's fields into a dictionary.
+    8. Returns a list of dictionaries wrapped in the EducationResponse model.
+    9. If parsing fails, returns an empty response.
+    10. No network, disk, or database access is performed during this function.
+
+---
+
+## function: `extract_experience_info(resume_content: str) -> ExperienceResponse`
+
+Extract experience information from resume content.
+
+Args:
+    resume_content (str): The Markdown content of the resume to parse.
+
+Returns:
+    ExperienceResponse: Extracted experience information containing a list of roles and projects.
+
+Notes:
+    1. Splits the resume content into lines.
+    2. Creates a ParseContext for parsing.
+    3. Parses the resume using the resume_writer module.
+    4. Retrieves the experience section from the parsed resume.
+    5. Checks if experience data is present; if not, returns an empty response.
+    6. Loops through each role and extracts basics, summary, responsibilities and skills.
+    7. Loops through each project and extracts overview, description, and skills.
+    8. Maps the extracted data into a dictionary with nested structure.
+    9. Returns a list of dictionaries wrapped in the ExperienceResponse model.
+    10. If parsing fails, returns an empty response.
+    11. No network, disk, or database access is performed during this function.
+
+---
+
+## function: `extract_certifications_info(resume_content: str) -> CertificationsResponse`
+
+Extract certifications information from resume content.
+
+Args:
+    resume_content (str): The Markdown content of the resume to parse.
+
+Returns:
+    CertificationsResponse: Extracted certifications information containing a list of certifications.
+
+Notes:
+    1. Splits the resume content into lines.
+    2. Creates a ParseContext for parsing.
+    3. Parses the resume using the resume_writer module.
+    4. Retrieves the certifications section from the parsed resume.
+    5. Checks if certifications data is present; if not, returns an empty response.
+    6. Loops through each certification and extracts name, issuer, certification_id, issued, and expires.
+    7. Maps the extracted data into a dictionary.
+    8. Returns a list of dictionaries wrapped in the CertificationsResponse model.
+    9. If parsing fails, returns an empty response.
+    10. No network, disk, or database access is performed during this function.
+
+---
+
+## function: `serialize_personal_info_to_markdown(personal_info: UnknownType) -> str`
+
+Serialize personal information to Markdown format.
+
+Args:
+    personal_info: Personal information to serialize, containing name, email, phone, location, and website.
+
+Returns:
+    str: Markdown formatted personal information section.
+
+Notes:
+    1. Initializes an empty list of lines and adds a heading.
+    2. Adds each field (name, email, phone, location) as a direct field if present.
+    3. Adds a Websites section if website is present.
+    4. Joins the lines with newlines.
+    5. Returns the formatted string with a trailing newline.
+    6. Returns an empty string if no personal data is present.
+    7. No network, disk, or database access is performed during this function.
+
+---
+
+## function: `serialize_education_to_markdown(education: UnknownType) -> str`
+
+Serialize education information to Markdown format.
+
+Args:
+    education: Education information to serialize, containing a list of degree entries.
+
+Returns:
+    str: Markdown formatted education section.
+
+Notes:
+    1. Initializes an empty list of lines and adds a heading.
+    2. For each degree in the list:
+        a. Adds a subsection header.
+        b. Adds each field (school, degree, major, start_date, end_date, gpa) as a direct field if present.
+        c. Adds a blank line after each degree.
+    3. Joins the lines with newlines.
+    4. Returns the formatted string with a trailing newline.
+    5. No network, disk, or database access is performed during this function.
+
+---
+
+## function: `serialize_experience_to_markdown(experience: UnknownType) -> str`
+
+Serialize experience information to Markdown format.
+
+Args:
+    experience: Experience information to serialize, containing a list of roles.
+
+Returns:
+    str: Markdown formatted experience section.
+
+Notes:
+    1. Checks if the experience list is empty.
+    2. Initializes an empty list of lines and adds a heading.
+    3. For each role in the list:
+        a. Adds a subsection header.
+        b. Adds each field (company, title, start_date, end_date, location, description) using proper subsection structure.
+        c. Adds a blank line after each role.
+    4. Joins the lines with newlines.
+    5. Returns the formatted string with a trailing newline.
+    6. Returns an empty string if no experience data is present.
+    7. No network, disk, or database access is performed during this function.
+
+---
+
+## function: `serialize_certifications_to_markdown(certifications: UnknownType) -> str`
+
+Serialize certifications information to Markdown format.
+
+Args:
+    certifications: Certifications information to serialize, containing a list of certifications.
+
+Returns:
+    str: Markdown formatted certifications section.
+
+Notes:
+    1. Initializes an empty list of lines and adds a heading.
+    2. For each certification in the list:
+        a. Adds a subsection header.
+        b. Adds each field (name, issuer, id, issued_date, expiry_date) as direct fields if present.
+        c. Adds a blank line after each certification.
+    3. Joins the lines with newlines.
+    4. Returns the formatted string with a trailing newline.
+    5. No network, disk, or database access is performed during this function.
+
+---
+
+## function: `update_resume_content_with_structured_data(current_content: str, personal_info: UnknownType, education: UnknownType, experience: UnknownType, certifications: UnknownType) -> str`
+
+Update resume content with structured data by replacing specific sections.
+
+Args:
+    current_content (str): Current resume Markdown content to update.
+    personal_info: Updated personal information to insert. If None, the existing info is preserved.
+    education: Updated education information to insert. If None, the existing info is preserved.
+    experience: Updated experience information to insert. If None, the existing info is preserved.
+    certifications: Updated certifications information to insert. If None, the existing info is preserved.
+
+Returns:
+    str: Updated resume content with new structured data.
+
+Notes:
+    1. Extracts existing sections from `current_content` if they are not provided as arguments.
+    2. reconstructs the full resume using the combination of new and existing data.
 
 ---
 
@@ -337,6 +819,12 @@ Attributes:
 ## method: `SecurityManager.__init__(self: UnknownType) -> UnknownType`
 
 Initialize the SecurityManager with configuration settings.
+
+Notes:
+    1. Retrieve the application settings using get_settings().
+    2. Assign the access token expiration time from settings.
+    3. Set the secret key for JWT signing from settings.
+    4. Set the JWT algorithm from settings.
 
 ---
 
@@ -573,10 +1061,10 @@ Attributes:
 Initialize a Resume instance.
 
 Args:
-    user_id (int): Foreign key to User model, identifying the user who owns the resume.
-    name (str): User-assigned descriptive name for the resume, must be non-empty.
-    content (str): The Markdown text content of the resume, must be non-empty.
-    is_active (bool): Whether the resume is currently active, defaults to True.
+    user_id (int): The unique identifier of the user who owns the resume.
+    name (str): A descriptive name assigned by the user for the resume; must be non-empty.
+    content (str): The Markdown-formatted text content of the resume; must be non-empty.
+    is_active (bool): A flag indicating whether the resume is currently active; defaults to True.
 
 Returns:
     None
@@ -676,20 +1164,6 @@ Notes:
     2. Ensure gpa is not empty after stripping whitespace.
 
 ---
-## method: `Degree.validate_dates(cls: UnknownType, v: UnknownType) -> UnknownType`
-
-Validate the date fields.
-
-Args:
-    v: The date value to validate. Must be a datetime object or None.
-
-Returns:
-    datetime: The validated date.
-
-Notes:
-    1. Ensure date is a datetime object or None.
-
----
 ## method: `Degree.validate_end_date(cls: UnknownType, v: UnknownType, info: UnknownType) -> UnknownType`
 
 Validate that start_date is not after end_date.
@@ -711,21 +1185,6 @@ Represents a collection of academic degrees earned.
 
 Attributes:
     degrees (list[Degree]): A list of Degree objects representing educational achievements.
-
----
-## method: `Degrees.validate_degrees(cls: UnknownType, v: UnknownType) -> UnknownType`
-
-Validate the degrees field.
-
-Args:
-    v: The degrees value to validate. Must be a list of Degree objects.
-
-Returns:
-    list[Degree]: The validated degrees list.
-
-Notes:
-    1. Ensure degrees is a list.
-    2. Ensure all items in degrees are instances of Degree.
 
 ---
 ## method: `Degrees.__iter__(self: UnknownType) -> UnknownType`
@@ -825,16 +1284,12 @@ Notes:
     1. Ensure date is a datetime object or None.
 
 ---
-## method: `Certification.validate_date_order(cls: UnknownType, v: UnknownType, info: UnknownType) -> UnknownType`
+## method: `Certification.validate_date_order(self: UnknownType) -> UnknownType`
 
 Validate that issued date is not after expires date.
 
-Args:
-    v: The expires date value to validate.
-    info: Validation info containing data.
-
 Returns:
-    datetime: The validated expires date.
+    Certification: The validated model instance.
 
 Notes:
     1. If both issued and expires dates are provided, ensure issued is not after expires.
@@ -1165,58 +1620,12 @@ Notes:
 ===
 # File: `experience.py`
 
-## `RoleSummary` class
-
-Represents a brief description of a professional role.
-
-Attributes:
-    summary (str): The text content of the role summary.
-
----
-## method: `RoleSummary.validate_summary(cls: UnknownType, v: UnknownType) -> UnknownType`
-
-Validate the summary field.
-
-Args:
-    v: The summary value to validate. Must be a string.
-
-Returns:
-    str: The validated summary.
-
-Notes:
-    1. Ensure summary is a string.
-    2. Raise a ValueError if summary is not a string.
-
----
-## `RoleResponsibilities` class
-
-Represents detailed descriptions of role responsibilities.
-
-Attributes:
-    text (str): The text content of the responsibilities.
-
----
-## method: `RoleResponsibilities.validate_text(cls: UnknownType, v: UnknownType) -> UnknownType`
-
-Validate the text field.
-
-Args:
-    v: The text value to validate. Must be a string.
-
-Returns:
-    str: The validated text.
-
-Notes:
-    1. Ensure text is a string.
-    2. Raise a ValueError if text is not a string.
-
----
 ## `RoleSkills` class
 
 Represents skills used in a professional role.
 
 Attributes:
-    skills (List[str]): A list of non-empty, stripped skill strings.
+    skills (list[str]): A list of non-empty, stripped skill strings.
 
 ---
 ## method: `RoleSkills.validate_skills(cls: UnknownType, v: UnknownType) -> UnknownType`
@@ -1314,21 +1723,6 @@ Notes:
     4. Raise a ValueError if title is not a string or is empty.
 
 ---
-## method: `RoleBasics.validate_start_date(cls: UnknownType, v: UnknownType) -> UnknownType`
-
-Validate the start_date field.
-
-Args:
-    v: The start_date value to validate. Must be a datetime object.
-
-Returns:
-    datetime: The validated start_date.
-
-Notes:
-    1. Ensure start_date is a datetime object.
-    2. Raise a ValueError if start_date is not a datetime object.
-
----
 ## method: `RoleBasics.validate_end_date(cls: UnknownType, v: UnknownType, info: UnknownType) -> UnknownType`
 
 Validate the end_date field.
@@ -1346,44 +1740,12 @@ Notes:
     3. Raise a ValueError if end_date is not a datetime object or None, or if end_date is before start_date.
 
 ---
-## method: `RoleBasics.validate_optional_string_fields(cls: UnknownType, v: UnknownType) -> UnknownType`
-
-Validate optional string fields.
-
-Args:
-    v: The field value to validate. Must be a string or None.
-
-Returns:
-    str: The validated field value.
-
-Notes:
-    1. Ensure field is a string or None.
-    2. Raise a ValueError if field is neither a string nor None.
-
----
 ## `Roles` class
 
 Represents a collection of professional roles.
 
 Attributes:
-    roles (List[Role]): A list of Role objects.
-
----
-## method: `Roles.validate_roles(cls: UnknownType, v: UnknownType) -> UnknownType`
-
-Validate the roles field.
-
-Args:
-    v: The roles value to validate. Must be a list of Role objects.
-
-Returns:
-    list[Role]: The validated roles list.
-
-Notes:
-    1. Ensure roles is a list.
-    2. Ensure all items in roles are Role objects.
-    3. Raise a ValueError if roles is not a list or if any item is not a Role object.
-    4. Return the validated list of roles.
+    roles (list[Role]): A list of Role objects.
 
 ---
 ## method: `Roles.__iter__(self: UnknownType) -> UnknownType`
@@ -1426,7 +1788,7 @@ Returns:
 Represents skills used in a project.
 
 Attributes:
-    skills (List[str]): A list of non-empty, stripped skill strings.
+    skills (list[str]): A list of non-empty, stripped skill strings.
 
 ---
 ## method: `ProjectSkills.validate_skills(cls: UnknownType, v: UnknownType) -> UnknownType`
@@ -1503,36 +1865,6 @@ Notes:
     4. Raise a ValueError if title is not a string or is empty.
 
 ---
-## method: `ProjectOverview.validate_optional_strings(cls: UnknownType, v: UnknownType) -> UnknownType`
-
-Validate optional string fields.
-
-Args:
-    v: The field value to validate. Must be a string or None.
-
-Returns:
-    str: The validated field value.
-
-Notes:
-    1. Ensure field is a string or None.
-    2. Raise a ValueError if field is neither a string nor None.
-
----
-## method: `ProjectOverview.validate_dates(cls: UnknownType, v: UnknownType) -> UnknownType`
-
-Validate the date fields.
-
-Args:
-    v: The date value to validate. Must be a datetime object or None.
-
-Returns:
-    datetime: The validated date.
-
-Notes:
-    1. Ensure date is a datetime object or None.
-    2. Raise a ValueError if date is not a datetime object or None.
-
----
 ## method: `ProjectOverview.validate_date_order(cls: UnknownType, v: UnknownType, info: UnknownType) -> UnknownType`
 
 Validate that start_date is not after end_date.
@@ -1549,52 +1881,12 @@ Notes:
     2. Raise a ValueError if end_date is before start_date.
 
 ---
-## `ProjectDescription` class
-
-Represents a brief description of a project.
-
-Attributes:
-    text (str): The text content of the project description.
-
----
-## method: `ProjectDescription.validate_text(cls: UnknownType, v: UnknownType) -> UnknownType`
-
-Validate the text field.
-
-Args:
-    v: The text value to validate. Must be a string.
-
-Returns:
-    str: The validated text.
-
-Notes:
-    1. Ensure text is a string.
-    2. Raise a ValueError if text is not a string.
-
----
 ## `Projects` class
 
 Represents a collection of projects.
 
 Attributes:
-    projects (List[Project]): A list of Project objects.
-
----
-## method: `Projects.validate_projects(cls: UnknownType, v: UnknownType) -> UnknownType`
-
-Validate the projects field.
-
-Args:
-    v: The projects value to validate. Must be a list of Project objects.
-
-Returns:
-    list[Project]: The validated projects list.
-
-Notes:
-    1. Ensure projects is a list.
-    2. Ensure all items in projects are Project objects.
-    3. Raise a ValueError if projects is not a list or if any item is not a Project object.
-    4. Return the validated list of projects.
+    projects (list[Project]): A list of Project objects.
 
 ---
 ## method: `Projects.__iter__(self: UnknownType) -> UnknownType`

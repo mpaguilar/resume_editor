@@ -31,10 +31,10 @@ dev = [
     "ruff>=0.12.8",
 ]
 
-[tool.uv.sources]
-resume-writer = { path = "../resume_writer" }
-
 [tool.pytest.ini_options]
-pythonpath = [".", "./resume_editor", "./tests"]
+pythonpath = [".", "resume_editor", "./tests", "../resume_writer"]
 addopts = "-rx"
 log_cli_level = "DEBUG"
+
+[tool.uv.sources]
+resume-writer = { path = "../resume_writer" }

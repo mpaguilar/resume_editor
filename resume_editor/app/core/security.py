@@ -28,10 +28,19 @@ class SecurityManager:
         access_token_expire_minutes (int): Duration in minutes for access token expiration.
         secret_key (str): Secret key used for signing JWT tokens.
         algorithm (str): Algorithm used for JWT encoding.
+
     """
 
     def __init__(self):
-        """Initialize the SecurityManager with configuration settings."""
+        """Initialize the SecurityManager with configuration settings.
+
+        Notes:
+            1. Retrieve the application settings using get_settings().
+            2. Assign the access token expiration time from settings.
+            3. Set the secret key for JWT signing from settings.
+            4. Set the JWT algorithm from settings.
+
+        """
         self.settings = get_settings()
         self.access_token_expire_minutes = self.settings.access_token_expire_minutes
         self.secret_key = self.settings.secret_key
@@ -51,6 +60,7 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     Notes:
         1. Use bcrypt to verify the password.
         2. No database or network access in this function.
+
     """
     _msg = "Verifying password"
     log.debug(_msg)
@@ -72,6 +82,7 @@ def get_password_hash(password: str) -> str:
     Notes:
         1. Use bcrypt to hash the password.
         2. No database or network access in this function.
+
     """
     _msg = "Hashing password"
     log.debug(_msg)
@@ -95,6 +106,7 @@ def authenticate_user(db: Session, username: str, password: str) -> Optional["Us
         1. Query the database for a user with the given username.
         2. If user exists and password is correct, return the user.
         3. Otherwise, return None.
+
     """
     _msg = f"Authenticating user: {username}"
     log.debug(_msg)
@@ -124,6 +136,7 @@ def create_access_token(data: dict, expires_delta: timedelta | None = None) -> s
         2. Set expiration time based on expires_delta or default.
         3. Encode the data with the secret key and algorithm.
         4. No database or network access in this function.
+
     """
     _msg = "Creating access token"
     log.debug(_msg)

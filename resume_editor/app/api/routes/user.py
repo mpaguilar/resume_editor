@@ -35,6 +35,7 @@ def get_user_by_username(db: Session, username: str) -> User | None:
         1. Query the database for a user with the given username.
         2. Return the first match or None if no user is found.
         3. Database access: Performs a read operation on the User table.
+
     """
     _msg = f"Querying database for username: {username}"
     log.debug(_msg)
@@ -58,6 +59,7 @@ def get_user_by_email(db: Session, email: str) -> User | None:
         1. Query the database for a user with the given email.
         2. Return the first match or None if no user is found.
         3. Database access: Performs a read operation on the User table.
+
     """
     _msg = f"Querying database for email: {email}"
     log.debug(_msg)
@@ -84,6 +86,7 @@ def create_new_user(db: Session, user_data: UserCreate) -> User:
         4. Commit the transaction to persist the user to the database.
         5. Refresh the object to ensure it contains the latest state from the database.
         6. Database access: Performs a write operation on the User table.
+
     """
     _msg = f"Hashing password for user: {user_data.username}"
     log.debug(_msg)
@@ -131,6 +134,7 @@ def register_user(user: UserCreate, db: Session = Depends(get_db)) -> UserRespon
         5. Create a new user with the provided data and store it in the database.
         6. Return the newly created user's data (without the password).
         7. Database access: Performs read and write operations on the User table.
+
     """
     _msg = f"Starting register_user for username: {user.username}"
     log.debug(_msg)
@@ -188,6 +192,7 @@ def login_user(
         3. Generate a JWT access token with a defined expiration time.
         4. Return the access token to the client.
         5. Database access: Performs a read operation on the User table to verify credentials.
+
     """
     _msg = f"Starting login_user for username: {form_data.username}"
     log.debug(_msg)

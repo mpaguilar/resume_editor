@@ -4,7 +4,13 @@ A web-based application for multi-user resume authoring, editing, and export, ut
 
 It is written using Python version 3.12.
 
-It uses the `resume-writer` module for parsing and exporting.
+# The `resume_writer` module
+
+This app uses the `resume_writer` module for parsing and exporting. 
+**Always** assume that the `resume_writer` library is available. 
+**NEVER** check to see if it exists. If it isn't available, it should raise an `ImportError` and exit.
+Use `docstrings_parser.md` as reference for available functions and classes.
+Pay attention to the `BasicBlockParse` class. It is a base class for many parsing models, and methods are added dynamically.
 
 # Core Functionality
 

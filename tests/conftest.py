@@ -7,6 +7,10 @@ import pytest
 sys.path.insert(0, "resume_editor")
 
 
+def update_sys_path():
+    sys.path.insert(0, "resume_editor")
+
+
 @pytest.fixture
 def mock_db_engine():
     """Fixture to provide a mock database engine."""

@@ -1,7 +1,7 @@
 import logging
 from datetime import datetime
 
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 log = logging.getLogger(__name__)
 
@@ -20,9 +20,11 @@ class Certification(BaseModel):
 
     name: str
     issuer: str | None = None
-    issued: datetime | None = None
-    expires: datetime | None = None
-    certification_id: str | None = None
+    issued: datetime | None = Field(default=None, alias="issued_date")
+    expires: datetime | None = Field(default=None, alias="expiry_date")
+    certification_id: str | None = Field(default=None, alias="id")
+
+    model_config = {"populate_by_name": True}
 
     @field_validator("name")
     @classmethod
@@ -84,27 +86,20 @@ class Certification(BaseModel):
             raise ValueError("date must be a datetime object or None")
         return v
 
-    @field_validator("expires")
-    @classmethod
-    def validate_date_order(cls, v, info):
+    @model_validator(mode="after")
+    def validate_date_order(self):
         """Validate that issued date is not after expires date.
 
-        Args:
-            v: The expires date value to validate.
-            info: Validation info containing data.
-
         Returns:
-            datetime: The validated expires date.
+            Certification: The validated model instance.
 
         Notes:
             1. If both issued and expires dates are provided, ensure issued is not after expires.
 
         """
-        if v is not None:
-            issued = info.data.get("issued")
-            if issued is not None and v < issued:
-                raise ValueError("expires date must not be before issued date")
-        return v
+        if self.issued and self.expires and self.expires < self.issued:
+            raise ValueError("expires date must not be before issued date")
+        return self
 
 
 class Certifications(BaseModel):

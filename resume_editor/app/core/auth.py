@@ -4,7 +4,7 @@ from fastapi import Depends, HTTPException, status
 from jose import JWTError, jwt
 from sqlalchemy.orm import Session
 
-from resume_editor.app.core.security import ALGORITHM, SECRET_KEY
+from resume_editor.app.core.config import get_settings
 from resume_editor.app.database.database import get_db
 from resume_editor.app.models.user import User
 
@@ -37,7 +37,9 @@ def get_current_user(
 
     Database Access:
         - Queries the User table to retrieve a user record by username.
+
     """
+    settings = get_settings()
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
@@ -45,7 +47,14 @@ def get_current_user(
     )
 
     try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        if token is None:
+            raise credentials_exception
+
+        payload = jwt.decode(
+            token,
+            settings.secret_key,
+            algorithms=[settings.algorithm],
+        )
         username: str = payload.get("sub")
         if username is None:
             raise credentials_exception

@@ -51,10 +51,10 @@ class Resume(Base):
         """Initialize a Resume instance.
 
         Args:
-            user_id (int): Foreign key to User model, identifying the user who owns the resume.
-            name (str): User-assigned descriptive name for the resume, must be non-empty.
-            content (str): The Markdown text content of the resume, must be non-empty.
-            is_active (bool): Whether the resume is currently active, defaults to True.
+            user_id (int): The unique identifier of the user who owns the resume.
+            name (str): A descriptive name assigned by the user for the resume; must be non-empty.
+            content (str): The Markdown-formatted text content of the resume; must be non-empty.
+            is_active (bool): A flag indicating whether the resume is currently active; defaults to True.
 
         Returns:
             None

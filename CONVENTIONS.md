@@ -28,6 +28,7 @@
 # Variable conventions
 
 * **always** use type-hints for all arguments and return values
+* Correct type-hints are **critical**
 * Use named arguments when calling functions when possible.
 
 # General formatting
@@ -51,6 +52,7 @@
 * `try` blocks should not `return` from within the `try`
 * `try` blocks should use `else` to `return`
 * Exceptions should have an error log before being raised.
+* General exceptions on FastAPI routes will be handled by FastAPI.
 
 # Logging
 * Every source file must have logging setup using the following in it's header:
@@ -104,7 +106,13 @@
 * Unit tests should be run with a logging level of DEBUG
 * Unit tests should be written before the code, and they should fail if the code is incorrect.
 
-## Special considerations for route dependency injection
+# Context management
+It is **important** to keep the size of individual files manageable.
+
+* Try to keep individual files under 1000 lines
+* Create new files and libraries as necessary
+
+# Special considerations for FastAPI route dependency injection
 
 To successfully mock FastAPI route calls with dependency injection, `app.dependency_overrides` **must** be used.
 
@@ -120,6 +128,9 @@ async def some_function(
 ):
 
 ```
+# Note that we import `get_db` so we can override it
+from resume_editor.app.api.routes.resume import get_db
+
 @patch("resume_editor.app.api.routes.resume.get_current_user")
 @patch("resume_editor.app.api.routes.resume.get_db")
 def test_something():
@@ -128,13 +139,18 @@ def test_something():
 
     mock_db = Mock()
 
+    # mock the return value
     mock_db.query.return_value.filter.return_value.<first/all>.return_value = <correct answer>
 
     # These next lines are **very** important
     def get_mock_db():
         yield mock_db
 
+    # note that we are overriding `get_db` here
     app.dependency_overrides[get_db] = get_mock_db
 
     # perform tests and assertions
+
+    # clear the overrides
+    app.dependency_overrides.clear()
 ```

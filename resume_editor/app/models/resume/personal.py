@@ -21,7 +21,7 @@ class ContactInfo(BaseModel):
     phone: str | None = None
     location: str | None = None
 
-    @field_validator("name")
+    @field_validator("name", mode="before")
     @classmethod
     def validate_name(cls, v):
         """Validate the name field.
@@ -43,7 +43,7 @@ class ContactInfo(BaseModel):
             raise ValueError("name must not be empty")
         return v.strip()
 
-    @field_validator("email")
+    @field_validator("email", mode="before")
     @classmethod
     def validate_email(cls, v):
         """Validate the email field.
@@ -67,7 +67,7 @@ class ContactInfo(BaseModel):
             raise ValueError("email must not be empty")
         return v.strip()
 
-    @field_validator("phone")
+    @field_validator("phone", mode="before")
     @classmethod
     def validate_phone(cls, v):
         """Validate the phone field.
@@ -91,7 +91,7 @@ class ContactInfo(BaseModel):
             raise ValueError("phone must not be empty")
         return v.strip()
 
-    @field_validator("location")
+    @field_validator("location", mode="before")
     @classmethod
     def validate_location(cls, v):
         """Validate the location field.
@@ -132,7 +132,7 @@ class Websites(BaseModel):
     linkedin: str | None = None
     twitter: str | None = None
 
-    @field_validator("website")
+    @field_validator("website", mode="before")
     @classmethod
     def validate_website(cls, v):
         """Validate the website field.
@@ -156,7 +156,7 @@ class Websites(BaseModel):
             raise ValueError("website must not be empty")
         return v.strip()
 
-    @field_validator("github")
+    @field_validator("github", mode="before")
     @classmethod
     def validate_github(cls, v):
         """Validate the github field.
@@ -180,7 +180,7 @@ class Websites(BaseModel):
             raise ValueError("github must not be empty")
         return v.strip()
 
-    @field_validator("linkedin")
+    @field_validator("linkedin", mode="before")
     @classmethod
     def validate_linkedin(cls, v):
         """Validate the linkedin field.
@@ -204,7 +204,7 @@ class Websites(BaseModel):
             raise ValueError("linkedin must not be empty")
         return v.strip()
 
-    @field_validator("twitter")
+    @field_validator("twitter", mode="before")
     @classmethod
     def validate_twitter(cls, v):
         """Validate the twitter field.
@@ -241,7 +241,7 @@ class VisaStatus(BaseModel):
     work_authorization: str | None = None
     require_sponsorship: bool | None = None
 
-    @field_validator("work_authorization")
+    @field_validator("work_authorization", mode="before")
     @classmethod
     def validate_work_authorization(cls, v):
         """Validate the work_authorization field.
@@ -265,7 +265,7 @@ class VisaStatus(BaseModel):
             raise ValueError("work_authorization must not be empty")
         return v.strip()
 
-    @field_validator("require_sponsorship")
+    @field_validator("require_sponsorship", mode="before")
     @classmethod
     def validate_require_sponsorship(cls, v):
         """Validate the require_sponsorship field.
@@ -307,7 +307,7 @@ class Banner(BaseModel):
 
     text: str
 
-    @field_validator("text")
+    @field_validator("text", mode="before")
     @classmethod
     def validate_text(cls, v):
         """Validate the text field and clean it.
@@ -358,7 +358,7 @@ class Note(BaseModel):
 
     text: str
 
-    @field_validator("text")
+    @field_validator("text", mode="before")
     @classmethod
     def validate_text(cls, v):
         """Validate the text field and clean it.

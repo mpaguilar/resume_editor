@@ -10,31 +10,11 @@ class RoleSummary(BaseModel):
     """Represents a brief description of a professional role.
 
     Attributes:
-        summary (str): The text content of the role summary.
+        text (str): The text content of the role summary.
 
     """
 
-    summary: str
-
-    @field_validator("summary")
-    @classmethod
-    def validate_summary(cls, v):
-        """Validate the summary field.
-
-        Args:
-            v: The summary value to validate. Must be a string.
-
-        Returns:
-            str: The validated summary.
-
-        Notes:
-            1. Ensure summary is a string.
-            2. Raise a ValueError if summary is not a string.
-
-        """
-        if not isinstance(v, str):
-            raise ValueError("summary must be a string")
-        return v
+    text: str
 
 
 class RoleResponsibilities(BaseModel):
@@ -47,32 +27,12 @@ class RoleResponsibilities(BaseModel):
 
     text: str
 
-    @field_validator("text")
-    @classmethod
-    def validate_text(cls, v):
-        """Validate the text field.
-
-        Args:
-            v: The text value to validate. Must be a string.
-
-        Returns:
-            str: The validated text.
-
-        Notes:
-            1. Ensure text is a string.
-            2. Raise a ValueError if text is not a string.
-
-        """
-        if not isinstance(v, str):
-            raise ValueError("text must be a string")
-        return v
-
 
 class RoleSkills(BaseModel):
     """Represents skills used in a professional role.
 
     Attributes:
-        skills (List[str]): A list of non-empty, stripped skill strings.
+        skills (list[str]): A list of non-empty, stripped skill strings.
 
     """
 
@@ -97,14 +57,10 @@ class RoleSkills(BaseModel):
             5. Return the cleaned list of non-empty skills.
 
         """
-        if not isinstance(v, list):
-            raise ValueError("skills must be a list")
         cleaned_skills = []
         for skill in v:
-            if not isinstance(skill, str):
-                raise ValueError("all skills must be strings")
             stripped_skill = skill.strip()
-            if stripped_skill:  # Only add non-empty skills
+            if stripped_skill:
                 cleaned_skills.append(stripped_skill)
         return cleaned_skills
 
@@ -183,8 +139,6 @@ class RoleBasics(BaseModel):
             4. Raise a ValueError if company is not a string or is empty.
 
         """
-        if not isinstance(v, str):
-            raise ValueError("company must be a string")
         if not v.strip():
             raise ValueError("company must not be empty")
         return v.strip()
@@ -207,31 +161,9 @@ class RoleBasics(BaseModel):
             4. Raise a ValueError if title is not a string or is empty.
 
         """
-        if not isinstance(v, str):
-            raise ValueError("title must be a string")
         if not v.strip():
             raise ValueError("title must not be empty")
         return v.strip()
-
-    @field_validator("start_date")
-    @classmethod
-    def validate_start_date(cls, v):
-        """Validate the start_date field.
-
-        Args:
-            v: The start_date value to validate. Must be a datetime object.
-
-        Returns:
-            datetime: The validated start_date.
-
-        Notes:
-            1. Ensure start_date is a datetime object.
-            2. Raise a ValueError if start_date is not a datetime object.
-
-        """
-        if not isinstance(v, datetime):
-            raise ValueError("start_date must be a datetime object")
-        return v
 
     @field_validator("end_date")
     @classmethod
@@ -251,38 +183,18 @@ class RoleBasics(BaseModel):
             3. Raise a ValueError if end_date is not a datetime object or None, or if end_date is before start_date.
 
         """
-        if v is not None:
-            if not isinstance(v, datetime):
-                raise ValueError("end_date must be a datetime object or None")
-            start_date = info.data.get("start_date")
-            if start_date and v < start_date:
-                raise ValueError("end_date must not be before start_date")
-        return v
+        if v is None:
+            return v
 
-    @field_validator(
-        "reason_for_change",
-        "location",
-        "job_category",
-        "employment_type",
-        "agency_name",
-    )
-    @classmethod
-    def validate_optional_string_fields(cls, v):
-        """Validate optional string fields.
+        if "start_date" not in info.data:
+            # start_date validation failed.
+            return v
 
-        Args:
-            v: The field value to validate. Must be a string or None.
+        start_date = info.data["start_date"]
 
-        Returns:
-            str: The validated field value.
+        if v < start_date:
+            raise ValueError("end_date must not be before start_date")
 
-        Notes:
-            1. Ensure field is a string or None.
-            2. Raise a ValueError if field is neither a string nor None.
-
-        """
-        if v is not None and not isinstance(v, str):
-            raise ValueError("field must be a string or None")
         return v
 
 
@@ -307,36 +219,11 @@ class Roles(BaseModel):
     """Represents a collection of professional roles.
 
     Attributes:
-        roles (List[Role]): A list of Role objects.
+        roles (list[Role]): A list of Role objects.
 
     """
 
     roles: list[Role] = []
-
-    @field_validator("roles")
-    @classmethod
-    def validate_roles(cls, v):
-        """Validate the roles field.
-
-        Args:
-            v: The roles value to validate. Must be a list of Role objects.
-
-        Returns:
-            list[Role]: The validated roles list.
-
-        Notes:
-            1. Ensure roles is a list.
-            2. Ensure all items in roles are Role objects.
-            3. Raise a ValueError if roles is not a list or if any item is not a Role object.
-            4. Return the validated list of roles.
-
-        """
-        if not isinstance(v, list):
-            raise ValueError("roles must be a list")
-        for item in v:
-            if not isinstance(item, Role):
-                raise ValueError("all items in roles must be Role instances")
-        return v
 
     def __iter__(self):
         """Iterate over the roles.
@@ -383,7 +270,7 @@ class ProjectSkills(BaseModel):
     """Represents skills used in a project.
 
     Attributes:
-        skills (List[str]): A list of non-empty, stripped skill strings.
+        skills (list[str]): A list of non-empty, stripped skill strings.
 
     """
 
@@ -408,14 +295,10 @@ class ProjectSkills(BaseModel):
             5. Return the cleaned list of non-empty skills.
 
         """
-        if not isinstance(v, list):
-            raise ValueError("skills must be a list")
         cleaned_skills = []
         for skill in v:
-            if not isinstance(skill, str):
-                raise ValueError("all skills must be strings")
             stripped_skill = skill.strip()
-            if stripped_skill:  # Only add non-empty skills
+            if stripped_skill:
                 cleaned_skills.append(stripped_skill)
         return cleaned_skills
 
@@ -486,51 +369,9 @@ class ProjectOverview(BaseModel):
             4. Raise a ValueError if title is not a string or is empty.
 
         """
-        if not isinstance(v, str):
-            raise ValueError("title must be a string")
         if not v.strip():
             raise ValueError("title must not be empty")
         return v.strip()
-
-    @field_validator("url", "url_description")
-    @classmethod
-    def validate_optional_strings(cls, v):
-        """Validate optional string fields.
-
-        Args:
-            v: The field value to validate. Must be a string or None.
-
-        Returns:
-            str: The validated field value.
-
-        Notes:
-            1. Ensure field is a string or None.
-            2. Raise a ValueError if field is neither a string nor None.
-
-        """
-        if v is not None and not isinstance(v, str):
-            raise ValueError("field must be a string or None")
-        return v
-
-    @field_validator("start_date", "end_date")
-    @classmethod
-    def validate_dates(cls, v):
-        """Validate the date fields.
-
-        Args:
-            v: The date value to validate. Must be a datetime object or None.
-
-        Returns:
-            datetime: The validated date.
-
-        Notes:
-            1. Ensure date is a datetime object or None.
-            2. Raise a ValueError if date is not a datetime object or None.
-
-        """
-        if v is not None and not isinstance(v, datetime):
-            raise ValueError("date must be a datetime object or None")
-        return v
 
     @field_validator("end_date")
     @classmethod
@@ -549,9 +390,8 @@ class ProjectOverview(BaseModel):
             2. Raise a ValueError if end_date is before start_date.
 
         """
-        if v is not None:
-            start_date = info.data.get("start_date")
-            if start_date is not None and v < start_date:
+        if v is not None and (start_date := info.data.get("start_date")) is not None:
+            if v < start_date:
                 raise ValueError("end_date must not be before start_date")
         return v
 
@@ -565,26 +405,6 @@ class ProjectDescription(BaseModel):
     """
 
     text: str
-
-    @field_validator("text")
-    @classmethod
-    def validate_text(cls, v):
-        """Validate the text field.
-
-        Args:
-            v: The text value to validate. Must be a string.
-
-        Returns:
-            str: The validated text.
-
-        Notes:
-            1. Ensure text is a string.
-            2. Raise a ValueError if text is not a string.
-
-        """
-        if not isinstance(v, str):
-            raise ValueError("text must be a string")
-        return v
 
 
 class Project(BaseModel):
@@ -606,36 +426,11 @@ class Projects(BaseModel):
     """Represents a collection of projects.
 
     Attributes:
-        projects (List[Project]): A list of Project objects.
+        projects (list[Project]): A list of Project objects.
 
     """
 
     projects: list[Project] = []
-
-    @field_validator("projects")
-    @classmethod
-    def validate_projects(cls, v):
-        """Validate the projects field.
-
-        Args:
-            v: The projects value to validate. Must be a list of Project objects.
-
-        Returns:
-            list[Project]: The validated projects list.
-
-        Notes:
-            1. Ensure projects is a list.
-            2. Ensure all items in projects are Project objects.
-            3. Raise a ValueError if projects is not a list or if any item is not a Project object.
-            4. Return the validated list of projects.
-
-        """
-        if not isinstance(v, list):
-            raise ValueError("projects must be a list")
-        for item in v:
-            if not isinstance(item, Project):
-                raise ValueError("all items in projects must be Project instances")
-        return v
 
     def __iter__(self):
         """Iterate over the projects.

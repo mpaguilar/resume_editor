@@ -5,6 +5,14 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
+from resume_editor.app.api.routes.user import (
+    create_new_user,
+    get_user_by_email,
+    get_user_by_username,
+)
+from resume_editor.app.models.user import User
+from resume_editor.app.schemas.user import UserCreate
+
 log = logging.getLogger(__name__)
 
 
@@ -108,6 +116,40 @@ class TestUserRoutes:
         data = response.json()
         assert "Username already registered" in data["detail"]
 
+    @patch("resume_editor.app.api.routes.user.get_user_by_email")
+    @patch("resume_editor.app.api.routes.user.get_user_by_username")
+    @patch("resume_editor.app.api.routes.user.get_db")
+    def test_register_user_duplicate_email(
+        self,
+        mock_get_db,
+        mock_get_user_by_username,
+        mock_get_user_by_email,
+        client,
+    ):
+        """Test user registration with duplicate email."""
+        # Setup mocks
+        mock_db = MagicMock(spec=Session)
+        mock_get_db.return_value.__enter__.return_value = mock_db
+
+        # Mock the helper functions to return None (user doesn't exist)
+        mock_get_user_by_username.return_value = None
+        mock_get_user_by_email.return_value = MagicMock(spec=User)
+
+        # Make request
+        response = client.post(
+            "/api/users/register",
+            json={
+                "username": "anotheruser",
+                "email": "test@example.com",
+                "password": "testpassword",
+            },
+        )
+
+        # Assertions
+        assert response.status_code == 400
+        data = response.json()
+        assert "Email already registered" in data["detail"]
+
     @patch("resume_editor.app.api.routes.user.authenticate_user")
     @patch("resume_editor.app.api.routes.user.create_access_token")
     @patch("resume_editor.app.api.routes.user.get_db")
@@ -165,3 +207,61 @@ class TestUserRoutes:
         assert response.status_code == 401
         data = response.json()
         assert "Incorrect username or password" in data["detail"]
+
+
+class TestUserHelpers:
+    """Test cases for user helper functions."""
+
+    def test_get_user_by_username(self):
+        """Test retrieving a user by username."""
+        mock_db = MagicMock(spec=Session)
+        mock_user = User(
+            username="testuser",
+            email="test@example.com",
+            hashed_password="hashed",
+        )
+        mock_db.query.return_value.filter.return_value.first.return_value = mock_user
+
+        user = get_user_by_username(mock_db, "testuser")
+        assert user is not None
+        assert user.username == "testuser"
+        mock_db.query.assert_called_once_with(User)
+
+    def test_get_user_by_email(self):
+        """Test retrieving a user by email."""
+        mock_db = MagicMock(spec=Session)
+        mock_user = User(
+            username="testuser",
+            email="test@example.com",
+            hashed_password="hashed",
+        )
+        mock_db.query.return_value.filter.return_value.first.return_value = mock_user
+
+        user = get_user_by_email(mock_db, "test@example.com")
+        assert user is not None
+        assert user.email == "test@example.com"
+        mock_db.query.assert_called_once_with(User)
+
+    @patch("resume_editor.app.api.routes.user.get_password_hash")
+    def test_create_new_user(self, mock_get_password_hash):
+        """Test creating a new user."""
+        mock_db = MagicMock(spec=Session)
+        mock_get_password_hash.return_value = "hashed_password"
+        user_data = UserCreate(
+            username="newuser",
+            email="new@example.com",
+            password="password",
+        )
+
+        new_user = create_new_user(mock_db, user_data)
+
+        mock_get_password_hash.assert_called_once_with("password")
+        mock_db.add.assert_called_once()
+        added_user = mock_db.add.call_args[0][0]
+        assert isinstance(added_user, User)
+        assert added_user.username == "newuser"
+        assert added_user.email == "new@example.com"
+        assert added_user.hashed_password == "hashed_password"
+        mock_db.commit.assert_called_once()
+        mock_db.refresh.assert_called_once_with(added_user)
+        assert new_user == added_user
