@@ -424,13 +424,13 @@ class Project(BaseModel):
     """Represents a complete project with all associated details.
 
     Attributes:
-        overview (ProjectOverview): The ProjectOverview object containing project metadata.
+        overview (ProjectOverview | None): The ProjectOverview object containing project metadata.
         description (ProjectDescription): The ProjectDescription object describing the project.
         skills (ProjectSkills | None): The ProjectSkills object listing skills used.
 
     """
 
-    overview: ProjectOverview
+    overview: ProjectOverview | None = None
     description: ProjectDescription
     skills: ProjectSkills | None = None
 

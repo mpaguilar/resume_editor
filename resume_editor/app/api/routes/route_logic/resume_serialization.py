@@ -177,6 +177,28 @@ def extract_experience_info(resume_content: str) -> ExperienceResponse:
         if not experience:
             return ExperienceResponse(roles=[], projects=[])
 
+        has_roles = bool(getattr(experience, "roles", None))
+        has_projects = bool(getattr(experience, "projects", None))
+        if not has_roles and not has_projects:
+            # Check for content in the original markdown string.
+            in_experience_section = False
+            content_found = False
+            for line in lines:
+                stripped_line = line.strip()
+                if stripped_line.lower() == "# experience":
+                    in_experience_section = True
+                    continue
+
+                if in_experience_section and stripped_line:
+                    # Headers for empty sections are not "content"
+                    if stripped_line.lower() not in ["## roles", "## projects"]:
+                        content_found = True
+                    break  # Found first line of content or next section
+            if content_found:
+                raise ValueError(
+                    "Experience section contains content that could not be parsed."
+                )
+
         roles_list = []
         if hasattr(experience, "roles") and experience.roles is not None:
             for role in experience.roles:
@@ -205,15 +227,12 @@ def extract_experience_info(resume_content: str) -> ExperienceResponse:
                             "reason_for_change",
                             None,
                         ),
-                        "inclusion_status": getattr(
-                            role_basics, "inclusion_status", None
-                        ),
                     }
 
                 # Summary
                 summary = getattr(role, "summary", None)
-                if summary and hasattr(summary, "text"):
-                    role_dict["summary"] = {"text": summary.text}
+                if summary and hasattr(summary, "summary"):
+                    role_dict["summary"] = {"text": summary.summary}
 
                 # Responsibilities
                 responsibilities = getattr(role, "responsibilities", None)
@@ -248,9 +267,6 @@ def extract_experience_info(resume_content: str) -> ExperienceResponse:
                         ),
                         "start_date": start_date.isoformat() if start_date else None,
                         "end_date": end_date.isoformat() if end_date else None,
-                        "inclusion_status": getattr(
-                            project_overview, "inclusion_status", None
-                        ),
                     }
 
                 # Description
@@ -482,6 +498,113 @@ def serialize_education_to_markdown(education) -> str:
     return ""
 
 
+def _serialize_project_to_markdown(project) -> list[str]:
+    """Serialize a single project to markdown lines."""
+    overview = getattr(project, "overview", None)
+    if not overview:
+        return []
+
+    inclusion_status = getattr(overview, "inclusion_status", InclusionStatus.INCLUDE)
+    if inclusion_status == InclusionStatus.OMIT:
+        return []
+
+    project_content = []
+    overview_content = []
+    if getattr(overview, "title", None):
+        overview_content.append(f"Title: {overview.title}")
+    if getattr(overview, "url", None):
+        overview_content.append(f"Url: {overview.url}")
+    if getattr(overview, "url_description", None):
+        overview_content.append(f"Url Description: {overview.url_description}")
+    if getattr(overview, "start_date", None):
+        overview_content.append(f"Start date: {overview.start_date.strftime('%m/%Y')}")
+    if getattr(overview, "end_date", None):
+        overview_content.append(f"End date: {overview.end_date.strftime('%m/%Y')}")
+
+    if overview_content:
+        project_content.extend(["#### Overview", ""])
+        project_content.extend(overview_content)
+        project_content.append("")
+
+    if inclusion_status != InclusionStatus.NOT_RELEVANT:
+        description = getattr(project, "description", None)
+        if description:
+            project_content.extend(["#### Description", "", description.text, ""])
+
+        skills = getattr(project, "skills", None)
+        if skills and hasattr(skills, "skills") and skills.skills:
+            project_content.extend(["#### Skills", ""])
+            project_content.extend([f"* {skill}" for skill in skills.skills])
+            project_content.append("")
+
+    if project_content:
+        return ["### Project", ""] + project_content
+    return []
+
+
+def _serialize_role_to_markdown(role) -> list[str]:
+    """Serialize a single role to markdown lines."""
+    basics = getattr(role, "basics", None)
+    if not basics:
+        return []
+
+    inclusion_status = getattr(basics, "inclusion_status", InclusionStatus.INCLUDE)
+    if inclusion_status == InclusionStatus.OMIT:
+        return []
+
+    role_content = []
+    basics_content = []
+    if getattr(basics, "company", None):
+        basics_content.append(f"Company: {basics.company}")
+    if getattr(basics, "title", None):
+        basics_content.append(f"Title: {basics.title}")
+    if getattr(basics, "employment_type", None):
+        basics_content.append(f"Employment type: {basics.employment_type}")
+    if getattr(basics, "job_category", None):
+        basics_content.append(f"Job category: {basics.job_category}")
+    if getattr(basics, "agency_name", None):
+        basics_content.append(f"Agency: {basics.agency_name}")
+    if getattr(basics, "start_date", None):
+        basics_content.append(f"Start date: {basics.start_date.strftime('%m/%Y')}")
+    if getattr(basics, "end_date", None):
+        basics_content.append(f"End date: {basics.end_date.strftime('%m/%Y')}")
+    if getattr(basics, "reason_for_change", None):
+        basics_content.append(f"Reason for change: {basics.reason_for_change}")
+    if getattr(basics, "location", None):
+        basics_content.append(f"Location: {basics.location}")
+
+    if basics_content:
+        role_content.extend(["#### Basics", ""])
+        role_content.extend(basics_content)
+        role_content.append("")
+
+    if inclusion_status != InclusionStatus.NOT_RELEVANT:
+        summary = getattr(role, "summary", None)
+        if summary:
+            role_content.extend(["#### Summary", "", summary.text, ""])
+
+        responsibilities = getattr(role, "responsibilities", None)
+        if responsibilities:
+            role_content.extend(
+                [
+                    "#### Responsibilities",
+                    "",
+                    responsibilities.text,
+                    "",
+                ],
+            )
+
+        skills = getattr(role, "skills", None)
+        if skills and hasattr(skills, "skills") and skills.skills:
+            role_content.extend(["#### Skills", ""])
+            role_content.extend([f"* {skill}" for skill in skills.skills])
+            role_content.append("")
+
+    if role_content:
+        return ["### Role", ""] + role_content
+    return []
+
+
 def serialize_experience_to_markdown(experience) -> str:
     """Serialize experience information to Markdown format.
 
@@ -510,113 +633,12 @@ def serialize_experience_to_markdown(experience) -> str:
     project_lines = []
     if hasattr(experience, "projects") and experience.projects:
         for project in experience.projects:
-            overview = getattr(project, "overview", None)
-            if not overview:
-                continue
-
-            inclusion_status = getattr(
-                overview, "inclusion_status", InclusionStatus.INCLUDE
-            )
-            if inclusion_status == InclusionStatus.OMIT:
-                continue
-
-            project_content = ["### Project", ""]
-
-            project_content.extend(["#### Overview", ""])
-            if getattr(overview, "title", None):
-                project_content.append(f"Title: {overview.title}")
-            project_content.append(f"Inclusion Status: {inclusion_status.value}")
-            if getattr(overview, "url", None):
-                project_content.append(f"Url: {overview.url}")
-            if getattr(overview, "url_description", None):
-                project_content.append(
-                    f"Url Description: {overview.url_description}",
-                )
-            if getattr(overview, "start_date", None):
-                project_content.append(
-                    f"Start date: {overview.start_date.strftime('%m/%Y')}",
-                )
-            if getattr(overview, "end_date", None):
-                project_content.append(
-                    f"End date: {overview.end_date.strftime('%m/%Y')}",
-                )
-            project_content.append("")
-
-            if inclusion_status != InclusionStatus.NOT_RELEVANT:
-                description = getattr(project, "description", None)
-                if description:
-                    project_content.extend(
-                        ["#### Description", "", description.text, ""],
-                    )
-
-                skills = getattr(project, "skills", None)
-                if skills and hasattr(skills, "skills") and skills.skills:
-                    project_content.extend(["#### Skills", ""])
-                    project_content.extend([f"* {skill}" for skill in skills.skills])
-                    project_content.append("")
-            project_lines.extend(project_content)
+            project_lines.extend(_serialize_project_to_markdown(project))
 
     role_lines = []
     if hasattr(experience, "roles") and experience.roles:
         for role in experience.roles:
-            basics = getattr(role, "basics", None)
-            if not basics:
-                continue
-
-            inclusion_status = getattr(
-                basics, "inclusion_status", InclusionStatus.INCLUDE
-            )
-            if inclusion_status == InclusionStatus.OMIT:
-                continue
-
-            role_content = ["### Role", ""]
-
-            role_content.extend(["#### Basics", ""])
-            if getattr(basics, "company", None):
-                role_content.append(f"Company: {basics.company}")
-            if getattr(basics, "title", None):
-                role_content.append(f"Title: {basics.title}")
-            role_content.append(f"Inclusion Status: {inclusion_status.value}")
-            if getattr(basics, "employment_type", None):
-                role_content.append(f"Employment type: {basics.employment_type}")
-            if getattr(basics, "job_category", None):
-                role_content.append(f"Job category: {basics.job_category}")
-            if getattr(basics, "agency_name", None):
-                role_content.append(f"Agency: {basics.agency_name}")
-            if getattr(basics, "start_date", None):
-                role_content.append(
-                    f"Start date: {basics.start_date.strftime('%m/%Y')}",
-                )
-            if getattr(basics, "end_date", None):
-                role_content.append(f"End date: {basics.end_date.strftime('%m/%Y')}")
-            if getattr(basics, "reason_for_change", None):
-                role_content.append(f"Reason for change: {basics.reason_for_change}")
-            if getattr(basics, "location", None):
-                role_content.append(f"Location: {basics.location}")
-            role_content.append("")
-
-            if inclusion_status != InclusionStatus.NOT_RELEVANT:
-                summary = getattr(role, "summary", None)
-                if summary:
-                    role_content.extend(["#### Summary", "", summary.text, ""])
-
-                responsibilities = getattr(role, "responsibilities", None)
-                if responsibilities:
-                    role_content.extend(
-                        [
-                            "#### Responsibilities",
-                            "",
-                            responsibilities.text,
-                            "",
-                        ],
-                    )
-
-                skills = getattr(role, "skills", None)
-                if skills and hasattr(skills, "skills") and skills.skills:
-                    role_content.extend(["#### Skills", ""])
-                    role_content.extend([f"* {skill}" for skill in skills.skills])
-                    role_content.append("")
-            role_lines.extend(role_content)
+            role_lines.extend(_serialize_role_to_markdown(role))
 
     if not project_lines and not role_lines:
         return ""

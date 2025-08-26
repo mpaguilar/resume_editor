@@ -105,10 +105,8 @@ def test_serialize_experience_with_inclusion_controls(sample_experience_data):
     assert "Include Project" in markdown
     assert "Project description." in markdown
 
-    # Check for Inclusion Status field persistence
-    assert "Inclusion Status: Include" in markdown
-    assert "Inclusion Status: Not Relevant" in markdown
-    assert "Inclusion Status: Omit" not in markdown
+    # Check that Inclusion Status field is not persisted
+    assert "Inclusion Status" not in markdown
 
 
 def test_extract_experience_info_from_markdown():
@@ -123,7 +121,6 @@ def test_extract_experience_info_from_markdown():
 Company: Test Corp
 Title: Developer
 Start date: 01/2020
-Inclusion Status: Include
 
 #### Summary
 
@@ -135,14 +132,12 @@ This is a summary.
 Company: Omitter Inc
 Title: PM
 Start date: 01/2019
-Inclusion Status: Omit
 
 ## Projects
 ### Project
 #### Overview
 
 Title: A Project
-Inclusion Status: Not Relevant
 #### Description
 
 A description of the project.
@@ -155,16 +150,17 @@ A description of the project.
     assert experience.roles[0].basics.company == "Test Corp"
     assert experience.roles[0].basics.inclusion_status == InclusionStatus.INCLUDE
     assert experience.roles[0].summary.text == "This is a summary."
-    # Omitted role should be parsed but its status should be known
+    # Since inclusion status is not parsed, it should default to INCLUDE
     assert experience.roles[1].basics.company == "Omitter Inc"
-    assert experience.roles[1].basics.inclusion_status == InclusionStatus.OMIT
+    assert experience.roles[1].basics.inclusion_status == InclusionStatus.INCLUDE
     assert experience.roles[1].summary is None
 
     # Projects validation
     assert len(experience.projects) == 1
     assert experience.projects[0].overview.title == "A Project"
+    # Since inclusion status is not parsed, it should default to INCLUDE
     assert (
-        experience.projects[0].overview.inclusion_status == InclusionStatus.NOT_RELEVANT
+        experience.projects[0].overview.inclusion_status == InclusionStatus.INCLUDE
     )
     assert experience.projects[0].description.text == "A description of the project."
 
@@ -1031,3 +1027,206 @@ Name: John Doe
         assert "# Education" in updated_content
         assert "# Experience" in updated_content
         assert "# Certifications" in updated_content
+
+    def test_serialize_experience_not_relevant_project_with_full_overview(self):
+        """Test serializing a NOT_RELEVANT project with a complete overview."""
+        experience = ExperienceResponse(
+            roles=[],
+            projects=[
+                {
+                    "overview": {
+                        "title": "Not Relevant Project Full",
+                        "url": "http://example.com/not-relevant",
+                        "url_description": "A link for not relevant project",
+                        "start_date": "2022-02-01",
+                        "end_date": "2022-03-01",
+                        "inclusion_status": InclusionStatus.NOT_RELEVANT,
+                    },
+                    "description": {"text": "This description should be excluded."},
+                    "skills": {"skills": ["Skill E", "Skill F"]},
+                },
+            ],
+        )
+        markdown = serialize_experience_to_markdown(experience)
+
+        assert "Title: Not Relevant Project Full" in markdown
+        assert "Url: http://example.com/not-relevant" in markdown
+        assert "Url Description: A link for not relevant project" in markdown
+        assert "Start date: 02/2022" in markdown
+        assert "End date: 03/2022" in markdown
+        assert "This description should be excluded." not in markdown
+        assert "Skill E" not in markdown
+        assert "Skill F" not in markdown
+
+    def test_serialize_experience_not_relevant_role_with_full_basics(self):
+        """Test serializing a NOT_RELEVANT role with complete basics."""
+        experience = ExperienceResponse(
+            roles=[
+                {
+                    "basics": {
+                        "company": "Not Relevant Company",
+                        "title": "Not Relevant Title",
+                        "start_date": "2021-01-01",
+                        "end_date": "2021-12-31",
+                        "location": "Not Relevant Location",
+                        "agency_name": "Not Relevant Agency",
+                        "job_category": "Not Relevant Category",
+                        "employment_type": "Not Relevant Type",
+                        "reason_for_change": "Not Relevant Reason",
+                        "inclusion_status": InclusionStatus.NOT_RELEVANT,
+                    },
+                    "summary": {"text": "This summary should be excluded."},
+                    "responsibilities": {
+                        "text": "These responsibilities should be excluded."
+                    },
+                    "skills": {"skills": ["Skill G", "Skill H"]},
+                },
+            ],
+            projects=[],
+        )
+        markdown = serialize_experience_to_markdown(experience)
+
+        assert "Company: Not Relevant Company" in markdown
+        assert "Title: Not Relevant Title" in markdown
+        assert "Start date: 01/2021" in markdown
+        assert "End date: 12/2021" in markdown
+        assert "Location: Not Relevant Location" in markdown
+        assert "Agency: Not Relevant Agency" in markdown
+        assert "Job category: Not Relevant Category" in markdown
+        assert "Employment type: Not Relevant Type" in markdown
+        assert "Reason for change: Not Relevant Reason" in markdown
+        assert "This summary should be excluded." not in markdown
+        assert "These responsibilities should be excluded." not in markdown
+        assert "Skill G" not in markdown
+        assert "Skill H" not in markdown
+
+    def test_serialize_experience_to_markdown_all_fields(self):
+        """Test serializing experience with all possible fields to ensure coverage."""
+        experience = ExperienceResponse(
+            roles=[
+                {
+                    "basics": {
+                        "company": "Test Company",
+                        "title": "Test Title",
+                        "start_date": "2020-01-01",
+                        "end_date": "2021-01-01",
+                        "location": "Test Location",
+                        "agency_name": "Test Agency",
+                        "job_category": "Test Category",
+                        "employment_type": "Test Type",
+                        "reason_for_change": "Test Reason",
+                        "inclusion_status": InclusionStatus.INCLUDE,
+                    },
+                    "summary": {"text": "Test Summary"},
+                    "responsibilities": {"text": "Test Responsibilities"},
+                    "skills": {"skills": ["Skill A", "Skill B"]},
+                },
+            ],
+            projects=[
+                {
+                    "overview": {
+                        "title": "Test Project",
+                        "url": "http://example.com",
+                        "url_description": "Test URL Desc",
+                        "start_date": "2022-01-01",
+                        "end_date": "2023-01-01",
+                        "inclusion_status": InclusionStatus.INCLUDE,
+                    },
+                    "description": {"text": "Test Description"},
+                    "skills": {"skills": ["Skill C", "Skill D"]},
+                },
+            ],
+        )
+        markdown = serialize_experience_to_markdown(experience)
+        # Project assertions
+        assert "#### Overview" in markdown
+        assert "Title: Test Project" in markdown
+        assert "Url: http://example.com" in markdown
+        assert "Url Description: Test URL Desc" in markdown
+        assert "Start date: 01/2022" in markdown
+        assert "End date: 01/2023" in markdown
+        assert "#### Description" in markdown
+        assert "Test Description" in markdown
+        assert "#### Skills" in markdown
+        assert "* Skill C" in markdown
+
+        # Role assertions
+        assert "#### Basics" in markdown
+        assert "Company: Test Company" in markdown
+        assert "Title: Test Title" in markdown
+        assert "Employment type: Test Type" in markdown
+        assert "Job category: Test Category" in markdown
+        assert "Agency: Test Agency" in markdown
+        assert "Start date: 01/2020" in markdown
+        assert "End date: 01/2021" in markdown
+        assert "Reason for change: Test Reason" in markdown
+        assert "Location: Test Location" in markdown
+        assert "#### Summary" in markdown
+        assert "Test Summary" in markdown
+        assert "#### Responsibilities" in markdown
+        assert "Test Responsibilities" in markdown
+        assert "* Skill A" in markdown
+
+
+def test_serialize_not_relevant_project_with_only_title():
+    """Test serializing a NOT_RELEVANT project with only a title."""
+    experience = ExperienceResponse(
+        projects=[
+            {
+                "overview": {
+                    "title": "A project",
+                    "inclusion_status": InclusionStatus.NOT_RELEVANT,
+                },
+                "description": {"text": "A description to be ignored."},
+            }
+        ],
+        roles=[],
+    )
+    markdown = serialize_experience_to_markdown(experience)
+    expected_markdown = textwrap.dedent("""\
+    # Experience
+
+    ## Projects
+
+    ### Project
+
+    #### Overview
+
+    Title: A project
+
+    """)
+    assert markdown.strip() == expected_markdown.strip()
+
+
+def test_serialize_not_relevant_role_with_only_basics():
+    """Test serializing a NOT_RELEVANT role with only basics."""
+    experience = ExperienceResponse(
+        roles=[
+            {
+                "basics": {
+                    "company": "A Company",
+                    "title": "A Role",
+                    "start_date": "2020-01-01",
+                    "inclusion_status": InclusionStatus.NOT_RELEVANT,
+                },
+                "summary": {"text": "A summary to be ignored."},
+            }
+        ],
+        projects=[],
+    )
+    markdown = serialize_experience_to_markdown(experience)
+    expected_markdown = textwrap.dedent("""\
+    # Experience
+
+    ## Roles
+
+    ### Role
+
+    #### Basics
+
+    Company: A Company
+    Title: A Role
+    Start date: 01/2020
+
+    """)
+    assert markdown.strip() == expected_markdown.strip()

@@ -281,7 +281,7 @@ class ExperienceResponse(BaseModel):
 
     """
 
-    roles: list[Role]
+    roles: list[Role] = []
     projects: list[Project] = []
 
 

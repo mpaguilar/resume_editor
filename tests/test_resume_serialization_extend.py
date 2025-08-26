@@ -21,6 +21,15 @@ from resume_editor.app.api.routes.route_models import (
     ExperienceResponse,
     PersonalInfoResponse,
 )
+from resume_editor.app.models.resume.experience import (
+    InclusionStatus,
+    Project,
+    ProjectDescription,
+    ProjectOverview,
+    Role,
+    RoleBasics,
+    RoleSummary,
+)
 
 
 @pytest.mark.parametrize(
@@ -727,7 +736,7 @@ def test_serialize_experience_to_markdown_partial_project_overview():
 
 
 def test_serialize_experience_role_no_basics():
-    """Test serializing a role that has no basics section."""
+    """Test serializing a role that has no basics section returns empty string."""
     experience = ExperienceResponse(
         roles=[
             {
@@ -738,29 +747,23 @@ def test_serialize_experience_role_no_basics():
         projects=[],
     )
     markdown = serialize_experience_to_markdown(experience)
-    assert "### Role" in markdown
-    assert "#### Basics" not in markdown
-    assert "#### Summary" in markdown
-    assert "A role with no basics" in markdown
+    assert markdown == ""
 
 
 def test_serialize_experience_project_no_overview():
-    """Test serializing a project that has no overview section."""
-    mock_experience = Mock()
-    mock_project = Mock()
-    mock_project.overview = None
-    mock_project.description = Mock(text="A project description without overview")
-    mock_project.skills = None
+    """Test serializing a project that has no overview section returns empty string."""
+    experience = ExperienceResponse(
+        projects=[
+            {
+                "overview": None,
+                "description": {"text": "A project description without overview"},
+            }
+        ],
+        roles=[],
+    )
 
-    mock_experience.projects = [mock_project]
-    mock_experience.roles = []
-
-    markdown = serialize_experience_to_markdown(mock_experience)
-
-    assert "### Project" in markdown
-    assert "#### Overview" not in markdown
-    assert "#### Description" in markdown
-    assert "A project description without overview" in markdown
+    markdown = serialize_experience_to_markdown(experience)
+    assert markdown == ""
 
 
 def test_reconstruct_resume_markdown_with_empty_personal_info():
@@ -783,3 +786,139 @@ def test_reconstruct_resume_markdown_with_empty_personal_info():
     assert "# Personal" not in result
     assert "# Education" in result
     assert "University of Testing" in result
+
+
+def test_serialize_project_with_empty_overview_and_content():
+    """Test serializing a project with an empty overview but still has content."""
+    mock_overview = Mock(
+        spec=ProjectOverview,
+        title=None,
+        url=None,
+        url_description=None,
+        start_date=None,
+        end_date=None,
+        inclusion_status=InclusionStatus.INCLUDE,
+    )
+    mock_description = Mock(spec=ProjectDescription, text="A sample description.")
+    mock_project = Mock(
+        spec=Project,
+        overview=mock_overview,
+        description=mock_description,
+        skills=None,
+    )
+    mock_experience = Mock(spec=ExperienceResponse, projects=[mock_project], roles=[])
+
+    markdown = serialize_experience_to_markdown(mock_experience)
+
+    expected_markdown = textwrap.dedent(
+        """\
+    # Experience
+
+    ## Projects
+
+    ### Project
+
+    #### Description
+
+    A sample description.
+
+    """
+    )
+    assert markdown.strip() == expected_markdown.strip()
+
+
+def test_serialize_role_with_no_content():
+    """Test serializing a role that has no content should result in an empty string."""
+    mock_role = Mock(spec=Role)
+
+    mock_basics = Mock(spec=RoleBasics)
+    attrs = {
+        "company": None,
+        "title": None,
+        "employment_type": None,
+        "job_category": None,
+        "agency_name": None,
+        "start_date": None,
+        "end_date": None,
+        "reason_for_change": None,
+        "location": None,
+        "inclusion_status": InclusionStatus.INCLUDE,
+    }
+    mock_basics.configure_mock(**attrs)
+
+    mock_role.basics = mock_basics
+    mock_role.summary = None
+    mock_role.responsibilities = None
+    mock_role.skills = None
+
+    experience = ExperienceResponse(roles=[mock_role], projects=[])
+    markdown = serialize_experience_to_markdown(experience)
+    assert markdown == ""
+
+
+def test_serialize_role_empty_basics_with_summary():
+    """Test serializing a role with empty basics but that has a summary."""
+    mock_role = Mock(spec=Role)
+    mock_basics = Mock(spec=RoleBasics)
+    attrs = {
+        "company": None,
+        "title": None,
+        "employment_type": None,
+        "job_category": None,
+        "agency_name": None,
+        "start_date": None,
+        "end_date": None,
+        "reason_for_change": None,
+        "location": None,
+        "inclusion_status": InclusionStatus.INCLUDE,
+    }
+    mock_basics.configure_mock(**attrs)
+
+    mock_summary = Mock(spec=RoleSummary, text="This is a summary text.")
+    mock_role.basics = mock_basics
+    mock_role.summary = mock_summary
+    mock_role.responsibilities = None
+    mock_role.skills = None
+
+    mock_experience = Mock(spec=ExperienceResponse, roles=[mock_role], projects=[])
+    markdown = serialize_experience_to_markdown(mock_experience)
+    expected_markdown = textwrap.dedent(
+        """\
+        # Experience
+
+        ## Roles
+
+        ### Role
+
+        #### Summary
+
+        This is a summary text.
+
+        """
+    )
+    assert markdown.strip() == expected_markdown.strip()
+
+
+def test_serialize_project_with_no_content():
+    """Test serializing a project with no content results in an empty string."""
+    mock_project = Mock(spec=Project)
+
+    mock_overview = Mock(spec=ProjectOverview)
+    attrs = {
+        "title": None,
+        "url": None,
+        "url_description": None,
+        "start_date": None,
+        "end_date": None,
+        "inclusion_status": InclusionStatus.INCLUDE,
+    }
+    mock_overview.configure_mock(**attrs)
+
+    mock_project.overview = mock_overview
+    mock_project.description = None
+    mock_project.skills = None
+
+    experience = ExperienceResponse(projects=[mock_project], roles=[])
+    markdown = serialize_experience_to_markdown(experience)
+
+    assert markdown == ""
