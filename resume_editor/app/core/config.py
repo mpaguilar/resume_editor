@@ -44,7 +44,21 @@ class Settings(BaseSettings):
     @computed_field
     @property
     def database_url(self) -> PostgresDsn:
-        """Assembled database URL from components."""
+        """Assembled database URL from components.
+
+        Args:
+            None: This property does not take any arguments.
+
+        Returns:
+            PostgresDsn: The fully assembled PostgreSQL connection URL.
+
+        Notes:
+            1. Constructs the database URL using the components: scheme, username, password, host, port, and path.
+            2. The scheme is set to "postgresql".
+            3. The username, password, host, port, and database name are retrieved from the instance attributes.
+            4. The resulting URL is returned as a PostgresDsn object.
+
+        """
         return PostgresDsn.build(
             scheme="postgresql",
             username=self.db_user,
@@ -89,8 +103,12 @@ def get_settings() -> Settings:
         Settings: The global settings instance, containing all configuration values.
             The instance is created by loading environment variables and applying defaults.
 
+    Raises:
+        ValidationError: If required environment variables are missing or invalid.
+        ValueError: If the .env file cannot be read or parsed.
+
     Notes:
-        1. The function reads configuration from environment variables using the .env file.
+        1. Reads configuration from environment variables using the .env file.
         2. If environment variables are not set, default values are used.
         3. The Settings class uses Pydantic's validation and configuration features to ensure correct values.
         4. The function returns a cached instance to avoid repeated parsing of the .env file.

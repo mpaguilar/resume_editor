@@ -28,8 +28,18 @@ def _get_section_content(resume_content: str, section_name: str) -> str:
         section_name (str): The name of the section to extract ("personal", "education", "experience", "certifications", or "full").
 
     Returns:
-        str: The Markdown content of the specified section. returns the full content if "full".
+        str: The Markdown content of the specified section. Returns the full content if "full" is specified.
 
+    Raises:
+        ValueError: If the section_name is not one of the valid options.
+
+    Notes:
+        1. If section_name is "full", return the entire resume_content.
+        2. Otherwise, map the section_name to a tuple of extractor and serializer functions.
+        3. Validate that section_name is in the valid set of keys.
+        4. Extract the data using the extractor function.
+        5. Serialize the extracted data using the serializer function.
+        6. Return the serialized result.
     """
     _msg = f"Extracting section '{section_name}' from resume"
     log.debug(_msg)
@@ -72,17 +82,19 @@ def refine_resume_section_with_llm(
         api_key (str | None): The user's decrypted LLM API key.
 
     Returns:
-        str: The refined Markdown content for the target section.
+        str: The refined Markdown content for the target section. Returns an empty string if the target section is empty.
 
     Notes:
-        1. Select the target content from the resume.
-        2. Set up a PydanticOutputParser for structured output.
-        3. Create a PromptTemplate with instructions for the LLM.
-        4. Initialize the ChatOpenAI client with user-specific settings.
-        5. Create and invoke a chain with the prompt, LLM, and parser.
-        6. Parse the LLM's JSON-Markdown output.
-        7. Return the refined content.
-
+        1. Extract the target section content from the resume using _get_section_content.
+        2. If the extracted content is empty, return an empty string.
+        3. Set up a PydanticOutputParser for structured output based on the RefinedSection model.
+        4. Create a PromptTemplate with instructions for the LLM, including format instructions.
+        5. Initialize the ChatOpenAI client with the specified model, temperature, API base, and API key.
+        6. Create a chain combining the prompt, LLM, and parser.
+        7. Invoke the chain with the job description and resume section content.
+        8. Parse the LLM's JSON-Markdown output using parse_json_markdown if the result is a string.
+        9. Validate the parsed JSON against the RefinedSection model.
+        10. Return the refined_markdown field from the validated result.
     """
     _msg = f"refine_resume_section_with_llm starting for section '{target_section}'"
     log.debug(_msg)

@@ -28,6 +28,6 @@ def perform_pre_save_validation(
         2. If any validation fails, raise an HTTPException with detailed error messages.
         3. This function performs validation checks on resume content before saving to ensure data integrity.
         4. Validation includes parsing the Markdown content to verify its structure and format.
-
+        5. The function accesses the resume parsing module to validate the content structure.
     """
     validate_resume_content(markdown_content)

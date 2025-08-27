@@ -32,6 +32,9 @@ class ContactInfo(BaseModel):
         Returns:
             str: The validated name (stripped of leading/trailing whitespace).
 
+        Raises:
+            ValueError: If the name is not a string or is empty after stripping whitespace.
+
         Notes:
             1. Ensure name is a string.
             2. Ensure name is not empty after stripping whitespace.
@@ -53,6 +56,9 @@ class ContactInfo(BaseModel):
 
         Returns:
             str: The validated email (stripped of leading/trailing whitespace).
+
+        Raises:
+            ValueError: If the email is not a string or is empty after stripping whitespace.
 
         Notes:
             1. Ensure email is a string or None.
@@ -78,6 +84,9 @@ class ContactInfo(BaseModel):
         Returns:
             str: The validated phone (stripped of leading/trailing whitespace).
 
+        Raises:
+            ValueError: If the phone is not a string or is empty after stripping whitespace.
+
         Notes:
             1. Ensure phone is a string or None.
             2. Ensure phone is not empty after stripping whitespace.
@@ -101,6 +110,9 @@ class ContactInfo(BaseModel):
 
         Returns:
             str: The validated location (stripped of leading/trailing whitespace).
+
+        Raises:
+            ValueError: If the location is not a string or is empty after stripping whitespace.
 
         Notes:
             1. Ensure location is a string or None.
@@ -143,6 +155,9 @@ class Websites(BaseModel):
         Returns:
             str: The validated website (stripped of leading/trailing whitespace).
 
+        Raises:
+            ValueError: If the website is not a string or is empty after stripping whitespace.
+
         Notes:
             1. Ensure website is a string or None.
             2. Ensure website is not empty after stripping whitespace.
@@ -166,6 +181,9 @@ class Websites(BaseModel):
 
         Returns:
             str: The validated github (stripped of leading/trailing whitespace).
+
+        Raises:
+            ValueError: If the github is not a string or is empty after stripping whitespace.
 
         Notes:
             1. Ensure github is a string or None.
@@ -191,6 +209,9 @@ class Websites(BaseModel):
         Returns:
             str: The validated linkedin (stripped of leading/trailing whitespace).
 
+        Raises:
+            ValueError: If the linkedin is not a string or is empty after stripping whitespace.
+
         Notes:
             1. Ensure linkedin is a string or None.
             2. Ensure linkedin is not empty after stripping whitespace.
@@ -214,6 +235,9 @@ class Websites(BaseModel):
 
         Returns:
             str: The validated twitter (stripped of leading/trailing whitespace).
+
+        Raises:
+            ValueError: If the twitter is not a string or is empty after stripping whitespace.
 
         Notes:
             1. Ensure twitter is a string or None.
@@ -252,6 +276,9 @@ class VisaStatus(BaseModel):
         Returns:
             str: The validated work_authorization (stripped of leading/trailing whitespace).
 
+        Raises:
+            ValueError: If the work_authorization is not a string or is empty after stripping whitespace.
+
         Notes:
             1. Ensure work_authorization is a string or None.
             2. Ensure work_authorization is not empty after stripping whitespace.
@@ -275,6 +302,9 @@ class VisaStatus(BaseModel):
 
         Returns:
             bool: The validated require_sponsorship value.
+
+        Raises:
+            ValueError: If the require_sponsorship is not a boolean, string, or None, or if the string is not "yes" or "no".
 
         Notes:
             1. Ensure require_sponsorship is a boolean, string ("yes"/"no"), or None.
@@ -317,6 +347,9 @@ class Banner(BaseModel):
 
         Returns:
             str: The cleaned text content of the banner.
+
+        Raises:
+            ValueError: If the text is not a string.
 
         Notes:
             1. Ensure text is a string.
@@ -368,6 +401,9 @@ class Note(BaseModel):
 
         Returns:
             str: The cleaned text content of the note.
+
+        Raises:
+            ValueError: If the text is not a string.
 
         Notes:
             1. Ensure text is a string.

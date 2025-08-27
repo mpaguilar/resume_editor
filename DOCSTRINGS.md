@@ -21,21 +21,20 @@ Returns:
 
 Notes:
     1. Initialize the FastAPI application with the title "Resume Editor API".
-    2. Create the database tables by calling Base.metadata.create_all with the database engine.
-    3. Add CORS middleware to allow requests from any origin (for development only).
-    4. Include the user router to handle user-related API endpoints.
-    5. Include the resume router to handle resume-related API endpoints.
-    6. Define a health check endpoint at "/health" that returns a JSON object with status "ok".
-    7. Add static file serving for CSS/JS assets.
-    8. Add template rendering for HTML pages.
-    9. Define dashboard routes for the HTMX-based interface.
-    10. Log a success message indicating the application was created.
+    2. Add CORS middleware to allow requests from any origin (for development only).
+    3. Include the user router to handle user-related API endpoints.
+    4. Include the resume router to handle resume-related API endpoints.
+    5. Define a health check endpoint at "/health" that returns a JSON object with status "ok".
+    6. Add static file serving for CSS/JS assets.
+    7. Add template rendering for HTML pages.
+    8. Define dashboard routes for the HTMX-based interface.
+    9. Log a success message indicating the application was created.
 
 ---
 
 ## function: `initialize_database() -> UnknownType`
 
-Initialize the database tables.
+Initialize the database.
 
 Args:
     None
@@ -44,9 +43,8 @@ Returns:
     None
 
 Notes:
-    1. Create database tables by calling Base.metadata.create_all with the database engine.
-    2. This function should be called after the app is created but before it starts serving requests.
-    3. Database access is performed via the engine returned by get_engine().
+    1. Database initialization is now handled by Alembic migrations.
+    2. This function is kept for structural consistency but performs no actions.
 
 ---
 
@@ -110,6 +108,24 @@ Notes:
     2. If empty, returns a message indicating no resumes were found.
     3. Otherwise, generates HTML for each resume item with a selected class if it matches the selected ID.
     4. Returns the concatenated HTML string.
+
+---
+
+## function: `_generate_resume_detail_html(resume: DatabaseResume) -> str`
+
+Generate the HTML for the resume detail view.
+
+Args:
+    resume (DatabaseResume): The resume object to generate HTML for.
+
+Returns:
+    str: HTML string for the resume detail view.
+
+Notes:
+    1. Creates HTML for the resume detail section with a header, content area, and footer.
+    2. Includes buttons for refining with AI, exporting, and editing.
+    3. Creates modal dialogs for export and refine actions with appropriate event handlers.
+    4. Returns the complete HTML string.
 
 ---
 
@@ -286,7 +302,7 @@ Returns:
     DatabaseResume: The resume object matching the provided ID and user ID.
 
 Raises:
-    HTTPException: If no resume is found with the given ID and user ID, raises a 404 error.
+    HTTPException: If no resume is found with the given ID and user ID, raises a 404 error with detail "Resume not found".
 
 Notes:
     1. Query the DatabaseResume table for a record where the id matches resume_id and the user_id matches user_id.
@@ -328,10 +344,10 @@ Returns:
     DatabaseResume: The newly created resume object.
 
 Notes:
-    1. Create a new DatabaseResume instance.
+    1. Create a new DatabaseResume instance with the provided user_id, name, and content.
     2. Add the instance to the database session.
-    3. Commit the transaction.
-    4. Refresh the instance to get the new ID.
+    3. Commit the transaction to persist the changes.
+    4. Refresh the instance to ensure it has the latest state, including the generated ID.
     5. Return the created resume.
     6. This function performs a database write operation.
 
@@ -344,17 +360,17 @@ Update a resume's name and/or content.
 Args:
     db (Session): The database session.
     resume (DatabaseResume): The resume to update.
-    name (str, optional): The new name for the resume. Defaults to None.
-    content (str, optional): The new content for the resume. Defaults to None.
+    name (str, optional): The new name for the resume. If None, the name is not updated.
+    content (str, optional): The new content for the resume. If None, the content is not updated.
 
 Returns:
     DatabaseResume: The updated resume object.
 
 Notes:
-    1. If a new name is provided, update the resume's name.
-    2. If new content is provided, update the resume's content.
-    3. Commit the transaction to save changes.
-    4. Refresh the resume object to get the latest state.
+    1. If a new name is provided (not None), update the resume's name attribute.
+    2. If new content is provided (not None), update the resume's content attribute.
+    3. Commit the transaction to save the changes to the database.
+    4. Refresh the resume object to ensure it reflects the latest state from the database.
     5. Return the updated resume.
     6. This function performs a database write operation.
 
@@ -373,7 +389,7 @@ Returns:
 
 Notes:
     1. Delete the resume object from the database session.
-    2. Commit the transaction.
+    2. Commit the transaction to persist the deletion.
     3. This function performs a database write operation.
 
 ---
@@ -403,6 +419,177 @@ Notes:
     2. If any validation fails, raise an HTTPException with detailed error messages.
     3. This function performs validation checks on resume content before saving to ensure data integrity.
     4. Validation includes parsing the Markdown content to verify its structure and format.
+    5. The function accesses the resume parsing module to validate the content structure.
+
+---
+
+
+===
+
+===
+# File: `resume_filtering.py`
+
+## function: `_get_date_from_optional_datetime(dt: datetime | None) -> date | None`
+
+Safely convert an optional datetime object to an optional date object.
+
+Args:
+    dt (datetime | None): The datetime object to convert, or None.
+
+Returns:
+    date | None: The date portion of the datetime, or None if input is None.
+
+Notes:
+    1. If the input dt is None, return None.
+    2. Otherwise, extract and return the date portion of the datetime object using the date() method.
+
+---
+
+## function: `_is_in_date_range(item_start_date: date | None, item_end_date: date | None, filter_start_date: date | None, filter_end_date: date | None) -> bool`
+
+Check if an item's date range overlaps with the filter's date range.
+
+Args:
+    item_start_date (date | None): The start date of the item being evaluated.
+    item_end_date (date | None): The end date of the item (or None if ongoing).
+    filter_start_date (date | None): The start date of the filtering period.
+    filter_end_date (date | None): The end date of the filtering period.
+
+Returns:
+    bool: True if the item overlaps with the filter's date range, False otherwise.
+
+Notes:
+    1. If the filter has a start date and the item ends before that date, the item is out of range.
+    2. If the filter has an end date and the item starts after that date, the item is out of range.
+    3. Otherwise, the item is considered to be in range.
+
+---
+
+## function: `filter_experience_by_date(experience: ExperienceResponse, start_date: date | None, end_date: date | None) -> ExperienceResponse`
+
+Filter roles and projects in an ExperienceResponse based on a date range.
+
+Args:
+    experience (ExperienceResponse): The experience data to filter.
+    start_date (date | None): The start of the filtering period. If None, no start constraint is applied.
+    end_date (date | None): The end of the filtering period. If None, no end constraint is applied.
+
+Returns:
+    ExperienceResponse: A new ExperienceResponse object containing only roles and projects that overlap with the specified date range.
+
+Notes:
+    1. If both start_date and end_date are None, return the original experience object unmodified.
+    2. Iterate through the roles in the experience object and check if each role's date range overlaps with the filter range using _is_in_date_range.
+    3. For each role that overlaps, add it to the filtered_roles list.
+    4. Iterate through the projects in the experience object and check if each project's date range overlaps with the filter range.
+    5. Projects without an end date are treated as single-day events occurring on their start date.
+    6. For each project that overlaps, add it to the filtered_projects list.
+    7. Return a new ExperienceResponse object with the filtered roles and projects.
+
+---
+
+
+===
+
+===
+# File: `resume_llm.py`
+
+## function: `_get_section_content(resume_content: str, section_name: str) -> str`
+
+Extracts the Markdown content for a specific section of the resume.
+
+Args:
+    resume_content (str): The full resume content in Markdown.
+    section_name (str): The name of the section to extract ("personal", "education", "experience", "certifications", or "full").
+
+Returns:
+    str: The Markdown content of the specified section. Returns the full content if "full" is specified.
+
+Raises:
+    ValueError: If the section_name is not one of the valid options.
+
+Notes:
+    1. If section_name is "full", return the entire resume_content.
+    2. Otherwise, map the section_name to a tuple of extractor and serializer functions.
+    3. Validate that section_name is in the valid set of keys.
+    4. Extract the data using the extractor function.
+    5. Serialize the extracted data using the serializer function.
+    6. Return the serialized result.
+
+---
+
+## function: `refine_resume_section_with_llm(resume_content: str, job_description: str, target_section: str, llm_endpoint: str | None, api_key: str | None) -> str`
+
+Uses an LLM to refine a specific section of a resume based on a job description.
+
+Args:
+    resume_content (str): The full Markdown content of the resume.
+    job_description (str): The job description to align the resume with.
+    target_section (str): The section of the resume to refine (e.g., "experience").
+    llm_endpoint (str | None): The custom LLM endpoint URL.
+    api_key (str | None): The user's decrypted LLM API key.
+
+Returns:
+    str: The refined Markdown content for the target section. Returns an empty string if the target section is empty.
+
+Notes:
+    1. Extract the target section content from the resume using _get_section_content.
+    2. If the extracted content is empty, return an empty string.
+    3. Set up a PydanticOutputParser for structured output based on the RefinedSection model.
+    4. Create a PromptTemplate with instructions for the LLM, including format instructions.
+    5. Initialize the ChatOpenAI client with the specified model, temperature, API base, and API key.
+    6. Create a chain combining the prompt, LLM, and parser.
+    7. Invoke the chain with the job description and resume section content.
+    8. Parse the LLM's JSON-Markdown output using parse_json_markdown if the result is a string.
+    9. Validate the parsed JSON against the RefinedSection model.
+    10. Return the refined_markdown field from the validated result.
+
+---
+
+
+===
+
+===
+# File: `settings_crud.py`
+
+## function: `get_user_settings(db: Session, user_id: int) -> UserSettings | None`
+
+Retrieves the settings for a given user.
+
+Args:
+    db (Session): The database session used to query the database.
+    user_id (int): The unique identifier of the user whose settings are being retrieved.
+
+Returns:
+    UserSettings | None: The user's settings if found, otherwise None.
+
+Notes:
+    1. Queries the database for a UserSettings record where user_id matches the provided user_id.
+    2. Returns the first matching record or None if no record is found.
+    3. This function performs a single database read operation.
+
+---
+
+## function: `update_user_settings(db: Session, user_id: int, settings_data: 'UserSettingsUpdateRequest') -> UserSettings`
+
+Creates or updates settings for a user.
+
+Args:
+    db (Session): The database session used to perform database operations.
+    user_id (int): The unique identifier of the user whose settings are being updated.
+    settings_data (UserSettingsUpdateRequest): The data containing the updated settings.
+
+Returns:
+    UserSettings: The updated or newly created UserSettings object.
+
+Notes:
+    1. Attempts to retrieve existing settings for the given user_id using get_user_settings.
+    2. If no settings are found, creates a new UserSettings object with the provided user_id and adds it to the session.
+    3. Updates the llm_endpoint field if settings_data.llm_endpoint is provided and not None.
+    4. If settings_data.api_key is provided and not empty, encrypts the API key using encrypt_data and stores it in encrypted_api_key; otherwise, sets encrypted_api_key to None.
+    5. Commits the transaction to the database.
+    6. Refreshes the session to ensure the returned object has the latest data from the database.
+    7. This function performs a database read and possibly a write operation.
 
 ---
 
@@ -412,15 +599,15 @@ Notes:
 ===
 # File: `resume_reconstruction.py`
 
-## function: `reconstruct_resume_markdown(personal_info: PersonalInfoResponse | None, education: EducationResponse | None, experience: ExperienceResponse | None, certifications: CertificationsResponse | None) -> str`
+## function: `reconstruct_resume_markdown(personal_info: PersonalInfoResponse | None, education: EducationResponse | None, certifications: CertificationsResponse | None, experience: ExperienceResponse | None) -> str`
 
 Reconstruct a complete resume Markdown document from structured data sections.
 
 Args:
     personal_info (PersonalInfoResponse | None): Personal information data structure. If None, the personal info section is omitted.
     education (EducationResponse | None): Education information data structure. If None, the education section is omitted.
-    experience (ExperienceResponse | None): Experience information data structure, containing roles and projects. If None, the experience section is omitted.
     certifications (CertificationsResponse | None): Certifications information data structure. If None, the certifications section is omitted.
+    experience (ExperienceResponse | None): Experience information data structure, containing roles and projects. If None, the experience section is omitted.
 
 Returns:
     str: A complete Markdown formatted resume document with all provided sections joined by double newlines.
@@ -436,22 +623,22 @@ Notes:
 
 ---
 
-## function: `build_complete_resume_from_sections(personal_info: PersonalInfoResponse, education: EducationResponse, experience: ExperienceResponse, certifications: CertificationsResponse) -> str`
+## function: `build_complete_resume_from_sections(personal_info: PersonalInfoResponse, education: EducationResponse, certifications: CertificationsResponse, experience: ExperienceResponse) -> str`
 
 Build a complete resume Markdown document from all structured sections.
 
 Args:
     personal_info (PersonalInfoResponse): Personal information data structure.
     education (EducationResponse): Education information data structure.
-    experience (ExperienceResponse): Experience information data structure.
     certifications (CertificationsResponse): Certifications information data structure.
+    experience (ExperienceResponse): Experience information data structure.
 
 Returns:
-    str: A complete Markdown formatted resume document with all sections in the order: personal, education, experience, certifications.
+    str: A complete Markdown formatted resume document with all sections in the order: personal, education, certifications, experience.
 
 Notes:
     1. Calls reconstruct_resume_markdown with all sections.
-    2. Ensures proper section ordering (personal, education, experience, certifications).
+    2. Ensures proper section ordering (personal, education, certifications, experience).
     3. Returns the complete Markdown resume content.
     4. No network, disk, or database access is performed.
 
@@ -468,76 +655,101 @@ Notes:
 Parse Markdown resume content into a resume_writer Resume object.
 
 Args:
-    markdown_content (str): The Markdown content to parse.
+    markdown_content (str): The Markdown content to parse, expected to follow a valid resume format.
 
 Returns:
-    WriterResume: The parsed resume object from the resume_writer library.
+    WriterResume: The parsed resume object from the resume_writer library, containing structured data for personal info, experience, education, certifications, etc.
 
 Raises:
-    ValueError: If parsing results in no valid content.
+    ValueError: If the parsed content contains no valid resume sections (e.g., no personal, education, experience, or certifications data).
 
 Notes:
-    1. Splits the content into lines.
-    2. Skips any lines before the first valid section header.
-    3. Parses the content using the resume_writer's ParseContext and Resume.parse.
-    4. Checks if any sections were successfully parsed; raises ValueError if not.
-    5. Returns the parsed resume_writer Resume object.
+    1. Splits the input Markdown content into individual lines.
+    2. Skips any lines before the first valid top-level section header (i.e., lines starting with "# " but not "##").
+    3. Identifies valid section headers by checking against the keys in WriterResume.expected_blocks().
+    4. If a valid header is found, truncates the lines list to start from that header.
+    5. Creates a ParseContext object using the processed lines and indentation level 1.
+    6. Uses the Resume.parse method to parse the content into a WriterResume object.
+    7. Checks if any of the main resume sections (personal, education, experience, certifications) were successfully parsed.
+    8. Raises ValueError if no valid sections were parsed.
+    9. Returns the fully parsed WriterResume object.
 
 ---
 
 ## function: `parse_resume(markdown_content: str) -> dict[str, Any]`
 
-Parse Markdown resume content using resume_writer parser.
+Parse Markdown resume content using resume_writer parser and return a dictionary.
 
 Args:
     markdown_content (str): The Markdown content to parse, expected to follow a valid resume format.
 
 Returns:
-    dict[str, Any]: A dictionary representation of the parsed resume data structure,
-                   including sections like personal info, experience, education, etc.
-                   The structure matches the output of the resume_writer parser.
+    dict[str, Any]: A dictionary representation of the parsed resume data, including:
+        - personal: Personal information (e.g., name, email, phone).
+        - experience: List of work experience entries.
+        - education: List of educational qualifications.
+        - certifications: List of certifications.
+        - Any other sections supported by resume_writer.
+
+Raises:
+    HTTPException: If parsing fails due to invalid format or content, with status 422 and a descriptive message.
 
 Notes:
-    1. Calls `parse_resume_to_writer_object` to perform parsing.
-    2. Converts the returned resume object to a dictionary.
-    3. Handles exceptions and raises an HTTPException on failure.
-    4. Returns the dictionary representation.
-    5. No disk, network, or database access is performed.
+    1. Logs the start of the parsing process.
+    2. Calls parse_resume_to_writer_object to parse the Markdown content into a WriterResume object.
+    3. Converts the WriterResume object to a dictionary using vars().
+    4. Logs successful completion.
+    5. Returns the dictionary representation.
+    6. No disk, network, or database access is performed.
 
 ---
 
 ## function: `parse_resume_content(markdown_content: str) -> dict[str, Any]`
 
-Parse Markdown resume content and return structured data.
+Parse Markdown resume content and return structured data as a dictionary.
 
 Args:
     markdown_content (str): The Markdown content to parse, expected to follow a valid resume format.
 
 Returns:
-    dict: A dictionary containing the structured resume data, including sections like personal info, experience, education, etc.
-          The structure matches the expected output of the resume_writer parser.
+    dict: A dictionary containing the structured resume data, including:
+        - personal: Personal information (e.g., name, email, phone).
+        - experience: List of work experience entries.
+        - education: List of educational qualifications.
+        - certifications: List of certifications.
+        - Any other sections supported by resume_writer.
+
+Raises:
+    HTTPException: If parsing fails due to invalid format or content, with status 400 and a descriptive message.
 
 Notes:
-    1. Use the parse_resume function to parse the provided markdown_content.
-    2. Return the result of parse_resume as a dictionary.
-    3. No disk, network, or database access is performed.
+    1. Logs the start of the parsing process.
+    2. Uses the parse_resume function to parse the provided markdown_content.
+    3. Returns the result of parse_resume as a dictionary.
+    4. Logs successful completion.
+    5. No disk, network, or database access is performed.
 
 ---
 
 ## function: `validate_resume_content(content: str) -> None`
 
-Validate resume Markdown content.
+Validate resume Markdown content for proper format.
 
 Args:
     content (str): The Markdown content to validate, expected to be in a format compatible with resume_writer.
 
 Returns:
-    None: The function returns nothing on success.
+    None: The function returns nothing if validation passes.
+
+Raises:
+    HTTPException: If parsing fails due to invalid format, with status 422 and a descriptive message.
 
 Notes:
-    1. Attempt to parse the provided content using the parse_resume function.
-    2. If parsing fails, raise an HTTPException with status 422 and a descriptive message.
-    3. No disk, network, or database access is performed.
+    1. Logs the start of the validation process.
+    2. Attempts to parse the provided content using the parse_resume function.
+    3. If parsing fails, raises an HTTPException with a descriptive error message.
+    4. Logs successful completion if no exception is raised.
+    5. No disk, network, or database access is performed.
 
 ---
 
@@ -789,7 +1001,7 @@ Notes:
 
 ---
 
-## function: `update_resume_content_with_structured_data(current_content: str, personal_info: UnknownType, education: UnknownType, experience: UnknownType, certifications: UnknownType) -> str`
+## function: `update_resume_content_with_structured_data(current_content: str, personal_info: UnknownType, education: UnknownType, certifications: UnknownType, experience: UnknownType) -> str`
 
 Update resume content with structured data by replacing specific sections.
 
@@ -797,8 +1009,8 @@ Args:
     current_content (str): Current resume Markdown content to update.
     personal_info: Updated personal information to insert. If None, the existing info is preserved.
     education: Updated education information to insert. If None, the existing info is preserved.
-    experience: Updated experience information to insert. If None, the existing info is preserved.
     certifications: Updated certifications information to insert. If None, the existing info is preserved.
+    experience: Updated experience information to insert. If None, the existing info is preserved.
 
 Returns:
     str: Updated resume content with new structured data.
@@ -841,8 +1053,12 @@ Returns:
     Settings: The global settings instance, containing all configuration values.
         The instance is created by loading environment variables and applying defaults.
 
+Raises:
+    ValidationError: If required environment variables are missing or invalid.
+    ValueError: If the .env file cannot be read or parsed.
+
 Notes:
-    1. The function reads configuration from environment variables using the .env file.
+    1. Reads configuration from environment variables using the .env file.
     2. If environment variables are not set, default values are used.
     3. The Settings class uses Pydantic's validation and configuration features to ensure correct values.
     4. The function returns a cached instance to avoid repeated parsing of the .env file.
@@ -852,6 +1068,44 @@ Notes:
 
 ---
 
+## `Settings` class
+
+Application settings loaded from environment variables.
+
+This class defines all configuration values used by the application,
+including database connection details, security parameters, and API keys.
+Values are loaded from environment variables with fallback defaults.
+
+Attributes:
+    database_url (PostgresDsn): Database connection URL for PostgreSQL.
+        This is used to establish connection to the application's database.
+    secret_key (str): Secret key for signing JWT tokens.
+        Must be kept secure and changed in production.
+    algorithm (str): Algorithm used for JWT token encoding.
+        Currently uses HS256 (HMAC-SHA256).
+    access_token_expire_minutes (int): Duration in minutes for which access tokens remain valid.
+    llm_api_key (str | None): API key for accessing LLM services.
+        Optional; used when LLM functionality is needed.
+    encryption_key (str): Key used for encrypting sensitive data.
+
+---
+## method: `Settings.database_url(self: UnknownType) -> PostgresDsn`
+
+Assembled database URL from components.
+
+Args:
+    None: This property does not take any arguments.
+
+Returns:
+    PostgresDsn: The fully assembled PostgreSQL connection URL.
+
+Notes:
+    1. Constructs the database URL using the components: scheme, username, password, host, port, and path.
+    2. The scheme is set to "postgresql".
+    3. The username, password, host, port, and database name are retrieved from the instance attributes.
+    4. The resulting URL is returned as a PostgresDsn object.
+
+---
 
 ===
 
@@ -1078,8 +1332,8 @@ Dependency to provide database sessions to route handlers.
 Args:
     None
 
-Returns:
-    Generator[Session, None, None]: A generator that yields a database session for use in route handlers.
+Yields:
+    Session: A database session for use in route handlers.
 
 Notes:
     1. Create a new database session using the sessionmaker factory.
@@ -1207,6 +1461,42 @@ Notes:
 ===
 
 ===
+# File: `user_settings.py`
+
+## `UserSettings` class
+
+Stores user-specific settings, such as LLM configurations.
+
+Attributes:
+    id (int): Primary key.
+    user_id (int): Foreign key to the user.
+    llm_endpoint (str | None): Custom LLM API endpoint URL.
+    encrypted_api_key (str | None): Encrypted API key for the LLM service.
+    user (User): Relationship to the User model.
+
+---
+## method: `UserSettings.__init__(self: UnknownType, user_id: int, llm_endpoint: str | None, encrypted_api_key: str | None) -> UnknownType`
+
+Initialize a UserSettings instance.
+
+Args:
+    user_id (int): The ID of the user these settings belong to.
+    llm_endpoint (str | None): Custom LLM API endpoint URL.
+    encrypted_api_key (str | None): Encrypted API key for the LLM service.
+
+Returns:
+    None
+
+Notes:
+    1. Assign all values to instance attributes.
+    2. Log the initialization of the user settings.
+    3. This operation does not involve network, disk, or database access.
+
+---
+
+===
+
+===
 # File: `resume_model.py`
 
 ## `Resume` class
@@ -1235,6 +1525,9 @@ Args:
 
 Returns:
     None
+
+Raises:
+    ValueError: If user_id is not an integer, name is empty, content is empty, or is_active is not a boolean.
 
 Notes:
     1. Validate that user_id is an integer.
@@ -1281,6 +1574,9 @@ Args:
 Returns:
     str: The validated school (stripped of leading/trailing whitespace).
 
+Raises:
+    ValueError: If the school is empty or contains only whitespace.
+
 Notes:
     1. Ensure school is a string.
     2. Ensure school is not empty after stripping whitespace.
@@ -1295,6 +1591,9 @@ Args:
 
 Returns:
     str: The validated degree (stripped of leading/trailing whitespace).
+
+Raises:
+    ValueError: If the degree is empty after stripping whitespace.
 
 Notes:
     1. Ensure degree is a string or None.
@@ -1311,6 +1610,9 @@ Args:
 Returns:
     str: The validated major (stripped of leading/trailing whitespace).
 
+Raises:
+    ValueError: If the major is empty after stripping whitespace.
+
 Notes:
     1. Ensure major is a string or None.
     2. Ensure major is not empty after stripping whitespace.
@@ -1325,6 +1627,9 @@ Args:
 
 Returns:
     str: The validated gpa (stripped of leading/trailing whitespace).
+
+Raises:
+    ValueError: If the gpa is empty after stripping whitespace.
 
 Notes:
     1. Ensure gpa is a string or None.
@@ -1341,6 +1646,9 @@ Args:
 
 Returns:
     datetime: The validated date.
+
+Raises:
+    ValueError: If end_date is before start_date.
 
 Notes:
     1. If both start_date and end_date are provided, ensure start_date is not after end_date.
@@ -1418,6 +1726,9 @@ Args:
 Returns:
     str: The validated name.
 
+Raises:
+    ValueError: If the name is not a string or is empty.
+
 Notes:
     1. Ensure name is a string.
     2. Ensure name is not empty.
@@ -1433,6 +1744,9 @@ Args:
 Returns:
     str: The validated field value.
 
+Raises:
+    ValueError: If the field is neither a string nor None.
+
 Notes:
     1. Ensure field is a string or None.
 
@@ -1447,6 +1761,9 @@ Args:
 Returns:
     datetime: The validated date.
 
+Raises:
+    ValueError: If the date is neither a datetime object nor None.
+
 Notes:
     1. Ensure date is a datetime object or None.
 
@@ -1457,6 +1774,9 @@ Validate that issued date is not after expires date.
 
 Returns:
     Certification: The validated model instance.
+
+Raises:
+    ValueError: If expires date is before issued date.
 
 Notes:
     1. If both issued and expires dates are provided, ensure issued is not after expires.
@@ -1479,6 +1799,9 @@ Args:
 
 Returns:
     list[Certification]: The validated certifications list.
+
+Raises:
+    ValueError: If certifications is not a list or contains non-Certification items.
 
 Notes:
     1. Ensure certifications is a list.
@@ -1559,6 +1882,9 @@ Args:
 Returns:
     str: The validated name (stripped of leading/trailing whitespace).
 
+Raises:
+    ValueError: If the name is not a string or is empty after stripping whitespace.
+
 Notes:
     1. Ensure name is a string.
     2. Ensure name is not empty after stripping whitespace.
@@ -1573,6 +1899,9 @@ Args:
 
 Returns:
     str: The validated email (stripped of leading/trailing whitespace).
+
+Raises:
+    ValueError: If the email is not a string or is empty after stripping whitespace.
 
 Notes:
     1. Ensure email is a string or None.
@@ -1589,6 +1918,9 @@ Args:
 Returns:
     str: The validated phone (stripped of leading/trailing whitespace).
 
+Raises:
+    ValueError: If the phone is not a string or is empty after stripping whitespace.
+
 Notes:
     1. Ensure phone is a string or None.
     2. Ensure phone is not empty after stripping whitespace.
@@ -1603,6 +1935,9 @@ Args:
 
 Returns:
     str: The validated location (stripped of leading/trailing whitespace).
+
+Raises:
+    ValueError: If the location is not a string or is empty after stripping whitespace.
 
 Notes:
     1. Ensure location is a string or None.
@@ -1630,6 +1965,9 @@ Args:
 Returns:
     str: The validated website (stripped of leading/trailing whitespace).
 
+Raises:
+    ValueError: If the website is not a string or is empty after stripping whitespace.
+
 Notes:
     1. Ensure website is a string or None.
     2. Ensure website is not empty after stripping whitespace.
@@ -1644,6 +1982,9 @@ Args:
 
 Returns:
     str: The validated github (stripped of leading/trailing whitespace).
+
+Raises:
+    ValueError: If the github is not a string or is empty after stripping whitespace.
 
 Notes:
     1. Ensure github is a string or None.
@@ -1660,6 +2001,9 @@ Args:
 Returns:
     str: The validated linkedin (stripped of leading/trailing whitespace).
 
+Raises:
+    ValueError: If the linkedin is not a string or is empty after stripping whitespace.
+
 Notes:
     1. Ensure linkedin is a string or None.
     2. Ensure linkedin is not empty after stripping whitespace.
@@ -1674,6 +2018,9 @@ Args:
 
 Returns:
     str: The validated twitter (stripped of leading/trailing whitespace).
+
+Raises:
+    ValueError: If the twitter is not a string or is empty after stripping whitespace.
 
 Notes:
     1. Ensure twitter is a string or None.
@@ -1699,6 +2046,9 @@ Args:
 Returns:
     str: The validated work_authorization (stripped of leading/trailing whitespace).
 
+Raises:
+    ValueError: If the work_authorization is not a string or is empty after stripping whitespace.
+
 Notes:
     1. Ensure work_authorization is a string or None.
     2. Ensure work_authorization is not empty after stripping whitespace.
@@ -1713,6 +2063,9 @@ Args:
 
 Returns:
     bool: The validated require_sponsorship value.
+
+Raises:
+    ValueError: If the require_sponsorship is not a boolean, string, or None, or if the string is not "yes" or "no".
 
 Notes:
     1. Ensure require_sponsorship is a boolean, string ("yes"/"no"), or None.
@@ -1738,6 +2091,9 @@ Args:
 
 Returns:
     str: The cleaned text content of the banner.
+
+Raises:
+    ValueError: If the text is not a string.
 
 Notes:
     1. Ensure text is a string.
@@ -1765,6 +2121,9 @@ Args:
 
 Returns:
     str: The cleaned text content of the note.
+
+Raises:
+    ValueError: If the text is not a string.
 
 Notes:
     1. Ensure text is a string.
@@ -2123,194 +2482,6 @@ Returns:
 ===
 # File: `__init__.py`
 
-
-===
-
-===
-# File: `settings_crud.py`
-
-## function: `get_user_settings(db: Session, user_id: int) -> UserSettings | None`
-
-Retrieves the settings for a given user.
-
-Args:
-    db (Session): The database session used to query the database.
-    user_id (int): The unique identifier of the user whose settings are being retrieved.
-
-Returns:
-    UserSettings | None: The user's settings if found, otherwise None.
-
-Notes:
-    1. Queries the database for a UserSettings record where user_id matches the provided user_id.
-    2. Returns the first matching record or None if no record is found.
-    3. This function performs a single database read operation.
-
----
-
-## function: `update_user_settings(db: Session, user_id: int, settings_data: 'UserSettingsUpdateRequest') -> UserSettings`
-
-Creates or updates settings for a user.
-
-Args:
-    db (Session): The database session used to perform database operations.
-    user_id (int): The unique identifier of the user whose settings are being updated.
-    settings_data (UserSettingsUpdateRequest): The data containing the updated settings.
-
-Returns:
-    UserSettings: The updated or newly created UserSettings object.
-
-Notes:
-    1. Attempts to retrieve existing settings for the given user_id using get_user_settings.
-    2. If no settings are found, creates a new UserSettings object with the provided user_id and adds it to the session.
-    3. Updates the llm_endpoint field if settings_data.llm_endpoint is provided and not None.
-    4. If settings_data.api_key is provided and not empty, encrypts the API key using encrypt_data and stores it in encrypted_api_key; otherwise, sets encrypted_api_key to None.
-    5. Commits the transaction to the database.
-    6. Refreshes the session to ensure the returned object has the latest data from the database.
-    7. This function performs a database read and possibly a write operation.
-
----
-
-
-===
-
-===
-# File: `resume_filtering.py`
-
-## function: `_get_date_from_optional_datetime(dt: datetime | None) -> date | None`
-
-Safely convert an optional datetime object to an optional date object.
-
-Args:
-    dt (datetime | None): The datetime object to convert, or None.
-
-Returns:
-    date | None: The date portion of the datetime, or None if input is None.
-
----
-
-## function: `_is_in_date_range(item_start_date: date | None, item_end_date: date | None, filter_start_date: date | None, filter_end_date: date | None) -> bool`
-
-Check if an item's date range overlaps with the filter's date range.
-
-Args:
-    item_start_date (date | None): The start date of the item being evaluated.
-    item_end_date (date | None): The end date of the item (or None if ongoing).
-    filter_start_date (date | None): The start date of the filtering period.
-    filter_end_date (date | None): The end date of the filtering period.
-
-Returns:
-    bool: True if the item overlaps with the filter's date range, False otherwise.
-
-Notes:
-    1. If the filter has a start date and the item ends before that date, the item is out of range.
-    2. If the filter has an end date and the item starts after that date, the item is out of range.
-    3. Otherwise, the item is considered to be in range.
-
----
-
-## function: `filter_experience_by_date(experience: ExperienceResponse, start_date: date | None, end_date: date | None) -> ExperienceResponse`
-
-Filter roles and projects in an ExperienceResponse based on a date range.
-
-Args:
-    experience (ExperienceResponse): The experience data to filter.
-    start_date (date | None): The start of the filtering period. If None, no start constraint is applied.
-    end_date (date | None): The end of the filtering period. If None, no end constraint is applied.
-
-Returns:
-    ExperienceResponse: A new ExperienceResponse object containing only roles and projects that overlap with the specified date range.
-
-Notes:
-    1. If both start_date and end_date are None, return the original experience object unmodified.
-    2. Iterate through the roles in the experience object and check if each role's date range overlaps with the filter range using _is_in_date_range.
-    3. For each role that overlaps, add it to the filtered_roles list.
-    4. Iterate through the projects in the experience object and check if each project's date range overlaps with the filter range.
-    5. Projects without an end date are treated as single-day events occurring on their start date.
-    6. For each project that overlaps, add it to the filtered_projects list.
-    7. Return a new ExperienceResponse object with the filtered roles and projects.
-
----
-
-
-===
-
-===
-# File: `resume_llm.py`
-
-## function: `_get_section_content(resume_content: str, section_name: str) -> str`
-
-Extracts the Markdown content for a specific section of the resume.
-
-Args:
-    resume_content (str): The full resume content in Markdown.
-    section_name (str): The name of the section to extract ("personal", "education", "experience", "certifications", or "full").
-
-Returns:
-    str: The Markdown content of the specified section. returns the full content if "full".
-
----
-
-## function: `refine_resume_section_with_llm(resume_content: str, job_description: str, target_section: str, llm_endpoint: str | None, api_key: str | None) -> str`
-
-Uses an LLM to refine a specific section of a resume based on a job description.
-
-Args:
-    resume_content (str): The full Markdown content of the resume.
-    job_description (str): The job description to align the resume with.
-    target_section (str): The section of the resume to refine (e.g., "experience").
-    llm_endpoint (str | None): The custom LLM endpoint URL.
-    api_key (str | None): The user's decrypted LLM API key.
-
-Returns:
-    str: The refined Markdown content for the target section.
-
-Notes:
-    1. Select the target content from the resume.
-    2. Set up a PydanticOutputParser for structured output.
-    3. Create a PromptTemplate with instructions for the LLM.
-    4. Initialize the ChatOpenAI client with user-specific settings.
-    5. Create and invoke a chain with the prompt, LLM, and parser.
-    6. Parse the LLM's JSON-Markdown output.
-    7. Return the refined content.
-
----
-
-
-===
-
-===
-# File: `user_settings.py`
-
-## `UserSettings` class
-
-Stores user-specific settings, such as LLM configurations.
-
-Attributes:
-    id (int): Primary key.
-    user_id (int): Foreign key to the user.
-    llm_endpoint (str | None): Custom LLM API endpoint URL.
-    encrypted_api_key (str | None): Encrypted API key for the LLM service.
-    user (User): Relationship to the User model.
-
----
-## method: `UserSettings.__init__(self: UnknownType, user_id: int, llm_endpoint: str | None, encrypted_api_key: str | None) -> UnknownType`
-
-Initialize a UserSettings instance.
-
-Args:
-    user_id (int): The ID of the user these settings belong to.
-    llm_endpoint (str | None): Custom LLM API endpoint URL.
-    encrypted_api_key (str | None): Encrypted API key for the LLM service.
-
-Returns:
-    None
-
-Notes:
-    1. Assign all values to instance attributes.
-    2. Log the initialization of the user settings.
-    3. This operation does not involve network, disk, or database access.
-
----
 
 ===
 

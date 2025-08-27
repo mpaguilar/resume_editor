@@ -65,6 +65,7 @@ IMPORTANT!
 * **Preserve** existing code, functions, class members and methods
 * Files **must** be processed one at a time.
 * **NEVER add more files**, update **ONLY** the one file.
+* **NEVER** create files, update them in-place
 
 Example:
 --------

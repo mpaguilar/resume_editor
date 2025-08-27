@@ -14,6 +14,10 @@ def _get_date_from_optional_datetime(dt: datetime | None) -> date | None:
 
     Returns:
         date | None: The date portion of the datetime, or None if input is None.
+
+    Notes:
+        1. If the input dt is None, return None.
+        2. Otherwise, extract and return the date portion of the datetime object using the date() method.
     """
     return dt.date() if dt else None
 

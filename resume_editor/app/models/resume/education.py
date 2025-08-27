@@ -37,6 +37,9 @@ class Degree(BaseModel):
         Returns:
             str: The validated school (stripped of leading/trailing whitespace).
 
+        Raises:
+            ValueError: If the school is empty or contains only whitespace.
+
         Notes:
             1. Ensure school is a string.
             2. Ensure school is not empty after stripping whitespace.
@@ -56,6 +59,9 @@ class Degree(BaseModel):
 
         Returns:
             str: The validated degree (stripped of leading/trailing whitespace).
+
+        Raises:
+            ValueError: If the degree is empty after stripping whitespace.
 
         Notes:
             1. Ensure degree is a string or None.
@@ -79,6 +85,9 @@ class Degree(BaseModel):
         Returns:
             str: The validated major (stripped of leading/trailing whitespace).
 
+        Raises:
+            ValueError: If the major is empty after stripping whitespace.
+
         Notes:
             1. Ensure major is a string or None.
             2. Ensure major is not empty after stripping whitespace.
@@ -100,6 +109,9 @@ class Degree(BaseModel):
 
         Returns:
             str: The validated gpa (stripped of leading/trailing whitespace).
+
+        Raises:
+            ValueError: If the gpa is empty after stripping whitespace.
 
         Notes:
             1. Ensure gpa is a string or None.
@@ -123,6 +135,9 @@ class Degree(BaseModel):
 
         Returns:
             datetime: The validated date.
+
+        Raises:
+            ValueError: If end_date is before start_date.
 
         Notes:
             1. If both start_date and end_date are provided, ensure start_date is not after end_date.

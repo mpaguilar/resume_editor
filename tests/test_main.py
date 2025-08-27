@@ -1,9 +1,10 @@
 import logging
+import runpy
 from unittest.mock import patch
 
 from fastapi.testclient import TestClient
 
-from resume_editor.app.main import create_app, initialize_database, main
+from resume_editor.app.main import app, create_app, initialize_database, main
 
 log = logging.getLogger(__name__)
 
@@ -42,13 +43,13 @@ def test_initialize_database_logging(caplog):
     )
 
 
-@patch("resume_editor.app.main.create_app")
+@patch("uvicorn.run")
 @patch("resume_editor.app.main.initialize_database")
-def test_main(mock_initialize_database, mock_create_app):
-    """Test that the main function calls create_app and initialize_database."""
+def test_main(mock_initialize_database, mock_uvicorn_run):
+    """Test that the main function calls initialize_database and uvicorn.run."""
     main()
-    mock_create_app.assert_called_once()
     mock_initialize_database.assert_called_once()
+    mock_uvicorn_run.assert_called_once_with(app, host="0.0.0.0", port=8000)
 
 
 def test_root_redirect():
@@ -128,3 +129,17 @@ def test_edit_certifications_form_route():
     response = client.get("/dashboard/resumes/1/edit/certifications")
     assert response.status_code == 200
     assert "text/html" in response.headers["content-type"]
+
+
+@patch("uvicorn.run")
+def test_main_entrypoint(mock_uvicorn_run):
+    """Test that the __main__ guard calls uvicorn.run."""
+    import sys
+
+    # To avoid unpredictable behavior with runpy and already-imported modules,
+    # we remove the module from sys.modules to ensure a clean execution.
+    if "resume_editor.app.main" in sys.modules:
+        del sys.modules["resume_editor.app.main"]
+
+    runpy.run_module("resume_editor.app.main", run_name="__main__")
+    mock_uvicorn_run.assert_called_once()

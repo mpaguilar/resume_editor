@@ -369,7 +369,20 @@ async def list_resumes(
 
 
 def _generate_resume_detail_html(resume: DatabaseResume) -> str:
-    """Generate the HTML for the resume detail view."""
+    """Generate the HTML for the resume detail view.
+
+    Args:
+        resume (DatabaseResume): The resume object to generate HTML for.
+
+    Returns:
+        str: HTML string for the resume detail view.
+
+    Notes:
+        1. Creates HTML for the resume detail section with a header, content area, and footer.
+        2. Includes buttons for refining with AI, exporting, and editing.
+        3. Creates modal dialogs for export and refine actions with appropriate event handlers.
+        4. Returns the complete HTML string.
+    """
     return f"""
     <div class="h-full flex flex-col">
         <div class="flex justify-between items-center mb-4">

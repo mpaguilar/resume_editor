@@ -71,8 +71,8 @@ def get_db() -> Generator[Session, None, None]:
     Args:
         None
 
-    Returns:
-        Generator[Session, None, None]: A generator that yields a database session for use in route handlers.
+    Yields:
+        Session: A database session for use in route handlers.
 
     Notes:
         1. Create a new database session using the sessionmaker factory.

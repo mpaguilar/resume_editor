@@ -59,6 +59,9 @@ class Resume(Base):
         Returns:
             None
 
+        Raises:
+            ValueError: If user_id is not an integer, name is empty, content is empty, or is_active is not a boolean.
+
         Notes:
             1. Validate that user_id is an integer.
             2. Validate that name is a non-empty string.

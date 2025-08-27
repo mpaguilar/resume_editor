@@ -37,6 +37,9 @@ class Certification(BaseModel):
         Returns:
             str: The validated name.
 
+        Raises:
+            ValueError: If the name is not a string or is empty.
+
         Notes:
             1. Ensure name is a string.
             2. Ensure name is not empty.
@@ -59,6 +62,9 @@ class Certification(BaseModel):
         Returns:
             str: The validated field value.
 
+        Raises:
+            ValueError: If the field is neither a string nor None.
+
         Notes:
             1. Ensure field is a string or None.
 
@@ -78,6 +84,9 @@ class Certification(BaseModel):
         Returns:
             datetime: The validated date.
 
+        Raises:
+            ValueError: If the date is neither a datetime object nor None.
+
         Notes:
             1. Ensure date is a datetime object or None.
 
@@ -92,6 +101,9 @@ class Certification(BaseModel):
 
         Returns:
             Certification: The validated model instance.
+
+        Raises:
+            ValueError: If expires date is before issued date.
 
         Notes:
             1. If both issued and expires dates are provided, ensure issued is not after expires.
@@ -122,6 +134,9 @@ class Certifications(BaseModel):
 
         Returns:
             list[Certification]: The validated certifications list.
+
+        Raises:
+            ValueError: If certifications is not a list or contains non-Certification items.
 
         Notes:
             1. Ensure certifications is a list.

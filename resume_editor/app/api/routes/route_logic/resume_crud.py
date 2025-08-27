@@ -24,7 +24,7 @@ def get_resume_by_id_and_user(
         DatabaseResume: The resume object matching the provided ID and user ID.
 
     Raises:
-        HTTPException: If no resume is found with the given ID and user ID, raises a 404 error.
+        HTTPException: If no resume is found with the given ID and user ID, raises a 404 error with detail "Resume not found".
 
     Notes:
         1. Query the DatabaseResume table for a record where the id matches resume_id and the user_id matches user_id.
@@ -80,10 +80,10 @@ def create_resume(db: Session, user_id: int, name: str, content: str) -> Databas
         DatabaseResume: The newly created resume object.
 
     Notes:
-        1. Create a new DatabaseResume instance.
+        1. Create a new DatabaseResume instance with the provided user_id, name, and content.
         2. Add the instance to the database session.
-        3. Commit the transaction.
-        4. Refresh the instance to get the new ID.
+        3. Commit the transaction to persist the changes.
+        4. Refresh the instance to ensure it has the latest state, including the generated ID.
         5. Return the created resume.
         6. This function performs a database write operation.
 
@@ -106,17 +106,17 @@ def update_resume(
     Args:
         db (Session): The database session.
         resume (DatabaseResume): The resume to update.
-        name (str, optional): The new name for the resume. Defaults to None.
-        content (str, optional): The new content for the resume. Defaults to None.
+        name (str, optional): The new name for the resume. If None, the name is not updated.
+        content (str, optional): The new content for the resume. If None, the content is not updated.
 
     Returns:
         DatabaseResume: The updated resume object.
 
     Notes:
-        1. If a new name is provided, update the resume's name.
-        2. If new content is provided, update the resume's content.
-        3. Commit the transaction to save changes.
-        4. Refresh the resume object to get the latest state.
+        1. If a new name is provided (not None), update the resume's name attribute.
+        2. If new content is provided (not None), update the resume's content attribute.
+        3. Commit the transaction to save the changes to the database.
+        4. Refresh the resume object to ensure it reflects the latest state from the database.
         5. Return the updated resume.
         6. This function performs a database write operation.
 
@@ -142,7 +142,7 @@ def delete_resume(db: Session, resume: DatabaseResume) -> None:
 
     Notes:
         1. Delete the resume object from the database session.
-        2. Commit the transaction.
+        2. Commit the transaction to persist the deletion.
         3. This function performs a database write operation.
 
     """
