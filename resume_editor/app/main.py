@@ -7,7 +7,6 @@ from fastapi.templating import Jinja2Templates
 
 from resume_editor.app.api.routes.resume import router as resume_router
 from resume_editor.app.api.routes.user import router as user_router
-from resume_editor.app.database.database import get_engine
 from resume_editor.app.models import Base
 
 log = logging.getLogger(__name__)
@@ -171,7 +170,7 @@ def create_app() -> FastAPI:
             </form>
         </div>
         """
-        return html_content
+        return HTMLResponse(content=html_content)
 
     @app.get("/dashboard/resumes/{resume_id}/edit/personal")
     async def edit_personal_info(request: Request, resume_id: int):
@@ -261,7 +260,7 @@ def create_app() -> FastAPI:
         """
         return HTMLResponse(content=html_content)
 
-    @app.get("/dashboard/resumes/{resume_id}/edit/education")
+    @app.get("/dashboard/resumes/{resume_id}/edit/education", response_class=HTMLResponse)
     async def edit_education(request: Request, resume_id: int):
         """Serve the form for editing education information.
 
@@ -347,7 +346,7 @@ def create_app() -> FastAPI:
         """
         return HTMLResponse(content=html_content)
 
-    @app.get("/dashboard/resumes/{resume_id}/edit/experience")
+    @app.get("/dashboard/resumes/{resume_id}/edit/experience", response_class=HTMLResponse)
     async def edit_experience(request: Request, resume_id: int):
         """Serve the form for editing experience information.
 
@@ -434,7 +433,7 @@ def create_app() -> FastAPI:
         """
         return HTMLResponse(content=html_content)
 
-    @app.get("/dashboard/resumes/{resume_id}/edit/projects")
+    @app.get("/dashboard/resumes/{resume_id}/edit/projects", response_class=HTMLResponse)
     async def edit_projects(request: Request, resume_id: int):
         """Serve the form for editing projects information.
 
@@ -520,7 +519,10 @@ def create_app() -> FastAPI:
         """
         return HTMLResponse(content=html_content)
 
-    @app.get("/dashboard/resumes/{resume_id}/edit/certifications")
+    @app.get(
+        "/dashboard/resumes/{resume_id}/edit/certifications",
+        response_class=HTMLResponse,
+    )
     async def edit_certifications(request: Request, resume_id: int):
         """Serve the form for editing certifications information.
 
@@ -612,7 +614,7 @@ def create_app() -> FastAPI:
 
 
 def initialize_database():
-    """Initialize the database tables.
+    """Initialize the database.
 
     Args:
         None
@@ -621,14 +623,12 @@ def initialize_database():
         None
 
     Notes:
-        1. Create database tables by calling Base.metadata.create_all with the database engine.
-        2. This function should be called after the app is created but before it starts serving requests.
-        3. Database access is performed via the engine returned by get_engine().
+        1. Database initialization is now handled by Alembic migrations.
+        2. This function is kept for structural consistency but performs no actions.
 
     """
-    _msg = "Creating database tables"
+    _msg = "Database initialization is now handled by Alembic. Skipping create_all."
     log.debug(_msg)
-    Base.metadata.create_all(bind=get_engine())
 
 
 def main():

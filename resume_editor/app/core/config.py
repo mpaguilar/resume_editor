@@ -1,6 +1,6 @@
 import logging
 
-from pydantic import Field, PostgresDsn
+from pydantic import Field, PostgresDsn, computed_field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 log = logging.getLogger(__name__)
@@ -35,10 +35,24 @@ class Settings(BaseSettings):
     )
 
     # Database settings
-    database_url: PostgresDsn = Field(
-        default="postgresql://postgres:@localhost:5432/resume_editor",
-        validation_alias="DATABASE_URL",
-    )
+    db_host: str = Field(default="localhost", validation_alias="DB_HOST")
+    db_port: int = Field(default=5432, validation_alias="DB_PORT")
+    db_name: str = Field(default="resume_editor", validation_alias="DB_NAME")
+    db_user: str = Field(default="postgres", validation_alias="DB_USER")
+    db_password: str = Field(default="", validation_alias="DB_PASSWORD")
+
+    @computed_field
+    @property
+    def database_url(self) -> PostgresDsn:
+        """Assembled database URL from components."""
+        return PostgresDsn.build(
+            scheme="postgresql",
+            username=self.db_user,
+            password=self.db_password,
+            host=self.db_host,
+            port=self.db_port,
+            path=self.db_name,
+        )
 
     # Security settings
     secret_key: str = Field(
@@ -58,6 +72,10 @@ class Settings(BaseSettings):
     encryption_key: str = Field(validation_alias="ENCRYPTION_KEY")
 
 
+from functools import lru_cache
+
+
+@lru_cache()
 def get_settings() -> Settings:
     """Get the global settings instance.
 

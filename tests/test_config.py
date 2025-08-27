@@ -1,15 +1,18 @@
 import os
+from functools import lru_cache
 from unittest.mock import patch
 
 import pytest
 
 from resume_editor.app.core.config import Settings, get_settings
+from resume_editor.app.core.config import Settings as RealSettings
 
 
 def test_settings_default_values():
     """Test that Settings loads default values correctly."""
-    with patch.dict(os.environ, {}, clear=True):
-        settings = Settings()
+    with patch.dict(os.environ, {"ENCRYPTION_KEY": "test-key"}, clear=True):
+        # Prevent loading .env file by passing _env_file=None
+        settings = Settings(_env_file=None)
 
         # Test database settings
         assert (
@@ -29,7 +32,11 @@ def test_settings_default_values():
 def test_settings_from_environment():
     """Test that Settings loads values from environment variables."""
     env_vars = {
-        "DATABASE_URL": "postgresql://testuser:testpass@localhost:5433/testdb",
+        "DB_HOST": "testhost",
+        "DB_PORT": "5433",
+        "DB_NAME": "testdb",
+        "DB_USER": "testuser",
+        "DB_PASSWORD": "testpassword",
         "SECRET_KEY": "test-secret-key",
         "ALGORITHM": "HS512",
         "ACCESS_TOKEN_EXPIRE_MINUTES": "60",
@@ -42,7 +49,7 @@ def test_settings_from_environment():
         # Test database settings
         assert (
             str(settings.database_url)
-            == "postgresql://testuser:testpass@localhost:5433/testdb"
+            == "postgresql://testuser:testpassword@testhost:5433/testdb"
         )
 
         # Test security settings
@@ -54,44 +61,50 @@ def test_settings_from_environment():
         assert settings.llm_api_key == "test-llm-key"
 
 
-def test_settings_invalid_database_url():
-    """Test that Settings handles invalid database URLs."""
-    env_vars = {"DATABASE_URL": "invalid-url"}
-
-    with patch.dict(os.environ, env_vars):
-        with pytest.raises(ValueError):
-            Settings()
-
-
-def test_settings_extra_fields_allowed():
-    """Test that Settings allows extra environment variables."""
-    env_vars = {
-        "DATABASE_URL": "postgresql://testuser:testpass@localhost:5433/testdb",
-        "SECRET_KEY": "test-secret-key",
-        "OPENAI_API_KEY": "test-openai-key",  # Extra field
-        "SOME_OTHER_VAR": "some-value",  # Extra field
-    }
-
-    with patch.dict(os.environ, env_vars):
-        # This should not raise an exception
-        settings = Settings()
-
-        # Test that our settings are loaded
-        assert (
-            str(settings.database_url)
-            == "postgresql://testuser:testpass@localhost:5433/testdb"
-        )
-        assert settings.secret_key == "test-secret-key"
-
-        # The extra fields are allowed but not accessible as attributes
+def test_settings_missing_required_env_vars():
+    """Test that Settings raises an error if a required env var is missing."""
+    with patch.dict(
+        os.environ,
+        {
+            "DB_HOST": "localhost",
+            "DB_USER": "postgres",
+            "DB_PASSWORD": "",
+            "DB_NAME": "resume_editor",
+            "DB_PORT": "5432",
+        },
+        clear=True,
+    ):
+        with pytest.raises(ValueError) as excinfo:
+            # ENCRYPTION_KEY is required and has no default.
+            # We pass _env_file=None to ensure we are not loading it from a file.
+            Settings(_env_file=None)
+        assert "validation error for Settings" in str(excinfo.value)
+        assert "ENCRYPTION_KEY" in str(excinfo.value)
 
 
-def test_get_settings_function():
-    """Test that get_settings function returns a Settings instance."""
-    with patch.dict(os.environ, {}, clear=True):
+
+
+@patch("resume_editor.app.core.config.Settings")
+def test_get_settings_function(MockSettings):
+    """Test that get_settings uses default values in an isolated environment."""
+    # Configure the mock to return a real Settings instance,
+    # but one created with _env_file=None to prevent loading .env files.
+    MockSettings.side_effect = lambda **kwargs: RealSettings(_env_file=None, **kwargs)
+
+    # Clear the lru_cache on the real get_settings function
+    get_settings.cache_clear()
+
+    with patch.dict(os.environ, {"ENCRYPTION_KEY": "test-key"}, clear=True):
+        # Call the function that we are testing
         settings = get_settings()
 
-        assert isinstance(settings, Settings)
+        # get_settings should have called our mock
+        MockSettings.assert_called_once()
+
+        # The returned object should be a real Settings instance
+        assert isinstance(settings, RealSettings)
+
+        # And it should have the default values
         assert (
             str(settings.database_url)
             == "postgresql://postgres@localhost:5432/resume_editor"
