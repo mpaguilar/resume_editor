@@ -980,6 +980,63 @@ def test_export_resume_docx(
     assert settings_arg.skills_matrix is True
 
 
+@patch("resume_editor.app.api.routes.resume.filter_experience_by_date")
+@patch("resume_editor.app.api.routes.resume.build_complete_resume_from_sections")
+@patch("resume_editor.app.api.routes.resume.extract_certifications_info")
+@patch("resume_editor.app.api.routes.resume.extract_experience_info")
+@patch("resume_editor.app.api.routes.resume.extract_education_info")
+@patch("resume_editor.app.api.routes.resume.extract_personal_info")
+@patch("resume_editor.app.api.routes.resume.plain_render")
+@patch("resume_editor.app.api.routes.resume.Document")
+def test_export_resume_docx_with_date_filter(
+    mock_doc,
+    mock_plain_render,
+    mock_extract_personal,
+    mock_extract_education,
+    mock_extract_experience,
+    mock_extract_certifications,
+    mock_build_sections,
+    mock_filter_experience,
+    client_with_auth_and_resume,
+    test_resume,
+):
+    """Test DOCX export with date filtering applies the filter."""
+    filtered_experience = ExperienceResponse(roles=[], projects=[])
+    mock_filter_experience.return_value = filtered_experience
+    mock_build_sections.return_value = VALID_MINIMAL_RESUME_CONTENT
+
+    response = client_with_auth_and_resume.get(
+        "/api/resumes/1/export/docx?format=plain&start_date=2020-01-01"
+    )
+
+    assert response.status_code == 200
+    mock_extract_personal.assert_called_once_with(test_resume.content)
+    mock_extract_education.assert_called_once_with(test_resume.content)
+    mock_extract_experience.assert_called_once_with(test_resume.content)
+    mock_extract_certifications.assert_called_once_with(test_resume.content)
+    mock_filter_experience.assert_called_once()
+    mock_build_sections.assert_called_once()
+    mock_plain_render.assert_called_once()
+    # Check that the response has the correct filename.
+    assert (
+        response.headers["content-disposition"]
+        == f'attachment; filename="{test_resume.name}_plain.docx"'
+    )
+
+
+def test_export_resume_docx_parsing_error(client_with_auth_and_resume, test_resume):
+    """Test that a parsing error during docx export returns a 422."""
+    with patch(
+        "resume_editor.app.api.routes.resume.extract_personal_info",
+        side_effect=ValueError("Parsing failure"),
+    ):
+        response = client_with_auth_and_resume.get(
+            f"/api/resumes/{test_resume.id}/export/docx?format=plain&start_date=2020-01-01"
+        )
+        assert response.status_code == 422
+        assert "Parsing failure" in response.json()["detail"]
+
+
 def test_export_resume_docx_invalid_format(client_with_auth_and_resume):
     """Test DOCX export with an invalid format."""
     response = client_with_auth_and_resume.get(
@@ -1036,7 +1093,7 @@ def test_export_resume_docx_unparseable_content(
     )
 
     assert response.status_code == 422
-    assert "Invalid resume format" in response.json()["detail"]
+    assert "No valid resume sections found" in response.json()["detail"]
     mock_plain_render.assert_not_called()
 
 
@@ -1052,6 +1109,54 @@ def test_export_resume_markdown_success(client_with_auth_and_resume, test_resume
         == f'attachment; filename="{test_resume.name}.md"'
     )
     assert response.text == test_resume.content
+
+
+@patch("resume_editor.app.api.routes.resume.filter_experience_by_date")
+@patch("resume_editor.app.api.routes.resume.build_complete_resume_from_sections")
+@patch("resume_editor.app.api.routes.resume.extract_certifications_info")
+@patch("resume_editor.app.api.routes.resume.extract_experience_info")
+@patch("resume_editor.app.api.routes.resume.extract_education_info")
+@patch("resume_editor.app.api.routes.resume.extract_personal_info")
+def test_export_resume_markdown_with_date_filter(
+    mock_extract_personal,
+    mock_extract_education,
+    mock_extract_experience,
+    mock_extract_certifications,
+    mock_build_sections,
+    mock_filter_experience,
+    client_with_auth_and_resume,
+    test_resume,
+):
+    """Test exporting a resume as Markdown with date filtering."""
+    filtered_experience = ExperienceResponse(roles=[], projects=[])
+    mock_filter_experience.return_value = filtered_experience
+    mock_build_sections.return_value = "filtered content"
+
+    response = client_with_auth_and_resume.get(
+        f"/api/resumes/{test_resume.id}/export/markdown?start_date=2020-01-01"
+    )
+
+    assert response.status_code == 200
+    assert response.text == "filtered content"
+    mock_extract_personal.assert_called_once_with(test_resume.content)
+    mock_extract_education.assert_called_once_with(test_resume.content)
+    mock_extract_experience.assert_called_once_with(test_resume.content)
+    mock_extract_certifications.assert_called_once_with(test_resume.content)
+    mock_filter_experience.assert_called_once()
+    mock_build_sections.assert_called_once()
+
+
+def test_export_resume_markdown_parsing_error(client_with_auth_and_resume, test_resume):
+    """Test that a parsing error during markdown export returns a 422."""
+    with patch(
+        "resume_editor.app.api.routes.resume.extract_personal_info",
+        side_effect=ValueError("Parsing failure"),
+    ):
+        response = client_with_auth_and_resume.get(
+            f"/api/resumes/{test_resume.id}/export/markdown?start_date=2020-01-01"
+        )
+        assert response.status_code == 422
+        assert "Parsing failure" in response.json()["detail"]
 
 
 def test_export_resume_markdown_not_found(client_with_auth_no_resume):

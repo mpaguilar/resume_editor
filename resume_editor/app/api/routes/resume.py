@@ -1,6 +1,7 @@
 import html
 import io
 import logging
+from datetime import date
 
 from cryptography.fernet import InvalidToken
 from docx import Document
@@ -41,6 +42,9 @@ from resume_editor.app.api.routes.route_logic.resume_serialization import (
     extract_education_info,
     extract_experience_info,
     extract_personal_info,
+)
+from resume_editor.app.api.routes.route_logic.resume_filtering import (
+    filter_experience_by_date,
 )
 from resume_editor.app.api.routes.route_logic.resume_validation import (
     perform_pre_save_validation,
@@ -132,7 +136,8 @@ async def get_resume_for_user(
 
 
 def _generate_resume_list_html(
-    resumes: list[DatabaseResume], selected_resume_id: int | None,
+    resumes: list[DatabaseResume],
+    selected_resume_id: int | None,
 ) -> str:
     """Generates HTML for a list of resumes, marking one as selected."""
     if not resumes:
@@ -417,6 +422,12 @@ async def get_resume(
                         class="bg-purple-500 hover:bg-purple-600 text-white px-3 py-1 rounded text-sm">
                         Refine with AI
                     </button>
+                     <button
+                        type="button"
+                        onclick="document.getElementById('export-modal-{resume.id}').classList.remove('hidden')"
+                        class="bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded text-sm">
+                        Export
+                    </button>
                     <button 
                         hx-get="/dashboard/create-resume-form" 
                         hx-target="#resume-content" 
@@ -437,6 +448,82 @@ async def get_resume(
             </div>
             <div id="refine-result-container" class="mt-4"></div>
         </div>
+
+        <!-- Export Modal -->
+        <div id="export-modal-{resume.id}" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full hidden z-50">
+            <div class="relative top-20 mx-auto p-5 border w-1/2 shadow-lg rounded-md bg-white">
+                <div class="mt-3">
+                    <h3 class="text-lg leading-6 font-medium text-gray-900 text-center">Export Resume</h3>
+                    <div class="mt-2 px-7 py-3">
+                        <div id="export-form-{resume.id}">
+                            <p class="text-sm text-gray-600 mb-4">You can optionally filter the 'Experience' section by a date range.</p>
+                            
+                            <div class="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label for="start_date_{resume.id}" class="block text-sm font-medium text-gray-700">Start Date</label>
+                                    <input type="date" name="start_date" id="start_date_{resume.id}" class="mt-1 p-2 border border-gray-300 rounded w-full">
+                                </div>
+                                <div>
+                                    <label for="end_date_{resume.id}" class="block text-sm font-medium text-gray-700">End Date</label>
+                                    <input type="date" name="end_date" id="end_date_{resume.id}" class="mt-1 p-2 border border-gray-300 rounded w-full">
+                                </div>
+                            </div>
+
+                            <div class="mt-6 border-t pt-4">
+                                <h4 class="font-medium text-gray-800 mb-2">Markdown</h4>
+                                <button type="button" onclick="exportResume({resume.id}, 'markdown')" class="w-full px-4 py-2 bg-gray-600 text-white text-base font-medium rounded-md shadow-sm hover:bg-gray-700">
+                                    Export as Markdown
+                                </button>
+                            </div>
+
+                            <div class="mt-4 border-t pt-4">
+                                <h4 class="font-medium text-gray-800 mb-2">DOCX</h4>
+                                <div class="grid grid-cols-3 gap-2">
+                                     <button type="button" onclick="exportResume({resume.id}, 'docx', 'plain')" class="px-4 py-2 bg-indigo-500 text-white text-base font-medium rounded-md shadow-sm hover:bg-indigo-600">Plain</button>
+                                     <button type="button" onclick="exportResume({resume.id}, 'docx', 'ats')" class="px-4 py-2 bg-indigo-500 text-white text-base font-medium rounded-md shadow-sm hover:bg-indigo-600">ATS</button>
+                                     <button type="button" onclick="exportResume({resume.id}, 'docx', 'executive')" class="px-4 py-2 bg-indigo-500 text-white text-base font-medium rounded-md shadow-sm hover:bg-indigo-600">Executive</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="px-7 pb-3">
+                        <button
+                            type="button"
+                            onclick="document.getElementById('export-modal-{resume.id}').classList.add('hidden')"
+                            class="w-full px-4 py-2 bg-gray-200 text-gray-800 text-base font-medium rounded-md shadow-sm hover:bg-gray-300">
+                            Cancel
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <script>
+        function exportResume(resumeId, type, format) {{
+            const startDate = document.getElementById(`start_date_${{resumeId}}`).value;
+            const endDate = document.getElementById(`end_date_${{resumeId}}`).value;
+            
+            let url = `/api/resumes/${{resumeId}}/export/${{type}}`;
+            const params = new URLSearchParams();
+            
+            if (type === 'docx') {{
+                params.append('format', format);
+            }}
+            if (startDate) {{
+                params.append('start_date', startDate);
+            }}
+            if (endDate) {{
+                params.append('end_date', endDate);
+            }}
+            
+            if (params.toString()) {{
+                url += '?' + params.toString();
+            }}
+            
+            window.location.href = url;
+            document.getElementById(`export-modal-${{resumeId}}`).classList.add('hidden');
+        }}
+        </script>
 
         <!-- Refine Modal -->
         <div id="refine-modal-{resume.id}" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full hidden z-50">
@@ -496,11 +583,15 @@ async def get_resume(
 @router.get("/{resume_id}/export/markdown")
 async def export_resume_markdown(
     resume: DatabaseResume = Depends(get_resume_for_user),
+    start_date: date | None = None,
+    end_date: date | None = None,
 ):
     """Export a resume as a Markdown file.
 
     Args:
         resume (DatabaseResume): The resume object, injected by dependency.
+        start_date (date | None): Optional start date to filter experience.
+        end_date (date | None): Optional end date to filter experience.
 
     Returns:
         Response: A response object containing the resume's Markdown content as a downloadable file.
@@ -510,28 +601,65 @@ async def export_resume_markdown(
 
     Notes:
         1. Fetches the resume using the get_resume_for_user dependency.
-        2. Creates a Response object with the resume's content.
-        3. Sets the 'Content-Type' header to 'text/markdown'.
-        4. Sets the 'Content-Disposition' header to trigger a file download with the resume's name.
-        5. Returns the response.
+        2. If a date range is provided, filters the experience section before exporting.
+        3. Creates a Response object with the resume's content.
+        4. Sets the 'Content-Type' header to 'text/markdown'.
+        5. Sets the 'Content-Disposition' header to trigger a file download with the resume's name.
+        6. Returns the response.
 
     """
+    try:
+        content_to_export = resume.content
+
+        if start_date or end_date:
+            # If filtering is needed, parse, filter, and reconstruct.
+            personal_info = extract_personal_info(resume.content)
+            education_info = extract_education_info(resume.content)
+            experience_info = extract_experience_info(resume.content)
+            certifications_info = extract_certifications_info(resume.content)
+
+            filtered_experience = filter_experience_by_date(
+                experience_info,
+                start_date,
+                end_date,
+            )
+
+            content_to_export = build_complete_resume_from_sections(
+                personal_info=personal_info,
+                education=education_info,
+                experience=filtered_experience,
+                certifications=certifications_info,
+            )
+    except (ValueError, TypeError) as e:
+        detail = getattr(e, "detail", str(e))
+        _msg = f"Failed to filter resume due to content parsing error: {detail}"
+        log.exception(_msg)
+        raise HTTPException(status_code=422, detail=_msg)
+
     headers = {
         "Content-Disposition": f'attachment; filename="{resume.name}.md"',
     }
-    return Response(content=resume.content, media_type="text/markdown", headers=headers)
+    return Response(
+        content=content_to_export,
+        media_type="text/markdown",
+        headers=headers,
+    )
 
 
 @router.get("/{resume_id}/export/docx")
 async def export_resume_docx(
     format: DocxFormat,
     resume: DatabaseResume = Depends(get_resume_for_user),
+    start_date: date | None = None,
+    end_date: date | None = None,
 ):
     """Export a resume as a DOCX file in the specified format.
 
     Args:
         format (DocxFormat): The export format ('ats', 'plain', 'executive').
         resume (DatabaseResume): The resume object, injected by dependency.
+        start_date (date | None): Optional start date to filter experience.
+        end_date (date | None): Optional end date to filter experience.
 
     Returns:
         StreamingResponse: A streaming response with the generated DOCX file.
@@ -541,24 +669,49 @@ async def export_resume_docx(
 
     Notes:
         1. Fetches resume content from the database.
-        2. Parses the Markdown content into a `resume_writer` Resume object using `parse_resume_to_writer_object`.
-        3. Initializes a new `docx.Document`.
-        4. Initializes `ResumeRenderSettings`.
-        5. Based on the requested format, calls the appropriate renderer from `resume_writer`.
+        2. If a date range is provided, filters the experience section before parsing.
+        3. Parses the Markdown content into a `resume_writer` Resume object using `parse_resume_to_writer_object`.
+        4. Initializes a new `docx.Document`.
+        5. Initializes `ResumeRenderSettings`.
+        6. Based on the requested format, calls the appropriate renderer from `resume_writer`.
             - For 'executive', enables `executive_summary` and `skills_matrix` in settings.
-        6. Saves the generated document to a memory stream.
-        7. Returns the stream as a downloadable file attachment.
+        7. Saves the generated document to a memory stream.
+        8. Returns the stream as a downloadable file attachment.
 
     """
     _msg = f"export_resume_docx starting for format {format.value}"
     log.debug(_msg)
 
     try:
-        parsed_resume = parse_resume_to_writer_object(resume.content)
-    except Exception as e:
-        _msg = f"Failed to parse resume content for docx export: {e!s}"
+        content_to_parse = resume.content
+        if start_date or end_date:
+            personal_info = extract_personal_info(resume.content)
+            education_info = extract_education_info(resume.content)
+            experience_info = extract_experience_info(resume.content)
+            certifications_info = extract_certifications_info(resume.content)
+
+            filtered_experience = filter_experience_by_date(
+                experience_info,
+                start_date,
+                end_date,
+            )
+
+            content_to_parse = build_complete_resume_from_sections(
+                personal_info=personal_info,
+                education=education_info,
+                experience=filtered_experience,
+                certifications=certifications_info,
+            )
+
+        parsed_resume = parse_resume_to_writer_object(content_to_parse)
+    except (ValueError, TypeError) as e:
+        detail = getattr(e, "detail", str(e))
+        _msg = (
+            "Failed to generate docx due to content parsing/filtering error: "
+            f"{detail}"
+        )
         log.exception(_msg)
-        raise HTTPException(status_code=422, detail=f"Invalid resume format: {e!s}")
+        raise HTTPException(status_code=422, detail=_msg)
 
     # 2. Render to docx based on format
     document = Document()

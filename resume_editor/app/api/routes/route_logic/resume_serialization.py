@@ -196,7 +196,7 @@ def extract_experience_info(resume_content: str) -> ExperienceResponse:
                     break  # Found first line of content or next section
             if content_found:
                 raise ValueError(
-                    "Experience section contains content that could not be parsed."
+                    "Experience section contains content that could not be parsed.",
                 )
 
         roles_list = []
