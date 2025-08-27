@@ -7,7 +7,14 @@ log = logging.getLogger(__name__)
 
 
 def _get_date_from_optional_datetime(dt: datetime | None) -> date | None:
-    """Safely convert an optional datetime object to an optional date object."""
+    """Safely convert an optional datetime object to an optional date object.
+
+    Args:
+        dt (datetime | None): The datetime object to convert, or None.
+
+    Returns:
+        date | None: The date portion of the datetime, or None if input is None.
+    """
     return dt.date() if dt else None
 
 
@@ -20,13 +27,18 @@ def _is_in_date_range(
     """Check if an item's date range overlaps with the filter's date range.
 
     Args:
-        item_start_date (date | None): Start date of the item.
-        item_end_date (date | None): End date of the item (or None if ongoing).
-        filter_start_date (date | None): Start date of the filter period.
-        filter_end_date (date | None): End date of the filter period.
+        item_start_date (date | None): The start date of the item being evaluated.
+        item_end_date (date | None): The end date of the item (or None if ongoing).
+        filter_start_date (date | None): The start date of the filtering period.
+        filter_end_date (date | None): The end date of the filtering period.
 
     Returns:
-        bool: True if the item overlaps with the date range, False otherwise.
+        bool: True if the item overlaps with the filter's date range, False otherwise.
+
+    Notes:
+        1. If the filter has a start date and the item ends before that date, the item is out of range.
+        2. If the filter has an end date and the item starts after that date, the item is out of range.
+        3. Otherwise, the item is considered to be in range.
     """
     # An item is considered OUT of range if it ends before the filter starts...
     if filter_start_date and item_end_date and item_end_date < filter_start_date:
@@ -47,19 +59,20 @@ def filter_experience_by_date(
 
     Args:
         experience (ExperienceResponse): The experience data to filter.
-        start_date (date | None): The start of the filtering period.
-        end_date (date | None): The end of the filtering period.
+        start_date (date | None): The start of the filtering period. If None, no start constraint is applied.
+        end_date (date | None): The end of the filtering period. If None, no end constraint is applied.
 
     Returns:
-        ExperienceResponse: A new ExperienceResponse with filtered roles and projects.
+        ExperienceResponse: A new ExperienceResponse object containing only roles and projects that overlap with the specified date range.
 
     Notes:
-        1. If no start_date or end_date is provided, returns the original experience object.
-        2. Filters the list of roles, keeping those that overlap with the date range.
-        3. Filters the list of projects, keeping those that overlap with the date range.
-        4. An item is considered within the range if its own date range has any overlap with the filter's date range.
-        5. Ongoing items (no end date) are included if their start date is before the filter's end date (or if there is no filter end date).
-        6. Projects without an end date are treated as single-day events occurring on their start date.
+        1. If both start_date and end_date are None, return the original experience object unmodified.
+        2. Iterate through the roles in the experience object and check if each role's date range overlaps with the filter range using _is_in_date_range.
+        3. For each role that overlaps, add it to the filtered_roles list.
+        4. Iterate through the projects in the experience object and check if each project's date range overlaps with the filter range.
+        5. Projects without an end date are treated as single-day events occurring on their start date.
+        6. For each project that overlaps, add it to the filtered_projects list.
+        7. Return a new ExperienceResponse object with the filtered roles and projects.
     """
     if not start_date and not end_date:
         return experience

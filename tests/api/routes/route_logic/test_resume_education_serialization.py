@@ -1,3 +1,4 @@
+import datetime
 import textwrap
 from unittest.mock import Mock, patch
 
@@ -87,13 +88,13 @@ class TestExtractEducationInfo:
     )
     def test_extract_education_info_partial_data(self, mock_parse):
         """Test education info extraction with partial data in a degree."""
+        test_date = datetime.datetime(2022, 1, 1, 0, 0)
         mock_degree = Mock()
         mock_degree.school = "Partial Uni"
         mock_degree.degree = None
         mock_degree.major = "Partial Major"
         mock_degree.start_date = None
-        mock_degree.end_date = Mock()
-        mock_degree.end_date.isoformat.return_value = "2022-01-01T00:00:00"
+        mock_degree.end_date = test_date
         mock_degree.gpa = None
 
         mock_education = Mock()
@@ -109,7 +110,7 @@ class TestExtractEducationInfo:
         assert degree.degree is None
         assert degree.major == "Partial Major"
         assert degree.start_date is None
-        assert degree.end_date.isoformat() == "2022-01-01T00:00:00"
+        assert degree.end_date == test_date
         assert degree.gpa is None
 
     @patch(

@@ -23,6 +23,9 @@ def extract_personal_info(resume_content: str) -> PersonalInfoResponse:
     Returns:
         PersonalInfoResponse: Extracted personal information containing name, email, phone, location, and website.
 
+    Raises:
+        ValueError: If parsing fails due to invalid or malformed resume content.
+
     Notes:
         1. Splits the resume content into lines.
         2. Creates a ParseContext for parsing.
@@ -98,6 +101,9 @@ def extract_education_info(resume_content: str) -> EducationResponse:
     Returns:
         EducationResponse: Extracted education information containing a list of degree entries.
 
+    Raises:
+        ValueError: If parsing fails due to invalid or malformed resume content.
+
     Notes:
         1. Splits the resume content into lines.
         2. Creates a ParseContext for parsing.
@@ -127,12 +133,8 @@ def extract_education_info(resume_content: str) -> EducationResponse:
                     "school": degree.school if degree.school else None,
                     "degree": degree.degree if degree.degree else None,
                     "major": degree.major if degree.major else None,
-                    "start_date": degree.start_date.isoformat()
-                    if degree.start_date
-                    else None,
-                    "end_date": degree.end_date.isoformat()
-                    if degree.end_date
-                    else None,
+                    "start_date": degree.start_date,
+                    "end_date": degree.end_date,
                     "gpa": degree.gpa if degree.gpa else None,
                 },
             )
@@ -153,6 +155,9 @@ def extract_experience_info(resume_content: str) -> ExperienceResponse:
 
     Returns:
         ExperienceResponse: Extracted experience information containing a list of roles and projects.
+
+    Raises:
+        ValueError: If parsing fails due to invalid or malformed resume content.
 
     Notes:
         1. Splits the resume content into lines.
@@ -212,8 +217,8 @@ def extract_experience_info(resume_content: str) -> ExperienceResponse:
                     role_dict["basics"] = {
                         "company": getattr(role_basics, "company", None),
                         "title": getattr(role_basics, "title", None),
-                        "start_date": start_date.isoformat() if start_date else None,
-                        "end_date": end_date.isoformat() if end_date else None,
+                        "start_date": start_date,
+                        "end_date": end_date,
                         "location": getattr(role_basics, "location", None),
                         "agency_name": getattr(role_basics, "agency_name", None),
                         "job_category": getattr(role_basics, "job_category", None),
@@ -265,8 +270,8 @@ def extract_experience_info(resume_content: str) -> ExperienceResponse:
                             "url_description",
                             None,
                         ),
-                        "start_date": start_date.isoformat() if start_date else None,
-                        "end_date": end_date.isoformat() if end_date else None,
+                        "start_date": start_date,
+                        "end_date": end_date,
                     }
 
                 # Description
@@ -299,6 +304,9 @@ def extract_certifications_info(resume_content: str) -> CertificationsResponse:
     Returns:
         CertificationsResponse: Extracted certifications information containing a list of certifications.
 
+    Raises:
+        ValueError: If parsing fails due to invalid or malformed resume content.
+
     Notes:
         1. Splits the resume content into lines.
         2. Creates a ParseContext for parsing.
@@ -329,9 +337,9 @@ def extract_certifications_info(resume_content: str) -> CertificationsResponse:
                 {
                     "name": getattr(cert, "name", None),
                     "issuer": getattr(cert, "issuer", None),
-                    "id": getattr(cert, "certification_id", None),
-                    "issued_date": issued.isoformat() if issued else None,
-                    "expiry_date": expires.isoformat() if expires else None,
+                    "certification_id": getattr(cert, "certification_id", None),
+                    "issued": issued,
+                    "expires": expires,
                 },
             )
 
@@ -499,7 +507,25 @@ def serialize_education_to_markdown(education) -> str:
 
 
 def _serialize_project_to_markdown(project) -> list[str]:
-    """Serialize a single project to markdown lines."""
+    """Serialize a single project to markdown lines.
+
+    Args:
+        project: A project object to serialize.
+
+    Returns:
+        list[str]: A list of markdown lines representing the project.
+
+    Notes:
+        1. Gets the overview from the project.
+        2. Checks if the inclusion status is OMIT; if so, returns an empty list.
+        3. Builds the overview content with title, URL, URL description, start date, and end date.
+        4. Adds the overview section to the project content.
+        5. If the inclusion status is not NOT_RELEVANT:
+            a. Adds the description if present.
+            b. Adds the skills if present.
+        6. Returns the full project content as a list of lines.
+
+    """
     overview = getattr(project, "overview", None)
     if not overview:
         return []
@@ -543,7 +569,26 @@ def _serialize_project_to_markdown(project) -> list[str]:
 
 
 def _serialize_role_to_markdown(role) -> list[str]:
-    """Serialize a single role to markdown lines."""
+    """Serialize a single role to markdown lines.
+
+    Args:
+        role: A role object to serialize.
+
+    Returns:
+        list[str]: A list of markdown lines representing the role.
+
+    Notes:
+        1. Gets the basics from the role.
+        2. Checks if the inclusion status is OMIT; if so, returns an empty list.
+        3. Builds the basics content with company, title, employment type, job category, agency name, start date, end date, reason for change, and location.
+        4. Adds the basics section to the role content.
+        5. If the inclusion status is not NOT_RELEVANT:
+            a. Adds the summary if present.
+            b. Adds the responsibilities if present.
+            c. Adds the skills if present.
+        6. Returns the full role content as a list of lines.
+
+    """
     basics = getattr(role, "basics", None)
     if not basics:
         return []
@@ -703,8 +748,8 @@ def update_resume_content_with_structured_data(
     current_content: str,
     personal_info=None,
     education=None,
-    experience=None,
     certifications=None,
+    experience=None,
 ) -> str:
     """Update resume content with structured data by replacing specific sections.
 
@@ -712,8 +757,8 @@ def update_resume_content_with_structured_data(
         current_content (str): Current resume Markdown content to update.
         personal_info: Updated personal information to insert. If None, the existing info is preserved.
         education: Updated education information to insert. If None, the existing info is preserved.
-        experience: Updated experience information to insert. If None, the existing info is preserved.
         certifications: Updated certifications information to insert. If None, the existing info is preserved.
+        experience: Updated experience information to insert. If None, the existing info is preserved.
 
     Returns:
         str: Updated resume content with new structured data.
@@ -742,6 +787,6 @@ def update_resume_content_with_structured_data(
     return reconstruct_resume_markdown(
         personal_info=personal_info,
         education=education,
-        experience=experience,
         certifications=certifications,
+        experience=experience,
     )

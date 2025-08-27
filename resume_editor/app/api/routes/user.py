@@ -9,9 +9,8 @@ from sqlalchemy.orm import Session
 from resume_editor.app.api.routes.route_logic import settings_crud
 from resume_editor.app.core.auth import get_current_user
 from resume_editor.app.core.security import (
-    ACCESS_TOKEN_EXPIRE_MINUTES,
+    SecurityManager,
     authenticate_user,
-    create_access_token,
     get_password_hash,
 )
 from resume_editor.app.database.database import get_db
@@ -133,6 +132,9 @@ def register_user(user: UserCreate, db: Session = Depends(get_db)) -> UserRespon
 
     Returns:
         UserResponse: The created user's data, excluding the password.
+
+    Raises:
+        HTTPException: If the username or email is already registered.
 
     Notes:
         1. Check if the provided username already exists in the database.
@@ -257,6 +259,9 @@ def login_user(
     Returns:
         Token: An access token for the authenticated user, formatted as a JWT.
 
+    Raises:
+        HTTPException: If the username or password is incorrect.
+
     Notes:
         1. Attempt to authenticate the user using the provided username and password.
         2. If authentication fails, raise a 401 error.
@@ -282,11 +287,8 @@ def login_user(
 
     _msg = f"Creating access token for user: {form_data.username}"
     log.debug(_msg)
-    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    access_token = create_access_token(
-        data={"sub": user.username},
-        expires_delta=access_token_expires,
-    )
+    security_manager = SecurityManager()
+    access_token = security_manager.create_access_token(data={"sub": user.username})
 
     _msg = f"Returning access token for user: {form_data.username}"
     log.debug(_msg)

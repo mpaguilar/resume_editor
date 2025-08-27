@@ -94,19 +94,22 @@ Notes:
 ===
 # File: `resume.py`
 
-## function: `get_current_user() -> UnknownType`
+## function: `_generate_resume_list_html(resumes: list[DatabaseResume], selected_resume_id: int | None) -> str`
 
-Placeholder for current user dependency.
+Generates HTML for a list of resumes, marking one as selected.
 
-In a real implementation, this would verify the user's authentication token
-and return the current user object.
+Args:
+    resumes (list[DatabaseResume]): The list of resumes to display.
+    selected_resume_id (int | None): The ID of the resume to mark as selected.
 
 Returns:
-    User: The current authenticated user.
+    str: HTML string for the resume list.
 
 Notes:
-    1. This is a placeholder implementation.
-    2. In reality, this would use JWT token verification or similar.
+    1. Checks if the resumes list is empty.
+    2. If empty, returns a message indicating no resumes were found.
+    3. Otherwise, generates HTML for each resume item with a selected class if it matches the selected ID.
+    4. Returns the concatenated HTML string.
 
 ---
 
@@ -184,6 +187,9 @@ Args:
 Returns:
     UserResponse: The created user's data, excluding the password.
 
+Raises:
+    HTTPException: If the username or email is already registered.
+
 Notes:
     1. Check if the provided username already exists in the database.
     2. If the username exists, raise a 400 error.
@@ -242,6 +248,9 @@ Args:
 
 Returns:
     Token: An access token for the authenticated user, formatted as a JWT.
+
+Raises:
+    HTTPException: If the username or password is incorrect.
 
 Notes:
     1. Attempt to authenticate the user using the provided username and password.
@@ -454,6 +463,28 @@ Notes:
 ===
 # File: `resume_parsing.py`
 
+## function: `parse_resume_to_writer_object(markdown_content: str) -> WriterResume`
+
+Parse Markdown resume content into a resume_writer Resume object.
+
+Args:
+    markdown_content (str): The Markdown content to parse.
+
+Returns:
+    WriterResume: The parsed resume object from the resume_writer library.
+
+Raises:
+    ValueError: If parsing results in no valid content.
+
+Notes:
+    1. Splits the content into lines.
+    2. Skips any lines before the first valid section header.
+    3. Parses the content using the resume_writer's ParseContext and Resume.parse.
+    4. Checks if any sections were successfully parsed; raises ValueError if not.
+    5. Returns the parsed resume_writer Resume object.
+
+---
+
 ## function: `parse_resume(markdown_content: str) -> dict[str, Any]`
 
 Parse Markdown resume content using resume_writer parser.
@@ -467,14 +498,11 @@ Returns:
                    The structure matches the output of the resume_writer parser.
 
 Notes:
-    1. Split the markdown_content into lines.
-    2. Identify the first valid section header by scanning lines for headers that start with "# " and not "##".
-    3. Filter the lines to start from the first valid section header, if found.
-    4. Create a ParseContext object from the filtered lines with an initial line number of 1.
-    5. Use the WriterResume.parse method to parse the resume with the context.
-    6. Convert the parsed resume object to a dictionary using vars().
-    7. Return the dictionary representation.
-    8. No disk, network, or database access is performed.
+    1. Calls `parse_resume_to_writer_object` to perform parsing.
+    2. Converts the returned resume object to a dictionary.
+    3. Handles exceptions and raises an HTTPException on failure.
+    4. Returns the dictionary representation.
+    5. No disk, network, or database access is performed.
 
 ---
 
@@ -529,6 +557,9 @@ Args:
 Returns:
     PersonalInfoResponse: Extracted personal information containing name, email, phone, location, and website.
 
+Raises:
+    ValueError: If parsing fails due to invalid or malformed resume content.
+
 Notes:
     1. Splits the resume content into lines.
     2. Creates a ParseContext for parsing.
@@ -551,6 +582,9 @@ Args:
 
 Returns:
     EducationResponse: Extracted education information containing a list of degree entries.
+
+Raises:
+    ValueError: If parsing fails due to invalid or malformed resume content.
 
 Notes:
     1. Splits the resume content into lines.
@@ -576,6 +610,9 @@ Args:
 Returns:
     ExperienceResponse: Extracted experience information containing a list of roles and projects.
 
+Raises:
+    ValueError: If parsing fails due to invalid or malformed resume content.
+
 Notes:
     1. Splits the resume content into lines.
     2. Creates a ParseContext for parsing.
@@ -600,6 +637,9 @@ Args:
 
 Returns:
     CertificationsResponse: Extracted certifications information containing a list of certifications.
+
+Raises:
+    ValueError: If parsing fails due to invalid or malformed resume content.
 
 Notes:
     1. Splits the resume content into lines.
@@ -658,6 +698,51 @@ Notes:
 
 ---
 
+## function: `_serialize_project_to_markdown(project: UnknownType) -> list[str]`
+
+Serialize a single project to markdown lines.
+
+Args:
+    project: A project object to serialize.
+
+Returns:
+    list[str]: A list of markdown lines representing the project.
+
+Notes:
+    1. Gets the overview from the project.
+    2. Checks if the inclusion status is OMIT; if so, returns an empty list.
+    3. Builds the overview content with title, URL, URL description, start date, and end date.
+    4. Adds the overview section to the project content.
+    5. If the inclusion status is not NOT_RELEVANT:
+        a. Adds the description if present.
+        b. Adds the skills if present.
+    6. Returns the full project content as a list of lines.
+
+---
+
+## function: `_serialize_role_to_markdown(role: UnknownType) -> list[str]`
+
+Serialize a single role to markdown lines.
+
+Args:
+    role: A role object to serialize.
+
+Returns:
+    list[str]: A list of markdown lines representing the role.
+
+Notes:
+    1. Gets the basics from the role.
+    2. Checks if the inclusion status is OMIT; if so, returns an empty list.
+    3. Builds the basics content with company, title, employment type, job category, agency name, start date, end date, reason for change, and location.
+    4. Adds the basics section to the role content.
+    5. If the inclusion status is not NOT_RELEVANT:
+        a. Adds the summary if present.
+        b. Adds the responsibilities if present.
+        c. Adds the skills if present.
+    6. Returns the full role content as a list of lines.
+
+---
+
 ## function: `serialize_experience_to_markdown(experience: UnknownType) -> str`
 
 Serialize experience information to Markdown format.
@@ -677,7 +762,7 @@ Notes:
         c. Adds a blank line after each role.
     4. Joins the lines with newlines.
     5. Returns the formatted string with a trailing newline.
-    6. Returns an empty string if no experience data is present.
+    6. Returns an empty string if no experience data is present or all is filtered out.
     7. No network, disk, or database access is performed during this function.
 
 ---
@@ -825,22 +910,35 @@ Notes:
 
 ---
 
-## function: `create_access_token(data: dict, expires_delta: timedelta | None) -> str`
+## function: `encrypt_data(data: str) -> str`
 
-Create a JWT access token.
+Encrypts data using Fernet symmetric encryption.
 
 Args:
-    data (dict): Data to encode in the token (e.g., user ID, role).
-    expires_delta (Optional[timedelta]): Custom expiration time for the token. If None, uses default.
+    data (str): The plaintext data to encrypt.
 
 Returns:
-    str: The encoded JWT token as a string.
+    str: The encrypted data, encoded as a string.
 
 Notes:
-    1. Copy the data to avoid modifying the original.
-    2. Set expiration time based on expires_delta or default.
-    3. Encode the data with the secret key and algorithm.
-    4. No database or network access in this function.
+    1. Use Fernet to encrypt the data.
+    2. No database or network access in this function.
+
+---
+
+## function: `decrypt_data(encrypted_data: str) -> str`
+
+Decrypts data using Fernet symmetric encryption.
+
+Args:
+    encrypted_data (str): The encrypted data to decrypt.
+
+Returns:
+    str: The decrypted plaintext data.
+
+Notes:
+    1. Use Fernet to decrypt the data.
+    2. No database or network access in this function.
 
 ---
 
@@ -866,22 +964,52 @@ Notes:
     4. Set the JWT algorithm from settings.
 
 ---
+## method: `SecurityManager.create_access_token(self: UnknownType, data: dict, expires_delta: timedelta | None) -> str`
+
+Create a JWT access token.
+
+Args:
+    data (dict): The data to encode in the token (e.g., user ID, role).
+    expires_delta (Optional[timedelta]): Custom expiration time for the token. If None, uses default value.
+
+Returns:
+    str: The encoded JWT token as a string.
+
+Notes:
+    1. Copy the data to avoid modifying the original.
+    2. Set expiration time based on expires_delta or default.
+    3. Encode the data with the secret key and algorithm.
+    4. No database or network access in this function.
+
+---
 
 ===
 
 ===
 # File: `auth.py`
 
-## function: `get_current_user(db: Session, token: str) -> User`
+## function: `get_current_user(token: Annotated[str, Depends(oauth2_scheme)], db: Session) -> User`
 
 Retrieve the authenticated user from the provided JWT token.
 
 Args:
-    db: Database session dependency used to query the database for the user.
     token: JWT token extracted from the request header, used to authenticate the user.
+        Type: str
+        Purpose: The JWT token that contains the user's identity and is used for authentication.
+    db: Database session dependency used to query the database for the user.
+        Type: Session
+        Purpose: Provides a connection to the database to retrieve the user record by username.
 
 Returns:
     User: The authenticated User object corresponding to the token's subject (username).
+        Type: User
+        Purpose: Returns the user object if authentication is successful.
+
+Raises:
+    HTTPException: Raised when the credentials are invalid or the user is not found.
+        Status Code: 401 UNAUTHORIZED
+        Detail: "Could not validate credentials"
+        Headers: {"WWW-Authenticate": "Bearer"}
 
 Notes:
     1. Initialize an HTTP 401 exception with a generic error message and "Bearer" authentication header.
@@ -1726,6 +1854,7 @@ Attributes:
     job_category (str | None): The category of the job or None.
     employment_type (str | None): The employment type or None.
     agency_name (str | None): The name of the agency or None.
+    inclusion_status (InclusionStatus): The inclusion status of the role.
 
 ---
 ## method: `RoleBasics.validate_company(cls: UnknownType, v: UnknownType) -> UnknownType`
@@ -1737,6 +1866,9 @@ Args:
 
 Returns:
     str: The validated company.
+
+Raises:
+    ValueError: If company is not a string or is empty.
 
 Notes:
     1. Ensure company is a string.
@@ -1755,6 +1887,9 @@ Args:
 Returns:
     str: The validated title.
 
+Raises:
+    ValueError: If title is not a string or is empty.
+
 Notes:
     1. Ensure title is a string.
     2. Ensure title is not empty.
@@ -1772,6 +1907,9 @@ Args:
 
 Returns:
     datetime: The validated end_date.
+
+Raises:
+    ValueError: If end_date is not a datetime object or None, or if end_date is before start_date.
 
 Notes:
     1. Ensure end_date is a datetime object or None.
@@ -1840,6 +1978,9 @@ Args:
 Returns:
     list[str]: The validated and cleaned skills list.
 
+Raises:
+    ValueError: If skills is not a list or if any skill is not a string.
+
 Notes:
     1. Ensure skills is a list.
     2. Ensure all items in skills are strings.
@@ -1885,6 +2026,7 @@ Attributes:
     url_description (str | None): A description of the URL or None.
     start_date (datetime | None): The start date as a datetime object or None.
     end_date (datetime | None): The end date as a datetime object or None.
+    inclusion_status (InclusionStatus): The inclusion status of the project.
 
 ---
 ## method: `ProjectOverview.validate_title(cls: UnknownType, v: UnknownType) -> UnknownType`
@@ -1896,6 +2038,9 @@ Args:
 
 Returns:
     str: The validated title.
+
+Raises:
+    ValueError: If title is not a string or is empty.
 
 Notes:
     1. Ensure title is a string.
@@ -1914,6 +2059,9 @@ Args:
 
 Returns:
     datetime: The validated end_date.
+
+Raises:
+    ValueError: If end_date is before start_date.
 
 Notes:
     1. If both start_date and end_date are provided, ensure start_date is not after end_date.
@@ -2021,6 +2169,153 @@ Notes:
     7. This function performs a database read and possibly a write operation.
 
 ---
+
+
+===
+
+===
+# File: `resume_filtering.py`
+
+## function: `_get_date_from_optional_datetime(dt: datetime | None) -> date | None`
+
+Safely convert an optional datetime object to an optional date object.
+
+Args:
+    dt (datetime | None): The datetime object to convert, or None.
+
+Returns:
+    date | None: The date portion of the datetime, or None if input is None.
+
+---
+
+## function: `_is_in_date_range(item_start_date: date | None, item_end_date: date | None, filter_start_date: date | None, filter_end_date: date | None) -> bool`
+
+Check if an item's date range overlaps with the filter's date range.
+
+Args:
+    item_start_date (date | None): The start date of the item being evaluated.
+    item_end_date (date | None): The end date of the item (or None if ongoing).
+    filter_start_date (date | None): The start date of the filtering period.
+    filter_end_date (date | None): The end date of the filtering period.
+
+Returns:
+    bool: True if the item overlaps with the filter's date range, False otherwise.
+
+Notes:
+    1. If the filter has a start date and the item ends before that date, the item is out of range.
+    2. If the filter has an end date and the item starts after that date, the item is out of range.
+    3. Otherwise, the item is considered to be in range.
+
+---
+
+## function: `filter_experience_by_date(experience: ExperienceResponse, start_date: date | None, end_date: date | None) -> ExperienceResponse`
+
+Filter roles and projects in an ExperienceResponse based on a date range.
+
+Args:
+    experience (ExperienceResponse): The experience data to filter.
+    start_date (date | None): The start of the filtering period. If None, no start constraint is applied.
+    end_date (date | None): The end of the filtering period. If None, no end constraint is applied.
+
+Returns:
+    ExperienceResponse: A new ExperienceResponse object containing only roles and projects that overlap with the specified date range.
+
+Notes:
+    1. If both start_date and end_date are None, return the original experience object unmodified.
+    2. Iterate through the roles in the experience object and check if each role's date range overlaps with the filter range using _is_in_date_range.
+    3. For each role that overlaps, add it to the filtered_roles list.
+    4. Iterate through the projects in the experience object and check if each project's date range overlaps with the filter range.
+    5. Projects without an end date are treated as single-day events occurring on their start date.
+    6. For each project that overlaps, add it to the filtered_projects list.
+    7. Return a new ExperienceResponse object with the filtered roles and projects.
+
+---
+
+
+===
+
+===
+# File: `resume_llm.py`
+
+## function: `_get_section_content(resume_content: str, section_name: str) -> str`
+
+Extracts the Markdown content for a specific section of the resume.
+
+Args:
+    resume_content (str): The full resume content in Markdown.
+    section_name (str): The name of the section to extract ("personal", "education", "experience", "certifications", or "full").
+
+Returns:
+    str: The Markdown content of the specified section. returns the full content if "full".
+
+---
+
+## function: `refine_resume_section_with_llm(resume_content: str, job_description: str, target_section: str, llm_endpoint: str | None, api_key: str | None) -> str`
+
+Uses an LLM to refine a specific section of a resume based on a job description.
+
+Args:
+    resume_content (str): The full Markdown content of the resume.
+    job_description (str): The job description to align the resume with.
+    target_section (str): The section of the resume to refine (e.g., "experience").
+    llm_endpoint (str | None): The custom LLM endpoint URL.
+    api_key (str | None): The user's decrypted LLM API key.
+
+Returns:
+    str: The refined Markdown content for the target section.
+
+Notes:
+    1. Select the target content from the resume.
+    2. Set up a PydanticOutputParser for structured output.
+    3. Create a PromptTemplate with instructions for the LLM.
+    4. Initialize the ChatOpenAI client with user-specific settings.
+    5. Create and invoke a chain with the prompt, LLM, and parser.
+    6. Parse the LLM's JSON-Markdown output.
+    7. Return the refined content.
+
+---
+
+
+===
+
+===
+# File: `user_settings.py`
+
+## `UserSettings` class
+
+Stores user-specific settings, such as LLM configurations.
+
+Attributes:
+    id (int): Primary key.
+    user_id (int): Foreign key to the user.
+    llm_endpoint (str | None): Custom LLM API endpoint URL.
+    encrypted_api_key (str | None): Encrypted API key for the LLM service.
+    user (User): Relationship to the User model.
+
+---
+## method: `UserSettings.__init__(self: UnknownType, user_id: int, llm_endpoint: str | None, encrypted_api_key: str | None) -> UnknownType`
+
+Initialize a UserSettings instance.
+
+Args:
+    user_id (int): The ID of the user these settings belong to.
+    llm_endpoint (str | None): Custom LLM API endpoint URL.
+    encrypted_api_key (str | None): Encrypted API key for the LLM service.
+
+Returns:
+    None
+
+Notes:
+    1. Assign all values to instance attributes.
+    2. Log the initialization of the user settings.
+    3. This operation does not involve network, disk, or database access.
+
+---
+
+===
+
+===
+# File: `llm.py`
 
 
 ===

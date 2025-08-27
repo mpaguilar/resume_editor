@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING, Optional
 
 import bcrypt
 from cryptography.fernet import Fernet
+from fastapi.security import OAuth2PasswordBearer
 from jose import jwt
 from sqlalchemy.orm import Session
 
@@ -14,14 +15,7 @@ if TYPE_CHECKING:
 
 log = logging.getLogger(__name__)
 
-# Get settings instance
-settings = get_settings()
-
-# Initialize Fernet with encryption key
-fernet = Fernet(settings.encryption_key.encode())
-
-# Constants for JWT
-ACCESS_TOKEN_EXPIRE_MINUTES = settings.access_token_expire_minutes
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/users/login")
 
 
 class SecurityManager:
@@ -32,7 +26,6 @@ class SecurityManager:
         access_token_expire_minutes (int): Duration in minutes for access token expiration.
         secret_key (str): Secret key used for signing JWT tokens.
         algorithm (str): Algorithm used for JWT encoding.
-
     """
 
     def __init__(self):
@@ -43,12 +36,45 @@ class SecurityManager:
             2. Assign the access token expiration time from settings.
             3. Set the secret key for JWT signing from settings.
             4. Set the JWT algorithm from settings.
-
         """
         self.settings = get_settings()
         self.access_token_expire_minutes = self.settings.access_token_expire_minutes
         self.secret_key = self.settings.secret_key
         self.algorithm = self.settings.algorithm
+
+    def create_access_token(self, data: dict, expires_delta: timedelta | None = None) -> str:
+        """Create a JWT access token.
+
+        Args:
+            data (dict): The data to encode in the token (e.g., user ID, role).
+            expires_delta (Optional[timedelta]): Custom expiration time for the token. If None, uses default value.
+
+        Returns:
+            str: The encoded JWT token as a string.
+
+        Notes:
+            1. Copy the data to avoid modifying the original.
+            2. Set expiration time based on expires_delta or default.
+            3. Encode the data with the secret key and algorithm.
+            4. No database or network access in this function.
+        """
+        _msg = "Creating access token"
+        log.debug(_msg)
+
+        to_encode = data.copy()
+        if expires_delta:
+            expire = datetime.now(UTC) + expires_delta
+        else:
+            expire = datetime.now(UTC) + timedelta(
+                minutes=self.access_token_expire_minutes,
+            )
+        to_encode.update({"exp": expire})
+        encoded_jwt = jwt.encode(
+            to_encode,
+            self.secret_key,
+            algorithm=self.algorithm,
+        )
+        return encoded_jwt
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
@@ -64,7 +90,6 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     Notes:
         1. Use bcrypt to verify the password.
         2. No database or network access in this function.
-
     """
     _msg = "Verifying password"
     log.debug(_msg)
@@ -86,7 +111,6 @@ def get_password_hash(password: str) -> str:
     Notes:
         1. Use bcrypt to hash the password.
         2. No database or network access in this function.
-
     """
     _msg = "Hashing password"
     log.debug(_msg)
@@ -110,7 +134,6 @@ def authenticate_user(db: Session, username: str, password: str) -> Optional["Us
         1. Query the database for a user with the given username.
         2. If user exists and password is correct, return the user.
         3. Otherwise, return None.
-
     """
     _msg = f"Authenticating user: {username}"
     log.debug(_msg)
@@ -125,42 +148,6 @@ def authenticate_user(db: Session, username: str, password: str) -> Optional["Us
     return user
 
 
-def create_access_token(data: dict, expires_delta: timedelta | None = None) -> str:
-    """Create a JWT access token.
-
-    Args:
-        data (dict): Data to encode in the token (e.g., user ID, role).
-        expires_delta (Optional[timedelta]): Custom expiration time for the token. If None, uses default.
-
-    Returns:
-        str: The encoded JWT token as a string.
-
-    Notes:
-        1. Copy the data to avoid modifying the original.
-        2. Set expiration time based on expires_delta or default.
-        3. Encode the data with the secret key and algorithm.
-        4. No database or network access in this function.
-
-    """
-    _msg = "Creating access token"
-    log.debug(_msg)
-
-    to_encode = data.copy()
-    if expires_delta:
-        expire = datetime.now(UTC) + expires_delta
-    else:
-        expire = datetime.now(UTC) + timedelta(
-            minutes=settings.access_token_expire_minutes,
-        )
-    to_encode.update({"exp": expire})
-    encoded_jwt = jwt.encode(
-        to_encode,
-        settings.secret_key,
-        algorithm=settings.algorithm,
-    )
-    return encoded_jwt
-
-
 def encrypt_data(data: str) -> str:
     """Encrypts data using Fernet symmetric encryption.
 
@@ -173,10 +160,11 @@ def encrypt_data(data: str) -> str:
     Notes:
         1. Use Fernet to encrypt the data.
         2. No database or network access in this function.
-
     """
     _msg = "Encrypting data"
     log.debug(_msg)
+    settings = get_settings()
+    fernet = Fernet(settings.encryption_key.encode())
     return fernet.encrypt(data.encode()).decode()
 
 
@@ -192,8 +180,9 @@ def decrypt_data(encrypted_data: str) -> str:
     Notes:
         1. Use Fernet to decrypt the data.
         2. No database or network access in this function.
-
     """
     _msg = "Decrypting data"
     log.debug(_msg)
+    settings = get_settings()
+    fernet = Fernet(settings.encryption_key.encode())
     return fernet.decrypt(encrypted_data.encode()).decode()

@@ -1,3 +1,4 @@
+import datetime
 from enum import Enum
 from unittest.mock import ANY, Mock, patch
 
@@ -6,10 +7,8 @@ from cryptography.fernet import InvalidToken
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
-from resume_editor.app.api.routes.resume import (
-    get_current_user,
-    get_db,
-)
+from resume_editor.app.core.auth import get_current_user
+from resume_editor.app.database.database import get_db
 from resume_editor.app.api.routes.route_models import (
     CertificationsResponse,
     EducationResponse,
@@ -82,10 +81,12 @@ def client_with_auth_and_resume(test_user, test_resume):
     app = create_app()
 
     mock_db = Mock()
-    query_mock = mock_db.query.return_value
-    filter_mock = query_mock.filter.return_value
+    query_mock = Mock()
+    filter_mock = Mock()
     filter_mock.first.return_value = test_resume
     filter_mock.all.return_value = [test_resume]
+    query_mock.filter.return_value = filter_mock
+    mock_db.query.return_value = query_mock
 
     def get_mock_db_with_resume():
         yield mock_db
@@ -103,10 +104,12 @@ def client_with_auth_no_resume(test_user):
     app = create_app()
 
     mock_db = Mock()
-    query_mock = mock_db.query.return_value
-    filter_mock = query_mock.filter.return_value
+    query_mock = Mock()
+    filter_mock = Mock()
     filter_mock.first.return_value = None
     filter_mock.all.return_value = []
+    query_mock.filter.return_value = filter_mock
+    mock_db.query.return_value = query_mock
 
     def get_mock_db_no_resume():
         yield mock_db
@@ -124,11 +127,14 @@ def client_with_last_resume(test_user, test_resume):
     app = create_app()
 
     mock_db = Mock()
-    query_mock = mock_db.query.return_value
-    filter_mock = query_mock.filter.return_value
+    query_mock = Mock()
+    filter_mock = Mock()
+    # For get_resume_by_id_and_user to find the resume to delete
     filter_mock.first.return_value = test_resume
-    # After delete, get_user_resumes returns an empty list
+    # For get_user_resumes which is called after deletion to rebuild the list
     filter_mock.all.return_value = []
+    query_mock.filter.return_value = filter_mock
+    mock_db.query.return_value = query_mock
 
     def get_mock_db_with_last_resume():
         yield mock_db
@@ -2019,3 +2025,406 @@ def test_generate_resume_list_html_with_selection():
     assert len(unselected_divs) == 1
     assert "R2" in selected_divs[0]
     assert "R1" in unselected_divs[0]
+
+
+# --- Tests for form-based updates ---
+
+# Common patch decorators for form-based update tests
+form_update_patches = [
+    patch(
+        "resume_editor.app.api.routes.resume.update_resume_content_with_structured_data",
+        return_value="Updated Content",
+    ),
+    patch(
+        "resume_editor.app.api.routes.resume.perform_pre_save_validation",
+        return_value=None,
+    ),
+    patch("resume_editor.app.api.routes.resume.update_resume_db"),
+    patch(
+        "resume_editor.app.api.routes.resume._generate_resume_detail_html",
+        return_value="<html>Updated</html>",
+    ),
+]
+
+
+def apply_form_update_patches(func):
+    """A decorator to apply a list of patches to a test function."""
+    for p in reversed(form_update_patches):
+        func = p(func)
+    return func
+
+
+# Tests for update_personal_info
+@apply_form_update_patches
+def test_update_personal_info_success(
+    mock_gen_html,
+    mock_update_db,
+    mock_validate,
+    mock_reconstruct,
+    client_with_auth_and_resume,
+    test_resume,
+):
+    """Test successful update of personal info."""
+    mock_update_db.return_value = test_resume
+    update_data = {"name": "New Name", "email": "new@test.com"}
+    response = client_with_auth_and_resume.post(
+        f"/api/resumes/{test_resume.id}/edit/personal",
+        json=update_data,
+    )
+
+    assert response.status_code == 200
+    assert response.text == "<html>Updated</html>"
+    mock_reconstruct.assert_called_once()
+    _, kwargs = mock_reconstruct.call_args
+    assert kwargs["current_content"] == test_resume.content
+    assert kwargs["personal_info"].name == "New Name"
+    mock_validate.assert_called_once_with("Updated Content", test_resume.content)
+    mock_update_db.assert_called_once_with(
+        ANY,
+        resume=test_resume,
+        content="Updated Content",
+    )
+
+
+@patch("resume_editor.app.api.routes.resume.update_resume_content_with_structured_data")
+@patch("resume_editor.app.api.routes.resume.perform_pre_save_validation")
+def test_update_personal_info_pre_save_validation_fails(
+    mock_validate,
+    mock_reconstruct,
+    client_with_auth_and_resume,
+    test_resume,
+):
+    """Test that a pre-save validation failure is handled."""
+    mock_reconstruct.return_value = "Updated Content"
+    mock_validate.side_effect = HTTPException(
+        status_code=422, detail="Invalid Content"
+    )
+
+    update_data = {"name": "New Name", "email": "new@test.com"}
+    response = client_with_auth_and_resume.post(
+        f"/api/resumes/{test_resume.id}/edit/personal",
+        json=update_data,
+    )
+
+    assert response.status_code == 422
+    assert (
+        response.json()["detail"] == "Failed to update personal info: Invalid Content"
+    )
+
+    mock_reconstruct.assert_called_once()
+    mock_validate.assert_called_once_with("Updated Content", test_resume.content)
+
+
+@patch("resume_editor.app.api.routes.route_logic.resume_serialization.extract_education_info")
+def test_update_personal_info_form_reconstruction_fails(
+    mock_extract_edu, client_with_auth_and_resume, test_resume
+):
+    """Test that a reconstruction failure within the form update is handled."""
+    mock_extract_edu.side_effect = ValueError("Bad education section")
+    update_data = {"name": "New Name"}
+    response = client_with_auth_and_resume.post(
+        f"/api/resumes/{test_resume.id}/edit/personal", json=update_data
+    )
+    assert response.status_code == 422
+    assert (
+        "Failed to update personal info: Bad education section"
+        in response.json()["detail"]
+    )
+
+
+def test_update_personal_info_validation_error(
+    client_with_auth_and_resume,
+    test_resume,
+):
+    """Test validation error for personal info update."""
+    update_data = {"name": 12345}  # name should be a string
+    response = client_with_auth_and_resume.post(
+        f"/api/resumes/{test_resume.id}/edit/personal",
+        json=update_data,
+    )
+    assert response.status_code == 422
+
+
+# Tests for update_education
+@patch("resume_editor.app.api.routes.resume.extract_education_info")
+@apply_form_update_patches
+def test_update_education_success(
+    mock_gen_html,
+    mock_update_db,
+    mock_validate,
+    mock_reconstruct,
+    mock_extract,
+    client_with_auth_and_resume,
+    test_resume,
+):
+    """Test successful update of education info."""
+    mock_extract.return_value = EducationResponse(degrees=[])
+    mock_update_db.return_value = test_resume
+
+    form_data = {
+        "school": "New School",
+        "degree": "BSc",
+        "start_date": "2020-01-01",
+    }
+    response = client_with_auth_and_resume.post(
+        f"/api/resumes/{test_resume.id}/edit/education",
+        data=form_data,
+    )
+
+    assert response.status_code == 200
+    mock_extract.assert_called_once_with(test_resume.content)
+
+    mock_reconstruct.assert_called_once()
+    _, kwargs = mock_reconstruct.call_args
+    assert kwargs["current_content"] == test_resume.content
+    education_arg = kwargs["education"]
+    assert len(education_arg.degrees) == 1
+    assert education_arg.degrees[0].school == "New School"
+    assert education_arg.degrees[0].start_date == datetime.datetime(2020, 1, 1)
+
+
+def test_update_education_invalid_data(client_with_auth_and_resume, test_resume):
+    """Test invalid data for education update."""""
+    form_data = {"school": "New School", "start_date": "invalid-date"}
+    response = client_with_auth_and_resume.post(
+        f"/api/resumes/{test_resume.id}/edit/education",
+        data=form_data,
+    )
+    assert response.status_code == 422
+    assert "Failed to update education info" in response.json()["detail"]
+
+
+@patch("resume_editor.app.api.routes.resume.extract_education_info")
+def test_update_education_extraction_fails(
+    mock_extract, client_with_auth_and_resume, test_resume
+):
+    """Test that a parsing failure during education update is handled."""
+    mock_extract.side_effect = ValueError("Bad education section")
+    form_data = {
+        "school": "New School",
+        "degree": "BSc",
+    }
+    response = client_with_auth_and_resume.post(
+        f"/api/resumes/{test_resume.id}/edit/education",
+        data=form_data,
+    )
+    assert response.status_code == 422
+    assert (
+        "Failed to update education info: Bad education section"
+        in response.json()["detail"]
+    )
+
+
+# Tests for update_experience
+@patch("resume_editor.app.api.routes.resume.extract_experience_info")
+@apply_form_update_patches
+def test_update_experience_success(
+    mock_gen_html,
+    mock_update_db,
+    mock_validate,
+    mock_reconstruct,
+    mock_extract,
+    client_with_auth_and_resume,
+    test_resume,
+):
+    """Test successful update of experience info."""
+    mock_extract.return_value = ExperienceResponse(roles=[], projects=[])
+    mock_update_db.return_value = test_resume
+
+    form_data = {
+        "company": "New Company",
+        "title": "Developer",
+        "start_date": "2021-02-01",
+    }
+    response = client_with_auth_and_resume.post(
+        f"/api/resumes/{test_resume.id}/edit/experience",
+        data=form_data,
+    )
+
+    assert response.status_code == 200
+    mock_extract.assert_called_once_with(test_resume.content)
+
+    mock_reconstruct.assert_called_once()
+    _, kwargs = mock_reconstruct.call_args
+    experience_arg = kwargs["experience"]
+    assert len(experience_arg.roles) == 1
+    assert experience_arg.roles[0].basics.company == "New Company"
+
+
+def test_update_experience_invalid_data(
+    client_with_auth_and_resume,
+    test_resume,
+):
+    """Test invalid data for experience update."""
+    form_data = {"company": "New Co", "title": "Dev", "start_date": "invalid"}
+    response = client_with_auth_and_resume.post(
+        f"/api/resumes/{test_resume.id}/edit/experience",
+        data=form_data,
+    )
+    assert response.status_code == 422
+    assert "Failed to update experience info" in response.json()["detail"]
+
+
+@patch("resume_editor.app.api.routes.resume.extract_experience_info")
+def test_update_experience_extraction_fails(
+    mock_extract, client_with_auth_and_resume, test_resume
+):
+    """Test that a parsing failure during experience update is handled."""
+    mock_extract.side_effect = ValueError("Bad experience section")
+    form_data = {
+        "company": "New Company",
+        "title": "Developer",
+        "start_date": "2024-01-01",
+    }
+    response = client_with_auth_and_resume.post(
+        f"/api/resumes/{test_resume.id}/edit/experience",
+        data=form_data,
+    )
+    assert response.status_code == 422
+    assert (
+        "Failed to update experience info: Bad experience section"
+        in response.json()["detail"]
+    )
+
+
+# Tests for update_projects
+@patch("resume_editor.app.api.routes.resume.extract_experience_info")
+@apply_form_update_patches
+def test_update_projects_success(
+    mock_gen_html,
+    mock_update_db,
+    mock_validate,
+    mock_reconstruct,
+    mock_extract,
+    client_with_auth_and_resume,
+    test_resume,
+):
+    """Test successful update of projects info."""
+    mock_extract.return_value = ExperienceResponse(roles=[], projects=[])
+    mock_update_db.return_value = test_resume
+
+    form_data = {
+        "title": "New Project",
+        "description": "A cool project",
+    }
+    response = client_with_auth_and_resume.post(
+        f"/api/resumes/{test_resume.id}/edit/projects",
+        data=form_data,
+    )
+
+    assert response.status_code == 200
+    mock_extract.assert_called_once_with(test_resume.content)
+
+    mock_reconstruct.assert_called_once()
+    _, kwargs = mock_reconstruct.call_args
+    experience_arg = kwargs["experience"]
+    assert len(experience_arg.projects) == 1
+    assert experience_arg.projects[0].overview.title == "New Project"
+
+
+def test_update_projects_invalid_data(client_with_auth_and_resume, test_resume):
+    """Test invalid data for projects update."""
+    form_data = {
+        "title": "New Project",
+        "description": "A cool project",
+        "start_date": "invalid",
+    }
+    response = client_with_auth_and_resume.post(
+        f"/api/resumes/{test_resume.id}/edit/projects",
+        data=form_data,
+    )
+    assert response.status_code == 422
+    assert "Failed to update projects info" in response.json()["detail"]
+
+
+@patch("resume_editor.app.api.routes.resume.extract_experience_info")
+def test_update_projects_extraction_fails(
+    mock_extract, client_with_auth_and_resume, test_resume
+):
+    """Test that a parsing failure during projects update is handled."""
+    mock_extract.side_effect = ValueError("Bad projects section")
+    form_data = {
+        "title": "New Project",
+        "description": "A cool project",
+    }
+    response = client_with_auth_and_resume.post(
+        f"/api/resumes/{test_resume.id}/edit/projects",
+        data=form_data,
+    )
+    assert response.status_code == 422
+    assert (
+        "Failed to update projects info: Bad projects section"
+        in response.json()["detail"]
+    )
+
+
+# Tests for update_certifications
+@patch("resume_editor.app.api.routes.resume.extract_certifications_info")
+@apply_form_update_patches
+def test_update_certifications_success(
+    mock_gen_html,
+    mock_update_db,
+    mock_validate,
+    mock_reconstruct,
+    mock_extract,
+    client_with_auth_and_resume,
+    test_resume,
+):
+    """Test successful update of certifications info."""
+    mock_extract.return_value = CertificationsResponse(certifications=[])
+    mock_update_db.return_value = test_resume
+
+    form_data = {
+        "name": "New Cert",
+        "issuer": "Test Issuer",
+        "issued_date": "2023-03-01",
+        "id": "CERT-12345",
+    }
+    response = client_with_auth_and_resume.post(
+        f"/api/resumes/{test_resume.id}/edit/certifications",
+        data=form_data,
+    )
+
+    assert response.status_code == 200
+    mock_extract.assert_called_once_with(test_resume.content)
+
+    mock_reconstruct.assert_called_once()
+    _, kwargs = mock_reconstruct.call_args
+    certifications_arg = kwargs["certifications"]
+    assert len(certifications_arg.certifications) == 1
+    assert certifications_arg.certifications[0].name == "New Cert"
+    assert certifications_arg.certifications[0].certification_id == "CERT-12345"
+
+
+def test_update_certifications_invalid_data(
+    client_with_auth_and_resume,
+    test_resume,
+):
+    """Test invalid data for certifications update."""
+    form_data = {"name": "New Cert", "issued_date": "invalid"}
+    response = client_with_auth_and_resume.post(
+        f"/api/resumes/{test_resume.id}/edit/certifications",
+        data=form_data,
+    )
+    assert response.status_code == 422
+    assert "Failed to update certifications info" in response.json()["detail"]
+
+
+@patch("resume_editor.app.api.routes.resume.extract_certifications_info")
+def test_update_certifications_extraction_fails(
+    mock_extract, client_with_auth_and_resume, test_resume
+):
+    """Test that a parsing failure during certifications update is handled."""
+    mock_extract.side_effect = ValueError("Bad certifications section")
+    form_data = {
+        "name": "New Cert",
+    }
+    response = client_with_auth_and_resume.post(
+        f"/api/resumes/{test_resume.id}/edit/certifications",
+        data=form_data,
+    )
+    assert response.status_code == 422
+    assert (
+        "Failed to update certifications info: Bad certifications section"
+        in response.json()["detail"]
+    )

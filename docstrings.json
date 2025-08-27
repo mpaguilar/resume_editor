@@ -40,8 +40,8 @@
     "filename": "resume.py",
     "functions": [
       [
-        "get_current_user() -> UnknownType",
-        "Placeholder for current user dependency.\n\nIn a real implementation, this would verify the user's authentication token\nand return the current user object.\n\nReturns:\n    User: The current authenticated user.\n\nNotes:\n    1. This is a placeholder implementation.\n    2. In reality, this would use JWT token verification or similar."
+        "_generate_resume_list_html(resumes: list[DatabaseResume], selected_resume_id: int | None) -> str",
+        "Generates HTML for a list of resumes, marking one as selected.\n\nArgs:\n    resumes (list[DatabaseResume]): The list of resumes to display.\n    selected_resume_id (int | None): The ID of the resume to mark as selected.\n\nReturns:\n    str: HTML string for the resume list.\n\nNotes:\n    1. Checks if the resumes list is empty.\n    2. If empty, returns a message indicating no resumes were found.\n    3. Otherwise, generates HTML for each resume item with a selected class if it matches the selected ID.\n    4. Returns the concatenated HTML string."
       ]
     ],
     "classes": {}
@@ -64,7 +64,7 @@
       ],
       [
         "register_user(user: UserCreate, db: Session) -> UserResponse",
-        "Register a new user with the provided credentials.\n\nArgs:\n    user: Data containing username, email, and password for the new user.\n    db: Database session dependency used to interact with the user database.\n\nReturns:\n    UserResponse: The created user's data, excluding the password.\n\nNotes:\n    1. Check if the provided username already exists in the database.\n    2. If the username exists, raise a 400 error.\n    3. Check if the provided email already exists in the database.\n    4. If the email exists, raise a 400 error.\n    5. Create a new user with the provided data and store it in the database.\n    6. Return the newly created user's data (without the password).\n    7. Database access: Performs read and write operations on the User table."
+        "Register a new user with the provided credentials.\n\nArgs:\n    user: Data containing username, email, and password for the new user.\n    db: Database session dependency used to interact with the user database.\n\nReturns:\n    UserResponse: The created user's data, excluding the password.\n\nRaises:\n    HTTPException: If the username or email is already registered.\n\nNotes:\n    1. Check if the provided username already exists in the database.\n    2. If the username exists, raise a 400 error.\n    3. Check if the provided email already exists in the database.\n    4. If the email exists, raise a 400 error.\n    5. Create a new user with the provided data and store it in the database.\n    6. Return the newly created user's data (without the password).\n    7. Database access: Performs read and write operations on the User table."
       ],
       [
         "get_user_settings(db: Session, current_user: User) -> UnknownType",
@@ -76,7 +76,7 @@
       ],
       [
         "login_user(form_data: Annotated[OAuth2PasswordRequestForm, Depends()], db: Session) -> Token",
-        "Authenticate a user and return an access token.\n\nArgs:\n    form_data: Form data containing username and password for authentication.\n    db: Database session dependency used to verify user credentials.\n\nReturns:\n    Token: An access token for the authenticated user, formatted as a JWT.\n\nNotes:\n    1. Attempt to authenticate the user using the provided username and password.\n    2. If authentication fails, raise a 401 error.\n    3. Generate a JWT access token with a defined expiration time.\n    4. Return the access token to the client.\n    5. Database access: Performs a read operation on the User table to verify credentials."
+        "Authenticate a user and return an access token.\n\nArgs:\n    form_data: Form data containing username and password for authentication.\n    db: Database session dependency used to verify user credentials.\n\nReturns:\n    Token: An access token for the authenticated user, formatted as a JWT.\n\nRaises:\n    HTTPException: If the username or password is incorrect.\n\nNotes:\n    1. Attempt to authenticate the user using the provided username and password.\n    2. If authentication fails, raise a 401 error.\n    3. Generate a JWT access token with a defined expiration time.\n    4. Return the access token to the client.\n    5. Database access: Performs a read operation on the User table to verify credentials."
       ]
     ],
     "classes": {}
@@ -145,8 +145,12 @@
     "filename": "resume_parsing.py",
     "functions": [
       [
+        "parse_resume_to_writer_object(markdown_content: str) -> WriterResume",
+        "Parse Markdown resume content into a resume_writer Resume object.\n\nArgs:\n    markdown_content (str): The Markdown content to parse.\n\nReturns:\n    WriterResume: The parsed resume object from the resume_writer library.\n\nRaises:\n    ValueError: If parsing results in no valid content.\n\nNotes:\n    1. Splits the content into lines.\n    2. Skips any lines before the first valid section header.\n    3. Parses the content using the resume_writer's ParseContext and Resume.parse.\n    4. Checks if any sections were successfully parsed; raises ValueError if not.\n    5. Returns the parsed resume_writer Resume object."
+      ],
+      [
         "parse_resume(markdown_content: str) -> dict[str, Any]",
-        "Parse Markdown resume content using resume_writer parser.\n\nArgs:\n    markdown_content (str): The Markdown content to parse, expected to follow a valid resume format.\n\nReturns:\n    dict[str, Any]: A dictionary representation of the parsed resume data structure,\n                   including sections like personal info, experience, education, etc.\n                   The structure matches the output of the resume_writer parser.\n\nNotes:\n    1. Split the markdown_content into lines.\n    2. Identify the first valid section header by scanning lines for headers that start with \"# \" and not \"##\".\n    3. Filter the lines to start from the first valid section header, if found.\n    4. Create a ParseContext object from the filtered lines with an initial line number of 1.\n    5. Use the WriterResume.parse method to parse the resume with the context.\n    6. Convert the parsed resume object to a dictionary using vars().\n    7. Return the dictionary representation.\n    8. No disk, network, or database access is performed."
+        "Parse Markdown resume content using resume_writer parser.\n\nArgs:\n    markdown_content (str): The Markdown content to parse, expected to follow a valid resume format.\n\nReturns:\n    dict[str, Any]: A dictionary representation of the parsed resume data structure,\n                   including sections like personal info, experience, education, etc.\n                   The structure matches the output of the resume_writer parser.\n\nNotes:\n    1. Calls `parse_resume_to_writer_object` to perform parsing.\n    2. Converts the returned resume object to a dictionary.\n    3. Handles exceptions and raises an HTTPException on failure.\n    4. Returns the dictionary representation.\n    5. No disk, network, or database access is performed."
       ],
       [
         "parse_resume_content(markdown_content: str) -> dict[str, Any]",
@@ -165,19 +169,19 @@
     "functions": [
       [
         "extract_personal_info(resume_content: str) -> PersonalInfoResponse",
-        "Extract personal information from resume content.\n\nArgs:\n    resume_content (str): The Markdown content of the resume to parse.\n\nReturns:\n    PersonalInfoResponse: Extracted personal information containing name, email, phone, location, and website.\n\nNotes:\n    1. Splits the resume content into lines.\n    2. Creates a ParseContext for parsing.\n    3. Parses the resume using the resume_writer module.\n    4. Retrieves the personal section from the parsed resume.\n    5. Checks if contact information is present; if not, returns an empty response.\n    6. Extracts contact info and websites from the parsed personal section.\n    7. Maps the extracted data to the PersonalInfoResponse fields.\n    8. Returns the populated response or an empty one if parsing fails.\n    9. No network, disk, or database access is performed during this function."
+        "Extract personal information from resume content.\n\nArgs:\n    resume_content (str): The Markdown content of the resume to parse.\n\nReturns:\n    PersonalInfoResponse: Extracted personal information containing name, email, phone, location, and website.\n\nRaises:\n    ValueError: If parsing fails due to invalid or malformed resume content.\n\nNotes:\n    1. Splits the resume content into lines.\n    2. Creates a ParseContext for parsing.\n    3. Parses the resume using the resume_writer module.\n    4. Retrieves the personal section from the parsed resume.\n    5. Checks if contact information is present; if not, returns an empty response.\n    6. Extracts contact info and websites from the parsed personal section.\n    7. Maps the extracted data to the PersonalInfoResponse fields.\n    8. Returns the populated response or an empty one if parsing fails.\n    9. No network, disk, or database access is performed during this function."
       ],
       [
         "extract_education_info(resume_content: str) -> EducationResponse",
-        "Extract education information from resume content.\n\nArgs:\n    resume_content (str): The Markdown content of the resume to parse.\n\nReturns:\n    EducationResponse: Extracted education information containing a list of degree entries.\n\nNotes:\n    1. Splits the resume content into lines.\n    2. Creates a ParseContext for parsing.\n    3. Parses the resume using the resume_writer module.\n    4. Retrieves the education section from the parsed resume.\n    5. Checks if education data is present; if not, returns an empty response.\n    6. Loops through each degree and extracts school, degree, major, start_date, end_date, and gpa.\n    7. Maps each degree's fields into a dictionary.\n    8. Returns a list of dictionaries wrapped in the EducationResponse model.\n    9. If parsing fails, returns an empty response.\n    10. No network, disk, or database access is performed during this function."
+        "Extract education information from resume content.\n\nArgs:\n    resume_content (str): The Markdown content of the resume to parse.\n\nReturns:\n    EducationResponse: Extracted education information containing a list of degree entries.\n\nRaises:\n    ValueError: If parsing fails due to invalid or malformed resume content.\n\nNotes:\n    1. Splits the resume content into lines.\n    2. Creates a ParseContext for parsing.\n    3. Parses the resume using the resume_writer module.\n    4. Retrieves the education section from the parsed resume.\n    5. Checks if education data is present; if not, returns an empty response.\n    6. Loops through each degree and extracts school, degree, major, start_date, end_date, and gpa.\n    7. Maps each degree's fields into a dictionary.\n    8. Returns a list of dictionaries wrapped in the EducationResponse model.\n    9. If parsing fails, returns an empty response.\n    10. No network, disk, or database access is performed during this function."
       ],
       [
         "extract_experience_info(resume_content: str) -> ExperienceResponse",
-        "Extract experience information from resume content.\n\nArgs:\n    resume_content (str): The Markdown content of the resume to parse.\n\nReturns:\n    ExperienceResponse: Extracted experience information containing a list of roles and projects.\n\nNotes:\n    1. Splits the resume content into lines.\n    2. Creates a ParseContext for parsing.\n    3. Parses the resume using the resume_writer module.\n    4. Retrieves the experience section from the parsed resume.\n    5. Checks if experience data is present; if not, returns an empty response.\n    6. Loops through each role and extracts basics, summary, responsibilities and skills.\n    7. Loops through each project and extracts overview, description, and skills.\n    8. Maps the extracted data into a dictionary with nested structure.\n    9. Returns a list of dictionaries wrapped in the ExperienceResponse model.\n    10. If parsing fails, returns an empty response.\n    11. No network, disk, or database access is performed during this function."
+        "Extract experience information from resume content.\n\nArgs:\n    resume_content (str): The Markdown content of the resume to parse.\n\nReturns:\n    ExperienceResponse: Extracted experience information containing a list of roles and projects.\n\nRaises:\n    ValueError: If parsing fails due to invalid or malformed resume content.\n\nNotes:\n    1. Splits the resume content into lines.\n    2. Creates a ParseContext for parsing.\n    3. Parses the resume using the resume_writer module.\n    4. Retrieves the experience section from the parsed resume.\n    5. Checks if experience data is present; if not, returns an empty response.\n    6. Loops through each role and extracts basics, summary, responsibilities and skills.\n    7. Loops through each project and extracts overview, description, and skills.\n    8. Maps the extracted data into a dictionary with nested structure.\n    9. Returns a list of dictionaries wrapped in the ExperienceResponse model.\n    10. If parsing fails, returns an empty response.\n    11. No network, disk, or database access is performed during this function."
       ],
       [
         "extract_certifications_info(resume_content: str) -> CertificationsResponse",
-        "Extract certifications information from resume content.\n\nArgs:\n    resume_content (str): The Markdown content of the resume to parse.\n\nReturns:\n    CertificationsResponse: Extracted certifications information containing a list of certifications.\n\nNotes:\n    1. Splits the resume content into lines.\n    2. Creates a ParseContext for parsing.\n    3. Parses the resume using the resume_writer module.\n    4. Retrieves the certifications section from the parsed resume.\n    5. Checks if certifications data is present; if not, returns an empty response.\n    6. Loops through each certification and extracts name, issuer, certification_id, issued, and expires.\n    7. Maps the extracted data into a dictionary.\n    8. Returns a list of dictionaries wrapped in the CertificationsResponse model.\n    9. If parsing fails, returns an empty response.\n    10. No network, disk, or database access is performed during this function."
+        "Extract certifications information from resume content.\n\nArgs:\n    resume_content (str): The Markdown content of the resume to parse.\n\nReturns:\n    CertificationsResponse: Extracted certifications information containing a list of certifications.\n\nRaises:\n    ValueError: If parsing fails due to invalid or malformed resume content.\n\nNotes:\n    1. Splits the resume content into lines.\n    2. Creates a ParseContext for parsing.\n    3. Parses the resume using the resume_writer module.\n    4. Retrieves the certifications section from the parsed resume.\n    5. Checks if certifications data is present; if not, returns an empty response.\n    6. Loops through each certification and extracts name, issuer, certification_id, issued, and expires.\n    7. Maps the extracted data into a dictionary.\n    8. Returns a list of dictionaries wrapped in the CertificationsResponse model.\n    9. If parsing fails, returns an empty response.\n    10. No network, disk, or database access is performed during this function."
       ],
       [
         "serialize_personal_info_to_markdown(personal_info: UnknownType) -> str",
@@ -188,8 +192,16 @@
         "Serialize education information to Markdown format.\n\nArgs:\n    education: Education information to serialize, containing a list of degree entries.\n\nReturns:\n    str: Markdown formatted education section.\n\nNotes:\n    1. Initializes an empty list of lines and adds a heading.\n    2. For each degree in the list:\n        a. Adds a subsection header.\n        b. Adds each field (school, degree, major, start_date, end_date, gpa) as a direct field if present.\n        c. Adds a blank line after each degree.\n    3. Joins the lines with newlines.\n    4. Returns the formatted string with a trailing newline.\n    5. No network, disk, or database access is performed during this function."
       ],
       [
+        "_serialize_project_to_markdown(project: UnknownType) -> list[str]",
+        "Serialize a single project to markdown lines.\n\nArgs:\n    project: A project object to serialize.\n\nReturns:\n    list[str]: A list of markdown lines representing the project.\n\nNotes:\n    1. Gets the overview from the project.\n    2. Checks if the inclusion status is OMIT; if so, returns an empty list.\n    3. Builds the overview content with title, URL, URL description, start date, and end date.\n    4. Adds the overview section to the project content.\n    5. If the inclusion status is not NOT_RELEVANT:\n        a. Adds the description if present.\n        b. Adds the skills if present.\n    6. Returns the full project content as a list of lines."
+      ],
+      [
+        "_serialize_role_to_markdown(role: UnknownType) -> list[str]",
+        "Serialize a single role to markdown lines.\n\nArgs:\n    role: A role object to serialize.\n\nReturns:\n    list[str]: A list of markdown lines representing the role.\n\nNotes:\n    1. Gets the basics from the role.\n    2. Checks if the inclusion status is OMIT; if so, returns an empty list.\n    3. Builds the basics content with company, title, employment type, job category, agency name, start date, end date, reason for change, and location.\n    4. Adds the basics section to the role content.\n    5. If the inclusion status is not NOT_RELEVANT:\n        a. Adds the summary if present.\n        b. Adds the responsibilities if present.\n        c. Adds the skills if present.\n    6. Returns the full role content as a list of lines."
+      ],
+      [
         "serialize_experience_to_markdown(experience: UnknownType) -> str",
-        "Serialize experience information to Markdown format.\n\nArgs:\n    experience: Experience information to serialize, containing a list of roles.\n\nReturns:\n    str: Markdown formatted experience section.\n\nNotes:\n    1. Checks if the experience list is empty.\n    2. Initializes an empty list of lines and adds a heading.\n    3. For each role in the list:\n        a. Adds a subsection header.\n        b. Adds each field (company, title, start_date, end_date, location, description) using proper subsection structure.\n        c. Adds a blank line after each role.\n    4. Joins the lines with newlines.\n    5. Returns the formatted string with a trailing newline.\n    6. Returns an empty string if no experience data is present.\n    7. No network, disk, or database access is performed during this function."
+        "Serialize experience information to Markdown format.\n\nArgs:\n    experience: Experience information to serialize, containing a list of roles.\n\nReturns:\n    str: Markdown formatted experience section.\n\nNotes:\n    1. Checks if the experience list is empty.\n    2. Initializes an empty list of lines and adds a heading.\n    3. For each role in the list:\n        a. Adds a subsection header.\n        b. Adds each field (company, title, start_date, end_date, location, description) using proper subsection structure.\n        c. Adds a blank line after each role.\n    4. Joins the lines with newlines.\n    5. Returns the formatted string with a trailing newline.\n    6. Returns an empty string if no experience data is present or all is filtered out.\n    7. No network, disk, or database access is performed during this function."
       ],
       [
         "serialize_certifications_to_markdown(certifications: UnknownType) -> str",
@@ -242,8 +254,12 @@
         "Authenticate a user by username and password.\n\nArgs:\n    db (Session): Database session used to query for user records.\n    username (str): Username to authenticate.\n    password (str): Password to verify.\n\nReturns:\n    Optional[User]: The authenticated user if successful, None otherwise.\n\nNotes:\n    1. Query the database for a user with the given username.\n    2. If user exists and password is correct, return the user.\n    3. Otherwise, return None."
       ],
       [
-        "create_access_token(data: dict, expires_delta: timedelta | None) -> str",
-        "Create a JWT access token.\n\nArgs:\n    data (dict): Data to encode in the token (e.g., user ID, role).\n    expires_delta (Optional[timedelta]): Custom expiration time for the token. If None, uses default.\n\nReturns:\n    str: The encoded JWT token as a string.\n\nNotes:\n    1. Copy the data to avoid modifying the original.\n    2. Set expiration time based on expires_delta or default.\n    3. Encode the data with the secret key and algorithm.\n    4. No database or network access in this function."
+        "encrypt_data(data: str) -> str",
+        "Encrypts data using Fernet symmetric encryption.\n\nArgs:\n    data (str): The plaintext data to encrypt.\n\nReturns:\n    str: The encrypted data, encoded as a string.\n\nNotes:\n    1. Use Fernet to encrypt the data.\n    2. No database or network access in this function."
+      ],
+      [
+        "decrypt_data(encrypted_data: str) -> str",
+        "Decrypts data using Fernet symmetric encryption.\n\nArgs:\n    encrypted_data (str): The encrypted data to decrypt.\n\nReturns:\n    str: The decrypted plaintext data.\n\nNotes:\n    1. Use Fernet to decrypt the data.\n    2. No database or network access in this function."
       ]
     ],
     "classes": {
@@ -253,6 +269,10 @@
           [
             "__init__(self: UnknownType) -> UnknownType",
             "Initialize the SecurityManager with configuration settings.\n\nNotes:\n    1. Retrieve the application settings using get_settings().\n    2. Assign the access token expiration time from settings.\n    3. Set the secret key for JWT signing from settings.\n    4. Set the JWT algorithm from settings."
+          ],
+          [
+            "create_access_token(self: UnknownType, data: dict, expires_delta: timedelta | None) -> str",
+            "Create a JWT access token.\n\nArgs:\n    data (dict): The data to encode in the token (e.g., user ID, role).\n    expires_delta (Optional[timedelta]): Custom expiration time for the token. If None, uses default value.\n\nReturns:\n    str: The encoded JWT token as a string.\n\nNotes:\n    1. Copy the data to avoid modifying the original.\n    2. Set expiration time based on expires_delta or default.\n    3. Encode the data with the secret key and algorithm.\n    4. No database or network access in this function."
           ]
         ]
       ]
@@ -263,8 +283,8 @@
     "filename": "auth.py",
     "functions": [
       [
-        "get_current_user(db: Session, token: str) -> User",
-        "Retrieve the authenticated user from the provided JWT token.\n\nArgs:\n    db: Database session dependency used to query the database for the user.\n    token: JWT token extracted from the request header, used to authenticate the user.\n\nReturns:\n    User: The authenticated User object corresponding to the token's subject (username).\n\nNotes:\n    1. Initialize an HTTP 401 exception with a generic error message and \"Bearer\" authentication header.\n    2. Decode the JWT token using the secret key and algorithm to extract the subject (username).\n    3. If the subject (username) is missing from the token payload, raise the credentials exception.\n    4. If the JWT token is invalid or malformed, catch the JWTError and raise the credentials exception.\n    5. Query the database using the retrieved username to find the corresponding User record.\n    6. If the user is not found in the database, raise the credentials exception.\n    7. Return the User object if all authentication checks pass.\n\nDatabase Access:\n    - Queries the User table to retrieve a user record by username."
+        "get_current_user(token: Annotated[str, Depends(oauth2_scheme)], db: Session) -> User",
+        "Retrieve the authenticated user from the provided JWT token.\n\nArgs:\n    token: JWT token extracted from the request header, used to authenticate the user.\n        Type: str\n        Purpose: The JWT token that contains the user's identity and is used for authentication.\n    db: Database session dependency used to query the database for the user.\n        Type: Session\n        Purpose: Provides a connection to the database to retrieve the user record by username.\n\nReturns:\n    User: The authenticated User object corresponding to the token's subject (username).\n        Type: User\n        Purpose: Returns the user object if authentication is successful.\n\nRaises:\n    HTTPException: Raised when the credentials are invalid or the user is not found.\n        Status Code: 401 UNAUTHORIZED\n        Detail: \"Could not validate credentials\"\n        Headers: {\"WWW-Authenticate\": \"Bearer\"}\n\nNotes:\n    1. Initialize an HTTP 401 exception with a generic error message and \"Bearer\" authentication header.\n    2. Decode the JWT token using the secret key and algorithm to extract the subject (username).\n    3. If the subject (username) is missing from the token payload, raise the credentials exception.\n    4. If the JWT token is invalid or malformed, catch the JWTError and raise the credentials exception.\n    5. Query the database using the retrieved username to find the corresponding User record.\n    6. If the user is not found in the database, raise the credentials exception.\n    7. Return the User object if all authentication checks pass.\n\nDatabase Access:\n    - Queries the User table to retrieve a user record by username."
       ]
     ],
     "classes": {}
@@ -569,19 +589,19 @@
         ]
       ],
       "RoleBasics": [
-        "Represents basic information about a professional role.\n\nAttributes:\n    company (str): The name of the company.\n    start_date (datetime): The start date of the role.\n    end_date (datetime | None): The end date of the role or None if still ongoing.\n    title (str): The job title.\n    reason_for_change (str | None): The reason for leaving the role or None.\n    location (str | None): The job location or None.\n    job_category (str | None): The category of the job or None.\n    employment_type (str | None): The employment type or None.\n    agency_name (str | None): The name of the agency or None.",
+        "Represents basic information about a professional role.\n\nAttributes:\n    company (str): The name of the company.\n    start_date (datetime): The start date of the role.\n    end_date (datetime | None): The end date of the role or None if still ongoing.\n    title (str): The job title.\n    reason_for_change (str | None): The reason for leaving the role or None.\n    location (str | None): The job location or None.\n    job_category (str | None): The category of the job or None.\n    employment_type (str | None): The employment type or None.\n    agency_name (str | None): The name of the agency or None.\n    inclusion_status (InclusionStatus): The inclusion status of the role.",
         [
           [
             "validate_company(cls: UnknownType, v: UnknownType) -> UnknownType",
-            "Validate the company field.\n\nArgs:\n    v: The company value to validate. Must be a non-empty string.\n\nReturns:\n    str: The validated company.\n\nNotes:\n    1. Ensure company is a string.\n    2. Ensure company is not empty.\n    3. Strip whitespace from the company name.\n    4. Raise a ValueError if company is not a string or is empty."
+            "Validate the company field.\n\nArgs:\n    v: The company value to validate. Must be a non-empty string.\n\nReturns:\n    str: The validated company.\n\nRaises:\n    ValueError: If company is not a string or is empty.\n\nNotes:\n    1. Ensure company is a string.\n    2. Ensure company is not empty.\n    3. Strip whitespace from the company name.\n    4. Raise a ValueError if company is not a string or is empty."
           ],
           [
             "validate_title(cls: UnknownType, v: UnknownType) -> UnknownType",
-            "Validate the title field.\n\nArgs:\n    v: The title value to validate. Must be a non-empty string.\n\nReturns:\n    str: The validated title.\n\nNotes:\n    1. Ensure title is a string.\n    2. Ensure title is not empty.\n    3. Strip whitespace from the title.\n    4. Raise a ValueError if title is not a string or is empty."
+            "Validate the title field.\n\nArgs:\n    v: The title value to validate. Must be a non-empty string.\n\nReturns:\n    str: The validated title.\n\nRaises:\n    ValueError: If title is not a string or is empty.\n\nNotes:\n    1. Ensure title is a string.\n    2. Ensure title is not empty.\n    3. Strip whitespace from the title.\n    4. Raise a ValueError if title is not a string or is empty."
           ],
           [
             "validate_end_date(cls: UnknownType, v: UnknownType, info: UnknownType) -> UnknownType",
-            "Validate the end_date field.\n\nArgs:\n    v: The end_date value to validate. Must be a datetime object or None.\n    info: Validation info containing data.\n\nReturns:\n    datetime: The validated end_date.\n\nNotes:\n    1. Ensure end_date is a datetime object or None.\n    2. If end_date is provided, ensure it is not before start_date.\n    3. Raise a ValueError if end_date is not a datetime object or None, or if end_date is before start_date."
+            "Validate the end_date field.\n\nArgs:\n    v: The end_date value to validate. Must be a datetime object or None.\n    info: Validation info containing data.\n\nReturns:\n    datetime: The validated end_date.\n\nRaises:\n    ValueError: If end_date is not a datetime object or None, or if end_date is before start_date.\n\nNotes:\n    1. Ensure end_date is a datetime object or None.\n    2. If end_date is provided, ensure it is not before start_date.\n    3. Raise a ValueError if end_date is not a datetime object or None, or if end_date is before start_date."
           ]
         ]
       ],
@@ -611,7 +631,7 @@
         [
           [
             "validate_skills(cls: UnknownType, v: UnknownType) -> UnknownType",
-            "Validate the skills field.\n\nArgs:\n    v: The skills value to validate. Must be a list of strings.\n\nReturns:\n    list[str]: The validated and cleaned skills list.\n\nNotes:\n    1. Ensure skills is a list.\n    2. Ensure all items in skills are strings.\n    3. Strip whitespace from each skill and filter out empty strings.\n    4. Raise a ValueError if skills is not a list or if any skill is not a string.\n    5. Return the cleaned list of non-empty skills."
+            "Validate the skills field.\n\nArgs:\n    v: The skills value to validate. Must be a list of strings.\n\nReturns:\n    list[str]: The validated and cleaned skills list.\n\nRaises:\n    ValueError: If skills is not a list or if any skill is not a string.\n\nNotes:\n    1. Ensure skills is a list.\n    2. Ensure all items in skills are strings.\n    3. Strip whitespace from each skill and filter out empty strings.\n    4. Raise a ValueError if skills is not a list or if any skill is not a string.\n    5. Return the cleaned list of non-empty skills."
           ],
           [
             "__iter__(self: UnknownType) -> UnknownType",
@@ -628,15 +648,15 @@
         ]
       ],
       "ProjectOverview": [
-        "Represents basic details of a project.\n\nAttributes:\n    title (str): The title of the project.\n    url (str | None): The URL for the project or None.\n    url_description (str | None): A description of the URL or None.\n    start_date (datetime | None): The start date as a datetime object or None.\n    end_date (datetime | None): The end date as a datetime object or None.",
+        "Represents basic details of a project.\n\nAttributes:\n    title (str): The title of the project.\n    url (str | None): The URL for the project or None.\n    url_description (str | None): A description of the URL or None.\n    start_date (datetime | None): The start date as a datetime object or None.\n    end_date (datetime | None): The end date as a datetime object or None.\n    inclusion_status (InclusionStatus): The inclusion status of the project.",
         [
           [
             "validate_title(cls: UnknownType, v: UnknownType) -> UnknownType",
-            "Validate the title field.\n\nArgs:\n    v: The title value to validate. Must be a non-empty string.\n\nReturns:\n    str: The validated title.\n\nNotes:\n    1. Ensure title is a string.\n    2. Ensure title is not empty.\n    3. Strip whitespace from the title.\n    4. Raise a ValueError if title is not a string or is empty."
+            "Validate the title field.\n\nArgs:\n    v: The title value to validate. Must be a non-empty string.\n\nReturns:\n    str: The validated title.\n\nRaises:\n    ValueError: If title is not a string or is empty.\n\nNotes:\n    1. Ensure title is a string.\n    2. Ensure title is not empty.\n    3. Strip whitespace from the title.\n    4. Raise a ValueError if title is not a string or is empty."
           ],
           [
             "validate_date_order(cls: UnknownType, v: UnknownType, info: UnknownType) -> UnknownType",
-            "Validate that start_date is not after end_date.\n\nArgs:\n    v: The end_date value to validate.\n    info: Validation info containing data.\n\nReturns:\n    datetime: The validated end_date.\n\nNotes:\n    1. If both start_date and end_date are provided, ensure start_date is not after end_date.\n    2. Raise a ValueError if end_date is before start_date."
+            "Validate that start_date is not after end_date.\n\nArgs:\n    v: The end_date value to validate.\n    info: Validation info containing data.\n\nReturns:\n    datetime: The validated end_date.\n\nRaises:\n    ValueError: If end_date is before start_date.\n\nNotes:\n    1. If both start_date and end_date are provided, ensure start_date is not after end_date.\n    2. Raise a ValueError if end_date is before start_date."
           ]
         ]
       ],
@@ -688,6 +708,62 @@
         "Creates or updates settings for a user.\n\nArgs:\n    db (Session): The database session used to perform database operations.\n    user_id (int): The unique identifier of the user whose settings are being updated.\n    settings_data (UserSettingsUpdateRequest): The data containing the updated settings.\n\nReturns:\n    UserSettings: The updated or newly created UserSettings object.\n\nNotes:\n    1. Attempts to retrieve existing settings for the given user_id using get_user_settings.\n    2. If no settings are found, creates a new UserSettings object with the provided user_id and adds it to the session.\n    3. Updates the llm_endpoint field if settings_data.llm_endpoint is provided and not None.\n    4. If settings_data.api_key is provided and not empty, encrypts the API key using encrypt_data and stores it in encrypted_api_key; otherwise, sets encrypted_api_key to None.\n    5. Commits the transaction to the database.\n    6. Refreshes the session to ensure the returned object has the latest data from the database.\n    7. This function performs a database read and possibly a write operation."
       ]
     ],
+    "classes": {}
+  },
+  "resume_editor/app/api/routes/route_logic/resume_filtering.py": {
+    "filepath": "resume_editor/app/api/routes/route_logic/resume_filtering.py",
+    "filename": "resume_filtering.py",
+    "functions": [
+      [
+        "_get_date_from_optional_datetime(dt: datetime | None) -> date | None",
+        "Safely convert an optional datetime object to an optional date object.\n\nArgs:\n    dt (datetime | None): The datetime object to convert, or None.\n\nReturns:\n    date | None: The date portion of the datetime, or None if input is None."
+      ],
+      [
+        "_is_in_date_range(item_start_date: date | None, item_end_date: date | None, filter_start_date: date | None, filter_end_date: date | None) -> bool",
+        "Check if an item's date range overlaps with the filter's date range.\n\nArgs:\n    item_start_date (date | None): The start date of the item being evaluated.\n    item_end_date (date | None): The end date of the item (or None if ongoing).\n    filter_start_date (date | None): The start date of the filtering period.\n    filter_end_date (date | None): The end date of the filtering period.\n\nReturns:\n    bool: True if the item overlaps with the filter's date range, False otherwise.\n\nNotes:\n    1. If the filter has a start date and the item ends before that date, the item is out of range.\n    2. If the filter has an end date and the item starts after that date, the item is out of range.\n    3. Otherwise, the item is considered to be in range."
+      ],
+      [
+        "filter_experience_by_date(experience: ExperienceResponse, start_date: date | None, end_date: date | None) -> ExperienceResponse",
+        "Filter roles and projects in an ExperienceResponse based on a date range.\n\nArgs:\n    experience (ExperienceResponse): The experience data to filter.\n    start_date (date | None): The start of the filtering period. If None, no start constraint is applied.\n    end_date (date | None): The end of the filtering period. If None, no end constraint is applied.\n\nReturns:\n    ExperienceResponse: A new ExperienceResponse object containing only roles and projects that overlap with the specified date range.\n\nNotes:\n    1. If both start_date and end_date are None, return the original experience object unmodified.\n    2. Iterate through the roles in the experience object and check if each role's date range overlaps with the filter range using _is_in_date_range.\n    3. For each role that overlaps, add it to the filtered_roles list.\n    4. Iterate through the projects in the experience object and check if each project's date range overlaps with the filter range.\n    5. Projects without an end date are treated as single-day events occurring on their start date.\n    6. For each project that overlaps, add it to the filtered_projects list.\n    7. Return a new ExperienceResponse object with the filtered roles and projects."
+      ]
+    ],
+    "classes": {}
+  },
+  "resume_editor/app/api/routes/route_logic/resume_llm.py": {
+    "filepath": "resume_editor/app/api/routes/route_logic/resume_llm.py",
+    "filename": "resume_llm.py",
+    "functions": [
+      [
+        "_get_section_content(resume_content: str, section_name: str) -> str",
+        "Extracts the Markdown content for a specific section of the resume.\n\nArgs:\n    resume_content (str): The full resume content in Markdown.\n    section_name (str): The name of the section to extract (\"personal\", \"education\", \"experience\", \"certifications\", or \"full\").\n\nReturns:\n    str: The Markdown content of the specified section. returns the full content if \"full\"."
+      ],
+      [
+        "refine_resume_section_with_llm(resume_content: str, job_description: str, target_section: str, llm_endpoint: str | None, api_key: str | None) -> str",
+        "Uses an LLM to refine a specific section of a resume based on a job description.\n\nArgs:\n    resume_content (str): The full Markdown content of the resume.\n    job_description (str): The job description to align the resume with.\n    target_section (str): The section of the resume to refine (e.g., \"experience\").\n    llm_endpoint (str | None): The custom LLM endpoint URL.\n    api_key (str | None): The user's decrypted LLM API key.\n\nReturns:\n    str: The refined Markdown content for the target section.\n\nNotes:\n    1. Select the target content from the resume.\n    2. Set up a PydanticOutputParser for structured output.\n    3. Create a PromptTemplate with instructions for the LLM.\n    4. Initialize the ChatOpenAI client with user-specific settings.\n    5. Create and invoke a chain with the prompt, LLM, and parser.\n    6. Parse the LLM's JSON-Markdown output.\n    7. Return the refined content."
+      ]
+    ],
+    "classes": {}
+  },
+  "resume_editor/app/models/user_settings.py": {
+    "filepath": "resume_editor/app/models/user_settings.py",
+    "filename": "user_settings.py",
+    "functions": [],
+    "classes": {
+      "UserSettings": [
+        "Stores user-specific settings, such as LLM configurations.\n\nAttributes:\n    id (int): Primary key.\n    user_id (int): Foreign key to the user.\n    llm_endpoint (str | None): Custom LLM API endpoint URL.\n    encrypted_api_key (str | None): Encrypted API key for the LLM service.\n    user (User): Relationship to the User model.",
+        [
+          [
+            "__init__(self: UnknownType, user_id: int, llm_endpoint: str | None, encrypted_api_key: str | None) -> UnknownType",
+            "Initialize a UserSettings instance.\n\nArgs:\n    user_id (int): The ID of the user these settings belong to.\n    llm_endpoint (str | None): Custom LLM API endpoint URL.\n    encrypted_api_key (str | None): Encrypted API key for the LLM service.\n\nReturns:\n    None\n\nNotes:\n    1. Assign all values to instance attributes.\n    2. Log the initialization of the user settings.\n    3. This operation does not involve network, disk, or database access."
+          ]
+        ]
+      ]
+    }
+  },
+  "resume_editor/app/schemas/llm.py": {
+    "filepath": "resume_editor/app/schemas/llm.py",
+    "filename": "llm.py",
+    "functions": [],
     "classes": {}
   }
 }

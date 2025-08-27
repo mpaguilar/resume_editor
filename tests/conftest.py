@@ -53,6 +53,10 @@ def mock_database_imports():
         patch("resume_editor.app.database.database.create_engine"),
         patch("resume_editor.app.database.database.sessionmaker"),
         patch("resume_editor.app.core.config.get_settings") as mock_get_settings,
+        patch(
+            "resume_editor.app.core.security.get_settings"
+        ) as mock_get_settings_security,
+        patch("resume_editor.app.core.auth.get_settings") as mock_get_settings_auth,
     ):
         # Create a mock settings object with valid values
         mock_settings = MagicMock()
@@ -63,4 +67,6 @@ def mock_database_imports():
         mock_settings.algorithm = "HS256"
         mock_settings.secret_key = "test-secret-key"
         mock_get_settings.return_value = mock_settings
+        mock_get_settings_security.return_value = mock_settings
+        mock_get_settings_auth.return_value = mock_settings
         yield

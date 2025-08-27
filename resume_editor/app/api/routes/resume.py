@@ -1,7 +1,7 @@
 import html
 import io
 import logging
-from datetime import date
+from datetime import date, datetime
 
 from cryptography.fernet import InvalidToken
 from docx import Document
@@ -29,6 +29,7 @@ from resume_editor.app.api.routes.route_logic.resume_crud import (
 from resume_editor.app.api.routes.route_logic.resume_llm import (
     refine_resume_section_with_llm,
 )
+from resume_editor.app.api.routes.route_logic.settings_crud import get_user_settings
 from resume_editor.app.api.routes.route_logic.resume_parsing import (
     parse_resume_content,
     parse_resume_to_writer_object,
@@ -42,6 +43,7 @@ from resume_editor.app.api.routes.route_logic.resume_serialization import (
     extract_education_info,
     extract_experience_info,
     extract_personal_info,
+    update_resume_content_with_structured_data,
 )
 from resume_editor.app.api.routes.route_logic.resume_filtering import (
     filter_experience_by_date,
@@ -49,7 +51,6 @@ from resume_editor.app.api.routes.route_logic.resume_filtering import (
 from resume_editor.app.api.routes.route_logic.resume_validation import (
     perform_pre_save_validation,
 )
-from resume_editor.app.api.routes.route_logic.settings_crud import get_user_settings
 from resume_editor.app.api.routes.route_models import (
     CertificationsResponse,
     CertificationUpdateRequest,
@@ -71,6 +72,10 @@ from resume_editor.app.api.routes.route_models import (
     ResumeResponse,
     ResumeUpdateRequest,
 )
+from resume_editor.app.models.resume.certifications import Certification
+from resume_editor.app.models.resume.education import Degree
+from resume_editor.app.models.resume.experience import Project, Role
+from resume_editor.app.core.auth import get_current_user
 from resume_editor.app.core.security import decrypt_data
 from resume_editor.app.database.database import get_db
 from resume_editor.app.models.resume_model import Resume as DatabaseResume
@@ -79,32 +84,6 @@ from resume_editor.app.models.user import User
 log = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/resumes", tags=["resumes"])
-
-
-# Dependency to get current user (placeholder - would be implemented with auth)
-def get_current_user():
-    """Placeholder for current user dependency.
-
-    In a real implementation, this would verify the user's authentication token
-    and return the current user object.
-
-    Returns:
-        User: The current authenticated user.
-
-    Notes:
-        1. This is a placeholder implementation.
-        2. In reality, this would use JWT token verification or similar.
-
-    """
-    # This is a placeholder implementation
-    # In reality, this would use JWT token verification or similar
-    user = User(
-        "testuser",
-        "test@example.com",
-        "hashed_password",
-    )
-    user.id = 1
-    return user
 
 
 async def get_resume_for_user(
@@ -130,7 +109,6 @@ async def get_resume_for_user(
         2. If no resume is found, raises a 404 error.
         3. Performs database access: Reads from the database via db.query.
         4. Returns the resume object.
-
     """
     return get_resume_by_id_and_user(db, resume_id=resume_id, user_id=current_user.id)
 
@@ -139,7 +117,21 @@ def _generate_resume_list_html(
     resumes: list[DatabaseResume],
     selected_resume_id: int | None,
 ) -> str:
-    """Generates HTML for a list of resumes, marking one as selected."""
+    """Generates HTML for a list of resumes, marking one as selected.
+
+    Args:
+        resumes (list[DatabaseResume]): The list of resumes to display.
+        selected_resume_id (int | None): The ID of the resume to mark as selected.
+
+    Returns:
+        str: HTML string for the resume list.
+
+    Notes:
+        1. Checks if the resumes list is empty.
+        2. If empty, returns a message indicating no resumes were found.
+        3. Otherwise, generates HTML for each resume item with a selected class if it matches the selected ID.
+        4. Returns the concatenated HTML string.
+    """
     if not resumes:
         return """
         <div class="text-center py-8">
@@ -183,7 +175,6 @@ async def parse_resume_endpoint(request: ParseRequest):
         6. If an error occurs during parsing, logs the exception and raises a 400 error.
         7. Performs database access: None.
         8. Performs network access: None.
-
     """
     return parse_resume_content(request.markdown_content)
 
@@ -221,7 +212,6 @@ async def create_resume(
         9. Otherwise, returns a ResumeResponse with the resume ID and name.
         10. Performs database access: Writes to the database via db.add and db.commit.
         11. Performs network access: None.
-
     """
     # Validate Markdown content before saving
     validate_resume_content(request.content)
@@ -279,7 +269,6 @@ async def update_resume(
         9. Otherwise, returns a ResumeResponse with the resume ID and name.
         10. Performs database access: Reads from and writes to the database via db.query, db.commit.
         11. Performs network access: None.
-
     """
     # Validate Markdown content before updating if content is being changed
     if request.content is not None:
@@ -327,7 +316,6 @@ async def delete_resume(
         6. Otherwise, returns a success message.
         7. Performs database access: Reads from and writes to the database via db.query, db.delete, db.commit.
         8. Performs network access: None.
-
     """
     # Delete the resume
     delete_resume_db(db, resume)
@@ -369,7 +357,6 @@ async def list_resumes(
         5. Otherwise, returns the list of ResumeResponse objects.
         6. Performs database access: Reads from the database via db.query.
         7. Performs network access: None.
-
     """
     resumes = get_user_resumes(db, current_user.id)
 
@@ -379,6 +366,170 @@ async def list_resumes(
         return HTMLResponse(content=html_content)
 
     return [ResumeResponse(id=resume.id, name=resume.name) for resume in resumes]
+
+
+def _generate_resume_detail_html(resume: DatabaseResume) -> str:
+    """Generate the HTML for the resume detail view."""
+    return f"""
+    <div class="h-full flex flex-col">
+        <div class="flex justify-between items-center mb-4">
+            <h2 class="text-xl font-semibold">{resume.name}</h2>
+            <div class="flex space-x-2">
+                <button
+                    type="button"
+                    onclick="document.getElementById('refine-modal-{resume.id}').classList.remove('hidden')"
+                    class="bg-purple-500 hover:bg-purple-600 text-white px-3 py-1 rounded text-sm">
+                    Refine with AI
+                </button>
+                 <button
+                    type="button"
+                    onclick="document.getElementById('export-modal-{resume.id}').classList.remove('hidden')"
+                    class="bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded text-sm">
+                    Export
+                </button>
+                <button 
+                    hx-get="/dashboard/create-resume-form" 
+                    hx-target="#resume-content" 
+                    hx-swap="innerHTML"
+                    class="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-sm">
+                    Edit
+                </button>
+            </div>
+        </div>
+        <div class="flex-grow">
+            <textarea 
+                readonly
+                class="w-full h-96 px-3 py-2 border border-gray-300 rounded-md focus:outline-none font-mono text-sm resize-none"
+                placeholder="Resume content will appear here...">{resume.content}</textarea>
+        </div>
+        <div class="mt-4 text-sm text-gray-500">
+            <p>Resume ID: {resume.id}</p>
+        </div>
+        <div id="refine-result-container" class="mt-4"></div>
+    </div>
+
+    <!-- Export Modal -->
+    <div id="export-modal-{resume.id}" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full hidden z-50">
+        <div class="relative top-20 mx-auto p-5 border w-1/2 shadow-lg rounded-md bg-white">
+            <div class="mt-3">
+                <h3 class="text-lg leading-6 font-medium text-gray-900 text-center">Export Resume</h3>
+                <div class="mt-2 px-7 py-3">
+                    <div id="export-form-{resume.id}">
+                        <p class="text-sm text-gray-600 mb-4">You can optionally filter the 'Experience' section by a date range.</p>
+                        
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label for="start_date_{resume.id}" class="block text-sm font-medium text-gray-700">Start Date</label>
+                                <input type="date" name="start_date" id="start_date_{resume.id}" class="mt-1 p-2 border border-gray-300 rounded w-full">
+                            </div>
+                            <div>
+                                <label for="end_date_{resume.id}" class="block text-sm font-medium text-gray-700">End Date</label>
+                                <input type="date" name="end_date" id="end_date_{resume.id}" class="mt-1 p-2 border border-gray-300 rounded w-full">
+                            </div>
+                        </div>
+
+                        <div class="mt-6 border-t pt-4">
+                            <h4 class="font-medium text-gray-800 mb-2">Markdown</h4>
+                            <button type="button" onclick="exportResume({resume.id}, 'markdown')" class="w-full px-4 py-2 bg-gray-600 text-white text-base font-medium rounded-md shadow-sm hover:bg-gray-700">
+                                Export as Markdown
+                            </button>
+                        </div>
+
+                        <div class="mt-4 border-t pt-4">
+                            <h4 class="font-medium text-gray-800 mb-2">DOCX</h4>
+                            <div class="grid grid-cols-3 gap-2">
+                                 <button type="button" onclick="exportResume({resume.id}, 'docx', 'plain')" class="px-4 py-2 bg-indigo-500 text-white text-base font-medium rounded-md shadow-sm hover:bg-indigo-600">Plain</button>
+                                 <button type="button" onclick="exportResume({resume.id}, 'docx', 'ats')" class="px-4 py-2 bg-indigo-500 text-white text-base font-medium rounded-md shadow-sm hover:bg-indigo-600">ATS</button>
+                                 <button type="button" onclick="exportResume({resume.id}, 'docx', 'executive')" class="px-4 py-2 bg-indigo-500 text-white text-base font-medium rounded-md shadow-sm hover:bg-indigo-600">Executive</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="px-7 pb-3">
+                    <button
+                        type="button"
+                        onclick="document.getElementById('export-modal-{resume.id}').classList.add('hidden')"
+                        class="w-full px-4 py-2 bg-gray-200 text-gray-800 text-base font-medium rounded-md shadow-sm hover:bg-gray-300">
+                        Cancel
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script>
+    function exportResume(resumeId, type, format) {{
+        const startDate = document.getElementById(`start_date_${{resumeId}}`).value;
+        const endDate = document.getElementById(`end_date_${{resumeId}}`).value;
+        
+        let url = `/api/resumes/${{resumeId}}/export/${{type}}`;
+        const params = new URLSearchParams();
+        
+        if (type === 'docx') {{
+            params.append('format', format);
+        }}
+        if (startDate) {{
+            params.append('start_date', startDate);
+        }}
+        if (endDate) {{
+            params.append('end_date', endDate);
+        }}
+        
+        if (params.toString()) {{
+            url += '?' + params.toString();
+        }}
+        
+        window.location.href = url;
+        document.getElementById(`export-modal-${{resumeId}}`).classList.add('hidden');
+    }}
+    </script>
+
+    <!-- Refine Modal -->
+    <div id="refine-modal-{resume.id}" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full hidden z-50">
+        <div class="relative top-20 mx-auto p-5 border w-1/2 shadow-lg rounded-md bg-white">
+            <div class="mt-3">
+                <h3 class="text-lg leading-6 font-medium text-gray-900 text-center">Refine Resume with Job Description</h3>
+                <div class="mt-2 px-7 py-3">
+                    <form id="refine-form-{resume.id}"
+                          hx-post="/api/resumes/{resume.id}/refine"
+                          hx-target="#refine-result-container"
+                          hx-swap="innerHTML"
+                          onsubmit="document.getElementById('refine-modal-{resume.id}').classList.add('hidden')">
+                        
+                        <label for="job_description" class="block text-sm font-medium text-gray-700">Job Description</label>
+                        <textarea name="job_description" class="mt-1 w-full h-40 p-2 border border-gray-300 rounded" placeholder="Paste job description here..." required></textarea>
+                        
+                        <div class="mt-4">
+                          <label for="target_section" class="block text-sm font-medium text-gray-700">Section to Refine</label>
+                          <select name="target_section" id="target_section" class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md">
+                              <option value="full">Full Resume</option>
+                              <option value="personal">Personal</option>
+                              <option value="education">Education</option>
+                              <option value="experience">Experience</option>
+                              <option value="certifications">Certifications</option>
+                          </select>
+                        </div>
+
+                        <div class="mt-6">
+                            <button type="submit" class="w-full px-4 py-2 bg-blue-500 text-white text-base font-medium rounded-md shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                Refine
+                            </button>
+                        </div>
+                    </form>
+                </div>
+                
+                <div class="px-7 pb-3">
+                    <button
+                        type="button"
+                        onclick="document.getElementById('refine-modal-{resume.id}').classList.add('hidden')"
+                        class="w-full px-4 py-2 bg-gray-200 text-gray-800 text-base font-medium rounded-md shadow-sm hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-300">
+                        Cancel
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    """
 
 
 @router.get("/{resume_id}", response_model=ResumeDetailResponse)
@@ -405,172 +556,10 @@ async def get_resume(
         4. Otherwise, returns a ResumeDetailResponse with the resume's ID, name, and content.
         5. Performs database access: Reads from the database via db.query.
         6. Performs network access: None.
-
     """
     # Check if this is an HTMX request
     if "HX-Request" in request.headers:
-        # NOTE to user: The modal uses simple JS for toggling visibility.
-        # Ensure htmx and potentially a script for modal interactivity are loaded on the main page.
-        html_content = f"""
-        <div class="h-full flex flex-col">
-            <div class="flex justify-between items-center mb-4">
-                <h2 class="text-xl font-semibold">{resume.name}</h2>
-                <div class="flex space-x-2">
-                    <button
-                        type="button"
-                        onclick="document.getElementById('refine-modal-{resume.id}').classList.remove('hidden')"
-                        class="bg-purple-500 hover:bg-purple-600 text-white px-3 py-1 rounded text-sm">
-                        Refine with AI
-                    </button>
-                     <button
-                        type="button"
-                        onclick="document.getElementById('export-modal-{resume.id}').classList.remove('hidden')"
-                        class="bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded text-sm">
-                        Export
-                    </button>
-                    <button 
-                        hx-get="/dashboard/create-resume-form" 
-                        hx-target="#resume-content" 
-                        hx-swap="innerHTML"
-                        class="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-sm">
-                        Edit
-                    </button>
-                </div>
-            </div>
-            <div class="flex-grow">
-                <textarea 
-                    readonly
-                    class="w-full h-96 px-3 py-2 border border-gray-300 rounded-md focus:outline-none font-mono text-sm resize-none"
-                    placeholder="Resume content will appear here...">{resume.content}</textarea>
-            </div>
-            <div class="mt-4 text-sm text-gray-500">
-                <p>Resume ID: {resume.id}</p>
-            </div>
-            <div id="refine-result-container" class="mt-4"></div>
-        </div>
-
-        <!-- Export Modal -->
-        <div id="export-modal-{resume.id}" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full hidden z-50">
-            <div class="relative top-20 mx-auto p-5 border w-1/2 shadow-lg rounded-md bg-white">
-                <div class="mt-3">
-                    <h3 class="text-lg leading-6 font-medium text-gray-900 text-center">Export Resume</h3>
-                    <div class="mt-2 px-7 py-3">
-                        <div id="export-form-{resume.id}">
-                            <p class="text-sm text-gray-600 mb-4">You can optionally filter the 'Experience' section by a date range.</p>
-                            
-                            <div class="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label for="start_date_{resume.id}" class="block text-sm font-medium text-gray-700">Start Date</label>
-                                    <input type="date" name="start_date" id="start_date_{resume.id}" class="mt-1 p-2 border border-gray-300 rounded w-full">
-                                </div>
-                                <div>
-                                    <label for="end_date_{resume.id}" class="block text-sm font-medium text-gray-700">End Date</label>
-                                    <input type="date" name="end_date" id="end_date_{resume.id}" class="mt-1 p-2 border border-gray-300 rounded w-full">
-                                </div>
-                            </div>
-
-                            <div class="mt-6 border-t pt-4">
-                                <h4 class="font-medium text-gray-800 mb-2">Markdown</h4>
-                                <button type="button" onclick="exportResume({resume.id}, 'markdown')" class="w-full px-4 py-2 bg-gray-600 text-white text-base font-medium rounded-md shadow-sm hover:bg-gray-700">
-                                    Export as Markdown
-                                </button>
-                            </div>
-
-                            <div class="mt-4 border-t pt-4">
-                                <h4 class="font-medium text-gray-800 mb-2">DOCX</h4>
-                                <div class="grid grid-cols-3 gap-2">
-                                     <button type="button" onclick="exportResume({resume.id}, 'docx', 'plain')" class="px-4 py-2 bg-indigo-500 text-white text-base font-medium rounded-md shadow-sm hover:bg-indigo-600">Plain</button>
-                                     <button type="button" onclick="exportResume({resume.id}, 'docx', 'ats')" class="px-4 py-2 bg-indigo-500 text-white text-base font-medium rounded-md shadow-sm hover:bg-indigo-600">ATS</button>
-                                     <button type="button" onclick="exportResume({resume.id}, 'docx', 'executive')" class="px-4 py-2 bg-indigo-500 text-white text-base font-medium rounded-md shadow-sm hover:bg-indigo-600">Executive</button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="px-7 pb-3">
-                        <button
-                            type="button"
-                            onclick="document.getElementById('export-modal-{resume.id}').classList.add('hidden')"
-                            class="w-full px-4 py-2 bg-gray-200 text-gray-800 text-base font-medium rounded-md shadow-sm hover:bg-gray-300">
-                            Cancel
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <script>
-        function exportResume(resumeId, type, format) {{
-            const startDate = document.getElementById(`start_date_${{resumeId}}`).value;
-            const endDate = document.getElementById(`end_date_${{resumeId}}`).value;
-            
-            let url = `/api/resumes/${{resumeId}}/export/${{type}}`;
-            const params = new URLSearchParams();
-            
-            if (type === 'docx') {{
-                params.append('format', format);
-            }}
-            if (startDate) {{
-                params.append('start_date', startDate);
-            }}
-            if (endDate) {{
-                params.append('end_date', endDate);
-            }}
-            
-            if (params.toString()) {{
-                url += '?' + params.toString();
-            }}
-            
-            window.location.href = url;
-            document.getElementById(`export-modal-${{resumeId}}`).classList.add('hidden');
-        }}
-        </script>
-
-        <!-- Refine Modal -->
-        <div id="refine-modal-{resume.id}" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full hidden z-50">
-            <div class="relative top-20 mx-auto p-5 border w-1/2 shadow-lg rounded-md bg-white">
-                <div class="mt-3">
-                    <h3 class="text-lg leading-6 font-medium text-gray-900 text-center">Refine Resume with Job Description</h3>
-                    <div class="mt-2 px-7 py-3">
-                        <form id="refine-form-{resume.id}"
-                              hx-post="/api/resumes/{resume.id}/refine"
-                              hx-target="#refine-result-container"
-                              hx-swap="innerHTML"
-                              onsubmit="document.getElementById('refine-modal-{resume.id}').classList.add('hidden')">
-                            
-                            <label for="job_description" class="block text-sm font-medium text-gray-700">Job Description</label>
-                            <textarea name="job_description" class="mt-1 w-full h-40 p-2 border border-gray-300 rounded" placeholder="Paste job description here..." required></textarea>
-                            
-                            <div class="mt-4">
-                              <label for="target_section" class="block text-sm font-medium text-gray-700">Section to Refine</label>
-                              <select name="target_section" id="target_section" class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md">
-                                  <option value="full">Full Resume</option>
-                                  <option value="personal">Personal</option>
-                                  <option value="education">Education</option>
-                                  <option value="experience">Experience</option>
-                                  <option value="certifications">Certifications</option>
-                              </select>
-                            </div>
-
-                            <div class="mt-6">
-                                <button type="submit" class="w-full px-4 py-2 bg-blue-500 text-white text-base font-medium rounded-md shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500">
-                                    Refine
-                                </button>
-                            </div>
-                        </form>
-                    </div>
-                    
-                    <div class="px-7 pb-3">
-                        <button
-                            type="button"
-                            onclick="document.getElementById('refine-modal-{resume.id}').classList.add('hidden')"
-                            class="w-full px-4 py-2 bg-gray-200 text-gray-800 text-base font-medium rounded-md shadow-sm hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-300">
-                            Cancel
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </div>
-        """
+        html_content = _generate_resume_detail_html(resume)
         return HTMLResponse(content=html_content)
 
     return ResumeDetailResponse(
@@ -606,7 +595,6 @@ async def export_resume_markdown(
         4. Sets the 'Content-Type' header to 'text/markdown'.
         5. Sets the 'Content-Disposition' header to trigger a file download with the resume's name.
         6. Returns the response.
-
     """
     try:
         content_to_export = resume.content
@@ -677,7 +665,6 @@ async def export_resume_docx(
             - For 'executive', enables `executive_summary` and `skills_matrix` in settings.
         7. Saves the generated document to a memory stream.
         8. Returns the stream as a downloadable file attachment.
-
     """
     _msg = f"export_resume_docx starting for format {format.value}"
     log.debug(_msg)
@@ -749,6 +736,7 @@ async def export_resume_docx(
 async def update_personal_info(
     request: PersonalInfoUpdateRequest,
     http_request: Request,
+    db: Session = Depends(get_db),
     resume: DatabaseResume = Depends(get_resume_for_user),
 ):
     """Update personal information in a resume.
@@ -772,279 +760,296 @@ async def update_personal_info(
         3. Updates the personal information section in the resume content.
         4. Commits the transaction to save the changes.
         5. Returns HTML for HTMX to update the resume content view.
-
     """
-    # For now, we'll just show a success message
-    # In a real implementation, we would parse and update the resume content
-    html_content = f"""
-    <div class="h-full flex flex-col">
-        <div class="flex justify-between items-center mb-4">
-            <h2 class="text-xl font-semibold">{resume.name}</h2>
-            <div class="flex space-x-2">
-                <button 
-                    hx-get="/dashboard/resumes/{resume.id}/edit/personal" 
-                    hx-target="#resume-content" 
-                    hx-swap="innerHTML"
-                    class="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-sm">
-                    Edit Personal Info
-                </button>
-            </div>
-        </div>
-        <div class="flex-grow">
-            <p class="text-green-600 font-medium">Personal information updated successfully!</p>
-            <textarea 
-                readonly
-                class="w-full h-96 px-3 py-2 border border-gray-300 rounded-md focus:outline-none font-mono text-sm resize-none"
-                placeholder="Resume content will appear here...">{resume.content}</textarea>
-        </div>
-    </div>
-    """
-    return HTMLResponse(content=html_content)
+    try:
+        updated_personal_info = PersonalInfoResponse(**request.model_dump())
+        updated_content = update_resume_content_with_structured_data(
+            current_content=resume.content,
+            personal_info=updated_personal_info,
+        )
+        perform_pre_save_validation(updated_content, resume.content)
+        updated_resume = update_resume_db(db, resume=resume, content=updated_content)
+        return HTMLResponse(content=_generate_resume_detail_html(updated_resume))
+    except (ValueError, TypeError, HTTPException) as e:
+        detail = getattr(e, "detail", str(e))
+        _msg = f"Failed to update personal info: {detail}"
+        log.exception(_msg)
+        raise HTTPException(status_code=422, detail=_msg)
 
 
 @router.post("/{resume_id}/edit/education")
 async def update_education(
     http_request: Request,
+    db: Session = Depends(get_db),
     resume: DatabaseResume = Depends(get_resume_for_user),
     school: str = Form(...),
-    degree: str = Form(None),
-    major: str = Form(None),
-    start_date: str = Form(None),
-    end_date: str = Form(None),
-    gpa: str = Form(None),
+    degree: str | None = Form(None),
+    major: str | None = Form(None),
+    start_date: str | None = Form(None),
+    end_date: str | None = Form(None),
+    gpa: str | None = Form(None),
 ):
     """Update education information in a resume.
 
     Args:
-        resume_id (int): The unique identifier of the resume to update.
-        request (EducationUpdateRequest): The request containing updated education information.
         http_request (Request): The HTTP request object.
         db (Session): The database session dependency.
-        current_user (User): The current authenticated user.
+        resume (DatabaseResume): The resume object from dependency injection.
+        school (str): The school name.
+        degree (str | None): The degree obtained.
+        major (str | None): The major field of study.
+        start_date (str | None): The start date of the degree in YYYY-MM-DD format.
+        end_date (str | None): The end date of the degree in YYYY-MM-DD format.
+        gpa (str | None): The grade point average.
 
     Returns:
-        HTMLResponse: Updated resume content view.
+        HTMLResponse: Updated resume content view for HTMX.
 
     Raises:
-        HTTPException: If the resume is not found or doesn't belong to the user.
+        HTTPException: If processing or validation fails.
 
     Notes:
-        1. Queries the database for a resume with the given ID and user_id.
-        2. If no resume is found, raises a 404 error.
-        3. Updates the education section in the resume content.
-        4. Commits the transaction to save the changes.
-        5. Returns HTML for HTMX to update the resume content view.
+        1. Parses form data to create a new `Degree` object.
+        2. Appends the new degree to the existing education section.
+        3. Reconstructs, validates, and saves the updated resume content.
+        4. Returns an HTML partial of the updated resume view.
+    """
+    try:
+        new_degree_data = {
+            "school": school,
+            "degree": degree,
+            "major": major,
+            "start_date": datetime.strptime(start_date, "%Y-%m-%d")
+            if start_date
+            else None,
+            "end_date": datetime.strptime(end_date, "%Y-%m-%d") if end_date else None,
+            "gpa": gpa,
+        }
+        new_degree = Degree(**new_degree_data)
 
-    """
-    # For now, we'll just show a success message
-    # In a real implementation, we would parse and update the resume content
-    html_content = f"""
-    <div class="h-full flex flex-col">
-        <div class="flex justify-between items-center mb-4">
-            <h2 class="text-xl font-semibold">{resume.name}</h2>
-            <div class="flex space-x-2">
-                <button 
-                    hx-get="/dashboard/resumes/{resume.id}/edit/education" 
-                    hx-target="#resume-content" 
-                    hx-swap="innerHTML"
-                    class="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-sm">
-                    Edit Education
-                </button>
-            </div>
-        </div>
-        <div class="flex-grow">
-            <p class="text-green-600 font-medium">Education information updated successfully!</p>
-            <textarea 
-                readonly
-                class="w-full h-96 px-3 py-2 border border-gray-300 rounded-md focus:outline-none font-mono text-sm resize-none"
-                placeholder="Resume content will appear here...">{resume.content}</textarea>
-        </div>
-    </div>
-    """
-    return HTMLResponse(content=html_content)
+        education_info = extract_education_info(resume.content)
+        education_info.degrees.append(new_degree)
+
+        updated_content = update_resume_content_with_structured_data(
+            current_content=resume.content,
+            education=education_info,
+        )
+
+        perform_pre_save_validation(updated_content, resume.content)
+        updated_resume = update_resume_db(db, resume=resume, content=updated_content)
+
+        return HTMLResponse(content=_generate_resume_detail_html(updated_resume))
+    except (ValueError, TypeError, HTTPException) as e:
+        detail = getattr(e, "detail", str(e))
+        _msg = f"Failed to update education info: {detail}"
+        log.exception(_msg)
+        raise HTTPException(status_code=422, detail=_msg)
 
 
 @router.post("/{resume_id}/edit/experience")
 async def update_experience(
     http_request: Request,
+    db: Session = Depends(get_db),
     resume: DatabaseResume = Depends(get_resume_for_user),
     company: str = Form(...),
     title: str = Form(...),
-    start_date: str = Form(None),
-    end_date: str = Form(None),
-    description: str = Form(None),
+    start_date: str = Form(...),
+    end_date: str | None = Form(None),
+    description: str | None = Form(None),
 ):
     """Update experience information in a resume.
 
     Args:
-        resume_id (int): The unique identifier of the resume to update.
-        request (ExperienceUpdateRequest): The request containing updated experience information.
         http_request (Request): The HTTP request object.
         db (Session): The database session dependency.
-        current_user (User): The current authenticated user.
+        resume (DatabaseResume): The resume object from dependency injection.
+        company (str): The company name.
+        title (str): The job title.
+        start_date (str): The start date of the role in YYYY-MM-DD format.
+        end_date (str | None): The end date of the role in YYYY-MM-DD format.
+        description (str | None): A summary of the role.
 
     Returns:
-        HTMLResponse: Updated resume content view.
+        HTMLResponse: Updated resume content view for HTMX.
 
     Raises:
-        HTTPException: If the resume is not found or doesn't belong to the user.
+        HTTPException: If processing or validation fails.
 
     Notes:
-        1. Queries the database for a resume with the given ID and user_id.
-        2. If no resume is found, raises a 404 error.
-        3. Updates the experience section in the resume content.
-        4. Commits the transaction to save the changes.
-        5. Returns HTML for HTMX to update the resume content view.
+        1. Parses form data to create a new `Role` object.
+        2. Appends the new role to the existing experience section.
+        3. Reconstructs, validates, and saves the updated resume content.
+        4. Returns an HTML partial of the updated resume view.
+    """
+    try:
+        new_role_data = {
+            "basics": {
+                "company": company,
+                "title": title,
+                "start_date": datetime.strptime(start_date, "%Y-%m-%d"),
+                "end_date": datetime.strptime(end_date, "%Y-%m-%d")
+                if end_date
+                else None,
+            },
+            "summary": {"text": description} if description else None,
+        }
+        new_role = Role.model_validate(new_role_data)
 
-    """
-    # For now, we'll just show a success message
-    # In a real implementation, we would parse and update the resume content
-    html_content = f"""
-    <div class="h-full flex flex-col">
-        <div class="flex justify-between items-center mb-4">
-            <h2 class="text-xl font-semibold">{resume.name}</h2>
-            <div class="flex space-x-2">
-                <button 
-                    hx-get="/dashboard/resumes/{resume.id}/edit/experience" 
-                    hx-target="#resume-content" 
-                    hx-swap="innerHTML"
-                    class="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-sm">
-                    Edit Experience
-                </button>
-            </div>
-        </div>
-        <div class="flex-grow">
-            <p class="text-green-600 font-medium">Experience information updated successfully!</p>
-            <textarea 
-                readonly
-                class="w-full h-96 px-3 py-2 border border-gray-300 rounded-md focus:outline-none font-mono text-sm resize-none"
-                placeholder="Resume content will appear here...">{resume.content}</textarea>
-        </div>
-    </div>
-    """
-    return HTMLResponse(content=html_content)
+        experience_info = extract_experience_info(resume.content)
+        experience_info.roles.append(new_role)
+
+        updated_content = update_resume_content_with_structured_data(
+            current_content=resume.content,
+            experience=experience_info,
+        )
+
+        perform_pre_save_validation(updated_content, resume.content)
+        updated_resume = update_resume_db(db, resume=resume, content=updated_content)
+
+        return HTMLResponse(content=_generate_resume_detail_html(updated_resume))
+    except (ValueError, TypeError, HTTPException) as e:
+        detail = getattr(e, "detail", str(e))
+        _msg = f"Failed to update experience info: {detail}"
+        log.exception(_msg)
+        raise HTTPException(status_code=422, detail=_msg)
 
 
 @router.post("/{resume_id}/edit/projects")
 async def update_projects(
     http_request: Request,
+    db: Session = Depends(get_db),
     resume: DatabaseResume = Depends(get_resume_for_user),
     title: str = Form(...),
-    description: str = Form(None),
-    url: str = Form(None),
-    start_date: str = Form(None),
-    end_date: str = Form(None),
+    description: str = Form(...),
+    url: str | None = Form(None),
+    start_date: str | None = Form(None),
+    end_date: str | None = Form(None),
 ):
     """Update projects information in a resume.
 
     Args:
-        resume_id (int): The unique identifier of the resume to update.
-        request (ProjectUpdateRequest): The request containing updated project information.
         http_request (Request): The HTTP request object.
         db (Session): The database session dependency.
-        current_user (User): The current authenticated user.
+        resume (DatabaseResume): The resume object from dependency injection.
+        title (str): The title of the project.
+        description (str): A description of the project.
+        url (str | None): A URL associated with the project.
+        start_date (str | None): The start date of the project in YYYY-MM-DD format.
+        end_date (str | None): The end date of the project in YYYY-MM-DD format.
 
     Returns:
-        HTMLResponse: Updated resume content view.
+        HTMLResponse: Updated resume content view for HTMX.
 
     Raises:
-        HTTPException: If the resume is not found or doesn't belong to the user.
+        HTTPException: If processing or validation fails.
 
     Notes:
-        1. Queries the database for a resume with the given ID and user_id.
-        2. If no resume is found, raises a 404 error.
-        3. Updates the projects section in the resume content.
-        4. Commits the transaction to save the changes.
-        5. Returns HTML for HTMX to update the resume content view.
+        1. Parses form data to create a new `Project` object.
+        2. Appends the new project to the existing experience section.
+        3. Reconstructs, validates, and saves the updated resume content.
+        4. Returns an HTML partial of the updated resume view.
+    """
+    try:
+        new_project_data = {
+            "overview": {
+                "title": title,
+                "url": url,
+                "start_date": datetime.strptime(start_date, "%Y-%m-%d")
+                if start_date
+                else None,
+                "end_date": datetime.strptime(end_date, "%Y-%m-%d")
+                if end_date
+                else None,
+            },
+            "description": {"text": description},
+        }
+        new_project = Project.model_validate(new_project_data)
 
-    """
-    # For now, we'll just show a success message
-    # In a real implementation, we would parse and update the resume content
-    html_content = f"""
-    <div class="h-full flex flex-col">
-        <div class="flex justify-between items-center mb-4">
-            <h2 class="text-xl font-semibold">{resume.name}</h2>
-            <div class="flex space-x-2">
-                <button 
-                    hx-get="/dashboard/resumes/{resume.id}/edit/projects" 
-                    hx-target="#resume-content" 
-                    hx-swap="innerHTML"
-                    class="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-sm">
-                    Edit Projects
-                </button>
-            </div>
-        </div>
-        <div class="flex-grow">
-            <p class="text-green-600 font-medium">Projects information updated successfully!</p>
-            <textarea 
-                readonly
-                class="w-full h-96 px-3 py-2 border border-gray-300 rounded-md focus:outline-none font-mono text-sm resize-none"
-                placeholder="Resume content will appear here...">{resume.content}</textarea>
-        </div>
-    </div>
-    """
-    return HTMLResponse(content=html_content)
+        experience_info = extract_experience_info(resume.content)
+        experience_info.projects.append(new_project)
+
+        updated_content = update_resume_content_with_structured_data(
+            current_content=resume.content,
+            experience=experience_info,
+        )
+
+        perform_pre_save_validation(updated_content, resume.content)
+        updated_resume = update_resume_db(db, resume=resume, content=updated_content)
+
+        return HTMLResponse(content=_generate_resume_detail_html(updated_resume))
+    except (ValueError, TypeError, HTTPException) as e:
+        detail = getattr(e, "detail", str(e))
+        _msg = f"Failed to update projects info: {detail}"
+        log.exception(_msg)
+        raise HTTPException(status_code=422, detail=_msg)
 
 
 @router.post("/{resume_id}/edit/certifications")
 async def update_certifications(
     http_request: Request,
+    db: Session = Depends(get_db),
     resume: DatabaseResume = Depends(get_resume_for_user),
     name: str = Form(...),
-    issuer: str = Form(None),
-    id: str = Form(None),
-    issued_date: str = Form(None),
-    expiry_date: str = Form(None),
+    issuer: str | None = Form(None),
+    certification_id: str | None = Form(None, alias="id"),
+    issued_date: str | None = Form(None),
+    expiry_date: str | None = Form(None),
 ):
     """Update certifications information in a resume.
 
     Args:
-        resume_id (int): The unique identifier of the resume to update.
-        request (CertificationUpdateRequest): The request containing updated certification information.
         http_request (Request): The HTTP request object.
         db (Session): The database session dependency.
-        current_user (User): The current authenticated user.
+        resume (DatabaseResume): The resume object from dependency injection.
+        name (str): The name of the certification.
+        issuer (str | None): The issuing organization.
+        certification_id (str | None): The ID of the certification (form field name 'id').
+        issued_date (str | None): The date the certification was issued in YYYY-MM-DD format.
+        expiry_date (str | None): The date the certification expires in YYYY-MM-DD format.
 
     Returns:
-        HTMLResponse: Updated resume content view.
+        HTMLResponse: Updated resume content view for HTMX.
 
     Raises:
-        HTTPException: If the resume is not found or doesn't belong to the user.
+        HTTPException: If processing or validation fails.
 
     Notes:
-        1. Queries the database for a resume with the given ID and user_id.
-        2. If no resume is found, raises a 404 error.
-        3. Updates the certifications section in the resume content.
-        4. Commits the transaction to save the changes.
-        5. Returns HTML for HTMX to update the resume content view.
+        1. Parses form data to create a new `Certification` object.
+        2. Appends the new certification to the existing certifications section.
+        3. Reconstructs, validates, and saves the updated resume content.
+        4. Returns an HTML partial of the updated resume view.
+    """
+    try:
+        new_cert_data = {
+            "name": name,
+            "issuer": issuer,
+            "certification_id": certification_id,
+            "issued": datetime.strptime(issued_date, "%Y-%m-%d")
+            if issued_date
+            else None,
+            "expires": datetime.strptime(expiry_date, "%Y-%m-%d")
+            if expiry_date
+            else None,
+        }
+        new_cert = Certification.model_validate(new_cert_data)
 
-    """
-    # For now, we'll just show a success message
-    # In a real implementation, we would parse and update the resume content
-    html_content = f"""
-    <div class="h-full flex flex-col">
-        <div class="flex justify-between items-center mb-4">
-            <h2 class="text-xl font-semibold">{resume.name}</h2>
-            <div class="flex space-x-2">
-                <button 
-                    hx-get="/dashboard/resumes/{resume.id}/edit/certifications" 
-                    hx-target="#resume-content" 
-                    hx-swap="innerHTML"
-                    class="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-sm">
-                    Edit Certifications
-                </button>
-            </div>
-        </div>
-        <div class="flex-grow">
-            <p class="text-green-600 font-medium">Certifications information updated successfully!</p>
-            <textarea 
-                readonly
-                class="w-full h-96 px-3 py-2 border border-gray-300 rounded-md focus:outline-none font-mono text-sm resize-none"
-                placeholder="Resume content will appear here...">{resume.content}</textarea>
-        </div>
-    </div>
-    """
-    return HTMLResponse(content=html_content)
+        certifications_info = extract_certifications_info(resume.content)
+        certifications_info.certifications.append(new_cert)
+
+        updated_content = update_resume_content_with_structured_data(
+            current_content=resume.content,
+            certifications=certifications_info,
+        )
+
+        perform_pre_save_validation(updated_content, resume.content)
+        updated_resume = update_resume_db(db, resume=resume, content=updated_content)
+
+        return HTMLResponse(content=_generate_resume_detail_html(updated_resume))
+    except (ValueError, TypeError, HTTPException) as e:
+        detail = getattr(e, "detail", str(e))
+        _msg = f"Failed to update certifications info: {detail}"
+        log.exception(_msg)
+        raise HTTPException(status_code=422, detail=_msg)
 
 
 @router.get("/{resume_id}/personal", response_model=PersonalInfoResponse)
@@ -1071,7 +1076,6 @@ async def get_personal_info(
         4. Returns the personal information as a PersonalInfoResponse.
         5. Performs database access: Reads from the database via db.query.
         6. Performs network access: None.
-
     """
     return extract_personal_info(resume.content)
 
@@ -1105,7 +1109,6 @@ async def update_personal_info_structured(
         6. Saves the updated content to the database.
         7. Returns the updated personal information.
         8. This function performs database read and write operations.
-
     """
     try:
         # Create updated personal info object
@@ -1164,7 +1167,6 @@ async def get_education_info(
         4. Returns the education information as an EducationResponse.
         5. Performs database access: Reads from the database via db.query.
         6. Performs network access: None.
-
     """
     return extract_education_info(resume.content)
 
@@ -1198,7 +1200,6 @@ async def update_education_info_structured(
         6. Saves the updated content to the database.
         7. Returns the updated education information.
         8. This function performs database read and write operations.
-
     """
     try:
         # Create updated education info object
@@ -1256,7 +1257,6 @@ async def get_experience_info(
         4. Returns the experience information as an ExperienceResponse.
         5. Performs database access: Reads from the database via db.query.
         6. Performs network access: None.
-
     """
     return extract_experience_info(resume.content)
 
@@ -1290,7 +1290,6 @@ async def update_experience_info_structured(
         6. Saves the updated content to the database.
         7. Returns the updated experience information.
         8. This function performs database read and write operations.
-
     """
     try:
         # Extract current resume sections
@@ -1359,7 +1358,6 @@ async def get_projects_info(
         4. Returns the projects information as a ProjectsResponse.
         5. Performs database access: Reads from the database via db.query.
         6. Performs network access: None.
-
     """
     experience = extract_experience_info(resume.content)
     return ProjectsResponse(projects=experience.projects)
@@ -1394,7 +1392,6 @@ async def update_projects_info_structured(
         6. Saves the updated content to the database.
         7. Returns the updated projects information.
         8. This function performs database read and write operations.
-
     """
     try:
         projects_to_update = request.projects or []
@@ -1456,7 +1453,6 @@ async def get_certifications_info(
         4. Returns the certifications information as a CertificationsResponse.
         5. Performs database access: Reads from the database via db.query.
         6. Performs network access: None.
-
     """
     return extract_certifications_info(resume.content)
 
@@ -1490,7 +1486,6 @@ async def update_certifications_info_structured(
         6. Saves the updated content to the database.
         7. Returns the updated certifications information.
         8. This function performs database read and write operations.
-
     """
     try:
         updated_certifications = CertificationsResponse(
@@ -1542,7 +1537,6 @@ async def refine_resume(
         job_description (str): The job description to align the resume with.
         target_section (RefineTargetSection): The section of the resume to refine.
 
-
     Returns:
         RefineResponse | HTMLResponse: The LLM's refined content as Markdown, or an HTML partial for HTMX.
 
@@ -1554,7 +1548,6 @@ async def refine_resume(
         5. Otherwise, returns the refined content in a `RefineResponse`.
         6. This function performs database reads to get user settings.
         7. This function performs network access to call the LLM.
-
     """
     _msg = f"Refining resume {resume.id} for section {target_section.value}"
     log.debug(_msg)

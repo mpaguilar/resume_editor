@@ -8,7 +8,13 @@ log = logging.getLogger(__name__)
 
 
 class InclusionStatus(str, Enum):
-    """Represents the inclusion status of a resume item."""
+    """Represents the inclusion status of a resume item.
+
+    Attributes:
+        INCLUDE (str): Indicates the item should be included in the resume.
+        NOT_RELEVANT (str): Indicates the item is not relevant to the resume.
+        OMIT (str): Indicates the item should be omitted from the resume.
+    """
 
     INCLUDE = "Include"
     NOT_RELEVANT = "Not Relevant"
@@ -20,7 +26,6 @@ class RoleSummary(BaseModel):
 
     Attributes:
         text (str): The text content of the role summary.
-
     """
 
     text: str
@@ -31,7 +36,6 @@ class RoleResponsibilities(BaseModel):
 
     Attributes:
         text (str): The text content of the responsibilities.
-
     """
 
     text: str
@@ -143,6 +147,9 @@ class RoleBasics(BaseModel):
         Returns:
             str: The validated company.
 
+        Raises:
+            ValueError: If company is not a string or is empty.
+
         Notes:
             1. Ensure company is a string.
             2. Ensure company is not empty.
@@ -164,6 +171,9 @@ class RoleBasics(BaseModel):
 
         Returns:
             str: The validated title.
+
+        Raises:
+            ValueError: If title is not a string or is empty.
 
         Notes:
             1. Ensure title is a string.
@@ -187,6 +197,9 @@ class RoleBasics(BaseModel):
 
         Returns:
             datetime: The validated end_date.
+
+        Raises:
+            ValueError: If end_date is not a datetime object or None, or if end_date is before start_date.
 
         Notes:
             1. Ensure end_date is a datetime object or None.
@@ -298,6 +311,9 @@ class ProjectSkills(BaseModel):
         Returns:
             list[str]: The validated and cleaned skills list.
 
+        Raises:
+            ValueError: If skills is not a list or if any skill is not a string.
+
         Notes:
             1. Ensure skills is a list.
             2. Ensure all items in skills are strings.
@@ -375,6 +391,9 @@ class ProjectOverview(BaseModel):
         Returns:
             str: The validated title.
 
+        Raises:
+            ValueError: If title is not a string or is empty.
+
         Notes:
             1. Ensure title is a string.
             2. Ensure title is not empty.
@@ -397,6 +416,9 @@ class ProjectOverview(BaseModel):
 
         Returns:
             datetime: The validated end_date.
+
+        Raises:
+            ValueError: If end_date is before start_date.
 
         Notes:
             1. If both start_date and end_date are provided, ensure start_date is not after end_date.
