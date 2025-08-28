@@ -1,11 +1,21 @@
 import logging
+from typing import Any
 
-from sqlalchemy import Boolean, Column, Integer, String
+from sqlalchemy import Boolean, Column, ForeignKey, Integer, String, Table
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship, validates
 
 from resume_editor.app.models import Base
 
 log = logging.getLogger(__name__)
+
+
+user_roles = Table(
+    "user_roles",
+    Base.metadata,
+    Column("user_id", Integer, ForeignKey("users.id"), primary_key=True),
+    Column("role_id", Integer, ForeignKey("roles.id"), primary_key=True),
+)
 
 
 class User(Base):
@@ -17,7 +27,8 @@ class User(Base):
         email (str): Unique email address for the user.
         hashed_password (str): Hashed password for the user.
         is_active (bool): Whether the user account is active.
-
+        attributes (dict): Flexible key-value store for user-specific attributes.
+        roles (list[Role]): Roles assigned to the user for authorization.
     """
 
     __tablename__ = "users"
@@ -27,6 +38,14 @@ class User(Base):
     email = Column(String, unique=True, index=True, nullable=False)
     hashed_password = Column(String, nullable=False)
     is_active = Column(Boolean, default=True, nullable=False)
+    attributes = Column(JSONB, nullable=True)
+
+    # Relationship to Role
+    roles = relationship(
+        "Role",
+        secondary=user_roles,
+        back_populates="users",
+    )
 
     # Relationship to Resume
     resumes = relationship(
@@ -49,6 +68,7 @@ class User(Base):
         email: str,
         hashed_password: str,
         is_active: bool = True,
+        attributes: dict[str, Any] | None = None,
     ):
         """Initialize a User instance.
 
@@ -57,6 +77,7 @@ class User(Base):
             email (str): Unique email address for the user. Must be a non-empty string.
             hashed_password (str): Hashed password for the user. Must be a non-empty string.
             is_active (bool): Whether the user account is active. Must be a boolean.
+            attributes (dict | None): Flexible key-value attributes for the user.
 
         Returns:
             None
@@ -66,9 +87,10 @@ class User(Base):
             2. Validate that email is a non-empty string.
             3. Validate that hashed_password is a non-empty string.
             4. Validate that is_active is a boolean.
-            5. Assign all values to instance attributes.
-            6. Log the initialization of the user with their username.
-            7. This operation does not involve network, disk, or database access.
+            5. Validate that attributes is a dict or None.
+            6. Assign all values to instance attributes.
+            7. Log the initialization of the user with their username.
+            8. This operation does not involve network, disk, or database access.
 
         """
         _msg = f"Initializing User with username: {username}"
@@ -78,6 +100,7 @@ class User(Base):
         self.email = email
         self.hashed_password = hashed_password
         self.is_active = is_active
+        self.attributes = attributes
 
     @validates("username")
     def validate_username(self, key, username):
@@ -167,3 +190,10 @@ class User(Base):
         if not isinstance(is_active, bool):
             raise ValueError("is_active must be a boolean")
         return is_active
+
+    @validates("attributes")
+    def validate_attributes(self, key, attributes):
+        """Validate the attributes field."""
+        if attributes is not None and not isinstance(attributes, dict):
+            raise ValueError("Attributes must be a dictionary")
+        return attributes

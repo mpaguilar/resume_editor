@@ -16,8 +16,17 @@ Pay attention to the `BasicBlockParse` class. It is a base class for many parsin
 
 ## User Management
 
-* User login and logout
-* Secure storage of user settings, including encrypted API keys and LLM endpoints
+* User login (username/password) and logout. Public user registration is disabled.
+* Secure storage of user settings, including encrypted API keys and LLM endpoints.
+* Role-based access control with different permission levels (e.g., user, admin).
+* Flexible user attribute system to support features like account limits or expiration dates.
+
+## Admin Interface
+
+* A dedicated interface for administrative tasks.
+* Full user management: create, list, and delete users.
+* Role management: assign and remove roles from users.
+* User impersonation to provide support or troubleshoot issues.
 
 ## Resume Management
 

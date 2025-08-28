@@ -13,9 +13,10 @@ from resume_editor.app.core.auth import get_current_user
 from resume_editor.app.core.security import get_password_hash
 from resume_editor.app.database.database import get_db
 from resume_editor.app.main import create_app
+from resume_editor.app.models.role import Role
 from resume_editor.app.models.user import User as DBUser
 from resume_editor.app.models.user_settings import UserSettings
-from resume_editor.app.schemas.user import UserCreate
+from resume_editor.app.schemas.user import UserCreate, UserResponse
 
 
 # Fixtures
@@ -86,6 +87,8 @@ def test_register_user_success(
     data = response.json()
     assert data["username"] == "testuser"
     assert data["email"] == "test@example.com"
+    assert data["roles"] == []
+    assert data["attributes"] is None
     mock_get_by_username.assert_called_once()
     mock_get_by_email.assert_called_once()
     mock_create_user.assert_called_once()
@@ -342,3 +345,36 @@ def test_create_new_user_helper(mock_get_password_hash):
     mock_db.commit.assert_called_once()
     mock_db.refresh.assert_called_once_with(added_user)
     assert new_user == added_user
+
+
+# Tests for schemas
+def test_user_response_schema_with_data():
+    """Test the UserResponse schema correctly serializes a User model with roles and attributes."""
+    # 1. Create a mock role
+    mock_role = Role()
+    mock_role.id = 1
+    mock_role.name = "admin"
+
+    # 2. Create a mock user model instance with data
+    mock_user = DBUser(
+        username="test_user_with_data",
+        email="data@example.com",
+        hashed_password="hashed_password",
+        attributes={"is_cool": True, "level": 99},
+    )
+    mock_user.id = 99
+    mock_user.is_active = True
+    mock_user.roles = [mock_role]
+
+    # 3. Create UserResponse from the model instance
+    user_response = UserResponse.model_validate(mock_user)
+
+    # 4. Assert the data is correct
+    assert user_response.id == 99
+    assert user_response.username == "test_user_with_data"
+    assert user_response.email == "data@example.com"
+    assert user_response.is_active is True
+    assert user_response.attributes == {"is_cool": True, "level": 99}
+    assert len(user_response.roles) == 1
+    assert user_response.roles[0].id == 1
+    assert user_response.roles[0].name == "admin"

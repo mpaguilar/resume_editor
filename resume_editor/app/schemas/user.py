@@ -1,8 +1,32 @@
 import logging
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, EmailStr
 
 log = logging.getLogger(__name__)
+
+
+class RoleResponse(BaseModel):
+    """Schema for returning role data.
+
+    This schema is used to represent a user role within API responses.
+
+    Args:
+        id (int): The unique identifier for the role.
+        name (str): The name of the role (e.g., 'admin', 'user').
+
+    Attributes:
+        id (int): The unique identifier for the role.
+        name (str): The name of the role (e.g., 'admin', 'user').
+
+    Notes:
+        1. The model uses ConfigDict(from_attributes=True) to support ORM attribute mapping.
+    """
+
+    id: int
+    name: str
+
+    model_config = ConfigDict(from_attributes=True)
 
 
 class UserBase(BaseModel):
@@ -80,10 +104,14 @@ class UserResponse(UserBase):
         username (str): Unique username chosen by the user for login.
         email (EmailStr): Unique email address associated with the user.
         is_active (bool): Indicates whether the user account is active and can log in.
+        roles (list[RoleResponse]): List of roles assigned to the user.
+        attributes (dict[str, Any] | None): Flexible key-value attributes for the user.
 
     Attributes:
         id (int): Unique identifier assigned to the user in the database.
         is_active (bool): Indicates whether the user account is active and can log in.
+        roles (list[RoleResponse]): List of roles assigned to the user.
+        attributes (dict[str, Any] | None): Flexible key-value attributes for the user.
 
     Notes:
         1. Data is retrieved from the user database during user lookup.
@@ -94,6 +122,8 @@ class UserResponse(UserBase):
 
     id: int
     is_active: bool
+    roles: list[RoleResponse] = []
+    attributes: dict[str, Any] | None = None
 
     model_config = ConfigDict(from_attributes=True)
 
