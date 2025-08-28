@@ -2393,7 +2393,7 @@ requires-dist = [
     { name = "python-dotenv", specifier = ">=1.1.1" },
     { name = "python-jose", extras = ["cryptography"], specifier = ">=3.5.0" },
     { name = "python-multipart", specifier = ">=0.0.20" },
-    { name = "resume-writer", virtual = "../resume_writer" },
+    { name = "resume-writer", git = "https://github.com/mpaguilar/resume_writer.git" },
     { name = "sqlalchemy", specifier = ">=2.0.42" },
     { name = "uvicorn", specifier = ">=0.35.0" },
 ]
@@ -2412,7 +2412,7 @@ dev = [
 [[package]]
 name = "resume-writer"
 version = "0.1.0"
-source = { virtual = "../resume_writer" }
+source = { git = "https://github.com/mpaguilar/resume_writer.git#15e41715bafa0ab901bfdc3838567272a0dc56ed" }
 dependencies = [
     { name = "aider-chat" },
     { name = "click" },
@@ -2426,31 +2426,6 @@ dependencies = [
     { name = "pytz" },
     { name = "rich" },
     { name = "tomli" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "aider-chat", specifier = ">=0.85.5" },
-    { name = "click", specifier = ">=8.1.7,<9.0.0" },
-    { name = "dateparser", specifier = ">=1.2.0,<2.0.0" },
-    { name = "dotenv", specifier = ">=0.9.9" },
-    { name = "jinja2", specifier = ">=3.1.4,<4.0.0" },
-    { name = "mistune", specifier = ">=3.0.2,<4.0.0" },
-    { name = "mosestokenizer", specifier = ">=1.2.1,<2.0.0" },
-    { name = "nltk", specifier = ">=3.9.1,<4.0.0" },
-    { name = "python-docx", specifier = ">=1.1.2,<2.0.0" },
-    { name = "pytz", specifier = ">=2024.2,<2025.0" },
-    { name = "rich", specifier = ">=14.1.0" },
-    { name = "tomli", specifier = ">=2.0.1,<3.0.0" },
-]
-
-[package.metadata.requires-dev]
-dev = [
-    { name = "coverage", specifier = ">=7.6.0,<8.0.0" },
-    { name = "mypy", specifier = ">=1.11.0,<2.0.0" },
-    { name = "pytest", specifier = ">=8.3.1,<9.0.0" },
-    { name = "pytest-cov", specifier = ">=6.2.1" },
-    { name = "ruff", specifier = ">=0.12.8" },
 ]
 
 [[package]]
