@@ -9,6 +9,7 @@ from resume_editor.app.api.routes.route_logic.admin_crud import (
     get_role_by_name_admin,
     get_user_by_id_admin,
     get_users_admin,
+    impersonate_user_admin,
     remove_role_from_user_admin,
 )
 from resume_editor.app.models.role import Role
@@ -176,6 +177,42 @@ def test_assign_role_to_user_admin_existing_role():
     assert updated_user == mock_user
     mock_db.commit.assert_not_called()
     mock_db.refresh.assert_not_called()
+
+
+@patch("resume_editor.app.api.routes.route_logic.admin_crud.SecurityManager")
+@patch("resume_editor.app.api.routes.route_logic.admin_crud.get_user_by_id_admin")
+def test_impersonate_user_admin_success(
+    mock_get_user_by_id_admin, mock_security_manager
+):
+    """Test successful user impersonation token generation."""
+    mock_db = MagicMock(spec=Session)
+    target_user = MagicMock(spec=User)
+    target_user.username = "targetuser"
+    mock_get_user_by_id_admin.return_value = target_user
+
+    mock_sm_instance = mock_security_manager.return_value
+    mock_sm_instance.create_access_token.return_value = "fake-token"
+
+    token = impersonate_user_admin(db=mock_db, user_id=1)
+
+    assert token == "fake-token"
+    mock_get_user_by_id_admin.assert_called_once_with(db=mock_db, user_id=1)
+    mock_security_manager.assert_called_once()
+    mock_sm_instance.create_access_token.assert_called_once_with(
+        data={"sub": "targetuser"}
+    )
+
+
+@patch("resume_editor.app.api.routes.route_logic.admin_crud.get_user_by_id_admin")
+def test_impersonate_user_admin_user_not_found(mock_get_user_by_id_admin):
+    """Test impersonation when user is not found."""
+    mock_db = MagicMock(spec=Session)
+    mock_get_user_by_id_admin.return_value = None
+
+    token = impersonate_user_admin(db=mock_db, user_id=1)
+
+    assert token is None
+    mock_get_user_by_id_admin.assert_called_once_with(db=mock_db, user_id=1)
 
 
 def test_remove_role_from_user_admin_existing_role():

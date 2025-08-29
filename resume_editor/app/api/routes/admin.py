@@ -3,6 +3,9 @@ import logging
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
+from resume_editor.app.api.routes.route_logic.admin_crud import (
+    impersonate_user_admin,
+)
 from resume_editor.app.api.routes.user import (
     create_new_user,
     get_user_by_id,
@@ -16,7 +19,7 @@ from resume_editor.app.api.routes.user import (
 from resume_editor.app.core.auth import get_current_admin_user
 from resume_editor.app.database.database import get_db
 from resume_editor.app.models.role import Role
-from resume_editor.app.schemas.user import UserCreate, UserResponse
+from resume_editor.app.schemas.user import Token, UserCreate, UserResponse
 
 log = logging.getLogger(__name__)
 
@@ -165,3 +168,19 @@ def admin_remove_role_from_user(
     _msg = f"Admin finished removing role '{role_name}' from user with id: {user_id}"
     log.debug(_msg)
     return db_user
+
+
+@router.post("/users/{user_id}/impersonate", response_model=Token)
+def admin_impersonate_user(user_id: int, db: Session = Depends(get_db)):
+    """Admin endpoint to impersonate a user."""
+    _msg = f"Admin attempting to impersonate user with id: {user_id}"
+    log.debug(_msg)
+
+    access_token = impersonate_user_admin(db=db, user_id=user_id)
+
+    if not access_token:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    _msg = f"Admin successfully created impersonation token for user with id: {user_id}"
+    log.debug(_msg)
+    return {"access_token": access_token, "token_type": "bearer"}

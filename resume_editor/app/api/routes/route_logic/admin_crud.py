@@ -2,7 +2,7 @@ import logging
 
 from sqlalchemy.orm import Session
 
-from resume_editor.app.core.security import get_password_hash
+from resume_editor.app.core.security import SecurityManager, get_password_hash
 from resume_editor.app.models.role import Role
 from resume_editor.app.models.user import User
 from resume_editor.app.schemas.user import AdminUserCreate
@@ -219,3 +219,39 @@ def remove_role_from_user_admin(db: Session, user: User, role: Role) -> User:
     _msg = "remove_role_from_user_admin returning"
     log.debug(_msg)
     return user
+
+
+def impersonate_user_admin(db: Session, user_id: int) -> str | None:
+    """
+    Generate an impersonation token for a user.
+
+    Args:
+        db (Session): The database session.
+        user_id (int): The ID of the user to impersonate.
+
+    Returns:
+        str | None: The access token if the user is found, otherwise None.
+
+    Notes:
+        1. Retrieves user by ID using `get_user_by_id_admin`.
+        2. If user exists, creates an access token for them using `SecurityManager`.
+        3. Returns token, or None if user not found.
+
+    """
+    _msg = "impersonate_user_admin starting"
+    log.debug(_msg)
+
+    user = get_user_by_id_admin(db=db, user_id=user_id)
+    if not user:
+        _msg = f"User with id {user_id} not found for impersonation."
+        log.info(_msg)
+        _msg = "impersonate_user_admin returning"
+        log.debug(_msg)
+        return None
+
+    security_manager = SecurityManager()
+    access_token = security_manager.create_access_token(data={"sub": user.username})
+
+    _msg = "impersonate_user_admin returning"
+    log.debug(_msg)
+    return access_token

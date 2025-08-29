@@ -382,3 +382,49 @@ def test_admin_remove_role_from_user_not_assigned(
     assert response.status_code == status.HTTP_400_BAD_REQUEST
     assert response.json()["detail"] == "User does not have this role"
     app.dependency_overrides.clear()
+
+
+@patch("resume_editor.app.api.routes.admin.impersonate_user_admin")
+@patch("resume_editor.app.api.routes.admin.get_current_admin_user")
+def test_admin_impersonate_user_success(
+    mock_get_current_admin_user,
+    mock_impersonate_user_admin,
+):
+    """Test successful user impersonation by an admin."""
+    mock_db = MagicMock()
+    mock_admin_user = MagicMock(spec=User)
+    setup_dependency_overrides(mock_db, mock_admin_user)
+
+    mock_impersonate_user_admin.return_value = "fake-impersonation-token"
+
+    response = client.post("/api/admin/users/2/impersonate")
+
+    assert response.status_code == status.HTTP_200_OK
+    assert response.json() == {
+        "access_token": "fake-impersonation-token",
+        "token_type": "bearer",
+    }
+    mock_impersonate_user_admin.assert_called_once_with(db=mock_db, user_id=2)
+
+    app.dependency_overrides.clear()
+
+
+@patch("resume_editor.app.api.routes.admin.impersonate_user_admin")
+@patch("resume_editor.app.api.routes.admin.get_current_admin_user")
+def test_admin_impersonate_user_not_found(
+    mock_get_current_admin_user, mock_impersonate_user_admin
+):
+    """Test impersonation attempt on a non-existent user."""
+    mock_db = MagicMock()
+    mock_admin_user = MagicMock(spec=User)
+    setup_dependency_overrides(mock_db, mock_admin_user)
+
+    mock_impersonate_user_admin.return_value = None
+
+    response = client.post("/api/admin/users/999/impersonate")
+
+    assert response.status_code == status.HTTP_404_NOT_FOUND
+    assert response.json()["detail"] == "User not found"
+    mock_impersonate_user_admin.assert_called_once_with(db=mock_db, user_id=999)
+
+    app.dependency_overrides.clear()
