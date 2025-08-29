@@ -69,6 +69,29 @@ class UserCreate(UserBase):
     password: str
 
 
+class AdminUserCreate(UserCreate):
+    """Schema for creating a user as an administrator.
+
+    This schema extends UserCreate to include additional fields that can be
+    set by an administrator during user creation.
+
+    Args:
+        username (str): Unique username for the user.
+        email (EmailStr): Unique email address for the user.
+        password (str): Plain text password for the user.
+        is_active (bool): Whether the user account is active. Defaults to True.
+        attributes (dict[str, Any] | None): Flexible key-value attributes for the user.
+
+    Attributes:
+        is_active (bool): Whether the user account is active.
+        attributes (dict[str, Any] | None): Flexible key-value attributes for the user.
+
+    """
+
+    is_active: bool = True
+    attributes: dict[str, Any] | None = None
+
+
 class UserLogin(BaseModel):
     """User login schema.
 
