@@ -15,6 +15,7 @@ class Role(Base):
     Attributes:
         id (int): Unique identifier for the role.
         name (str): Unique name for the role (e.g., 'admin', 'user').
+        users (list["User"]): The users associated with this role.
 
     """
 

@@ -3,6 +3,7 @@ import logging
 from sqlalchemy.orm import Session
 
 from resume_editor.app.core.security import get_password_hash
+from resume_editor.app.models.role import Role
 from resume_editor.app.models.user import User
 from resume_editor.app.schemas.user import AdminUserCreate
 
@@ -111,3 +112,110 @@ def delete_user_admin(db: Session, user: User) -> None:
     """
     db.delete(user)
     db.commit()
+
+
+def get_role_by_name_admin(db: Session, name: str) -> Role | None:
+    """
+    Retrieve a role from the database by its name.
+
+    This function is intended for administrative use to fetch a role before
+    performing actions like assigning it to or removing it from a user.
+
+    Args:
+        db (Session): The SQLAlchemy database session.
+        name (str): The unique name of the role to retrieve.
+
+    Returns:
+        Role | None: The `Role` object if found, otherwise `None`.
+
+    Notes:
+        1. Queries the database for a role with the given name.
+        2. This function performs a database read operation.
+
+    """
+    _msg = "get_role_by_name_admin starting"
+    log.debug(_msg)
+    role = db.query(Role).filter(Role.name == name).first()
+    _msg = "get_role_by_name_admin returning"
+    log.debug(_msg)
+    return role
+
+
+def assign_role_to_user_admin(db: Session, user: User, role: Role) -> User:
+    """
+    Assign a role to a user if they do not already have it.
+
+    This administrative function associates a `Role` with a `User`.
+    It checks for the role's existence on the user before appending to prevent duplicates.
+    Changes are committed to the database.
+
+    Args:
+        db (Session): The SQLAlchemy database session.
+        user (User): The user object to which the role will be assigned.
+        role (Role): The role object to assign.
+
+    Returns:
+        User: The updated user object, refreshed from the database if changes were made.
+
+    Notes:
+        1. Checks if the user already has the role.
+        2. If not, adds the role to the user's roles and commits the change.
+        3. This function performs a database write operation if the role is added.
+
+    """
+    _msg = "assign_role_to_user_admin starting"
+    log.debug(_msg)
+    if role not in user.roles:
+        _msg = f"User '{user.username}' does not have role '{role.name}'. Assigning."
+        log.info(_msg)
+        user.roles.append(role)
+        db.commit()
+        db.refresh(user)
+    else:
+        _msg = (
+            f"User '{user.username}' already has role '{role.name}'. No action taken."
+        )
+        log.info(_msg)
+    _msg = "assign_role_to_user_admin returning"
+    log.debug(_msg)
+    return user
+
+
+def remove_role_from_user_admin(db: Session, user: User, role: Role) -> User:
+    """
+    Remove a role from a user if they have it.
+
+    This administrative function disassociates a `Role` from a `User`.
+    It checks if the user has the role before attempting removal.
+    Changes are committed to the database.
+
+    Args:
+        db (Session): The SQLAlchemy database session.
+        user (User): The user object from which the role will be removed.
+        role (Role): The role object to remove.
+
+    Returns:
+        User: The updated user object, refreshed from the database if changes were made.
+
+    Notes:
+        1. Checks if the user has the role.
+        2. If so, removes the role from the user's roles and commits the change.
+        3. This function performs a database write operation if the role is removed.
+
+    """
+    _msg = "remove_role_from_user_admin starting"
+    log.debug(_msg)
+    if role in user.roles:
+        _msg = f"User '{user.username}' has role '{role.name}'. Removing."
+        log.info(_msg)
+        user.roles.remove(role)
+        db.commit()
+        db.refresh(user)
+    else:
+        _msg = (
+            f"User '{user.username}' does not have role '{role.name}'. No action taken."
+        )
+        log.info(_msg)
+    _msg = "remove_role_from_user_admin returning"
+    log.debug(_msg)
+    return user

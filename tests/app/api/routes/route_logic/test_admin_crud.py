@@ -3,11 +3,15 @@ from unittest.mock import MagicMock, patch
 from sqlalchemy.orm import Session
 
 from resume_editor.app.api.routes.route_logic.admin_crud import (
+    assign_role_to_user_admin,
     create_user_admin,
     delete_user_admin,
+    get_role_by_name_admin,
     get_user_by_id_admin,
     get_users_admin,
+    remove_role_from_user_admin,
 )
+from resume_editor.app.models.role import Role
 from resume_editor.app.models.user import User
 from resume_editor.app.schemas.user import AdminUserCreate
 
@@ -116,3 +120,95 @@ def test_delete_user_admin():
 
     mock_db.delete.assert_called_once_with(user)
     mock_db.commit.assert_called_once()
+
+
+def test_get_role_by_name_admin_found():
+    """Test get_role_by_name_admin when role is found."""
+    mock_db = MagicMock(spec=Session)
+    mock_role = Role(name="admin")
+    mock_db.query.return_value.filter.return_value.first.return_value = mock_role
+
+    role = get_role_by_name_admin(db=mock_db, name="admin")
+
+    assert role is not None
+    assert role.name == "admin"
+    mock_db.query.assert_called_once_with(Role)
+
+
+def test_get_role_by_name_admin_not_found():
+    """Test get_role_by_name_admin when role is not found."""
+    mock_db = MagicMock(spec=Session)
+    mock_db.query.return_value.filter.return_value.first.return_value = None
+
+    role = get_role_by_name_admin(db=mock_db, name="nonexistent")
+
+    assert role is None
+    mock_db.query.assert_called_once_with(Role)
+
+
+def test_assign_role_to_user_admin_new_role():
+    """Test assign_role_to_user_admin with a new role for the user."""
+    mock_db = MagicMock(spec=Session)
+    mock_user = User(
+        username="testuser", email="test@test.com", hashed_password="hashed"
+    )
+    mock_user.roles = []
+    mock_role = Role(name="admin")
+
+    updated_user = assign_role_to_user_admin(db=mock_db, user=mock_user, role=mock_role)
+
+    assert mock_role in updated_user.roles
+    mock_db.commit.assert_called_once()
+    mock_db.refresh.assert_called_once_with(mock_user)
+
+
+def test_assign_role_to_user_admin_existing_role():
+    """Test assign_role_to_user_admin when user already has the role."""
+    mock_db = MagicMock(spec=Session)
+    mock_role = Role(name="admin")
+    mock_user = User(
+        username="testuser", email="test@test.com", hashed_password="hashed"
+    )
+    mock_user.roles = [mock_role]
+
+    updated_user = assign_role_to_user_admin(db=mock_db, user=mock_user, role=mock_role)
+
+    assert updated_user == mock_user
+    mock_db.commit.assert_not_called()
+    mock_db.refresh.assert_not_called()
+
+
+def test_remove_role_from_user_admin_existing_role():
+    """Test remove_role_from_user_admin when user has the role."""
+    mock_db = MagicMock(spec=Session)
+    mock_role = Role(name="admin")
+    mock_user = User(
+        username="testuser", email="test@test.com", hashed_password="hashed"
+    )
+    mock_user.roles = [mock_role]
+
+    updated_user = remove_role_from_user_admin(
+        db=mock_db, user=mock_user, role=mock_role
+    )
+
+    assert mock_role not in updated_user.roles
+    mock_db.commit.assert_called_once()
+    mock_db.refresh.assert_called_once_with(mock_user)
+
+
+def test_remove_role_from_user_admin_non_existing_role():
+    """Test remove_role_from_user_admin when user does not have the role."""
+    mock_db = MagicMock(spec=Session)
+    mock_user = User(
+        username="testuser", email="test@test.com", hashed_password="hashed"
+    )
+    mock_user.roles = []
+    mock_role = Role(name="admin")
+
+    updated_user = remove_role_from_user_admin(
+        db=mock_db, user=mock_user, role=mock_role
+    )
+
+    assert updated_user == mock_user
+    mock_db.commit.assert_not_called()
+    mock_db.refresh.assert_not_called()
