@@ -74,3 +74,43 @@ def get_current_user(
         raise credentials_exception
 
     return user
+
+
+def get_current_admin_user(
+    current_user: Annotated[User, Depends(get_current_user)],
+) -> User:
+    """Verify that the current user has administrator privileges.
+
+    This dependency relies on `get_current_user` to retrieve the authenticated user.
+    It then checks the user's roles to determine if they are an administrator.
+
+    Args:
+        current_user (User): The user object obtained from the `get_current_user`
+            dependency.
+
+    Returns:
+        User: The user object if the user has the 'admin' role.
+
+    Raises:
+        HTTPException: A 403 Forbidden error if the user is not an admin.
+
+    Notes:
+        1. Retrieves user from `get_current_user` dependency.
+        2. Iterates through the user's roles.
+        3. If a role with the name 'admin' is found, returns the user object.
+        4. If no 'admin' role is found, raises an HTTPException with status 403.
+    """
+    _msg = "get_current_admin_user starting"
+    log.debug(_msg)
+
+    if not any(role.name == "admin" for role in current_user.roles):
+        _msg = f"User {current_user.username} does not have admin privileges"
+        log.warning(_msg)
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="The user does not have admin privileges",
+        )
+
+    _msg = "get_current_admin_user returning"
+    log.debug(_msg)
+    return current_user
