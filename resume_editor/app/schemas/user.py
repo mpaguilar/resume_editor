@@ -7,7 +7,8 @@ log = logging.getLogger(__name__)
 
 
 class RoleResponse(BaseModel):
-    """Schema for returning role data.
+    """
+    Schema for returning role data.
 
     This schema is used to represent a user role within API responses.
 
@@ -21,6 +22,7 @@ class RoleResponse(BaseModel):
 
     Notes:
         1. The model uses ConfigDict(from_attributes=True) to support ORM attribute mapping.
+
     """
 
     id: int
@@ -30,7 +32,8 @@ class RoleResponse(BaseModel):
 
 
 class UserBase(BaseModel):
-    """Base user schema with common fields.
+    """
+    Base user schema with common fields.
 
     This schema serves as the foundation for user-related data transfer,
     containing the essential information required for user identification.
@@ -46,7 +49,8 @@ class UserBase(BaseModel):
 
 
 class UserCreate(UserBase):
-    """User creation schema with password.
+    """
+    User creation schema with password.
 
     This schema is used when a new user is registering, including the password
     in plain text form for initial storage and hashing.
@@ -70,7 +74,8 @@ class UserCreate(UserBase):
 
 
 class AdminUserCreate(UserCreate):
-    """Schema for creating a user as an administrator.
+    """
+    Schema for creating a user as an administrator.
 
     This schema extends UserCreate to include additional fields that can be
     set by an administrator during user creation.
@@ -93,7 +98,8 @@ class AdminUserCreate(UserCreate):
 
 
 class UserLogin(BaseModel):
-    """User login schema.
+    """
+    User login schema.
 
     This schema is used to authenticate users by validating their credentials.
 
@@ -117,7 +123,8 @@ class UserLogin(BaseModel):
 
 
 class UserResponse(UserBase):
-    """User response schema without password.
+    """
+    User response schema without password.
 
     This schema is used to return user data after authentication or retrieval,
     excluding sensitive fields like passwords.
@@ -152,7 +159,8 @@ class UserResponse(UserBase):
 
 
 class Token(BaseModel):
-    """Token response schema.
+    """
+    Token response schema.
 
     This schema represents the JWT access token returned by the authentication system
     after successful login.
@@ -177,7 +185,8 @@ class Token(BaseModel):
 
 
 class TokenData(BaseModel):
-    """Token data schema.
+    """
+    Token data schema.
 
     This schema holds the information extracted from the JWT token payload,
     primarily used to identify the authenticated user.
@@ -199,7 +208,8 @@ class TokenData(BaseModel):
 
 
 class UserSettingsUpdateRequest(BaseModel):
-    """Schema for updating user settings.
+    """
+    Schema for updating user settings.
 
     This schema is used to update the user's LLM service configuration.
 
@@ -223,7 +233,8 @@ class UserSettingsUpdateRequest(BaseModel):
 
 
 class UserSettingsResponse(BaseModel):
-    """Schema for returning user settings.
+    """
+    Schema for returning user settings.
 
     The API key is not returned for security.
 

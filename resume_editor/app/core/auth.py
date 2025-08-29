@@ -17,7 +17,8 @@ def get_current_user(
     token: Annotated[str, Depends(oauth2_scheme)],
     db: Session = Depends(get_db),
 ) -> User:
-    """Retrieve the authenticated user from the provided JWT token.
+    """
+    Retrieve the authenticated user from the provided JWT token.
 
     Args:
         token: JWT token extracted from the request header, used to authenticate the user.
@@ -49,6 +50,7 @@ def get_current_user(
 
     Database Access:
         - Queries the User table to retrieve a user record by username.
+
     """
     settings = get_settings()
     credentials_exception = HTTPException(
@@ -79,7 +81,8 @@ def get_current_user(
 def get_current_admin_user(
     current_user: Annotated[User, Depends(get_current_user)],
 ) -> User:
-    """Verify that the current user has administrator privileges.
+    """
+    Verify that the current user has administrator privileges.
 
     This dependency relies on `get_current_user` to retrieve the authenticated user.
     It then checks the user's roles to determine if they are an administrator.
@@ -99,6 +102,7 @@ def get_current_admin_user(
         2. Iterates through the user's roles.
         3. If a role with the name 'admin' is found, returns the user object.
         4. If no 'admin' role is found, raises an HTTPException with status 403.
+
     """
     _msg = "get_current_admin_user starting"
     log.debug(_msg)

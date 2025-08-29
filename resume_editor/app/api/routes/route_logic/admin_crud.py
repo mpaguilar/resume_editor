@@ -10,7 +10,8 @@ log = logging.getLogger(__name__)
 
 
 def create_user_admin(db: Session, user_data: AdminUserCreate) -> User:
-    """Create a new user as an administrator.
+    """
+    Create a new user as an administrator.
 
     Args:
         db (Session): The database session.
@@ -24,6 +25,7 @@ def create_user_admin(db: Session, user_data: AdminUserCreate) -> User:
         2. Creates a new User instance.
         3. Adds the user to the database, commits, and refreshes.
         4. This function performs a database write operation.
+
     """
     _msg = f"Hashing password for user: {user_data.username}"
     log.debug(_msg)
@@ -55,7 +57,8 @@ def create_user_admin(db: Session, user_data: AdminUserCreate) -> User:
 
 
 def get_user_by_id_admin(db: Session, user_id: int) -> User | None:
-    """Retrieve a single user by ID as an administrator.
+    """
+    Retrieve a single user by ID as an administrator.
 
     Args:
         db (Session): The database session.
@@ -67,12 +70,14 @@ def get_user_by_id_admin(db: Session, user_id: int) -> User | None:
     Notes:
         1. Queries the database for a user with the given ID.
         2. This function performs a database read operation.
+
     """
     return db.query(User).filter(User.id == user_id).first()
 
 
 def get_users_admin(db: Session) -> list[User]:
-    """Retrieve all users as an administrator.
+    """
+    Retrieve all users as an administrator.
 
     Args:
         db (Session): The database session.
@@ -83,12 +88,14 @@ def get_users_admin(db: Session) -> list[User]:
     Notes:
         1. Queries the database for all users.
         2. This function performs a database read operation.
+
     """
     return db.query(User).all()
 
 
 def delete_user_admin(db: Session, user: User) -> None:
-    """Delete a user as an administrator.
+    """
+    Delete a user as an administrator.
 
     Args:
         db (Session): The database session.
@@ -100,6 +107,7 @@ def delete_user_admin(db: Session, user: User) -> None:
     Notes:
         1. Deletes the given user from the database and commits the change.
         2. This function performs a database write operation.
+
     """
     db.delete(user)
     db.commit()

@@ -14,6 +14,7 @@ load_dotenv()
 
 from resume_editor.app.core.config import get_settings
 from resume_editor.app.models import Base
+
 # Import all models for Alembic's 'autogenerate' support
 from resume_editor.app.models.resume_model import Resume
 from resume_editor.app.models.user import User

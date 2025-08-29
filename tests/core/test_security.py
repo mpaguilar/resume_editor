@@ -143,9 +143,6 @@ def test_security_manager_init(mock_settings):
     manager = security_module.SecurityManager()
     settings = mock_settings.return_value
     assert manager.settings is not None
-    assert (
-        manager.access_token_expire_minutes
-        == settings.access_token_expire_minutes
-    )
+    assert manager.access_token_expire_minutes == settings.access_token_expire_minutes
     assert manager.secret_key == settings.secret_key
     assert manager.algorithm == settings.algorithm

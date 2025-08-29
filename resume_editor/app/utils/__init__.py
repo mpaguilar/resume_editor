@@ -1,4 +1,5 @@
-"""Utility functions and classes for the resume editor application.
+"""
+Utility functions and classes for the resume editor application.
 
 This module contains helper functions and classes used throughout the application
 for common operations such as file handling, string manipulation, and data processing.

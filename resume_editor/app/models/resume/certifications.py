@@ -7,7 +7,8 @@ log = logging.getLogger(__name__)
 
 
 class Certification(BaseModel):
-    """Represents a professional certification.
+    """
+    Represents a professional certification.
 
     Attributes:
         name (str): The name of the certification.
@@ -29,7 +30,8 @@ class Certification(BaseModel):
     @field_validator("name")
     @classmethod
     def validate_name(cls, v):
-        """Validate the name field.
+        """
+        Validate the name field.
 
         Args:
             v: The name value to validate. Must be a non-empty string.
@@ -54,7 +56,8 @@ class Certification(BaseModel):
     @field_validator("issuer", "certification_id")
     @classmethod
     def validate_optional_strings(cls, v):
-        """Validate optional string fields.
+        """
+        Validate optional string fields.
 
         Args:
             v: The field value to validate. Must be a string or None.
@@ -76,7 +79,8 @@ class Certification(BaseModel):
     @field_validator("issued", "expires")
     @classmethod
     def validate_dates(cls, v):
-        """Validate the date fields.
+        """
+        Validate the date fields.
 
         Args:
             v: The date value to validate. Must be a datetime object or None.
@@ -97,7 +101,8 @@ class Certification(BaseModel):
 
     @model_validator(mode="after")
     def validate_date_order(self):
-        """Validate that issued date is not after expires date.
+        """
+        Validate that issued date is not after expires date.
 
         Returns:
             Certification: The validated model instance.
@@ -115,7 +120,8 @@ class Certification(BaseModel):
 
 
 class Certifications(BaseModel):
-    """Represents a collection of professional certifications.
+    """
+    Represents a collection of professional certifications.
 
     Attributes:
         certifications (list[Certification]): A list of Certification objects.
@@ -127,7 +133,8 @@ class Certifications(BaseModel):
     @field_validator("certifications")
     @classmethod
     def validate_certifications(cls, v):
-        """Validate the certifications field.
+        """
+        Validate the certifications field.
 
         Args:
             v: The certifications value to validate. Must be a list of Certification objects.
@@ -153,7 +160,8 @@ class Certifications(BaseModel):
         return v
 
     def __iter__(self):
-        """Iterate over the certifications.
+        """
+        Iterate over the certifications.
 
         Returns:
             An iterator over the list of certification objects.
@@ -165,7 +173,8 @@ class Certifications(BaseModel):
         return iter(self.certifications)
 
     def __len__(self):
-        """Return the number of certifications.
+        """
+        Return the number of certifications.
 
         Returns:
             The integer count of certifications in the list.
@@ -177,7 +186,8 @@ class Certifications(BaseModel):
         return len(self.certifications)
 
     def __getitem__(self, index):
-        """Return the certification at the given index.
+        """
+        Return the certification at the given index.
 
         Args:
             index: The index of the certification to retrieve.
@@ -193,7 +203,8 @@ class Certifications(BaseModel):
 
     @property
     def list_class(self):
-        """Return the type that will be contained in the list.
+        """
+        Return the type that will be contained in the list.
 
         Returns:
             The Certification class.

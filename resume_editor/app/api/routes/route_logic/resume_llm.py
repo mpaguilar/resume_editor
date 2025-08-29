@@ -21,7 +21,8 @@ log = logging.getLogger(__name__)
 
 
 def _get_section_content(resume_content: str, section_name: str) -> str:
-    """Extracts the Markdown content for a specific section of the resume.
+    """
+    Extracts the Markdown content for a specific section of the resume.
 
     Args:
         resume_content (str): The full resume content in Markdown.
@@ -40,6 +41,7 @@ def _get_section_content(resume_content: str, section_name: str) -> str:
         4. Extract the data using the extractor function.
         5. Serialize the extracted data using the serializer function.
         6. Return the serialized result.
+
     """
     _msg = f"Extracting section '{section_name}' from resume"
     log.debug(_msg)
@@ -72,7 +74,8 @@ def refine_resume_section_with_llm(
     llm_endpoint: str | None,
     api_key: str | None,
 ) -> str:
-    """Uses an LLM to refine a specific section of a resume based on a job description.
+    """
+    Uses an LLM to refine a specific section of a resume based on a job description.
 
     Args:
         resume_content (str): The full Markdown content of the resume.
@@ -95,6 +98,7 @@ def refine_resume_section_with_llm(
         8. Parse the LLM's JSON-Markdown output using parse_json_markdown if the result is a string.
         9. Validate the parsed JSON against the RefinedSection model.
         10. Return the refined_markdown field from the validated result.
+
     """
     _msg = f"refine_resume_section_with_llm starting for section '{target_section}'"
     log.debug(_msg)

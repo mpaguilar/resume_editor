@@ -82,8 +82,6 @@ def test_settings_missing_required_env_vars():
         assert "ENCRYPTION_KEY" in str(excinfo.value)
 
 
-
-
 @patch("resume_editor.app.core.config.Settings")
 def test_get_settings_function(MockSettings):
     """Test that get_settings uses default values in an isolated environment."""

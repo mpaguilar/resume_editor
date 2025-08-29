@@ -1,4 +1,5 @@
-"""This module serves as the entry point for the resume editor application.
+"""
+This module serves as the entry point for the resume editor application.
 
 It initializes and exposes the core functionality of the application, including
 database setup, authentication, and application configuration.

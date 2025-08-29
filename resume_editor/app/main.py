@@ -5,15 +5,16 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
+from resume_editor.app.api.routes.admin import router as admin_router
 from resume_editor.app.api.routes.resume import router as resume_router
 from resume_editor.app.api.routes.user import router as user_router
-from resume_editor.app.api.routes.admin import router as admin_router
 
 log = logging.getLogger(__name__)
 
 
 def create_app() -> FastAPI:
-    """Create and configure the FastAPI application.
+    """
+    Create and configure the FastAPI application.
 
     Args:
         None
@@ -57,7 +58,8 @@ def create_app() -> FastAPI:
 
     @app.get("/health")
     async def health_check() -> dict[str, str]:
-        """Health check endpoint to verify the application is running.
+        """
+        Health check endpoint to verify the application is running.
 
         Args:
             None
@@ -76,7 +78,8 @@ def create_app() -> FastAPI:
 
     @app.get("/")
     async def root():
-        """Redirect root to dashboard.
+        """
+        Redirect root to dashboard.
 
         Args:
             None
@@ -94,7 +97,8 @@ def create_app() -> FastAPI:
 
     @app.get("/dashboard")
     async def dashboard(request: Request):
-        """Serve the dashboard page.
+        """
+        Serve the dashboard page.
 
         Args:
             request: The HTTP request object.
@@ -113,7 +117,8 @@ def create_app() -> FastAPI:
 
     @app.get("/dashboard/create-resume-form")
     async def create_resume_form():
-        """Serve the form for creating a new resume.
+        """
+        Serve the form for creating a new resume.
 
         Args:
             None
@@ -174,7 +179,8 @@ def create_app() -> FastAPI:
 
     @app.get("/dashboard/resumes/{resume_id}/edit/personal")
     async def edit_personal_info(request: Request, resume_id: int):
-        """Serve the form for editing personal information.
+        """
+        Serve the form for editing personal information.
 
         Args:
             request: The HTTP request object.
@@ -260,9 +266,13 @@ def create_app() -> FastAPI:
         """
         return HTMLResponse(content=html_content)
 
-    @app.get("/dashboard/resumes/{resume_id}/edit/education", response_class=HTMLResponse)
+    @app.get(
+        "/dashboard/resumes/{resume_id}/edit/education",
+        response_class=HTMLResponse,
+    )
     async def edit_education(request: Request, resume_id: int):
-        """Serve the form for editing education information.
+        """
+        Serve the form for editing education information.
 
         Args:
             request: The HTTP request object.
@@ -346,9 +356,13 @@ def create_app() -> FastAPI:
         """
         return HTMLResponse(content=html_content)
 
-    @app.get("/dashboard/resumes/{resume_id}/edit/experience", response_class=HTMLResponse)
+    @app.get(
+        "/dashboard/resumes/{resume_id}/edit/experience",
+        response_class=HTMLResponse,
+    )
     async def edit_experience(request: Request, resume_id: int):
-        """Serve the form for editing experience information.
+        """
+        Serve the form for editing experience information.
 
         Args:
             request: The HTTP request object.
@@ -433,9 +447,13 @@ def create_app() -> FastAPI:
         """
         return HTMLResponse(content=html_content)
 
-    @app.get("/dashboard/resumes/{resume_id}/edit/projects", response_class=HTMLResponse)
+    @app.get(
+        "/dashboard/resumes/{resume_id}/edit/projects",
+        response_class=HTMLResponse,
+    )
     async def edit_projects(request: Request, resume_id: int):
-        """Serve the form for editing projects information.
+        """
+        Serve the form for editing projects information.
 
         Args:
             request: The HTTP request object.
@@ -524,7 +542,8 @@ def create_app() -> FastAPI:
         response_class=HTMLResponse,
     )
     async def edit_certifications(request: Request, resume_id: int):
-        """Serve the form for editing certifications information.
+        """
+        Serve the form for editing certifications information.
 
         Args:
             request: The HTTP request object.
@@ -614,7 +633,8 @@ def create_app() -> FastAPI:
 
 
 def initialize_database():
-    """Initialize the database.
+    """
+    Initialize the database.
 
     Args:
         None

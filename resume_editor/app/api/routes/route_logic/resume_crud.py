@@ -13,7 +13,8 @@ def get_resume_by_id_and_user(
     resume_id: int,
     user_id: int,
 ) -> DatabaseResume:
-    """Retrieve a resume by its ID and verify it belongs to the specified user.
+    """
+    Retrieve a resume by its ID and verify it belongs to the specified user.
 
     Args:
         db (Session): The SQLAlchemy database session used to query the database.
@@ -49,7 +50,8 @@ def get_resume_by_id_and_user(
 
 
 def get_user_resumes(db: Session, user_id: int) -> list[DatabaseResume]:
-    """Retrieve all resumes associated with a specific user.
+    """
+    Retrieve all resumes associated with a specific user.
 
     Args:
         db (Session): The SQLAlchemy database session used to query the database.
@@ -68,7 +70,8 @@ def get_user_resumes(db: Session, user_id: int) -> list[DatabaseResume]:
 
 
 def create_resume(db: Session, user_id: int, name: str, content: str) -> DatabaseResume:
-    """Create and save a new resume.
+    """
+    Create and save a new resume.
 
     Args:
         db (Session): The database session.
@@ -101,7 +104,8 @@ def update_resume(
     name: str | None = None,
     content: str | None = None,
 ) -> DatabaseResume:
-    """Update a resume's name and/or content.
+    """
+    Update a resume's name and/or content.
 
     Args:
         db (Session): The database session.
@@ -131,7 +135,8 @@ def update_resume(
 
 
 def delete_resume(db: Session, resume: DatabaseResume) -> None:
-    """Delete a resume.
+    """
+    Delete a resume.
 
     Args:
         db (Session): The database session.

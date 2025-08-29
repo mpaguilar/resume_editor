@@ -9,7 +9,8 @@ log = logging.getLogger(__name__)
 
 
 def parse_resume_to_writer_object(markdown_content: str) -> WriterResume:
-    """Parse Markdown resume content into a resume_writer Resume object.
+    """
+    Parse Markdown resume content into a resume_writer Resume object.
 
     Args:
         markdown_content (str): The Markdown content to parse, expected to follow a valid resume format.
@@ -68,7 +69,8 @@ def parse_resume_to_writer_object(markdown_content: str) -> WriterResume:
 
 
 def parse_resume(markdown_content: str) -> dict[str, Any]:
-    """Parse Markdown resume content using resume_writer parser and return a dictionary.
+    """
+    Parse Markdown resume content using resume_writer parser and return a dictionary.
 
     Args:
         markdown_content (str): The Markdown content to parse, expected to follow a valid resume format.
@@ -114,7 +116,8 @@ def parse_resume(markdown_content: str) -> dict[str, Any]:
 
 
 def parse_resume_content(markdown_content: str) -> dict[str, Any]:
-    """Parse Markdown resume content and return structured data as a dictionary.
+    """
+    Parse Markdown resume content and return structured data as a dictionary.
 
     Args:
         markdown_content (str): The Markdown content to parse, expected to follow a valid resume format.
@@ -153,7 +156,8 @@ def parse_resume_content(markdown_content: str) -> dict[str, Any]:
 
 
 def validate_resume_content(content: str) -> None:
-    """Validate resume Markdown content for proper format.
+    """
+    Validate resume Markdown content for proper format.
 
     Args:
         content (str): The Markdown content to validate, expected to be in a format compatible with resume_writer.

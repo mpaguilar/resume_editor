@@ -11,7 +11,8 @@ log = logging.getLogger(__name__)
 
 
 class Resume(BaseModel):
-    """Represents a resume.
+    """
+    Represents a resume.
 
     This class models a resume document, organizing personal information, education, work experience, and certifications.
 

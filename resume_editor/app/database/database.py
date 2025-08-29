@@ -14,7 +14,8 @@ _SessionLocal = None
 
 
 def get_engine():
-    """Get or create the database engine.
+    """
+    Get or create the database engine.
 
     Args:
         None
@@ -39,7 +40,8 @@ def get_engine():
 
 
 def get_session_local():
-    """Get or create the session local factory.
+    """
+    Get or create the session local factory.
 
     Args:
         None
@@ -66,7 +68,8 @@ def get_session_local():
 
 
 def get_db() -> Generator[Session, None, None]:
-    """Dependency to provide database sessions to route handlers.
+    """
+    Dependency to provide database sessions to route handlers.
 
     Args:
         None

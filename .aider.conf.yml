@@ -3,6 +3,4 @@ read:
   - APP_SPEC.md
   - DOCSTRINGS.md
   - resume_writer_docs.md
-auto-accept-architect: false
-auto-lint: false
 gitignore: false

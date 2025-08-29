@@ -113,7 +113,9 @@ client = TestClient(app)
 
 def test_get_current_admin_user_with_admin_role():
     """Test that a user with the 'admin' role is granted access."""
-    admin_user = User(username="admin", email="admin@test.com", hashed_password="password")
+    admin_user = User(
+        username="admin", email="admin@test.com", hashed_password="password"
+    )
     admin_role = Role(name="admin")
     admin_user.roles = [admin_role]
 

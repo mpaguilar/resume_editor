@@ -19,7 +19,8 @@ def test_generate_migration_success():
         assert "Generating new migration..." in result.output
         assert "Successfully generated new migration: test migration" in result.output
         mock_run.assert_called_once_with(
-            ["alembic", "revision", "--autogenerate", "-m", "test migration"], check=True
+            ["alembic", "revision", "--autogenerate", "-m", "test migration"],
+            check=True,
         )
 
 

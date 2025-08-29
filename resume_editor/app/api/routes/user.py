@@ -1,5 +1,4 @@
 import logging
-from datetime import timedelta
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -29,7 +28,8 @@ router = APIRouter(prefix="/api/users", tags=["users"])
 
 
 def get_user_by_username(db: Session, username: str) -> User | None:
-    """Retrieve a user from the database using their username.
+    """
+    Retrieve a user from the database using their username.
 
     Args:
         db: Database session dependency used to query the database.
@@ -53,7 +53,8 @@ def get_user_by_username(db: Session, username: str) -> User | None:
 
 
 def get_user_by_email(db: Session, email: str) -> User | None:
-    """Retrieve a user from the database using their email address.
+    """
+    Retrieve a user from the database using their email address.
 
     Args:
         db: Database session dependency used to query the database.
@@ -77,7 +78,8 @@ def get_user_by_email(db: Session, email: str) -> User | None:
 
 
 def create_new_user(db: Session, user_data: UserCreate) -> User:
-    """Create a new user in the database with the provided data.
+    """
+    Create a new user in the database with the provided data.
 
     Args:
         db: Database session dependency used to persist the new user.
@@ -123,19 +125,22 @@ def create_new_user(db: Session, user_data: UserCreate) -> User:
 
 
 def get_users(db: Session) -> list[User]:
-    """Retrieve all users from the database.
+    """
+    Retrieve all users from the database.
 
     Args:
         db (Session): The database session.
 
     Returns:
         list[User]: A list of all user objects.
+
     """
     return db.query(User).all()
 
 
 def get_user_by_id(db: Session, user_id: int) -> User | None:
-    """Retrieve a single user by ID.
+    """
+    Retrieve a single user by ID.
 
     Args:
         db (Session): The database session.
@@ -143,16 +148,19 @@ def get_user_by_id(db: Session, user_id: int) -> User | None:
 
     Returns:
         User | None: The user object if found, otherwise None.
+
     """
     return db.query(User).filter(User.id == user_id).first()
 
 
 def delete_user(db: Session, user: User) -> None:
-    """Delete a user from the database.
+    """
+    Delete a user from the database.
 
     Args:
         db (Session): The database session.
         user (User): The user object to delete.
+
     """
     db.delete(user)
     db.commit()
@@ -160,7 +168,8 @@ def delete_user(db: Session, user: User) -> None:
 
 @router.post("/register", response_model=UserResponse)
 def register_user(user: UserCreate, db: Session = Depends(get_db)) -> UserResponse:
-    """Register a new user with the provided credentials.
+    """
+    Register a new user with the provided credentials.
 
     Args:
         user: Data containing username, email, and password for the new user.
@@ -223,7 +232,8 @@ def get_user_settings(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Get the current user's settings.
+    """
+    Get the current user's settings.
 
     Args:
         db (Session): The database session.
@@ -256,7 +266,8 @@ def update_user_settings(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Update the current user's settings.
+    """
+    Update the current user's settings.
 
     Args:
         settings_data (UserSettingsUpdateRequest): The settings data to update.
@@ -286,7 +297,8 @@ def login_user(
     form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
     db: Session = Depends(get_db),
 ) -> Token:
-    """Authenticate a user and return an access token.
+    """
+    Authenticate a user and return an access token.
 
     Args:
         form_data: Form data containing username and password for authentication.

@@ -26,10 +26,12 @@ from resume_editor.app.api.routes.route_logic.resume_crud import (
 from resume_editor.app.api.routes.route_logic.resume_crud import (
     update_resume as update_resume_db,
 )
+from resume_editor.app.api.routes.route_logic.resume_filtering import (
+    filter_experience_by_date,
+)
 from resume_editor.app.api.routes.route_logic.resume_llm import (
     refine_resume_section_with_llm,
 )
-from resume_editor.app.api.routes.route_logic.settings_crud import get_user_settings
 from resume_editor.app.api.routes.route_logic.resume_parsing import (
     parse_resume_content,
     parse_resume_to_writer_object,
@@ -45,12 +47,10 @@ from resume_editor.app.api.routes.route_logic.resume_serialization import (
     extract_personal_info,
     update_resume_content_with_structured_data,
 )
-from resume_editor.app.api.routes.route_logic.resume_filtering import (
-    filter_experience_by_date,
-)
 from resume_editor.app.api.routes.route_logic.resume_validation import (
     perform_pre_save_validation,
 )
+from resume_editor.app.api.routes.route_logic.settings_crud import get_user_settings
 from resume_editor.app.api.routes.route_models import (
     CertificationsResponse,
     CertificationUpdateRequest,
@@ -72,12 +72,12 @@ from resume_editor.app.api.routes.route_models import (
     ResumeResponse,
     ResumeUpdateRequest,
 )
-from resume_editor.app.models.resume.certifications import Certification
-from resume_editor.app.models.resume.education import Degree
-from resume_editor.app.models.resume.experience import Project, Role
 from resume_editor.app.core.auth import get_current_user
 from resume_editor.app.core.security import decrypt_data
 from resume_editor.app.database.database import get_db
+from resume_editor.app.models.resume.certifications import Certification
+from resume_editor.app.models.resume.education import Degree
+from resume_editor.app.models.resume.experience import Project, Role
 from resume_editor.app.models.resume_model import Resume as DatabaseResume
 from resume_editor.app.models.user import User
 
@@ -91,7 +91,8 @@ async def get_resume_for_user(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> DatabaseResume:
-    """Dependency to get a specific resume for the current user.
+    """
+    Dependency to get a specific resume for the current user.
 
     Args:
         resume_id (int): The unique identifier of the resume to retrieve.
@@ -109,6 +110,7 @@ async def get_resume_for_user(
         2. If no resume is found, raises a 404 error.
         3. Performs database access: Reads from the database via db.query.
         4. Returns the resume object.
+
     """
     return get_resume_by_id_and_user(db, resume_id=resume_id, user_id=current_user.id)
 
@@ -117,7 +119,8 @@ def _generate_resume_list_html(
     resumes: list[DatabaseResume],
     selected_resume_id: int | None,
 ) -> str:
-    """Generates HTML for a list of resumes, marking one as selected.
+    """
+    Generates HTML for a list of resumes, marking one as selected.
 
     Args:
         resumes (list[DatabaseResume]): The list of resumes to display.
@@ -131,6 +134,7 @@ def _generate_resume_list_html(
         2. If empty, returns a message indicating no resumes were found.
         3. Otherwise, generates HTML for each resume item with a selected class if it matches the selected ID.
         4. Returns the concatenated HTML string.
+
     """
     if not resumes:
         return """
@@ -155,7 +159,8 @@ def _generate_resume_list_html(
 
 @router.post("/parse", response_model=ParseResponse)
 async def parse_resume_endpoint(request: ParseRequest):
-    """Parse Markdown resume content and return structured data.
+    """
+    Parse Markdown resume content and return structured data.
 
     Args:
         request (ParseRequest): The request containing the Markdown content to parse.
@@ -175,6 +180,7 @@ async def parse_resume_endpoint(request: ParseRequest):
         6. If an error occurs during parsing, logs the exception and raises a 400 error.
         7. Performs database access: None.
         8. Performs network access: None.
+
     """
     return parse_resume_content(request.markdown_content)
 
@@ -186,7 +192,8 @@ async def create_resume(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Save a new resume to the database, associating it with the current user.
+    """
+    Save a new resume to the database, associating it with the current user.
 
     Args:
         request (ResumeCreateRequest): The request containing the resume name and Markdown content.
@@ -212,6 +219,7 @@ async def create_resume(
         9. Otherwise, returns a ResumeResponse with the resume ID and name.
         10. Performs database access: Writes to the database via db.add and db.commit.
         11. Performs network access: None.
+
     """
     # Validate Markdown content before saving
     validate_resume_content(request.content)
@@ -242,7 +250,8 @@ async def update_resume(
     current_user: User = Depends(get_current_user),
     resume: DatabaseResume = Depends(get_resume_for_user),
 ):
-    """Update an existing resume's name and/or content for the current user.
+    """
+    Update an existing resume's name and/or content for the current user.
 
     Args:
         resume_id (int): The unique identifier of the resume to update.
@@ -269,6 +278,7 @@ async def update_resume(
         9. Otherwise, returns a ResumeResponse with the resume ID and name.
         10. Performs database access: Reads from and writes to the database via db.query, db.commit.
         11. Performs network access: None.
+
     """
     # Validate Markdown content before updating if content is being changed
     if request.content is not None:
@@ -293,7 +303,8 @@ async def delete_resume(
     current_user: User = Depends(get_current_user),
     resume: DatabaseResume = Depends(get_resume_for_user),
 ):
-    """Delete a resume for the current user.
+    """
+    Delete a resume for the current user.
 
     Args:
         resume_id (int): The unique identifier of the resume to delete.
@@ -316,6 +327,7 @@ async def delete_resume(
         6. Otherwise, returns a success message.
         7. Performs database access: Reads from and writes to the database via db.query, db.delete, db.commit.
         8. Performs network access: None.
+
     """
     # Delete the resume
     delete_resume_db(db, resume)
@@ -336,7 +348,8 @@ async def list_resumes(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """List all resumes for the current user.
+    """
+    List all resumes for the current user.
 
     Args:
         request (Request): The HTTP request object.
@@ -357,6 +370,7 @@ async def list_resumes(
         5. Otherwise, returns the list of ResumeResponse objects.
         6. Performs database access: Reads from the database via db.query.
         7. Performs network access: None.
+
     """
     resumes = get_user_resumes(db, current_user.id)
 
@@ -369,7 +383,8 @@ async def list_resumes(
 
 
 def _generate_resume_detail_html(resume: DatabaseResume) -> str:
-    """Generate the HTML for the resume detail view.
+    """
+    Generate the HTML for the resume detail view.
 
     Args:
         resume (DatabaseResume): The resume object to generate HTML for.
@@ -382,6 +397,7 @@ def _generate_resume_detail_html(resume: DatabaseResume) -> str:
         2. Includes buttons for refining with AI, exporting, and editing.
         3. Creates modal dialogs for export and refine actions with appropriate event handlers.
         4. Returns the complete HTML string.
+
     """
     return f"""
     <div class="h-full flex flex-col">
@@ -550,7 +566,8 @@ async def get_resume(
     request: Request,
     resume: DatabaseResume = Depends(get_resume_for_user),
 ):
-    """Retrieve a specific resume's Markdown content by ID for the current user.
+    """
+    Retrieve a specific resume's Markdown content by ID for the current user.
 
     Args:
         request (Request): The HTTP request object.
@@ -569,6 +586,7 @@ async def get_resume(
         4. Otherwise, returns a ResumeDetailResponse with the resume's ID, name, and content.
         5. Performs database access: Reads from the database via db.query.
         6. Performs network access: None.
+
     """
     # Check if this is an HTMX request
     if "HX-Request" in request.headers:
@@ -588,7 +606,8 @@ async def export_resume_markdown(
     start_date: date | None = None,
     end_date: date | None = None,
 ):
-    """Export a resume as a Markdown file.
+    """
+    Export a resume as a Markdown file.
 
     Args:
         resume (DatabaseResume): The resume object, injected by dependency.
@@ -608,6 +627,7 @@ async def export_resume_markdown(
         4. Sets the 'Content-Type' header to 'text/markdown'.
         5. Sets the 'Content-Disposition' header to trigger a file download with the resume's name.
         6. Returns the response.
+
     """
     try:
         content_to_export = resume.content
@@ -654,7 +674,8 @@ async def export_resume_docx(
     start_date: date | None = None,
     end_date: date | None = None,
 ):
-    """Export a resume as a DOCX file in the specified format.
+    """
+    Export a resume as a DOCX file in the specified format.
 
     Args:
         format (DocxFormat): The export format ('ats', 'plain', 'executive').
@@ -678,6 +699,7 @@ async def export_resume_docx(
             - For 'executive', enables `executive_summary` and `skills_matrix` in settings.
         7. Saves the generated document to a memory stream.
         8. Returns the stream as a downloadable file attachment.
+
     """
     _msg = f"export_resume_docx starting for format {format.value}"
     log.debug(_msg)
@@ -707,8 +729,7 @@ async def export_resume_docx(
     except (ValueError, TypeError) as e:
         detail = getattr(e, "detail", str(e))
         _msg = (
-            "Failed to generate docx due to content parsing/filtering error: "
-            f"{detail}"
+            f"Failed to generate docx due to content parsing/filtering error: {detail}"
         )
         log.exception(_msg)
         raise HTTPException(status_code=422, detail=_msg)
@@ -752,7 +773,8 @@ async def update_personal_info(
     db: Session = Depends(get_db),
     resume: DatabaseResume = Depends(get_resume_for_user),
 ):
-    """Update personal information in a resume.
+    """
+    Update personal information in a resume.
 
     Args:
         resume_id (int): The unique identifier of the resume to update.
@@ -773,6 +795,7 @@ async def update_personal_info(
         3. Updates the personal information section in the resume content.
         4. Commits the transaction to save the changes.
         5. Returns HTML for HTMX to update the resume content view.
+
     """
     try:
         updated_personal_info = PersonalInfoResponse(**request.model_dump())
@@ -802,7 +825,8 @@ async def update_education(
     end_date: str | None = Form(None),
     gpa: str | None = Form(None),
 ):
-    """Update education information in a resume.
+    """
+    Update education information in a resume.
 
     Args:
         http_request (Request): The HTTP request object.
@@ -826,6 +850,7 @@ async def update_education(
         2. Appends the new degree to the existing education section.
         3. Reconstructs, validates, and saves the updated resume content.
         4. Returns an HTML partial of the updated resume view.
+
     """
     try:
         new_degree_data = {
@@ -870,7 +895,8 @@ async def update_experience(
     end_date: str | None = Form(None),
     description: str | None = Form(None),
 ):
-    """Update experience information in a resume.
+    """
+    Update experience information in a resume.
 
     Args:
         http_request (Request): The HTTP request object.
@@ -893,6 +919,7 @@ async def update_experience(
         2. Appends the new role to the existing experience section.
         3. Reconstructs, validates, and saves the updated resume content.
         4. Returns an HTML partial of the updated resume view.
+
     """
     try:
         new_role_data = {
@@ -938,7 +965,8 @@ async def update_projects(
     start_date: str | None = Form(None),
     end_date: str | None = Form(None),
 ):
-    """Update projects information in a resume.
+    """
+    Update projects information in a resume.
 
     Args:
         http_request (Request): The HTTP request object.
@@ -961,6 +989,7 @@ async def update_projects(
         2. Appends the new project to the existing experience section.
         3. Reconstructs, validates, and saves the updated resume content.
         4. Returns an HTML partial of the updated resume view.
+
     """
     try:
         new_project_data = {
@@ -1008,7 +1037,8 @@ async def update_certifications(
     issued_date: str | None = Form(None),
     expiry_date: str | None = Form(None),
 ):
-    """Update certifications information in a resume.
+    """
+    Update certifications information in a resume.
 
     Args:
         http_request (Request): The HTTP request object.
@@ -1031,6 +1061,7 @@ async def update_certifications(
         2. Appends the new certification to the existing certifications section.
         3. Reconstructs, validates, and saves the updated resume content.
         4. Returns an HTML partial of the updated resume view.
+
     """
     try:
         new_cert_data = {
@@ -1069,7 +1100,8 @@ async def update_certifications(
 async def get_personal_info(
     resume: DatabaseResume = Depends(get_resume_for_user),
 ):
-    """Get personal information from a resume.
+    """
+    Get personal information from a resume.
 
     Args:
         resume_id: The ID of the resume.
@@ -1089,6 +1121,7 @@ async def get_personal_info(
         4. Returns the personal information as a PersonalInfoResponse.
         5. Performs database access: Reads from the database via db.query.
         6. Performs network access: None.
+
     """
     return extract_personal_info(resume.content)
 
@@ -1099,7 +1132,8 @@ async def update_personal_info_structured(
     db: Session = Depends(get_db),
     resume: DatabaseResume = Depends(get_resume_for_user),
 ):
-    """Update personal information in a resume.
+    """
+    Update personal information in a resume.
 
     Args:
         resume_id: The ID of the resume.
@@ -1122,6 +1156,7 @@ async def update_personal_info_structured(
         6. Saves the updated content to the database.
         7. Returns the updated personal information.
         8. This function performs database read and write operations.
+
     """
     try:
         # Create updated personal info object
@@ -1160,7 +1195,8 @@ async def update_personal_info_structured(
 async def get_education_info(
     resume: DatabaseResume = Depends(get_resume_for_user),
 ):
-    """Get education information from a resume.
+    """
+    Get education information from a resume.
 
     Args:
         resume_id: The ID of the resume.
@@ -1180,6 +1216,7 @@ async def get_education_info(
         4. Returns the education information as an EducationResponse.
         5. Performs database access: Reads from the database via db.query.
         6. Performs network access: None.
+
     """
     return extract_education_info(resume.content)
 
@@ -1190,7 +1227,8 @@ async def update_education_info_structured(
     db: Session = Depends(get_db),
     resume: DatabaseResume = Depends(get_resume_for_user),
 ):
-    """Update education information in a resume.
+    """
+    Update education information in a resume.
 
     Args:
         resume_id: The ID of the resume.
@@ -1213,6 +1251,7 @@ async def update_education_info_structured(
         6. Saves the updated content to the database.
         7. Returns the updated education information.
         8. This function performs database read and write operations.
+
     """
     try:
         # Create updated education info object
@@ -1250,7 +1289,8 @@ async def update_education_info_structured(
 async def get_experience_info(
     resume: DatabaseResume = Depends(get_resume_for_user),
 ):
-    """Get experience information from a resume.
+    """
+    Get experience information from a resume.
 
     Args:
         resume_id: The ID of the resume.
@@ -1270,6 +1310,7 @@ async def get_experience_info(
         4. Returns the experience information as an ExperienceResponse.
         5. Performs database access: Reads from the database via db.query.
         6. Performs network access: None.
+
     """
     return extract_experience_info(resume.content)
 
@@ -1280,7 +1321,8 @@ async def update_experience_info_structured(
     db: Session = Depends(get_db),
     resume: DatabaseResume = Depends(get_resume_for_user),
 ):
-    """Update experience information in a resume.
+    """
+    Update experience information in a resume.
 
     Args:
         resume_id: The ID of the resume.
@@ -1303,6 +1345,7 @@ async def update_experience_info_structured(
         6. Saves the updated content to the database.
         7. Returns the updated experience information.
         8. This function performs database read and write operations.
+
     """
     try:
         # Extract current resume sections
@@ -1351,7 +1394,8 @@ async def update_experience_info_structured(
 async def get_projects_info(
     resume: DatabaseResume = Depends(get_resume_for_user),
 ):
-    """Get projects information from a resume.
+    """
+    Get projects information from a resume.
 
     Args:
         resume_id: The ID of the resume.
@@ -1371,6 +1415,7 @@ async def get_projects_info(
         4. Returns the projects information as a ProjectsResponse.
         5. Performs database access: Reads from the database via db.query.
         6. Performs network access: None.
+
     """
     experience = extract_experience_info(resume.content)
     return ProjectsResponse(projects=experience.projects)
@@ -1382,7 +1427,8 @@ async def update_projects_info_structured(
     db: Session = Depends(get_db),
     resume: DatabaseResume = Depends(get_resume_for_user),
 ):
-    """Update projects information in a resume.
+    """
+    Update projects information in a resume.
 
     Args:
         resume_id: The ID of the resume.
@@ -1405,6 +1451,7 @@ async def update_projects_info_structured(
         6. Saves the updated content to the database.
         7. Returns the updated projects information.
         8. This function performs database read and write operations.
+
     """
     try:
         projects_to_update = request.projects or []
@@ -1446,7 +1493,8 @@ async def update_projects_info_structured(
 async def get_certifications_info(
     resume: DatabaseResume = Depends(get_resume_for_user),
 ):
-    """Get certifications information from a resume.
+    """
+    Get certifications information from a resume.
 
     Args:
         resume_id: The ID of the resume.
@@ -1466,6 +1514,7 @@ async def get_certifications_info(
         4. Returns the certifications information as a CertificationsResponse.
         5. Performs database access: Reads from the database via db.query.
         6. Performs network access: None.
+
     """
     return extract_certifications_info(resume.content)
 
@@ -1476,7 +1525,8 @@ async def update_certifications_info_structured(
     db: Session = Depends(get_db),
     resume: DatabaseResume = Depends(get_resume_for_user),
 ):
-    """Update certifications information in a resume.
+    """
+    Update certifications information in a resume.
 
     Args:
         resume_id: The ID of the resume.
@@ -1499,6 +1549,7 @@ async def update_certifications_info_structured(
         6. Saves the updated content to the database.
         7. Returns the updated certifications information.
         8. This function performs database read and write operations.
+
     """
     try:
         updated_certifications = CertificationsResponse(
@@ -1540,7 +1591,8 @@ async def refine_resume(
     job_description: str = Form(...),
     target_section: RefineTargetSection = Form(...),
 ):
-    """Refine a resume section using an LLM to align with a job description.
+    """
+    Refine a resume section using an LLM to align with a job description.
 
     Args:
         http_request (Request): The HTTP request object to check for HTMX headers.
@@ -1561,6 +1613,7 @@ async def refine_resume(
         5. Otherwise, returns the refined content in a `RefineResponse`.
         6. This function performs database reads to get user settings.
         7. This function performs network access to call the LLM.
+
     """
     _msg = f"Refining resume {resume.id} for section {target_section.value}"
     log.debug(_msg)
@@ -1638,7 +1691,8 @@ async def accept_refined_resume(
     action: RefineAction = Form(...),
     new_resume_name: str | None = Form(None),
 ):
-    """Accept a refined resume section and persist the changes.
+    """
+    Accept a refined resume section and persist the changes.
 
     Args:
         resume (DatabaseResume): The original resume being modified.

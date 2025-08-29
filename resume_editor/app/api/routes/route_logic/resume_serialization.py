@@ -15,7 +15,8 @@ log = logging.getLogger(__name__)
 
 
 def extract_personal_info(resume_content: str) -> PersonalInfoResponse:
-    """Extract personal information from resume content.
+    """
+    Extract personal information from resume content.
 
     Args:
         resume_content (str): The Markdown content of the resume to parse.
@@ -93,7 +94,8 @@ def extract_personal_info(resume_content: str) -> PersonalInfoResponse:
 
 
 def extract_education_info(resume_content: str) -> EducationResponse:
-    """Extract education information from resume content.
+    """
+    Extract education information from resume content.
 
     Args:
         resume_content (str): The Markdown content of the resume to parse.
@@ -148,7 +150,8 @@ def extract_education_info(resume_content: str) -> EducationResponse:
 
 
 def extract_experience_info(resume_content: str) -> ExperienceResponse:
-    """Extract experience information from resume content.
+    """
+    Extract experience information from resume content.
 
     Args:
         resume_content (str): The Markdown content of the resume to parse.
@@ -296,7 +299,8 @@ def extract_experience_info(resume_content: str) -> ExperienceResponse:
 
 
 def extract_certifications_info(resume_content: str) -> CertificationsResponse:
-    """Extract certifications information from resume content.
+    """
+    Extract certifications information from resume content.
 
     Args:
         resume_content (str): The Markdown content of the resume to parse.
@@ -352,7 +356,8 @@ def extract_certifications_info(resume_content: str) -> CertificationsResponse:
 
 
 def serialize_personal_info_to_markdown(personal_info) -> str:
-    """Serialize personal information to Markdown format.
+    """
+    Serialize personal information to Markdown format.
 
     Args:
         personal_info: Personal information to serialize, containing name, email, phone, location, and website.
@@ -458,7 +463,8 @@ def serialize_personal_info_to_markdown(personal_info) -> str:
 
 
 def serialize_education_to_markdown(education) -> str:
-    """Serialize education information to Markdown format.
+    """
+    Serialize education information to Markdown format.
 
     Args:
         education: Education information to serialize, containing a list of degree entries.
@@ -507,7 +513,8 @@ def serialize_education_to_markdown(education) -> str:
 
 
 def _serialize_project_to_markdown(project) -> list[str]:
-    """Serialize a single project to markdown lines.
+    """
+    Serialize a single project to markdown lines.
 
     Args:
         project: A project object to serialize.
@@ -569,7 +576,8 @@ def _serialize_project_to_markdown(project) -> list[str]:
 
 
 def _serialize_role_to_markdown(role) -> list[str]:
-    """Serialize a single role to markdown lines.
+    """
+    Serialize a single role to markdown lines.
 
     Args:
         role: A role object to serialize.
@@ -651,7 +659,8 @@ def _serialize_role_to_markdown(role) -> list[str]:
 
 
 def serialize_experience_to_markdown(experience) -> str:
-    """Serialize experience information to Markdown format.
+    """
+    Serialize experience information to Markdown format.
 
     Args:
         experience: Experience information to serialize, containing a list of roles.
@@ -700,7 +709,8 @@ def serialize_experience_to_markdown(experience) -> str:
 
 
 def serialize_certifications_to_markdown(certifications) -> str:
-    """Serialize certifications information to Markdown format.
+    """
+    Serialize certifications information to Markdown format.
 
     Args:
         certifications: Certifications information to serialize, containing a list of certifications.
@@ -751,7 +761,8 @@ def update_resume_content_with_structured_data(
     certifications=None,
     experience=None,
 ) -> str:
-    """Update resume content with structured data by replacing specific sections.
+    """
+    Update resume content with structured data by replacing specific sections.
 
     Args:
         current_content (str): Current resume Markdown content to update.

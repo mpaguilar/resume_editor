@@ -19,31 +19,40 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/users/login")
 
 
 class SecurityManager:
-    """Manages user authentication and authorization using password hashing and JWT tokens.
+    """
+    Manages user authentication and authorization using password hashing and JWT tokens.
 
     Attributes:
         settings (Settings): Configuration settings for the security system.
         access_token_expire_minutes (int): Duration in minutes for access token expiration.
         secret_key (str): Secret key used for signing JWT tokens.
         algorithm (str): Algorithm used for JWT encoding.
+
     """
 
     def __init__(self):
-        """Initialize the SecurityManager with configuration settings.
+        """
+        Initialize the SecurityManager with configuration settings.
 
         Notes:
             1. Retrieve the application settings using get_settings().
             2. Assign the access token expiration time from settings.
             3. Set the secret key for JWT signing from settings.
             4. Set the JWT algorithm from settings.
+
         """
         self.settings = get_settings()
         self.access_token_expire_minutes = self.settings.access_token_expire_minutes
         self.secret_key = self.settings.secret_key
         self.algorithm = self.settings.algorithm
 
-    def create_access_token(self, data: dict, expires_delta: timedelta | None = None) -> str:
-        """Create a JWT access token.
+    def create_access_token(
+        self,
+        data: dict,
+        expires_delta: timedelta | None = None,
+    ) -> str:
+        """
+        Create a JWT access token.
 
         Args:
             data (dict): The data to encode in the token (e.g., user ID, role).
@@ -57,6 +66,7 @@ class SecurityManager:
             2. Set expiration time based on expires_delta or default.
             3. Encode the data with the secret key and algorithm.
             4. No database or network access in this function.
+
         """
         _msg = "Creating access token"
         log.debug(_msg)
@@ -78,7 +88,8 @@ class SecurityManager:
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    """Verify a plain password against a hashed password.
+    """
+    Verify a plain password against a hashed password.
 
     Args:
         plain_password (str): The plain text password to verify.
@@ -90,6 +101,7 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     Notes:
         1. Use bcrypt to verify the password.
         2. No database or network access in this function.
+
     """
     _msg = "Verifying password"
     log.debug(_msg)
@@ -100,7 +112,8 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 
 
 def get_password_hash(password: str) -> str:
-    """Hash a plain password.
+    """
+    Hash a plain password.
 
     Args:
         password (str): The plain text password to hash.
@@ -111,6 +124,7 @@ def get_password_hash(password: str) -> str:
     Notes:
         1. Use bcrypt to hash the password.
         2. No database or network access in this function.
+
     """
     _msg = "Hashing password"
     log.debug(_msg)
@@ -120,7 +134,8 @@ def get_password_hash(password: str) -> str:
 
 
 def authenticate_user(db: Session, username: str, password: str) -> Optional["User"]:
-    """Authenticate a user by username and password.
+    """
+    Authenticate a user by username and password.
 
     Args:
         db (Session): Database session used to query for user records.
@@ -134,6 +149,7 @@ def authenticate_user(db: Session, username: str, password: str) -> Optional["Us
         1. Query the database for a user with the given username.
         2. If user exists and password is correct, return the user.
         3. Otherwise, return None.
+
     """
     _msg = f"Authenticating user: {username}"
     log.debug(_msg)
@@ -149,7 +165,8 @@ def authenticate_user(db: Session, username: str, password: str) -> Optional["Us
 
 
 def encrypt_data(data: str) -> str:
-    """Encrypts data using Fernet symmetric encryption.
+    """
+    Encrypts data using Fernet symmetric encryption.
 
     Args:
         data (str): The plaintext data to encrypt.
@@ -160,6 +177,7 @@ def encrypt_data(data: str) -> str:
     Notes:
         1. Use Fernet to encrypt the data.
         2. No database or network access in this function.
+
     """
     _msg = "Encrypting data"
     log.debug(_msg)
@@ -169,7 +187,8 @@ def encrypt_data(data: str) -> str:
 
 
 def decrypt_data(encrypted_data: str) -> str:
-    """Decrypts data using Fernet symmetric encryption.
+    """
+    Decrypts data using Fernet symmetric encryption.
 
     Args:
         encrypted_data (str): The encrypted data to decrypt.
@@ -180,6 +199,7 @@ def decrypt_data(encrypted_data: str) -> str:
     Notes:
         1. Use Fernet to decrypt the data.
         2. No database or network access in this function.
+
     """
     _msg = "Decrypting data"
     log.debug(_msg)

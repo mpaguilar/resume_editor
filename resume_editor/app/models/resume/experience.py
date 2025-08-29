@@ -8,12 +8,14 @@ log = logging.getLogger(__name__)
 
 
 class InclusionStatus(str, Enum):
-    """Represents the inclusion status of a resume item.
+    """
+    Represents the inclusion status of a resume item.
 
     Attributes:
         INCLUDE (str): Indicates the item should be included in the resume.
         NOT_RELEVANT (str): Indicates the item is not relevant to the resume.
         OMIT (str): Indicates the item should be omitted from the resume.
+
     """
 
     INCLUDE = "Include"
@@ -22,27 +24,32 @@ class InclusionStatus(str, Enum):
 
 
 class RoleSummary(BaseModel):
-    """Represents a brief description of a professional role.
+    """
+    Represents a brief description of a professional role.
 
     Attributes:
         text (str): The text content of the role summary.
+
     """
 
     text: str
 
 
 class RoleResponsibilities(BaseModel):
-    """Represents detailed descriptions of role responsibilities.
+    """
+    Represents detailed descriptions of role responsibilities.
 
     Attributes:
         text (str): The text content of the responsibilities.
+
     """
 
     text: str
 
 
 class RoleSkills(BaseModel):
-    """Represents skills used in a professional role.
+    """
+    Represents skills used in a professional role.
 
     Attributes:
         skills (list[str]): A list of non-empty, stripped skill strings.
@@ -54,7 +61,8 @@ class RoleSkills(BaseModel):
     @field_validator("skills")
     @classmethod
     def validate_skills(cls, v):
-        """Validate the skills field.
+        """
+        Validate the skills field.
 
         Args:
             v: The skills value to validate. Must be a list of strings.
@@ -78,7 +86,8 @@ class RoleSkills(BaseModel):
         return cleaned_skills
 
     def __iter__(self):
-        """Iterate over the skills.
+        """
+        Iterate over the skills.
 
         Returns:
             Iterator over the skills list.
@@ -87,7 +96,8 @@ class RoleSkills(BaseModel):
         return iter(self.skills)
 
     def __len__(self):
-        """Return the number of skills.
+        """
+        Return the number of skills.
 
         Returns:
             int: The number of skills.
@@ -96,7 +106,8 @@ class RoleSkills(BaseModel):
         return len(self.skills)
 
     def __getitem__(self, index):
-        """Return the skill at the given index.
+        """
+        Return the skill at the given index.
 
         Args:
             index (int): The index of the skill to return.
@@ -109,7 +120,8 @@ class RoleSkills(BaseModel):
 
 
 class RoleBasics(BaseModel):
-    """Represents basic information about a professional role.
+    """
+    Represents basic information about a professional role.
 
     Attributes:
         company (str): The name of the company.
@@ -139,7 +151,8 @@ class RoleBasics(BaseModel):
     @field_validator("company")
     @classmethod
     def validate_company(cls, v):
-        """Validate the company field.
+        """
+        Validate the company field.
 
         Args:
             v: The company value to validate. Must be a non-empty string.
@@ -164,7 +177,8 @@ class RoleBasics(BaseModel):
     @field_validator("title")
     @classmethod
     def validate_title(cls, v):
-        """Validate the title field.
+        """
+        Validate the title field.
 
         Args:
             v: The title value to validate. Must be a non-empty string.
@@ -189,7 +203,8 @@ class RoleBasics(BaseModel):
     @field_validator("end_date")
     @classmethod
     def validate_end_date(cls, v, info):
-        """Validate the end_date field.
+        """
+        Validate the end_date field.
 
         Args:
             v: The end_date value to validate. Must be a datetime object or None.
@@ -223,7 +238,8 @@ class RoleBasics(BaseModel):
 
 
 class Role(BaseModel):
-    """Represents a complete professional role with all associated details.
+    """
+    Represents a complete professional role with all associated details.
 
     Attributes:
         basics (RoleBasics | None): The RoleBasics object containing role metadata.
@@ -240,7 +256,8 @@ class Role(BaseModel):
 
 
 class Roles(BaseModel):
-    """Represents a collection of professional roles.
+    """
+    Represents a collection of professional roles.
 
     Attributes:
         roles (list[Role]): A list of Role objects.
@@ -250,7 +267,8 @@ class Roles(BaseModel):
     roles: list[Role] = []
 
     def __iter__(self):
-        """Iterate over the roles.
+        """
+        Iterate over the roles.
 
         Returns:
             Iterator over the roles list.
@@ -259,7 +277,8 @@ class Roles(BaseModel):
         return iter(self.roles)
 
     def __len__(self):
-        """Return the number of roles.
+        """
+        Return the number of roles.
 
         Returns:
             int: The number of roles.
@@ -268,7 +287,8 @@ class Roles(BaseModel):
         return len(self.roles)
 
     def __getitem__(self, index):
-        """Return the role at the given index.
+        """
+        Return the role at the given index.
 
         Args:
             index (int): The index of the role to return.
@@ -281,7 +301,8 @@ class Roles(BaseModel):
 
     @property
     def list_class(self):
-        """Return the class for the list.
+        """
+        Return the class for the list.
 
         Returns:
             The Role class.
@@ -291,7 +312,8 @@ class Roles(BaseModel):
 
 
 class ProjectSkills(BaseModel):
-    """Represents skills used in a project.
+    """
+    Represents skills used in a project.
 
     Attributes:
         skills (list[str]): A list of non-empty, stripped skill strings.
@@ -303,7 +325,8 @@ class ProjectSkills(BaseModel):
     @field_validator("skills")
     @classmethod
     def validate_skills(cls, v):
-        """Validate the skills field.
+        """
+        Validate the skills field.
 
         Args:
             v: The skills value to validate. Must be a list of strings.
@@ -330,7 +353,8 @@ class ProjectSkills(BaseModel):
         return cleaned_skills
 
     def __iter__(self):
-        """Iterate over the skills.
+        """
+        Iterate over the skills.
 
         Returns:
             Iterator over the skills list.
@@ -339,7 +363,8 @@ class ProjectSkills(BaseModel):
         return iter(self.skills)
 
     def __len__(self):
-        """Return the number of skills.
+        """
+        Return the number of skills.
 
         Returns:
             int: The number of skills.
@@ -348,7 +373,8 @@ class ProjectSkills(BaseModel):
         return len(self.skills)
 
     def __getitem__(self, index):
-        """Return the skill at the given index.
+        """
+        Return the skill at the given index.
 
         Args:
             index (int): The index of the skill to return.
@@ -361,7 +387,8 @@ class ProjectSkills(BaseModel):
 
 
 class ProjectOverview(BaseModel):
-    """Represents basic details of a project.
+    """
+    Represents basic details of a project.
 
     Attributes:
         title (str): The title of the project.
@@ -383,7 +410,8 @@ class ProjectOverview(BaseModel):
     @field_validator("title")
     @classmethod
     def validate_title(cls, v):
-        """Validate the title field.
+        """
+        Validate the title field.
 
         Args:
             v: The title value to validate. Must be a non-empty string.
@@ -408,7 +436,8 @@ class ProjectOverview(BaseModel):
     @field_validator("end_date")
     @classmethod
     def validate_date_order(cls, v, info):
-        """Validate that start_date is not after end_date.
+        """
+        Validate that start_date is not after end_date.
 
         Args:
             v: The end_date value to validate.
@@ -432,7 +461,8 @@ class ProjectOverview(BaseModel):
 
 
 class ProjectDescription(BaseModel):
-    """Represents a brief description of a project.
+    """
+    Represents a brief description of a project.
 
     Attributes:
         text (str): The text content of the project description.
@@ -443,7 +473,8 @@ class ProjectDescription(BaseModel):
 
 
 class Project(BaseModel):
-    """Represents a complete project with all associated details.
+    """
+    Represents a complete project with all associated details.
 
     Attributes:
         overview (ProjectOverview | None): The ProjectOverview object containing project metadata.
@@ -458,7 +489,8 @@ class Project(BaseModel):
 
 
 class Projects(BaseModel):
-    """Represents a collection of projects.
+    """
+    Represents a collection of projects.
 
     Attributes:
         projects (list[Project]): A list of Project objects.
@@ -468,7 +500,8 @@ class Projects(BaseModel):
     projects: list[Project] = []
 
     def __iter__(self):
-        """Iterate over the projects.
+        """
+        Iterate over the projects.
 
         Returns:
             Iterator over the projects list.
@@ -477,7 +510,8 @@ class Projects(BaseModel):
         return iter(self.projects)
 
     def __len__(self):
-        """Return the number of projects.
+        """
+        Return the number of projects.
 
         Returns:
             int: The number of projects.
@@ -486,7 +520,8 @@ class Projects(BaseModel):
         return len(self.projects)
 
     def __getitem__(self, index):
-        """Return the project at the given index.
+        """
+        Return the project at the given index.
 
         Args:
             index (int): The index of the project to return.
@@ -499,7 +534,8 @@ class Projects(BaseModel):
 
     @property
     def list_class(self):
-        """Return the class of the list.
+        """
+        Return the class of the list.
 
         Returns:
             The Project class.
@@ -509,7 +545,8 @@ class Projects(BaseModel):
 
 
 class Experience(BaseModel):
-    """Represents a collection of professional experience including roles and projects.
+    """
+    Represents a collection of professional experience including roles and projects.
 
     Attributes:
         roles (Roles | None): A Roles object containing work experience.

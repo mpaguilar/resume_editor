@@ -13,7 +13,9 @@ def cli():
 
 
 @cli.command("generate-migration")
-@click.option("-m", "--message", required=True, help="A short message describing the migration.")
+@click.option(
+    "-m", "--message", required=True, help="A short message describing the migration."
+)
 def generate_migration(message: str):
     """Generate a new database migration script.
 

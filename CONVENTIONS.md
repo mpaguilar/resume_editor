@@ -79,6 +79,9 @@
     ```
 * When logging from an exception, use `log.exception`
 
+# Deprecated usage
+`typing.List` is deprecated, use `list` instead
+
 # Docstrings
 * Every function should have a docstring.
 * The purpose of the docstring is to act as a specification for the function

@@ -19,7 +19,8 @@ user_roles = Table(
 
 
 class User(Base):
-    """User model for authentication and session management.
+    """
+    User model for authentication and session management.
 
     Attributes:
         id (int): Unique identifier for the user.
@@ -29,6 +30,7 @@ class User(Base):
         is_active (bool): Whether the user account is active.
         attributes (dict): Flexible key-value store for user-specific attributes.
         roles (list[Role]): Roles assigned to the user for authorization.
+
     """
 
     __tablename__ = "users"
@@ -70,7 +72,8 @@ class User(Base):
         is_active: bool = True,
         attributes: dict[str, Any] | None = None,
     ):
-        """Initialize a User instance.
+        """
+        Initialize a User instance.
 
         Args:
             username (str): Unique username for the user. Must be a non-empty string.
@@ -104,7 +107,8 @@ class User(Base):
 
     @validates("username")
     def validate_username(self, key, username):
-        """Validate the username field.
+        """
+        Validate the username field.
 
         Args:
             key (str): The field name being validated (should be 'username').
@@ -127,7 +131,8 @@ class User(Base):
 
     @validates("email")
     def validate_email(self, key, email):
-        """Validate the email field.
+        """
+        Validate the email field.
 
         Args:
             key (str): The field name being validated (should be 'email').
@@ -150,7 +155,8 @@ class User(Base):
 
     @validates("hashed_password")
     def validate_hashed_password(self, key, hashed_password):
-        """Validate the hashed_password field.
+        """
+        Validate the hashed_password field.
 
         Args:
             key (str): The field name being validated (should be 'hashed_password').
@@ -173,7 +179,8 @@ class User(Base):
 
     @validates("is_active")
     def validate_is_active(self, key, is_active):
-        """Validate the is_active field.
+        """
+        Validate the is_active field.
 
         Args:
             key (str): The field name being validated (should be 'is_active').

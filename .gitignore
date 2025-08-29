@@ -17,6 +17,7 @@ wheels/
 .aider/
 .aider.model.settings.yml
 .aider.model.metadata.json
+.aiderignore
 
 # caches and config
 .vscode/

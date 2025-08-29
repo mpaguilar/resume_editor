@@ -270,7 +270,9 @@ def test_access_protected_route_with_token(client_with_db, test_user):
     with patch(
         "resume_editor.app.api.routes.user.settings_crud.get_user_settings"
     ) as mock_get_user_settings:
-        mock_get_user_settings.return_value = None  # We don't care about the return value
+        mock_get_user_settings.return_value = (
+            None  # We don't care about the return value
+        )
 
         headers = {"Authorization": f"Bearer {token}"}
         settings_response = client.get("/api/users/settings", headers=headers)

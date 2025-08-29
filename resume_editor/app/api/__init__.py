@@ -1,4 +1,5 @@
-"""This module initializes the API endpoints for the resume editor application.
+"""
+This module initializes the API endpoints for the resume editor application.
 
 It defines the FastAPI application instance and sets up the API routes
 that handle user authentication, resume management, and related operations.
@@ -31,7 +32,8 @@ from fastapi import FastAPI
 
 
 def get_app() -> FastAPI:
-    """Creates and configures the FastAPI application instance.
+    """
+    Creates and configures the FastAPI application instance.
 
     This function initializes a FastAPI app with the following features:
     - Includes the authentication and resume management routes.

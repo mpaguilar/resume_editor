@@ -9,11 +9,13 @@ log = logging.getLogger(__name__)
 
 
 class Role(Base):
-    """Role model for user authorization.
+    """
+    Role model for user authorization.
 
     Attributes:
         id (int): Unique identifier for the role.
         name (str): Unique name for the role (e.g., 'admin', 'user').
+
     """
 
     __tablename__ = "roles"

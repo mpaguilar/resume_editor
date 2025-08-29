@@ -2096,9 +2096,7 @@ def test_update_personal_info_pre_save_validation_fails(
 ):
     """Test that a pre-save validation failure is handled."""
     mock_reconstruct.return_value = "Updated Content"
-    mock_validate.side_effect = HTTPException(
-        status_code=422, detail="Invalid Content"
-    )
+    mock_validate.side_effect = HTTPException(status_code=422, detail="Invalid Content")
 
     update_data = {"name": "New Name", "email": "new@test.com"}
     response = client_with_auth_and_resume.post(
@@ -2115,7 +2113,9 @@ def test_update_personal_info_pre_save_validation_fails(
     mock_validate.assert_called_once_with("Updated Content", test_resume.content)
 
 
-@patch("resume_editor.app.api.routes.route_logic.resume_serialization.extract_education_info")
+@patch(
+    "resume_editor.app.api.routes.route_logic.resume_serialization.extract_education_info"
+)
 def test_update_personal_info_form_reconstruction_fails(
     mock_extract_edu, client_with_auth_and_resume, test_resume
 ):
@@ -2184,7 +2184,7 @@ def test_update_education_success(
 
 
 def test_update_education_invalid_data(client_with_auth_and_resume, test_resume):
-    """Test invalid data for education update."""""
+    """Test invalid data for education update.""" ""
     form_data = {"school": "New School", "start_date": "invalid-date"}
     response = client_with_auth_and_resume.post(
         f"/api/resumes/{test_resume.id}/edit/education",
