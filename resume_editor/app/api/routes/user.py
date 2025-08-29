@@ -122,6 +122,42 @@ def create_new_user(db: Session, user_data: UserCreate) -> User:
     return db_user
 
 
+def get_users(db: Session) -> list[User]:
+    """Retrieve all users from the database.
+
+    Args:
+        db (Session): The database session.
+
+    Returns:
+        list[User]: A list of all user objects.
+    """
+    return db.query(User).all()
+
+
+def get_user_by_id(db: Session, user_id: int) -> User | None:
+    """Retrieve a single user by ID.
+
+    Args:
+        db (Session): The database session.
+        user_id (int): The ID of the user to retrieve.
+
+    Returns:
+        User | None: The user object if found, otherwise None.
+    """
+    return db.query(User).filter(User.id == user_id).first()
+
+
+def delete_user(db: Session, user: User) -> None:
+    """Delete a user from the database.
+
+    Args:
+        db (Session): The database session.
+        user (User): The user object to delete.
+    """
+    db.delete(user)
+    db.commit()
+
+
 @router.post("/register", response_model=UserResponse)
 def register_user(user: UserCreate, db: Session = Depends(get_db)) -> UserResponse:
     """Register a new user with the provided credentials.
