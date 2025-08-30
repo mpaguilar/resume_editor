@@ -9,16 +9,16 @@ It is written using Python version 3.12.
 This app uses the `resume_writer` module for parsing and exporting. 
 **Always** assume that the `resume_writer` library is available. 
 **NEVER** check to see if it exists. If it isn't available, it should raise an `ImportError` and exit.
-Use `docstrings_parser.md` as reference for available functions and classes.
+Use `resume_writer_docs.md` as reference for available functions and classes.
 Pay attention to the `BasicBlockParse` class. It is a base class for many parsing models, and methods are added dynamically.
 
 # Core Functionality
 
 ## User Management
 
-* User login (username/password) and logout. Public user registration is disabled.
+* User registration, login (username/password), and logout.
 * Secure storage of user settings, including encrypted API keys and LLM endpoints.
-* Role-based access control with different permission levels (e.g., user, admin).
+* Role-based access control with two roles: `user` and `admin`.
 * Flexible user attribute system to support features like account limits or expiration dates.
 
 ## Admin Interface
@@ -28,11 +28,21 @@ Pay attention to the `BasicBlockParse` class. It is a base class for many parsin
 * Role management: assign and remove roles from users.
 * User impersonation to provide support or troubleshoot issues.
 
+## Web Dashboard
+
+* An HTMX-powered web dashboard for managing resumes.
+* View a list of all resumes for the current user.
+* View resume details, including a rendered view of the Markdown.
+* Create new resumes from a form.
+* Edit all sections of a resume (personal, education, experience, etc.) through dedicated forms.
+* Initiate actions like AI refinement and export from the dashboard.
+
 ## Resume Management
 
-* Upload existing Markdown resumes or create new ones via text input
-* Save resumes to a PostgreSQL database with user-assigned names
-* Download resumes in Markdown or DOCX formats
+* Create new resumes via a web form.
+* Save resumes to a PostgreSQL database with user-assigned names.
+* List, update, and delete resumes.
+* Download resumes in Markdown or DOCX formats.
 
 ## Editing Features
 
@@ -43,11 +53,10 @@ Pay attention to the `BasicBlockParse` class. It is a base class for many parsin
 
 ## Export Formats
 
-* Markdown (validated)
+* Validated Markdown.
 * DOCX formats:
-   * ATS-friendly
-   * Plain
-   * Executive summary (with job summaries and skills matrix)
+   * `ATS_FRIENDLY`
+   * `PLAIN`
 
 ## LLM Integration
 
