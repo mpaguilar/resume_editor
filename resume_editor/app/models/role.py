@@ -9,7 +9,8 @@ log = logging.getLogger(__name__)
 
 
 class Role(Base):
-    """Role model for user authorization.
+    """
+    Role model for user authorization.
 
     Attributes:
         id (int): Unique identifier for the role.

@@ -9,7 +9,12 @@
 <body class="bg-gray-100 h-screen flex items-center justify-center">
     <div class="w-full max-w-md p-8 space-y-6 bg-white rounded-lg shadow-md">
         <h2 class="text-2xl font-bold text-center text-gray-900">Login to your account</h2>
-        <form id="login-form" class="space-y-6">
+        {% if error_message %}
+        <div class="p-4 mb-4 text-sm text-red-700 bg-red-100 rounded-lg" role="alert">
+            {{ error_message }}
+        </div>
+        {% endif %}
+        <form action="/login" method="post" class="space-y-6">
             <div>
                 <label for="username" class="text-sm font-medium text-gray-700">Username</label>
                 <input id="username" name="username" type="text" required
@@ -27,44 +32,6 @@
                 </button>
             </div>
         </form>
-        <p id="error-message" class="text-red-500 text-sm text-center"></p>
     </div>
-
-    <script>
-        document.getElementById('login-form').addEventListener('submit', async function (event) {
-            event.preventDefault();
-            const username = event.target.username.value;
-            const password = event.target.password.value;
-            const errorMessage = document.getElementById('error-message');
-            errorMessage.textContent = '';
-
-            const formData = new URLSearchParams();
-            formData.append('username', username);
-            formData.append('password', password);
-
-            try {
-                const response = await fetch('/api/users/token', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/x-www-form-urlencoded',
-                    },
-                    body: formData,
-                });
-
-                if (response.ok) {
-                    const data = await response.json();
-                    // Set cookie to expire in 1 day
-                    const expires = new Date(Date.now() + 86400 * 1000).toUTCString();
-                    document.cookie = `access_token=${data.access_token}; path=/; expires=${expires}; SameSite=Lax`;
-                    window.location.href = '/dashboard';
-                } else {
-                    const errorData = await response.json();
-                    errorMessage.textContent = errorData.detail || 'Login failed. Please check your credentials.';
-                }
-            } catch (error) {
-                errorMessage.textContent = 'An error occurred. Please try again later.';
-            }
-        });
-    </script>
 </body>
 </html>

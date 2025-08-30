@@ -50,6 +50,7 @@ def get_current_user(
 
     Database Access:
         - Queries the User table to retrieve a user record by username.
+
     """
     settings = get_settings()
     credentials_exception = HTTPException(
@@ -93,6 +94,10 @@ def get_current_user_from_cookie(
 
     Raises:
         HTTPException: If the token is missing, invalid, or the user is not found.
+<<<<<<< HEAD
+=======
+
+>>>>>>> phase14
     """
     settings = get_settings()
     credentials_exception = HTTPException(
@@ -136,6 +141,10 @@ def get_optional_current_user_from_cookie(
 
     Returns:
         User | None: The authenticated User object if the token is valid, otherwise None.
+<<<<<<< HEAD
+=======
+
+>>>>>>> phase14
     """
     try:
         return get_current_user_from_cookie(request=request, db=db)

@@ -9,7 +9,8 @@ log = logging.getLogger(__name__)
 
 
 class UserSettings(Base):
-    """Stores user-specific settings, such as LLM configurations.
+    """
+    Stores user-specific settings, such as LLM configurations.
 
     Attributes:
         id (int): Primary key.
@@ -35,7 +36,8 @@ class UserSettings(Base):
         llm_endpoint: str | None = None,
         encrypted_api_key: str | None = None,
     ):
-        """Initialize a UserSettings instance.
+        """
+        Initialize a UserSettings instance.
 
         Args:
             user_id (int): The ID of the user these settings belong to.

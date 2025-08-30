@@ -45,6 +45,7 @@ class Certification(BaseModel):
         Notes:
             1. Ensure name is a string.
             2. Ensure name is not empty.
+
         """
         if not isinstance(v, str):
             raise ValueError("name must be a string")
@@ -69,6 +70,7 @@ class Certification(BaseModel):
 
         Notes:
             1. Ensure field is a string or None.
+
         """
         if v is not None and not isinstance(v, str):
             raise ValueError("field must be a string or None")
@@ -91,6 +93,7 @@ class Certification(BaseModel):
 
         Notes:
             1. Ensure date is a datetime object or None.
+
         """
         if v is not None and not isinstance(v, datetime):
             raise ValueError("date must be a datetime object or None")
@@ -109,6 +112,7 @@ class Certification(BaseModel):
 
         Notes:
             1. If both issued and expires dates are provided, ensure issued is not after expires.
+
         """
         if self.issued and self.expires and self.expires < self.issued:
             raise ValueError("expires date must not be before issued date")
@@ -144,6 +148,7 @@ class Certifications(BaseModel):
         Notes:
             1. Ensure certifications is a list.
             2. Ensure all items in certifications are instances of Certification.
+
         """
         if not isinstance(v, list):
             raise ValueError("certifications must be a list")
@@ -163,6 +168,7 @@ class Certifications(BaseModel):
 
         Notes:
             1. Return an iterator over the certifications list.
+
         """
         return iter(self.certifications)
 
@@ -175,6 +181,7 @@ class Certifications(BaseModel):
 
         Notes:
             1. Return the length of the certifications list.
+
         """
         return len(self.certifications)
 
@@ -190,6 +197,7 @@ class Certifications(BaseModel):
 
         Notes:
             1. Retrieve and return the certification at the given index.
+
         """
         return self.certifications[index]
 
@@ -203,5 +211,6 @@ class Certifications(BaseModel):
 
         Notes:
             1. Return the Certification class.
+
         """
         return Certification

@@ -41,6 +41,7 @@ def _get_section_content(resume_content: str, section_name: str) -> str:
         4. Extract the data using the extractor function.
         5. Serialize the extracted data using the serializer function.
         6. Return the serialized result.
+
     """
     _msg = f"Extracting section '{section_name}' from resume"
     log.debug(_msg)
@@ -100,6 +101,7 @@ def refine_resume_section_with_llm(
 
     Network access:
         - This function makes a network request to the LLM endpoint specified by llm_endpoint.
+
     """
     _msg = f"refine_resume_section_with_llm starting for section '{target_section}'"
     log.debug(_msg)

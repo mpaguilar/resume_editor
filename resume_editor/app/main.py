@@ -1,6 +1,7 @@
 import logging
+from typing import Annotated
 
-from fastapi import Depends, FastAPI, HTTPException, Request, status
+from fastapi import Depends, FastAPI, Form, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
@@ -10,6 +11,8 @@ from resume_editor.app.api.routes.admin import router as admin_router
 from resume_editor.app.api.routes.resume import router as resume_router
 from resume_editor.app.api.routes.user import router as user_router
 from resume_editor.app.core.auth import get_optional_current_user_from_cookie
+from resume_editor.app.core.config import Settings, get_settings
+from resume_editor.app.core.security import authenticate_user, create_access_token
 from resume_editor.app.database.database import get_db
 from resume_editor.app.models.user import User
 
@@ -110,10 +113,90 @@ def create_app() -> FastAPI:
 
         Returns:
             TemplateResponse: The rendered login template.
+
         """
         _msg = "Login page requested"
         log.debug(_msg)
-        return templates.TemplateResponse(request, "login.html")
+        return templates.TemplateResponse(request, name="login.html")
+
+    @app.post("/login")
+    async def login_for_access_token(
+        request: Request,
+        username: Annotated[str, Form()],
+        password: Annotated[str, Form()],
+        db: Session = Depends(get_db),
+        settings: Settings = Depends(get_settings),
+    ):
+        """
+        Handle user login and create a session cookie.
+
+        Args:
+            request: The HTTP request object.
+            username (str): The username from the form.
+            password (str): The password from the form.
+            db (Session): The database session.
+            settings (Settings): The application settings.
+
+        Returns:
+            RedirectResponse: Redirects to the dashboard on successful login.
+            TemplateResponse: Re-renders the login page with an error on failure.
+
+        Notes:
+            1. Authenticate the user with username and password.
+            2. If authentication fails, re-render the login page with an error message.
+            3. If successful, create a JWT access token.
+            4. Set the token in a secure, HTTP-only cookie.
+            5. Redirect to the dashboard.
+
+        """
+        _msg = "Login attempt for user"
+        log.debug(_msg)
+        user = authenticate_user(db=db, username=username, password=password)
+        if not user:
+            return templates.TemplateResponse(
+                request,
+                "login.html",
+                {"error_message": "Invalid username or password"},
+                status_code=status.HTTP_401_UNAUTHORIZED,
+            )
+
+        access_token = create_access_token(
+            data={"sub": user.username},
+            settings=settings,
+        )
+        response = RedirectResponse(
+            url="/dashboard",
+            status_code=status.HTTP_307_TEMPORARY_REDIRECT,
+        )
+        response.set_cookie(
+            key="access_token",
+            value=f"Bearer {access_token}",
+            httponly=True,
+        )
+        return response
+
+    @app.get("/logout")
+    async def logout():
+        """
+        Handle user logout and clear the session cookie.
+
+        Returns:
+            RedirectResponse: Redirects to the login page.
+
+        Notes:
+            1. Create a redirect response to the login page.
+            2. Clear the `access_token` cookie.
+            3. Return the response.
+
+        """
+        _msg = "User logout"
+        log.debug(_msg)
+        response = RedirectResponse(
+            url="/login",
+            status_code=status.HTTP_307_TEMPORARY_REDIRECT,
+        )
+        response.delete_cookie("access_token")
+        return response
 
     @app.get("/dashboard", response_class=HTMLResponse)
     async def dashboard(
@@ -135,12 +218,14 @@ def create_app() -> FastAPI:
             1. Depend on `get_optional_current_user_from_cookie` to get the current user.
             2. If no user is returned (i.e., authentication fails), redirect to the `/login` page.
             3. On success, render the `dashboard.html` template.
+
         """
         _msg = "Dashboard page requested"
         log.debug(_msg)
         if not current_user:
             return RedirectResponse(
-                url="/login", status_code=status.HTTP_307_TEMPORARY_REDIRECT
+                url="/login",
+                status_code=status.HTTP_307_TEMPORARY_REDIRECT,
             )
 
         return templates.TemplateResponse(request, "dashboard.html")
@@ -681,13 +766,11 @@ def initialize_database():
     log.debug(_msg)
 
 
-app = create_app()
-
-
 def main():
     """Entry point for running the application directly."""
     import uvicorn
 
+    app = create_app()
     initialize_database()
     uvicorn.run(app, host="0.0.0.0", port=8000)
 

@@ -7,7 +7,8 @@ log = logging.getLogger(__name__)
 
 
 class RoleResponse(BaseModel):
-    """Schema for returning role data.
+    """
+    Schema for returning role data.
 
     This schema is used to represent a user role within API responses.
 
@@ -17,6 +18,7 @@ class RoleResponse(BaseModel):
 
     Notes:
         1. The model uses ConfigDict(from_attributes=True) to support ORM attribute mapping.
+
     """
 
     id: int
@@ -26,7 +28,8 @@ class RoleResponse(BaseModel):
 
 
 class UserBase(BaseModel):
-    """Base user schema with common fields.
+    """
+    Base user schema with common fields.
 
     This schema serves as the foundation for user-related data transfer,
     containing the essential information required for user identification.
@@ -34,6 +37,7 @@ class UserBase(BaseModel):
     Attributes:
         username (str): Unique username chosen by the user for login.
         email (EmailStr): Unique email address associated with the user.
+
     """
 
     username: str
@@ -41,7 +45,8 @@ class UserBase(BaseModel):
 
 
 class UserCreate(UserBase):
-    """User creation schema with password.
+    """
+    User creation schema with password.
 
     This schema is used when a new user is registering, including the password
     in plain text form for initial storage and hashing.
@@ -58,13 +63,15 @@ class UserCreate(UserBase):
         1. The password is stored in plain text temporarily for hashing.
         2. The password is not returned in any response.
         3. The schema is used during user registration to validate input.
+
     """
 
     password: str
 
 
 class AdminUserCreate(UserCreate):
-    """Schema for creating a user as an administrator.
+    """
+    Schema for creating a user as an administrator.
 
     This schema extends UserCreate to include additional fields that can be
     set by an administrator during user creation.
@@ -84,6 +91,7 @@ class AdminUserCreate(UserCreate):
         1. The is_active field determines if the user can log in.
         2. The attributes field allows for extensible user metadata.
         3. The schema is used by administrators to create new user accounts.
+
     """
 
     is_active: bool = True
@@ -91,7 +99,8 @@ class AdminUserCreate(UserCreate):
 
 
 class UserLogin(BaseModel):
-    """User login schema.
+    """
+    User login schema.
 
     This schema is used to authenticate users by validating their credentials.
 
@@ -107,6 +116,7 @@ class UserLogin(BaseModel):
         1. The credentials are validated against the user database.
         2. The password is not stored after authentication.
         3. This schema is used in the login endpoint to accept user input.
+
     """
 
     username: str
@@ -114,7 +124,8 @@ class UserLogin(BaseModel):
 
 
 class UserResponse(UserBase):
-    """User response schema without password.
+    """
+    User response schema without password.
 
     This schema is used to return user data after authentication or retrieval,
     excluding sensitive fields like passwords.
@@ -137,6 +148,7 @@ class UserResponse(UserBase):
         1. Data is retrieved from the user database during user lookup.
         2. The password field is omitted to maintain security.
         3. The model uses ConfigDict(from_attributes=True) to support ORM attribute mapping.
+
     """
 
     id: int
@@ -148,7 +160,8 @@ class UserResponse(UserBase):
 
 
 class Token(BaseModel):
-    """Token response schema.
+    """
+    Token response schema.
 
     This schema represents the JWT access token returned by the authentication system
     after successful login.
@@ -165,6 +178,7 @@ class Token(BaseModel):
         1. The access token is generated after successful authentication.
         2. The token type is always "bearer" as per standard JWT conventions.
         3. The token is returned to the client to authenticate future requests.
+
     """
 
     access_token: str
@@ -172,7 +186,8 @@ class Token(BaseModel):
 
 
 class TokenData(BaseModel):
-    """Token data schema.
+    """
+    Token data schema.
 
     This schema holds the information extracted from the JWT token payload,
     primarily used to identify the authenticated user.
@@ -187,13 +202,15 @@ class TokenData(BaseModel):
         1. The schema extracts the username from the JWT token payload.
         2. If the token is invalid or expired, the username will be None.
         3. This data is used during request validation to identify the user.
+
     """
 
     username: str | None = None
 
 
 class UserSettingsUpdateRequest(BaseModel):
-    """Schema for updating user settings.
+    """
+    Schema for updating user settings.
 
     This schema is used to update the user's LLM service configuration.
 
@@ -209,6 +226,7 @@ class UserSettingsUpdateRequest(BaseModel):
         1. The API key is not returned in the response for security.
         2. The settings are stored in the user database.
         3. Network access may occur when the LLM service is accessed using the endpoint.
+
     """
 
     llm_endpoint: str | None = None
@@ -216,7 +234,8 @@ class UserSettingsUpdateRequest(BaseModel):
 
 
 class UserSettingsResponse(BaseModel):
-    """Schema for returning user settings.
+    """
+    Schema for returning user settings.
 
     The API key is not returned for security.
 
@@ -232,6 +251,7 @@ class UserSettingsResponse(BaseModel):
         1. The API key is not returned in the response.
         2. The data is retrieved from the user database.
         3. The model uses ConfigDict(from_attributes=True) to support ORM attribute mapping.
+
     """
 
     llm_endpoint: str | None = None

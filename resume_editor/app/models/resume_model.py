@@ -10,7 +10,8 @@ log = logging.getLogger(__name__)
 
 
 class Resume(Base):
-    """Resume model for storing user resumes.
+    """
+    Resume model for storing user resumes.
 
     Attributes:
         id (int): Unique identifier for the resume.
@@ -20,6 +21,7 @@ class Resume(Base):
         created_at (datetime): Timestamp when the resume was created.
         updated_at (datetime): Timestamp when the resume was last updated.
         is_active (bool): Whether the resume is currently active.
+
     """
 
     __tablename__ = "resumes"
@@ -47,7 +49,8 @@ class Resume(Base):
         content: str,
         is_active: bool = True,
     ):
-        """Initialize a Resume instance.
+        """
+        Initialize a Resume instance.
 
         Args:
             user_id (int): The unique identifier of the user who owns the resume.
@@ -69,6 +72,7 @@ class Resume(Base):
             5. Assign all values to instance attributes.
             6. Log the initialization of the resume with its name.
             7. This function performs no database access.
+
         """
         _msg = f"Initializing Resume with name: {name}"
         log.debug(_msg)

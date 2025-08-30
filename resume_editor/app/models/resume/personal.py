@@ -40,6 +40,7 @@ class ContactInfo(BaseModel):
         Notes:
             1. Ensure name is a string.
             2. Ensure name is not empty after stripping whitespace.
+
         """
         if not isinstance(v, str):
             raise ValueError("name must be a string")
@@ -65,6 +66,7 @@ class ContactInfo(BaseModel):
         Notes:
             1. Ensure email is a string or None.
             2. Ensure email is not empty after stripping whitespace.
+
         """
         if v is None:
             return v
@@ -92,6 +94,7 @@ class ContactInfo(BaseModel):
         Notes:
             1. Ensure phone is a string or None.
             2. Ensure phone is not empty after stripping whitespace.
+
         """
         if v is None:
             return v
@@ -119,6 +122,7 @@ class ContactInfo(BaseModel):
         Notes:
             1. Ensure location is a string or None.
             2. Ensure location is not empty after stripping whitespace.
+
         """
         if v is None:
             return v
@@ -164,6 +168,7 @@ class Websites(BaseModel):
         Notes:
             1. Ensure website is a string or None.
             2. Ensure website is not empty after stripping whitespace.
+
         """
         if v is None:
             return v
@@ -191,6 +196,7 @@ class Websites(BaseModel):
         Notes:
             1. Ensure github is a string or None.
             2. Ensure github is not empty after stripping whitespace.
+
         """
         if v is None:
             return v
@@ -218,6 +224,7 @@ class Websites(BaseModel):
         Notes:
             1. Ensure linkedin is a string or None.
             2. Ensure linkedin is not empty after stripping whitespace.
+
         """
         if v is None:
             return v
@@ -245,6 +252,7 @@ class Websites(BaseModel):
         Notes:
             1. Ensure twitter is a string or None.
             2. Ensure twitter is not empty after stripping whitespace.
+
         """
         if v is None:
             return v
@@ -286,6 +294,7 @@ class VisaStatus(BaseModel):
         Notes:
             1. Ensure work_authorization is a string or None.
             2. Ensure work_authorization is not empty after stripping whitespace.
+
         """
         if v is None:
             return v
@@ -315,6 +324,7 @@ class VisaStatus(BaseModel):
             2. If require_sponsorship is a string, convert "yes" to True and "no" to False.
             3. If require_sponsorship is not None and not a string, assign it directly.
             4. Otherwise, set require_sponsorship to None.
+
         """
         if v is None:
             return v
@@ -363,6 +373,7 @@ class Banner(BaseModel):
             4. Remove trailing blank lines.
             5. Filter out any lines that are blank after stripping whitespace.
             6. Join the remaining lines back into a single string.
+
         """
         if not isinstance(v, str):
             raise ValueError("text must be a string")
@@ -418,6 +429,7 @@ class Note(BaseModel):
             4. Remove trailing blank lines.
             5. Filter out any lines that are blank after stripping whitespace.
             6. Join the remaining lines back into a single string.
+
         """
         if not isinstance(v, str):
             raise ValueError("text must be a string")

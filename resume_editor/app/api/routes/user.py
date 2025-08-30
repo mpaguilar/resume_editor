@@ -29,7 +29,8 @@ router = APIRouter(prefix="/api/users", tags=["users"])
 
 
 def get_user_by_username(db: Session, username: str) -> User | None:
-    """Retrieve a user from the database using their username.
+    """
+    Retrieve a user from the database using their username.
 
     Args:
         db: Database session dependency used to query the database.
@@ -42,6 +43,7 @@ def get_user_by_username(db: Session, username: str) -> User | None:
         1. Query the database for a user with the given username.
         2. Return the first match or None if no user is found.
         3. Database access: Performs a read operation on the User table.
+
     """
     _msg = f"Querying database for username: {username}"
     log.debug(_msg)
@@ -52,7 +54,8 @@ def get_user_by_username(db: Session, username: str) -> User | None:
 
 
 def get_user_by_email(db: Session, email: str) -> User | None:
-    """Retrieve a user from the database using their email address.
+    """
+    Retrieve a user from the database using their email address.
 
     Args:
         db: Database session dependency used to query the database.
@@ -65,6 +68,7 @@ def get_user_by_email(db: Session, email: str) -> User | None:
         1. Query the database for a user with the given email.
         2. Return the first match or None if no user is found.
         3. Database access: Performs a read operation on the User table.
+
     """
     _msg = f"Querying database for email: {email}"
     log.debug(_msg)
@@ -75,7 +79,8 @@ def get_user_by_email(db: Session, email: str) -> User | None:
 
 
 def create_new_user(db: Session, user_data: UserCreate) -> User:
-    """Create a new user in the database with the provided data.
+    """
+    Create a new user in the database with the provided data.
 
     Args:
         db: Database session dependency used to persist the new user.
@@ -91,6 +96,7 @@ def create_new_user(db: Session, user_data: UserCreate) -> User:
         4. Commit the transaction to persist the user to the database.
         5. Refresh the object to ensure it contains the latest state from the database.
         6. Database access: Performs a write operation on the User table.
+
     """
     _msg = f"Hashing password for user: {user_data.username}"
     log.debug(_msg)
@@ -120,7 +126,8 @@ def create_new_user(db: Session, user_data: UserCreate) -> User:
 
 
 def get_users(db: Session) -> list[User]:
-    """Retrieve all users from the database.
+    """
+    Retrieve all users from the database.
 
     Args:
         db (Session): The database session.
@@ -133,7 +140,8 @@ def get_users(db: Session) -> list[User]:
 
 
 def get_user_by_id(db: Session, user_id: int) -> User | None:
-    """Retrieve a single user by ID.
+    """
+    Retrieve a single user by ID.
 
     Args:
         db (Session): The database session.
@@ -147,7 +155,8 @@ def get_user_by_id(db: Session, user_id: int) -> User | None:
 
 
 def delete_user(db: Session, user: User) -> None:
-    """Delete a user from the database.
+    """
+    Delete a user from the database.
 
     Args:
         db (Session): The database session.
@@ -160,7 +169,8 @@ def delete_user(db: Session, user: User) -> None:
 
 @router.post("/register", response_model=UserResponse)
 def register_user(user: UserCreate, db: Session = Depends(get_db)) -> UserResponse:
-    """Register a new user with the provided credentials.
+    """
+    Register a new user with the provided credentials.
 
     Args:
         user: Data containing username, email, and password for the new user.
@@ -180,6 +190,7 @@ def register_user(user: UserCreate, db: Session = Depends(get_db)) -> UserRespon
         5. Create a new user with the provided data and store it in the database.
         6. Return the newly created user's data (without the password).
         7. Database access: Performs read and write operations on the User table.
+
     """
     _msg = f"Starting register_user for username: {user.username}"
     log.debug(_msg)
@@ -222,7 +233,8 @@ def get_user_settings(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Get the current user's settings.
+    """
+    Get the current user's settings.
 
     Args:
         db (Session): The database session.
@@ -235,6 +247,7 @@ def get_user_settings(
         1. Retrieve the user's settings from the database.
         2. If no settings exist, return an empty response.
         3. Database access: Performs a read operation on the UserSettings table.
+
     """
     _msg = "Getting settings for current user"
     log.debug(_msg)
@@ -254,7 +267,8 @@ def update_user_settings(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Update the current user's settings.
+    """
+    Update the current user's settings.
 
     Args:
         settings_data (UserSettingsUpdateRequest): The settings data to update.
@@ -268,6 +282,7 @@ def update_user_settings(
         1. Update the user's settings in the database with the provided data.
         2. Return the updated settings.
         3. Database access: Performs a write operation on the UserSettings table.
+
     """
     _msg = "Updating settings for current user"
     log.debug(_msg)
@@ -284,7 +299,8 @@ def login_user(
     db: Session = Depends(get_db),
     settings: Settings = Depends(get_settings),
 ) -> Token:
-    """Authenticate a user and return an access token.
+    """
+    Authenticate a user and return an access token.
 
     Args:
         form_data: Form data containing username and password for authentication.
@@ -302,6 +318,7 @@ def login_user(
         3. Generate a JWT access token with a defined expiration time.
         4. Return the access token to the client.
         5. Database access: Performs a read operation on the User table to verify credentials.
+
     """
     _msg = f"Starting login_user for username: {form_data.username}"
     log.debug(_msg)

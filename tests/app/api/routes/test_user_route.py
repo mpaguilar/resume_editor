@@ -277,11 +277,12 @@ def test_access_protected_route_with_token(client_with_db, test_user):
     assert token
 
     # 2. Access a protected route with the token
-    with patch(
-        "resume_editor.app.api.routes.user.settings_crud.get_user_settings"
-    ) as mock_get_user_settings, patch(
-        "resume_editor.app.core.auth.get_settings"
-    ) as mock_auth_get_settings:
+    with (
+        patch(
+            "resume_editor.app.api.routes.user.settings_crud.get_user_settings"
+        ) as mock_get_user_settings,
+        patch("resume_editor.app.core.auth.get_settings") as mock_auth_get_settings,
+    ):
         mock_get_user_settings.return_value = (
             None  # We don't care about the return value
         )

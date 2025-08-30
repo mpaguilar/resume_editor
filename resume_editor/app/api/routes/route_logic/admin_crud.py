@@ -241,5 +241,3 @@ def remove_role_from_user_admin(db: Session, user: User, role: Role) -> User:
     _msg = "remove_role_from_user_admin returning"
     log.debug(_msg)
     return user
-
-

@@ -206,7 +206,6 @@ def test_assign_role_to_user_admin_existing_role():
     mock_db.refresh.assert_not_called()
 
 
-
 def test_remove_role_from_user_admin_existing_role():
     """Test remove_role_from_user_admin when user has the role."""
     mock_db = MagicMock(spec=Session)

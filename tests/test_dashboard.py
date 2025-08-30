@@ -3,7 +3,10 @@ from unittest.mock import Mock
 import pytest
 from fastapi.testclient import TestClient
 
-from resume_editor.app.core.auth import get_current_user, get_optional_current_user_from_cookie
+from resume_editor.app.core.auth import (
+    get_current_user,
+    get_optional_current_user_from_cookie,
+)
 from resume_editor.app.database.database import get_db
 from resume_editor.app.main import create_app
 from resume_editor.app.models.user import User
