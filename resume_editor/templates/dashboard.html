@@ -21,9 +21,16 @@
 </head>
 <body class="bg-gray-50 min-h-screen">
     <div class="container mx-auto px-4 py-8">
-        <header class="mb-8">
-            <h1 class="text-3xl font-bold text-gray-800">Resume Editor Dashboard</h1>
-            <p class="text-gray-600">Manage and edit your resumes</p>
+        <header class="mb-8 flex justify-between items-center">
+            <div>
+                <h1 class="text-3xl font-bold text-gray-800">Resume Editor Dashboard</h1>
+                <p class="text-gray-600">Manage and edit your resumes</p>
+            </div>
+            <div>
+                <button id="logout-button" class="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-md text-sm font-medium">
+                    Logout
+                </button>
+            </div>
         </header>
 
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -76,6 +83,14 @@
                 swap: 'innerHTML'
             });
         }
+
+        // Logout functionality
+        document.getElementById('logout-button').addEventListener('click', function() {
+            // Expire the cookie by setting its expiration date to the past
+            document.cookie = 'access_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax';
+            // Redirect to the login page
+            window.location.href = '/login';
+        });
     </script>
 </body>
 </html>

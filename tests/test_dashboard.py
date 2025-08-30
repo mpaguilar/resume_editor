@@ -3,15 +3,15 @@ from unittest.mock import Mock
 import pytest
 from fastapi.testclient import TestClient
 
-from resume_editor.app.core.auth import get_current_user
+from resume_editor.app.core.auth import get_current_user, get_optional_current_user_from_cookie
 from resume_editor.app.database.database import get_db
 from resume_editor.app.main import create_app
 from resume_editor.app.models.user import User
 
 
 @pytest.fixture
-def authenticated_client():
-    """Fixture for an authenticated test client."""
+def api_authenticated_client():
+    """Fixture for an authenticated test client for API calls."""
     app = create_app()
 
     # Mock the current user and database session
@@ -35,25 +35,42 @@ def authenticated_client():
     app.dependency_overrides.clear()
 
 
-def test_dashboard_route(authenticated_client):
+@pytest.fixture
+def web_authenticated_client():
+    """Fixture for an authenticated test client for web routes (cookie-based)."""
+    app = create_app()
+    mock_user = Mock(spec=User, id=1)
+
+    def get_mock_user():
+        return mock_user
+
+    app.dependency_overrides[get_optional_current_user_from_cookie] = get_mock_user
+
+    with TestClient(app) as c:
+        yield c, None  # Yield None for db mock as it's not needed for these routes
+
+    app.dependency_overrides.clear()
+
+
+def test_dashboard_route(web_authenticated_client):
     """Test that the dashboard route returns the dashboard page."""
-    client, _ = authenticated_client
+    client, _ = web_authenticated_client
     response = client.get("/dashboard")
     assert response.status_code == 200
     assert "Resume Editor Dashboard" in response.text
 
 
-def test_root_redirects_to_dashboard(authenticated_client):
-    """Test that the root route redirects to the dashboard."""
-    client, _ = authenticated_client
+def test_root_redirects_to_dashboard(web_authenticated_client):
+    """Test that the root route redirects to the dashboard for an authenticated user."""
+    client, _ = web_authenticated_client
     response = client.get("/")
     assert response.status_code == 200  # Follows redirect
     assert "Resume Editor Dashboard" in response.text
 
 
-def test_list_resumes_html_response(authenticated_client):
+def test_list_resumes_html_response(api_authenticated_client):
     """Test that the list resumes endpoint returns HTML when requested by HTMX."""
-    client, mock_db = authenticated_client
+    client, mock_db = api_authenticated_client
 
     # Mock the query result
     mock_resume = Mock()
@@ -68,9 +85,9 @@ def test_list_resumes_html_response(authenticated_client):
     assert 'class="resume-item' in response.text
 
 
-def test_get_resume_html_response(authenticated_client):
+def test_get_resume_html_response(api_authenticated_client):
     """Test that the get resume endpoint returns HTML when requested by HTMX."""
-    client, mock_db = authenticated_client
+    client, mock_db = api_authenticated_client
 
     # Mock the query result
     mock_resume = Mock()
@@ -87,9 +104,9 @@ def test_get_resume_html_response(authenticated_client):
     assert "readonly" in response.text
 
 
-def test_create_resume_form(authenticated_client):
+def test_create_resume_form(web_authenticated_client):
     """Test that the create resume form endpoint returns the form."""
-    client, _ = authenticated_client
+    client, _ = web_authenticated_client
     response = client.get("/dashboard/create-resume-form")
     assert response.status_code == 200
     assert "Create New Resume" in response.text

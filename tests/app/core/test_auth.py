@@ -1,12 +1,17 @@
 from unittest.mock import MagicMock, patch
 
 import pytest
-from fastapi import Depends, FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException, Request, status
 from fastapi.testclient import TestClient
 from jose import JWTError
 from sqlalchemy.orm import Session
 
-from resume_editor.app.core.auth import get_current_admin_user, get_current_user
+from resume_editor.app.core.auth import (
+    get_current_admin_user,
+    get_current_user,
+    get_current_user_from_cookie,
+    get_optional_current_user_from_cookie,
+)
 from resume_editor.app.models.role import Role
 from resume_editor.app.models.user import User
 
@@ -147,6 +152,153 @@ def test_get_current_admin_user_without_admin_role():
     assert response.json() == {"detail": "The user does not have admin privileges"}
 
     app.dependency_overrides.clear()
+
+
+@pytest.fixture
+def mock_request():
+    """Provides a mock FastAPI Request object."""
+    return MagicMock(spec=Request)
+
+
+# --- Tests for get_current_user_from_cookie ---
+
+
+@patch("resume_editor.app.core.auth.get_settings")
+@patch("resume_editor.app.core.auth.jwt.decode")
+def test_get_current_user_from_cookie_success(
+    mock_jwt_decode, mock_get_settings, mock_request
+):
+    """Test successful user retrieval from a cookie."""
+    mock_get_settings.return_value = MagicMock(
+        secret_key="test-secret", algorithm="HS256"
+    )
+    mock_db = MagicMock(spec=Session)
+    expected_user = User(
+        username="testuser", email="test@example.com", hashed_password="hashed"
+    )
+    mock_db.query.return_value.filter.return_value.first.return_value = expected_user
+    mock_jwt_decode.return_value = {"sub": "testuser"}
+    mock_request.cookies.get.return_value = "valid-token"
+
+    user = get_current_user_from_cookie(request=mock_request, db=mock_db)
+
+    assert user == expected_user
+    mock_request.cookies.get.assert_called_once_with("access_token")
+    mock_db.query.assert_called_once_with(User)
+    mock_jwt_decode.assert_called_once()
+
+
+def test_get_current_user_from_cookie_no_token(mock_request):
+    """Test get_current_user_from_cookie when no token is present."""
+    mock_db = MagicMock(spec=Session)
+    mock_request.cookies.get.return_value = None
+
+    with pytest.raises(HTTPException) as exc_info:
+        get_current_user_from_cookie(request=mock_request, db=mock_db)
+
+    assert exc_info.value.status_code == status.HTTP_401_UNAUTHORIZED
+    assert exc_info.value.detail == "Could not validate credentials"
+    mock_request.cookies.get.assert_called_once_with("access_token")
+
+
+@patch("resume_editor.app.core.auth.get_settings")
+@patch("resume_editor.app.core.auth.jwt.decode", side_effect=JWTError)
+def test_get_current_user_from_cookie_jwt_error(
+    mock_jwt_decode, mock_get_settings, mock_request
+):
+    """Test get_current_user_from_cookie with a malformed JWT."""
+    mock_get_settings.return_value = MagicMock(
+        secret_key="test-secret", algorithm="HS256"
+    )
+    mock_db = MagicMock(spec=Session)
+    mock_request.cookies.get.return_value = "invalid-token"
+
+    with pytest.raises(HTTPException) as exc_info:
+        get_current_user_from_cookie(request=mock_request, db=mock_db)
+
+    assert exc_info.value.status_code == status.HTTP_401_UNAUTHORIZED
+    assert exc_info.value.detail == "Could not validate credentials"
+
+
+@patch("resume_editor.app.core.auth.get_settings")
+@patch("resume_editor.app.core.auth.jwt.decode")
+def test_get_current_user_from_cookie_no_username(
+    mock_jwt_decode, mock_get_settings, mock_request
+):
+    """Test get_current_user_from_cookie with a token that has no username."""
+    mock_get_settings.return_value = MagicMock(
+        secret_key="test-secret", algorithm="HS256"
+    )
+    mock_db = MagicMock(spec=Session)
+    mock_jwt_decode.return_value = {"id": 1}  # No 'sub' key
+    mock_request.cookies.get.return_value = "token-no-sub"
+
+    with pytest.raises(HTTPException) as exc_info:
+        get_current_user_from_cookie(request=mock_request, db=mock_db)
+
+    assert exc_info.value.status_code == status.HTTP_401_UNAUTHORIZED
+    assert exc_info.value.detail == "Could not validate credentials"
+
+
+@patch("resume_editor.app.core.auth.get_settings")
+@patch("resume_editor.app.core.auth.jwt.decode")
+def test_get_current_user_from_cookie_user_not_found(
+    mock_jwt_decode, mock_get_settings, mock_request
+):
+    """Test get_current_user_from_cookie where user from token is not in DB."""
+    mock_get_settings.return_value = MagicMock(
+        secret_key="test-secret", algorithm="HS256"
+    )
+    mock_db = MagicMock(spec=Session)
+    mock_db.query.return_value.filter.return_value.first.return_value = None
+    mock_jwt_decode.return_value = {"sub": "nonexistent"}
+    mock_request.cookies.get.return_value = "token-for-nonexistent-user"
+
+    with pytest.raises(HTTPException) as exc_info:
+        get_current_user_from_cookie(request=mock_request, db=mock_db)
+
+    assert exc_info.value.status_code == status.HTTP_401_UNAUTHORIZED
+    assert exc_info.value.detail == "Could not validate credentials"
+
+
+# --- Tests for get_optional_current_user_from_cookie ---
+
+
+@patch("resume_editor.app.core.auth.get_current_user_from_cookie")
+def test_get_optional_current_user_from_cookie_success(
+    mock_get_current_user_from_cookie, mock_request
+):
+    """Test successful optional user retrieval."""
+    mock_db = MagicMock(spec=Session)
+    expected_user = User(
+        username="testuser", email="test@example.com", hashed_password="hashed"
+    )
+    mock_get_current_user_from_cookie.return_value = expected_user
+
+    user = get_optional_current_user_from_cookie(request=mock_request, db=mock_db)
+
+    assert user == expected_user
+    mock_get_current_user_from_cookie.assert_called_once_with(
+        request=mock_request, db=mock_db
+    )
+
+
+@patch(
+    "resume_editor.app.core.auth.get_current_user_from_cookie",
+    side_effect=HTTPException(status_code=401),
+)
+def test_get_optional_current_user_from_cookie_failure(
+    mock_get_current_user_from_cookie, mock_request
+):
+    """Test optional user retrieval when underlying function fails."""
+    mock_db = MagicMock(spec=Session)
+
+    user = get_optional_current_user_from_cookie(request=mock_request, db=mock_db)
+
+    assert user is None
+    mock_get_current_user_from_cookie.assert_called_once_with(
+        request=mock_request, db=mock_db
+    )
 
 
 def test_get_current_admin_user_with_no_roles():

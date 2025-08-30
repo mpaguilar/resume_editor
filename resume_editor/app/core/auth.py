@@ -1,7 +1,7 @@
 import logging
 from typing import Annotated
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 from jose import JWTError, jwt
 from sqlalchemy.orm import Session
 
@@ -75,6 +75,72 @@ def get_current_user(
         raise credentials_exception
 
     return user
+
+
+def get_current_user_from_cookie(
+    request: Request,
+    db: Session = Depends(get_db),
+) -> User:
+    """
+    Retrieve the authenticated user from the JWT token in the request cookie.
+
+    Args:
+        request: The request object, used to access cookies.
+        db: Database session dependency.
+
+    Returns:
+        User: The authenticated User object.
+
+    Raises:
+        HTTPException: If the token is missing, invalid, or the user is not found.
+    """
+    settings = get_settings()
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Could not validate credentials",
+    )
+    token = request.cookies.get("access_token")
+
+    if not token:
+        raise credentials_exception
+
+    try:
+        payload = jwt.decode(
+            token,
+            settings.secret_key,
+            algorithms=[settings.algorithm],
+        )
+        username: str = payload.get("sub")
+        if username is None:
+            raise credentials_exception
+    except JWTError:
+        raise credentials_exception
+
+    user = db.query(User).filter(User.username == username).first()
+    if user is None:
+        raise credentials_exception
+
+    return user
+
+
+def get_optional_current_user_from_cookie(
+    request: Request,
+    db: Session = Depends(get_db),
+) -> User | None:
+    """
+    Retrieve an optional authenticated user from the JWT token in the request cookie.
+
+    Args:
+        request: The request object, used to access cookies.
+        db: Database session dependency.
+
+    Returns:
+        User | None: The authenticated User object if the token is valid, otherwise None.
+    """
+    try:
+        return get_current_user_from_cookie(request=request, db=db)
+    except HTTPException:
+        return None
 
 
 def get_current_admin_user(

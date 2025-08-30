@@ -1,13 +1,17 @@
 import logging
 
-from fastapi import FastAPI, Request
+from fastapi import Depends, FastAPI, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
+from sqlalchemy.orm import Session
 
 from resume_editor.app.api.routes.admin import router as admin_router
 from resume_editor.app.api.routes.resume import router as resume_router
 from resume_editor.app.api.routes.user import router as user_router
+from resume_editor.app.core.auth import get_optional_current_user_from_cookie
+from resume_editor.app.database.database import get_db
+from resume_editor.app.models.user import User
 
 log = logging.getLogger(__name__)
 
@@ -50,7 +54,7 @@ def create_app() -> FastAPI:
     )
 
     # Setup templates
-    templates = Jinja2Templates(directory="templates")
+    templates = Jinja2Templates(directory="resume_editor/templates")
 
     # Include API routers
     app.include_router(user_router)
@@ -96,24 +100,49 @@ def create_app() -> FastAPI:
         log.debug(_msg)
         return RedirectResponse(url="/dashboard")
 
-    @app.get("/dashboard")
-    async def dashboard(request: Request):
+    @app.get("/login", response_class=HTMLResponse)
+    async def login_page(request: Request):
         """
-        Serve the dashboard page.
+        Serve the login page.
 
         Args:
             request: The HTTP request object.
 
         Returns:
-            TemplateResponse: The rendered dashboard template.
+            TemplateResponse: The rendered login template.
+        """
+        _msg = "Login page requested"
+        log.debug(_msg)
+        return templates.TemplateResponse(request, "login.html")
+
+    @app.get("/dashboard", response_class=HTMLResponse)
+    async def dashboard(
+        request: Request,
+        current_user: User | None = Depends(get_optional_current_user_from_cookie),
+    ):
+        """
+        Serve the dashboard page.
+
+        Args:
+            request: The HTTP request object.
+            current_user: The authenticated user, if one exists.
+
+        Returns:
+            TemplateResponse: The rendered dashboard template if the user is authenticated.
+            RedirectResponse: A redirect to the login page if the user is not authenticated.
 
         Notes:
-            1. Render the dashboard.html template.
-            2. Pass the request object to the template.
-
+            1. Depend on `get_optional_current_user_from_cookie` to get the current user.
+            2. If no user is returned (i.e., authentication fails), redirect to the `/login` page.
+            3. On success, render the `dashboard.html` template.
         """
         _msg = "Dashboard page requested"
         log.debug(_msg)
+        if not current_user:
+            return RedirectResponse(
+                url="/login", status_code=status.HTTP_307_TEMPORARY_REDIRECT
+            )
+
         return templates.TemplateResponse(request, "dashboard.html")
 
     @app.get("/dashboard/create-resume-form")
