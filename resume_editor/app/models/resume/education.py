@@ -34,7 +34,7 @@ class Degree(BaseModel):
         Validate the school field.
 
         Args:
-            v: The school value to validate. Must be a non-empty string.
+            v (str): The school value to validate. Must be a non-empty string.
 
         Returns:
             str: The validated school (stripped of leading/trailing whitespace).
@@ -58,10 +58,10 @@ class Degree(BaseModel):
         Validate the degree field.
 
         Args:
-            v: The degree value to validate. Must be a non-empty string or None.
+            v (str | None): The degree value to validate. Must be a non-empty string or None.
 
         Returns:
-            str: The validated degree (stripped of leading/trailing whitespace).
+            str | None: The validated degree (stripped of leading/trailing whitespace) or None.
 
         Raises:
             ValueError: If the degree is empty after stripping whitespace.
@@ -84,10 +84,10 @@ class Degree(BaseModel):
         Validate the major field.
 
         Args:
-            v: The major value to validate. Must be a non-empty string or None.
+            v (str | None): The major value to validate. Must be a non-empty string or None.
 
         Returns:
-            str: The validated major (stripped of leading/trailing whitespace).
+            str | None: The validated major (stripped of leading/trailing whitespace) or None.
 
         Raises:
             ValueError: If the major is empty after stripping whitespace.
@@ -110,10 +110,10 @@ class Degree(BaseModel):
         Validate the gpa field.
 
         Args:
-            v: The gpa value to validate. Must be a non-empty string or None.
+            v (str | None): The gpa value to validate. Must be a non-empty string or None.
 
         Returns:
-            str: The validated gpa (stripped of leading/trailing whitespace).
+            str | None: The validated gpa (stripped of leading/trailing whitespace) or None.
 
         Raises:
             ValueError: If the gpa is empty after stripping whitespace.
@@ -136,11 +136,11 @@ class Degree(BaseModel):
         Validate that start_date is not after end_date.
 
         Args:
-            v: The date value to validate.
-            info: Validation info containing data.
+            v (datetime | None): The end_date value to validate.
+            info (ValidationInfo): Validation info containing data.
 
         Returns:
-            datetime: The validated date.
+            datetime | None: The validated end_date.
 
         Raises:
             ValueError: If end_date is before start_date.
@@ -172,7 +172,7 @@ class Degrees(BaseModel):
         Iterate over the degrees.
 
         Returns:
-            Iterator over the degrees list.
+            Iterator: An iterator over the degrees list.
 
         Notes:
             No external access (network, disk, or database) is performed.
@@ -198,10 +198,10 @@ class Degrees(BaseModel):
         Return the degree at the given index.
 
         Args:
-            index: The index of the degree to retrieve.
+            index (int): The index of the degree to retrieve.
 
         Returns:
-            The Degree object at the specified index.
+            Degree: The Degree object at the specified index.
 
         Notes:
             No external access (network, disk, or database) is performed.

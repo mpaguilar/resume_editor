@@ -1,4 +1,5 @@
 import logging
+from functools import lru_cache
 
 from pydantic import Field, PostgresDsn, computed_field
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -7,8 +8,7 @@ log = logging.getLogger(__name__)
 
 
 class Settings(BaseSettings):
-    """
-    Application settings loaded from environment variables.
+    """Application settings loaded from environment variables.
 
     This class defines all configuration values used by the application,
     including database connection details, security parameters, and API keys.
@@ -25,7 +25,6 @@ class Settings(BaseSettings):
         llm_api_key (str | None): API key for accessing LLM services.
             Optional; used when LLM functionality is needed.
         encryption_key (str): Key used for encrypting sensitive data.
-
     """
 
     model_config = SettingsConfigDict(
@@ -45,8 +44,7 @@ class Settings(BaseSettings):
     @computed_field
     @property
     def database_url(self) -> PostgresDsn:
-        """
-        Assembled database URL from components.
+        """Assembled database URL from components.
 
         Args:
             None: This property does not take any arguments.
@@ -59,6 +57,7 @@ class Settings(BaseSettings):
             2. The scheme is set to "postgresql".
             3. The username, password, host, port, and database name are retrieved from the instance attributes.
             4. The resulting URL is returned as a PostgresDsn object.
+            5. This function performs disk access to read the .env file at startup.
 
         """
         return PostgresDsn.build(
@@ -88,13 +87,9 @@ class Settings(BaseSettings):
     encryption_key: str = Field(validation_alias="ENCRYPTION_KEY")
 
 
-from functools import lru_cache
-
-
 @lru_cache
 def get_settings() -> Settings:
-    """
-    Get the global settings instance.
+    """Get the global settings instance.
 
     This function returns a singleton instance of the Settings class,
     which contains all application configuration values.

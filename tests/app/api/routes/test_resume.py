@@ -8,6 +8,7 @@ from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
 from resume_editor.app.core.auth import get_current_user
+from resume_editor.app.core.config import get_settings
 from resume_editor.app.database.database import get_db
 from resume_editor.app.api.routes.route_models import (
     CertificationsResponse,
@@ -32,19 +33,33 @@ email: test@example.com
 
 
 VALID_MINIMAL_RESUME_CONTENT = """# Personal
+
 ## Contact Information
+
 Name: Test Person
+
 # Education
+
 ## Degrees
+
 ### Degree
+
 School: A School
+
 # Certifications
+
 ## Certification
+
 Name: A Cert
+
 # Experience
+
 ## Roles
+
 ### Role
+
 #### Basics
+
 Company: A Company
 Title: A Role
 Start date: 01/2024
@@ -69,17 +84,31 @@ def test_resume(test_user):
     resume = DatabaseResume(
         user_id=test_user.id,
         name="Test Resume",
-        content=TEST_RESUME_CONTENT,
+        content=VALID_MINIMAL_RESUME_CONTENT,
     )
     resume.id = 1
     return resume
 
 
 @pytest.fixture
-def client_with_auth_and_resume(test_user, test_resume):
-    """Fixture for a test client with an authenticated user and a resume."""
-    app = create_app()
+def app():
+    """Fixture to create a new app for each test."""
+    get_settings.cache_clear()
+    _app = create_app()
+    yield _app
+    _app.dependency_overrides.clear()
 
+
+@pytest.fixture
+def client(app):
+    """Fixture to create a test client for each test."""
+    with TestClient(app) as client:
+        yield client
+
+
+@pytest.fixture
+def client_with_auth_and_resume(app, client, test_user, test_resume):
+    """Fixture for a test client with an authenticated user and a resume."""
     mock_db = Mock()
     query_mock = Mock()
     filter_mock = Mock()
@@ -93,16 +122,12 @@ def client_with_auth_and_resume(test_user, test_resume):
 
     app.dependency_overrides[get_db] = get_mock_db_with_resume
     app.dependency_overrides[get_current_user] = lambda: test_user
-    with TestClient(app) as client:
-        yield client
-    app.dependency_overrides.clear()
+    return client
 
 
 @pytest.fixture
-def client_with_auth_no_resume(test_user):
+def client_with_auth_no_resume(app, client, test_user):
     """Fixture for a test client with an authenticated user but no resume."""
-    app = create_app()
-
     mock_db = Mock()
     query_mock = Mock()
     filter_mock = Mock()
@@ -116,16 +141,12 @@ def client_with_auth_no_resume(test_user):
 
     app.dependency_overrides[get_db] = get_mock_db_no_resume
     app.dependency_overrides[get_current_user] = lambda: test_user
-    with TestClient(app) as client:
-        yield client
-    app.dependency_overrides.clear()
+    return client
 
 
 @pytest.fixture
-def client_with_last_resume(test_user, test_resume):
+def client_with_last_resume(app, client, test_user, test_resume):
     """Fixture for deleting the last resume."""
-    app = create_app()
-
     mock_db = Mock()
     query_mock = Mock()
     filter_mock = Mock()
@@ -141,9 +162,7 @@ def client_with_last_resume(test_user, test_resume):
 
     app.dependency_overrides[get_db] = get_mock_db_with_last_resume
     app.dependency_overrides[get_current_user] = lambda: test_user
-    with TestClient(app) as client:
-        yield client
-    app.dependency_overrides.clear()
+    return client
 
 
 def test_delete_resume_htmx_no_remaining_resumes(client_with_last_resume):
@@ -368,37 +387,23 @@ def test_get_personal_info_success(client_with_auth_and_resume):
             "banner": None,
             "note": None,
         }
-        mock_extract.assert_called_once_with(TEST_RESUME_CONTENT)
+        mock_extract.assert_called_once_with(VALID_MINIMAL_RESUME_CONTENT)
 
 
 @patch("resume_editor.app.api.routes.resume.update_resume_db")
 @patch("resume_editor.app.api.routes.resume.perform_pre_save_validation")
-@patch("resume_editor.app.api.routes.resume.build_complete_resume_from_sections")
-@patch("resume_editor.app.api.routes.resume.extract_certifications_info")
-@patch("resume_editor.app.api.routes.resume.extract_experience_info")
-@patch("resume_editor.app.api.routes.resume.extract_education_info")
+@patch("resume_editor.app.api.routes.resume.update_resume_content_with_structured_data")
 def test_update_personal_info_structured_success(
-    mock_extract_education,
-    mock_extract_experience,
-    mock_extract_certifications,
-    mock_build_sections,
-    mock_pre_save_validation,
-    mock_update_resume_db,
+    mock_update_content,
+    mock_validate,
+    mock_update_db,
     client_with_auth_and_resume,
     test_resume,
 ):
     """Test successful update of personal info."""
-    from resume_editor.app.api.routes.route_models import (
-        CertificationsResponse,
-        EducationResponse,
-        ExperienceResponse,
-        PersonalInfoResponse,
-    )
+    from resume_editor.app.api.routes.route_models import PersonalInfoResponse
 
-    mock_extract_education.return_value = EducationResponse(degrees=[])
-    mock_extract_experience.return_value = ExperienceResponse(roles=[], projects=[])
-    mock_extract_certifications.return_value = CertificationsResponse(certifications=[])
-    mock_build_sections.return_value = "new updated content"
+    mock_update_content.return_value = "new updated content"
     payload = {"name": "new name", "email": "new@email.com"}
 
     response = client_with_auth_and_resume.put(
@@ -411,57 +416,39 @@ def test_update_personal_info_structured_success(
     assert response_data["name"] == "new name"
     assert response_data["email"] == "new@email.com"
 
-    mock_extract_education.assert_called_once_with(TEST_RESUME_CONTENT)
-    mock_extract_experience.assert_called_once_with(TEST_RESUME_CONTENT)
-    mock_extract_certifications.assert_called_once_with(TEST_RESUME_CONTENT)
-
-    mock_build_sections.assert_called_once()
-    call_kwargs = mock_build_sections.call_args.kwargs
+    mock_update_content.assert_called_once()
+    call_kwargs = mock_update_content.call_args.kwargs
+    assert call_kwargs["current_content"] == VALID_MINIMAL_RESUME_CONTENT
     assert isinstance(call_kwargs["personal_info"], PersonalInfoResponse)
     assert call_kwargs["personal_info"].name == "new name"
-    assert call_kwargs["education"] == mock_extract_education.return_value
-    assert call_kwargs["experience"] == mock_extract_experience.return_value
-    assert call_kwargs["certifications"] == mock_extract_certifications.return_value
+    assert "education" not in call_kwargs
+    assert "experience" not in call_kwargs
+    assert "certifications" not in call_kwargs
 
-    mock_pre_save_validation.assert_called_once_with(
+    mock_validate.assert_called_once_with(
         "new updated content",
-        TEST_RESUME_CONTENT,
+        VALID_MINIMAL_RESUME_CONTENT,
     )
 
-    mock_update_resume_db.assert_called_once()
-    assert mock_update_resume_db.call_args.args[1] == test_resume
-    assert mock_update_resume_db.call_args.kwargs["content"] == "new updated content"
+    mock_update_db.assert_called_once()
+    assert mock_update_db.call_args.args[1] == test_resume
+    assert mock_update_db.call_args.kwargs["content"] == "new updated content"
 
 
 @patch("resume_editor.app.api.routes.resume.update_resume_db")
 @patch("resume_editor.app.api.routes.resume.perform_pre_save_validation")
-@patch("resume_editor.app.api.routes.resume.build_complete_resume_from_sections")
-@patch("resume_editor.app.api.routes.resume.extract_certifications_info")
-@patch("resume_editor.app.api.routes.resume.extract_experience_info")
-@patch("resume_editor.app.api.routes.resume.extract_education_info")
+@patch("resume_editor.app.api.routes.resume.update_resume_content_with_structured_data")
 def test_update_personal_info_structured_validation_error(
-    mock_extract_education,
-    mock_extract_experience,
-    mock_extract_certifications,
-    mock_build_sections,
-    mock_pre_save_validation,
-    mock_update_resume_db,
+    mock_update_content,
+    mock_validate,
+    mock_update_db,
     client_with_auth_and_resume,
 ):
     """Test that a validation error during structured update is handled."""
     from fastapi import HTTPException
 
-    from resume_editor.app.api.routes.route_models import (
-        CertificationsResponse,
-        EducationResponse,
-        ExperienceResponse,
-    )
-
-    mock_extract_education.return_value = EducationResponse(degrees=[])
-    mock_extract_experience.return_value = ExperienceResponse(roles=[], projects=[])
-    mock_extract_certifications.return_value = CertificationsResponse(certifications=[])
-    mock_build_sections.return_value = "new updated content"
-    mock_pre_save_validation.side_effect = HTTPException(
+    mock_update_content.return_value = "new updated content"
+    mock_validate.side_effect = HTTPException(
         status_code=422,
         detail="Validation failed",
     )
@@ -474,12 +461,12 @@ def test_update_personal_info_structured_validation_error(
     assert response.status_code == 422
     expected_detail = "Failed to update resume due to reconstruction/validation error: Validation failed"
     assert response.json()["detail"] == expected_detail
-    mock_extract_education.assert_called_once()
-    mock_extract_experience.assert_called_once()
-    mock_extract_certifications.assert_called_once()
-    mock_build_sections.assert_called_once()
-    mock_pre_save_validation.assert_called_once()
-    mock_update_resume_db.assert_not_called()
+    mock_update_content.assert_called_once()
+    mock_validate.assert_called_once_with(
+        "new updated content",
+        VALID_MINIMAL_RESUME_CONTENT,
+    )
+    mock_update_db.assert_not_called()
 
 
 def test_get_education_info_success(client_with_auth_and_resume):
@@ -493,37 +480,23 @@ def test_get_education_info_success(client_with_auth_and_resume):
         response = client_with_auth_and_resume.get("/api/resumes/1/education")
         assert response.status_code == 200
         assert response.json() == {"degrees": []}
-        mock_extract.assert_called_once_with(TEST_RESUME_CONTENT)
+        mock_extract.assert_called_once_with(VALID_MINIMAL_RESUME_CONTENT)
 
 
 @patch("resume_editor.app.api.routes.resume.update_resume_db")
 @patch("resume_editor.app.api.routes.resume.perform_pre_save_validation")
-@patch("resume_editor.app.api.routes.resume.build_complete_resume_from_sections")
-@patch("resume_editor.app.api.routes.resume.extract_certifications_info")
-@patch("resume_editor.app.api.routes.resume.extract_experience_info")
-@patch("resume_editor.app.api.routes.resume.extract_personal_info")
+@patch("resume_editor.app.api.routes.resume.update_resume_content_with_structured_data")
 def test_update_education_info_structured_success(
-    mock_extract_personal,
-    mock_extract_experience,
-    mock_extract_certifications,
-    mock_build_sections,
-    mock_pre_save_validation,
-    mock_update_resume_db,
+    mock_update_content,
+    mock_validate,
+    mock_update_db,
     client_with_auth_and_resume,
     test_resume,
 ):
     """Test successful update of education info."""
-    from resume_editor.app.api.routes.route_models import (
-        CertificationsResponse,
-        EducationResponse,
-        ExperienceResponse,
-        PersonalInfoResponse,
-    )
+    from resume_editor.app.api.routes.route_models import EducationResponse
 
-    mock_extract_personal.return_value = PersonalInfoResponse(name="Test User")
-    mock_extract_experience.return_value = ExperienceResponse(roles=[], projects=[])
-    mock_extract_certifications.return_value = CertificationsResponse(certifications=[])
-    mock_build_sections.return_value = "new updated content"
+    mock_update_content.return_value = "new updated content"
     payload = {"degrees": [{"school": "new school", "degree": "BSc"}]}
 
     response = client_with_auth_and_resume.put(
@@ -535,26 +508,20 @@ def test_update_education_info_structured_success(
     response_data = response.json()
     assert response_data["degrees"][0]["school"] == "new school"
 
-    mock_extract_personal.assert_called_once_with(TEST_RESUME_CONTENT)
-    mock_extract_experience.assert_called_once_with(TEST_RESUME_CONTENT)
-    mock_extract_certifications.assert_called_once_with(TEST_RESUME_CONTENT)
-
-    mock_build_sections.assert_called_once()
-    call_kwargs = mock_build_sections.call_args.kwargs
+    mock_update_content.assert_called_once()
+    call_kwargs = mock_update_content.call_args.kwargs
+    assert call_kwargs["current_content"] == VALID_MINIMAL_RESUME_CONTENT
     assert isinstance(call_kwargs["education"], EducationResponse)
     assert call_kwargs["education"].degrees[0].school == "new school"
-    assert call_kwargs["personal_info"] == mock_extract_personal.return_value
-    assert call_kwargs["experience"] == mock_extract_experience.return_value
-    assert call_kwargs["certifications"] == mock_extract_certifications.return_value
 
-    mock_pre_save_validation.assert_called_once_with(
+    mock_validate.assert_called_once_with(
         "new updated content",
-        TEST_RESUME_CONTENT,
+        VALID_MINIMAL_RESUME_CONTENT,
     )
 
-    mock_update_resume_db.assert_called_once()
-    assert mock_update_resume_db.call_args.args[1] == test_resume
-    assert mock_update_resume_db.call_args.kwargs["content"] == "new updated content"
+    mock_update_db.assert_called_once()
+    assert mock_update_db.call_args.args[1] == test_resume
+    assert mock_update_db.call_args.kwargs["content"] == "new updated content"
 
 
 def test_get_experience_info_success(client_with_auth_and_resume):
@@ -568,40 +535,23 @@ def test_get_experience_info_success(client_with_auth_and_resume):
         response = client_with_auth_and_resume.get("/api/resumes/1/experience")
         assert response.status_code == 200
         assert response.json() == {"roles": [], "projects": []}
-        mock_extract.assert_called_once_with(TEST_RESUME_CONTENT)
+        mock_extract.assert_called_once_with(VALID_MINIMAL_RESUME_CONTENT)
 
 
 @patch("resume_editor.app.api.routes.resume.update_resume_db")
 @patch("resume_editor.app.api.routes.resume.perform_pre_save_validation")
-@patch("resume_editor.app.api.routes.resume.build_complete_resume_from_sections")
-@patch("resume_editor.app.api.routes.resume.extract_personal_info")
-@patch("resume_editor.app.api.routes.resume.extract_education_info")
-@patch("resume_editor.app.api.routes.resume.extract_experience_info")
-@patch("resume_editor.app.api.routes.resume.extract_certifications_info")
+@patch("resume_editor.app.api.routes.resume.update_resume_content_with_structured_data")
 def test_update_experience_info_structured_success(
-    mock_extract_certifications,
-    mock_extract_experience,
-    mock_extract_education,
-    mock_extract_personal,
-    mock_build_sections,
-    mock_pre_save_validation,
-    mock_update_resume_db,
+    mock_update_content,
+    mock_validate,
+    mock_update_db,
     client_with_auth_and_resume,
     test_resume,
 ):
     """Test successful update of experience info."""
-    from resume_editor.app.api.routes.route_models import (
-        CertificationsResponse,
-        EducationResponse,
-        ExperienceResponse,
-        PersonalInfoResponse,
-    )
+    from resume_editor.app.api.routes.route_models import ExperienceResponse
 
-    mock_extract_personal.return_value = PersonalInfoResponse(name="Test User")
-    mock_extract_education.return_value = EducationResponse(degrees=[])
-    mock_extract_certifications.return_value = CertificationsResponse(certifications=[])
-    mock_extract_experience.return_value = ExperienceResponse(roles=[], projects=[])
-    mock_build_sections.return_value = "new updated content"
+    mock_update_content.return_value = "new updated content"
     payload = {
         "roles": [
             {
@@ -624,27 +574,20 @@ def test_update_experience_info_structured_success(
     response_data = response.json()
     assert response_data["roles"][0]["basics"]["company"] == "new co"
 
-    mock_extract_personal.assert_called_once_with(TEST_RESUME_CONTENT)
-    mock_extract_education.assert_called_once_with(TEST_RESUME_CONTENT)
-    mock_extract_certifications.assert_called_once_with(TEST_RESUME_CONTENT)
-    mock_extract_experience.assert_called_once_with(TEST_RESUME_CONTENT)
-
-    mock_build_sections.assert_called_once()
-    call_kwargs = mock_build_sections.call_args.kwargs
+    mock_update_content.assert_called_once()
+    call_kwargs = mock_update_content.call_args.kwargs
+    assert call_kwargs["current_content"] == VALID_MINIMAL_RESUME_CONTENT
     assert isinstance(call_kwargs["experience"], ExperienceResponse)
     assert call_kwargs["experience"].roles[0].basics.company == "new co"
-    assert call_kwargs["personal_info"] == mock_extract_personal.return_value
-    assert call_kwargs["education"] == mock_extract_education.return_value
-    assert call_kwargs["certifications"] == mock_extract_certifications.return_value
 
-    mock_pre_save_validation.assert_called_once_with(
+    mock_validate.assert_called_once_with(
         "new updated content",
-        TEST_RESUME_CONTENT,
+        VALID_MINIMAL_RESUME_CONTENT,
     )
 
-    mock_update_resume_db.assert_called_once()
-    assert mock_update_resume_db.call_args.args[1] == test_resume
-    assert mock_update_resume_db.call_args.kwargs["content"] == "new updated content"
+    mock_update_db.assert_called_once()
+    assert mock_update_db.call_args.args[1] == test_resume
+    assert mock_update_db.call_args.kwargs["content"] == "new updated content"
 
 
 def test_get_projects_info_success(client_with_auth_and_resume):
@@ -658,40 +601,23 @@ def test_get_projects_info_success(client_with_auth_and_resume):
         response = client_with_auth_and_resume.get("/api/resumes/1/projects")
         assert response.status_code == 200
         assert response.json() == {"projects": []}
-        mock_extract.assert_called_once_with(TEST_RESUME_CONTENT)
+        mock_extract.assert_called_once_with(VALID_MINIMAL_RESUME_CONTENT)
 
 
 @patch("resume_editor.app.api.routes.resume.update_resume_db")
 @patch("resume_editor.app.api.routes.resume.perform_pre_save_validation")
-@patch("resume_editor.app.api.routes.resume.build_complete_resume_from_sections")
-@patch("resume_editor.app.api.routes.resume.extract_personal_info")
-@patch("resume_editor.app.api.routes.resume.extract_education_info")
-@patch("resume_editor.app.api.routes.resume.extract_experience_info")
-@patch("resume_editor.app.api.routes.resume.extract_certifications_info")
+@patch("resume_editor.app.api.routes.resume.update_resume_content_with_structured_data")
 def test_update_projects_info_structured_success(
-    mock_extract_certifications,
-    mock_extract_experience,
-    mock_extract_education,
-    mock_extract_personal,
-    mock_build_sections,
-    mock_pre_save_validation,
-    mock_update_resume_db,
+    mock_update_content,
+    mock_validate,
+    mock_update_db,
     client_with_auth_and_resume,
     test_resume,
 ):
     """Test successful update of projects info."""
-    from resume_editor.app.api.routes.route_models import (
-        CertificationsResponse,
-        EducationResponse,
-        ExperienceResponse,
-        PersonalInfoResponse,
-    )
+    from resume_editor.app.api.routes.route_models import ExperienceResponse
 
-    mock_extract_personal.return_value = PersonalInfoResponse(name="Test User")
-    mock_extract_education.return_value = EducationResponse(degrees=[])
-    mock_extract_experience.return_value = ExperienceResponse(roles=[], projects=[])
-    mock_extract_certifications.return_value = CertificationsResponse(certifications=[])
-    mock_build_sections.return_value = "new updated content"
+    mock_update_content.return_value = "new updated content"
     payload = {
         "projects": [
             {
@@ -718,29 +644,21 @@ def test_update_projects_info_structured_success(
     assert response_data["projects"][0]["overview"]["title"] == "new title"
     assert response_data["projects"][0]["description"]["text"] == "A new project."
 
-    mock_extract_personal.assert_called_once_with(TEST_RESUME_CONTENT)
-    mock_extract_education.assert_called_once_with(TEST_RESUME_CONTENT)
-    mock_extract_experience.assert_called_once_with(TEST_RESUME_CONTENT)
-    mock_extract_certifications.assert_called_once_with(TEST_RESUME_CONTENT)
-
-    mock_build_sections.assert_called_once()
-    call_kwargs = mock_build_sections.call_args.kwargs
+    mock_update_content.assert_called_once()
+    call_kwargs = mock_update_content.call_args.kwargs
+    assert call_kwargs["current_content"] == VALID_MINIMAL_RESUME_CONTENT
+    assert isinstance(call_kwargs["experience"], ExperienceResponse)
     assert call_kwargs["experience"].projects[0].overview.title == "new title"
-    assert call_kwargs["experience"].projects[0].description.text == "A new project."
-    # The roles should be preserved from the extracted experience.
-    assert call_kwargs["experience"].roles == []
-    assert call_kwargs["personal_info"] == mock_extract_personal.return_value
-    assert call_kwargs["education"] == mock_extract_education.return_value
-    assert call_kwargs["certifications"] == mock_extract_certifications.return_value
+    assert len(call_kwargs["experience"].roles) == 1
 
-    mock_pre_save_validation.assert_called_once_with(
+    mock_validate.assert_called_once_with(
         "new updated content",
-        TEST_RESUME_CONTENT,
+        VALID_MINIMAL_RESUME_CONTENT,
     )
 
-    mock_update_resume_db.assert_called_once()
-    assert mock_update_resume_db.call_args.args[1] == test_resume
-    assert mock_update_resume_db.call_args.kwargs["content"] == "new updated content"
+    mock_update_db.assert_called_once()
+    assert mock_update_db.call_args.args[1] == test_resume
+    assert mock_update_db.call_args.kwargs["content"] == "new updated content"
 
 
 def test_get_certifications_info_success(client_with_auth_and_resume):
@@ -754,37 +672,23 @@ def test_get_certifications_info_success(client_with_auth_and_resume):
         response = client_with_auth_and_resume.get("/api/resumes/1/certifications")
         assert response.status_code == 200
         assert response.json() == {"certifications": []}
-        mock_extract.assert_called_once_with(TEST_RESUME_CONTENT)
+        mock_extract.assert_called_once_with(VALID_MINIMAL_RESUME_CONTENT)
 
 
 @patch("resume_editor.app.api.routes.resume.update_resume_db")
 @patch("resume_editor.app.api.routes.resume.perform_pre_save_validation")
-@patch("resume_editor.app.api.routes.resume.build_complete_resume_from_sections")
-@patch("resume_editor.app.api.routes.resume.extract_personal_info")
-@patch("resume_editor.app.api.routes.resume.extract_education_info")
-@patch("resume_editor.app.api.routes.resume.extract_experience_info")
+@patch("resume_editor.app.api.routes.resume.update_resume_content_with_structured_data")
 def test_update_certifications_info_structured_success(
-    mock_extract_experience,
-    mock_extract_education,
-    mock_extract_personal,
-    mock_build_sections,
-    mock_pre_save_validation,
-    mock_update_resume_db,
+    mock_update_content,
+    mock_validate,
+    mock_update_db,
     client_with_auth_and_resume,
     test_resume,
 ):
     """Test successful update of certifications info."""
-    from resume_editor.app.api.routes.route_models import (
-        CertificationsResponse,
-        EducationResponse,
-        ExperienceResponse,
-        PersonalInfoResponse,
-    )
+    from resume_editor.app.api.routes.route_models import CertificationsResponse
 
-    mock_extract_personal.return_value = PersonalInfoResponse(name="Test User")
-    mock_extract_education.return_value = EducationResponse(degrees=[])
-    mock_extract_experience.return_value = ExperienceResponse(roles=[], projects=[])
-    mock_build_sections.return_value = "new updated content"
+    mock_update_content.return_value = "new updated content"
     payload = {"certifications": [{"name": "new cert"}]}
 
     response = client_with_auth_and_resume.put(
@@ -796,26 +700,20 @@ def test_update_certifications_info_structured_success(
     response_data = response.json()
     assert response_data["certifications"][0]["name"] == "new cert"
 
-    mock_extract_personal.assert_called_once_with(TEST_RESUME_CONTENT)
-    mock_extract_education.assert_called_once_with(TEST_RESUME_CONTENT)
-    mock_extract_experience.assert_called_once_with(TEST_RESUME_CONTENT)
-
-    mock_build_sections.assert_called_once()
-    call_kwargs = mock_build_sections.call_args.kwargs
+    mock_update_content.assert_called_once()
+    call_kwargs = mock_update_content.call_args.kwargs
+    assert call_kwargs["current_content"] == VALID_MINIMAL_RESUME_CONTENT
     assert isinstance(call_kwargs["certifications"], CertificationsResponse)
     assert call_kwargs["certifications"].certifications[0].name == "new cert"
-    assert call_kwargs["personal_info"] == mock_extract_personal.return_value
-    assert call_kwargs["education"] == mock_extract_education.return_value
-    assert call_kwargs["experience"] == mock_extract_experience.return_value
 
-    mock_pre_save_validation.assert_called_once_with(
+    mock_validate.assert_called_once_with(
         "new updated content",
-        TEST_RESUME_CONTENT,
+        VALID_MINIMAL_RESUME_CONTENT,
     )
 
-    mock_update_resume_db.assert_called_once()
-    assert mock_update_resume_db.call_args.args[1] == test_resume
-    assert mock_update_resume_db.call_args.kwargs["content"] == "new updated content"
+    mock_update_db.assert_called_once()
+    assert mock_update_db.call_args.args[1] == test_resume
+    assert mock_update_db.call_args.kwargs["content"] == "new updated content"
 
 
 def test_get_resume(client_with_auth_and_resume, test_resume):
@@ -894,14 +792,14 @@ def test_create_resume(
 
 
 @patch("resume_editor.app.api.routes.resume.update_resume_db")
-@patch("resume_editor.app.api.routes.resume.extract_education_info")
+@patch("resume_editor.app.api.routes.resume.update_resume_content_with_structured_data")
 def test_update_personal_info_reconstruction_error(
-    mock_extract_education,
+    mock_update_content,
     mock_update_resume_db,
     client_with_auth_and_resume,
 ):
     """Test that a reconstruction error during structured update is handled."""
-    mock_extract_education.side_effect = ValueError("Parsing failed")
+    mock_update_content.side_effect = ValueError("Parsing failed")
     payload = {"name": "new name", "email": "new@email.com"}
 
     response = client_with_auth_and_resume.put(
@@ -1069,7 +967,8 @@ def test_export_resume_docx_with_leading_content(
 ):
     """Test docx export with leading content before the first valid header."""
     test_resume.content = (
-        "Some junk text\n## A subheading\n# Invalid Header\n" + TEST_RESUME_CONTENT
+        "Some junk text\n## A subheading\n# Invalid Header\n"
+        + VALID_MINIMAL_RESUME_CONTENT
     )
 
     response = client_with_auth_and_resume.get(
@@ -1079,7 +978,7 @@ def test_export_resume_docx_with_leading_content(
     mock_plain_render.assert_called_once()
     # Ensure the parser still managed to get the right content
     parsed_resume = mock_plain_render.call_args[0][1]
-    assert parsed_resume.personal.contact_info.name == "Test User"
+    assert parsed_resume.personal.contact_info.name == "Test Person"
 
 
 @patch("resume_editor.app.api.routes.resume.plain_render")
@@ -1172,14 +1071,14 @@ def test_export_resume_markdown_not_found(client_with_auth_no_resume):
 
 
 @patch("resume_editor.app.api.routes.resume.update_resume_db")
-@patch("resume_editor.app.api.routes.resume.extract_personal_info")
+@patch("resume_editor.app.api.routes.resume.update_resume_content_with_structured_data")
 def test_update_education_info_reconstruction_error(
-    mock_extract_personal,
+    mock_update_content,
     mock_update_resume_db,
     client_with_auth_and_resume,
 ):
     """Test that a reconstruction error during education update is handled."""
-    mock_extract_personal.side_effect = ValueError("Parsing failed")
+    mock_update_content.side_effect = ValueError("Parsing failed")
     payload = {"degrees": [{"school": "new school", "degree": "BSc"}]}
 
     response = client_with_auth_and_resume.put(
@@ -1193,14 +1092,14 @@ def test_update_education_info_reconstruction_error(
 
 
 @patch("resume_editor.app.api.routes.resume.update_resume_db")
-@patch("resume_editor.app.api.routes.resume.extract_personal_info")
+@patch("resume_editor.app.api.routes.resume.update_resume_content_with_structured_data")
 def test_update_experience_info_reconstruction_error(
-    mock_extract_personal,
+    mock_update_content,
     mock_update_resume_db,
     client_with_auth_and_resume,
 ):
     """Test that a reconstruction error during experience update is handled."""
-    mock_extract_personal.side_effect = ValueError("Parsing failed")
+    mock_update_content.side_effect = ValueError("Parsing failed")
     payload = {
         "roles": [
             {
@@ -1224,14 +1123,14 @@ def test_update_experience_info_reconstruction_error(
 
 
 @patch("resume_editor.app.api.routes.resume.update_resume_db")
-@patch("resume_editor.app.api.routes.resume.extract_personal_info")
+@patch("resume_editor.app.api.routes.resume.update_resume_content_with_structured_data")
 def test_update_projects_info_reconstruction_error(
-    mock_extract_personal,
+    mock_update_content,
     mock_update_resume_db,
     client_with_auth_and_resume,
 ):
     """Test that a reconstruction error during projects update is handled."""
-    mock_extract_personal.side_effect = ValueError("Parsing failed")
+    mock_update_content.side_effect = ValueError("Parsing failed")
     payload = {
         "projects": [
             {
@@ -1259,14 +1158,14 @@ def test_update_projects_info_reconstruction_error(
 
 
 @patch("resume_editor.app.api.routes.resume.update_resume_db")
-@patch("resume_editor.app.api.routes.resume.extract_personal_info")
+@patch("resume_editor.app.api.routes.resume.update_resume_content_with_structured_data")
 def test_update_certifications_info_reconstruction_error(
-    mock_extract_personal,
+    mock_update_content,
     mock_update_resume_db,
     client_with_auth_and_resume,
 ):
     """Test that a reconstruction error during certifications update is handled."""
-    mock_extract_personal.side_effect = ValueError("Parsing failed")
+    mock_update_content.side_effect = ValueError("Parsing failed")
     payload = {"certifications": [{"name": "new cert"}]}
 
     response = client_with_auth_and_resume.put(
@@ -1347,7 +1246,7 @@ def test_refine_resume_success_with_key(
     mock_get_user_settings.assert_called_once_with(mock_db_session, test_user.id)
     mock_decrypt_data.assert_called_once_with("key")
     mock_refine_llm.assert_called_once_with(
-        resume_content=TEST_RESUME_CONTENT,
+        resume_content=VALID_MINIMAL_RESUME_CONTENT,
         job_description="job",
         target_section="experience",
         llm_endpoint="http://llm.test",
@@ -1382,7 +1281,7 @@ def test_refine_resume_no_settings(
     assert response.json() == {"refined_content": "refined"}
     mock_get_user_settings.assert_called_once_with(mock_db_session, test_user.id)
     mock_refine_llm.assert_called_once_with(
-        resume_content=TEST_RESUME_CONTENT,
+        resume_content=VALID_MINIMAL_RESUME_CONTENT,
         job_description="job",
         target_section="experience",
         llm_endpoint=None,
@@ -1415,7 +1314,7 @@ def test_refine_resume_no_api_key(
     assert response.status_code == 200
     assert response.json() == {"refined_content": "refined"}
     mock_refine_llm.assert_called_once_with(
-        resume_content=TEST_RESUME_CONTENT,
+        resume_content=VALID_MINIMAL_RESUME_CONTENT,
         job_description="job",
         target_section="experience",
         llm_endpoint="http://llm.test",

@@ -4,6 +4,7 @@ from unittest.mock import MagicMock, patch
 from fastapi.testclient import TestClient
 
 from resume_editor.app.api.routes.user import get_current_user
+from resume_editor.app.core.config import get_settings
 from resume_editor.app.database.database import get_db
 from resume_editor.app.main import create_app
 from resume_editor.app.models.user import User
@@ -14,6 +15,7 @@ log = logging.getLogger(__name__)
 
 def test_user_settings_endpoints(monkeypatch):
     """Test user settings endpoints."""
+    get_settings.cache_clear()
     monkeypatch.setenv("ENCRYPTION_KEY", "dGVzdF9rZXlfbXVzdF9iZV8zMl9ieXRlc19sb25n")
     app = create_app()
     client = TestClient(app)
@@ -52,7 +54,7 @@ def test_user_settings_endpoints(monkeypatch):
             json={"llm_endpoint": "http://test.com", "api_key": "mykey"},
         )
         assert response.status_code == 200
-        mock_encrypt.assert_called_with("mykey")
+        mock_encrypt.assert_called_with(data="mykey")
         added_instance = mock_db.add.call_args[0][0]
         assert isinstance(added_instance, UserSettings)
         assert added_instance.user_id == 1
@@ -93,7 +95,7 @@ def test_user_settings_endpoints(monkeypatch):
         assert response.status_code == 200
         assert mock_settings.llm_endpoint == "http://new.com"
         assert mock_settings.encrypted_api_key == "new_encrypted_key"
-        mock_encrypt.assert_called_once_with("newkey")
+        mock_encrypt.assert_called_once_with(data="newkey")
 
     # Test PUT to clear API key
     mock_db.reset_mock()
@@ -154,7 +156,7 @@ def test_user_settings_endpoints(monkeypatch):
         assert response.status_code == 200
         assert mock_settings.llm_endpoint == "http://existing.com"  # Unchanged
         assert mock_settings.encrypted_api_key == "only-key-encrypted"
-        mock_encrypt.assert_called_once_with("only-key")
+        mock_encrypt.assert_called_once_with(data="only-key")
 
     # Clean up dependency overrides
     app.dependency_overrides.clear()

@@ -7,19 +7,17 @@ log = logging.getLogger(__name__)
 
 
 def _get_date_from_optional_datetime(dt: datetime | None) -> date | None:
-    """
-    Safely convert an optional datetime object to an optional date object.
+    """Extract the date portion from an optional datetime object.
 
     Args:
-        dt (datetime | None): The datetime object to convert, or None.
+        dt (datetime | None): The datetime object to extract the date from, or None.
 
     Returns:
-        date | None: The date portion of the datetime, or None if input is None.
+        date | None: The date portion of the datetime object, or None if input is None.
 
     Notes:
         1. If the input dt is None, return None.
         2. Otherwise, extract and return the date portion of the datetime object using the date() method.
-
     """
     return dt.date() if dt else None
 
@@ -30,8 +28,7 @@ def _is_in_date_range(
     filter_start_date: date | None,
     filter_end_date: date | None,
 ) -> bool:
-    """
-    Check if an item's date range overlaps with the filter's date range.
+    """Check if an item's date range overlaps with the filter's date range.
 
     Args:
         item_start_date (date | None): The start date of the item being evaluated.
@@ -46,7 +43,6 @@ def _is_in_date_range(
         1. If the filter has a start date and the item ends before that date, the item is out of range.
         2. If the filter has an end date and the item starts after that date, the item is out of range.
         3. Otherwise, the item is considered to be in range.
-
     """
     # An item is considered OUT of range if it ends before the filter starts...
     if filter_start_date and item_end_date and item_end_date < filter_start_date:
@@ -63,8 +59,7 @@ def filter_experience_by_date(
     start_date: date | None = None,
     end_date: date | None = None,
 ) -> ExperienceResponse:
-    """
-    Filter roles and projects in an ExperienceResponse based on a date range.
+    """Filter roles and projects in an ExperienceResponse based on a date range.
 
     Args:
         experience (ExperienceResponse): The experience data to filter.
@@ -82,7 +77,6 @@ def filter_experience_by_date(
         5. Projects without an end date are treated as single-day events occurring on their start date.
         6. For each project that overlaps, add it to the filtered_projects list.
         7. Return a new ExperienceResponse object with the filtered roles and projects.
-
     """
     if not start_date and not end_date:
         return experience

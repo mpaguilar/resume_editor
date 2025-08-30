@@ -22,15 +22,15 @@ def parse_resume_to_writer_object(markdown_content: str) -> WriterResume:
         ValueError: If the parsed content contains no valid resume sections (e.g., no personal, education, experience, or certifications data).
 
     Notes:
-        1. Splits the input Markdown content into individual lines.
-        2. Skips any lines before the first valid top-level section header (i.e., lines starting with "# " but not "##").
-        3. Identifies valid section headers by checking against the keys in WriterResume.expected_blocks().
-        4. If a valid header is found, truncates the lines list to start from that header.
-        5. Creates a ParseContext object using the processed lines and indentation level 1.
-        6. Uses the Resume.parse method to parse the content into a WriterResume object.
-        7. Checks if any of the main resume sections (personal, education, experience, certifications) were successfully parsed.
-        8. Raises ValueError if no valid sections were parsed.
-        9. Returns the fully parsed WriterResume object.
+        1. Split the input Markdown content into individual lines.
+        2. Skip any lines before the first valid top-level section header (i.e., lines starting with "# " but not "##").
+        3. Identify valid section headers by checking against the keys in WriterResume.expected_blocks().
+        4. If a valid header is found, truncate the lines list to start from that header.
+        5. Create a ParseContext object using the processed lines and indentation level 1.
+        6. Use the Resume.parse method to parse the content into a WriterResume object.
+        7. Check if any of the main resume sections (personal, education, experience, certifications) were successfully parsed.
+        8. Raise ValueError if no valid sections were parsed.
+        9. Return the fully parsed WriterResume object.
 
     """
     lines = markdown_content.split("\n")
@@ -87,11 +87,11 @@ def parse_resume(markdown_content: str) -> dict[str, Any]:
         HTTPException: If parsing fails due to invalid format or content, with status 422 and a descriptive message.
 
     Notes:
-        1. Logs the start of the parsing process.
-        2. Calls parse_resume_to_writer_object to parse the Markdown content into a WriterResume object.
-        3. Converts the WriterResume object to a dictionary using vars().
-        4. Logs successful completion.
-        5. Returns the dictionary representation.
+        1. Log the start of the parsing process.
+        2. Call parse_resume_to_writer_object to parse the Markdown content into a WriterResume object.
+        3. Convert the WriterResume object to a dictionary using vars().
+        4. Log successful completion.
+        5. Return the dictionary representation.
         6. No disk, network, or database access is performed.
 
     """
@@ -134,10 +134,10 @@ def parse_resume_content(markdown_content: str) -> dict[str, Any]:
         HTTPException: If parsing fails due to invalid format or content, with status 400 and a descriptive message.
 
     Notes:
-        1. Logs the start of the parsing process.
-        2. Uses the parse_resume function to parse the provided markdown_content.
-        3. Returns the result of parse_resume as a dictionary.
-        4. Logs successful completion.
+        1. Log the start of the parsing process.
+        2. Use the parse_resume function to parse the provided markdown_content.
+        3. Return the result of parse_resume as a dictionary.
+        4. Log successful completion.
         5. No disk, network, or database access is performed.
 
     """
@@ -169,10 +169,10 @@ def validate_resume_content(content: str) -> None:
         HTTPException: If parsing fails due to invalid format, with status 422 and a descriptive message.
 
     Notes:
-        1. Logs the start of the validation process.
-        2. Attempts to parse the provided content using the parse_resume function.
-        3. If parsing fails, raises an HTTPException with a descriptive error message.
-        4. Logs successful completion if no exception is raised.
+        1. Log the start of the validation process.
+        2. Attempt to parse the provided content using the parse_resume function.
+        3. If parsing fails, raise an HTTPException with a descriptive error message.
+        4. Log successful completion if no exception is raised.
         5. No disk, network, or database access is performed.
 
     """

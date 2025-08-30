@@ -1,17 +1,17 @@
 {
-  "resume_editor/app/__init__.py": {
-    "filepath": "resume_editor/app/__init__.py",
+  "./resume_editor/app/__init__.py": {
+    "filepath": "./resume_editor/app/__init__.py",
     "filename": "__init__.py",
     "functions": [],
     "classes": {}
   },
-  "resume_editor/app/main.py": {
-    "filepath": "resume_editor/app/main.py",
+  "./resume_editor/app/main.py": {
+    "filepath": "./resume_editor/app/main.py",
     "filename": "main.py",
     "functions": [
       [
         "create_app() -> FastAPI",
-        "Create and configure the FastAPI application.\n\nArgs:\n    None\n\nReturns:\n    FastAPI: The configured FastAPI application instance.\n\nNotes:\n    1. Initialize the FastAPI application with the title \"Resume Editor API\".\n    2. Add CORS middleware to allow requests from any origin (for development only).\n    3. Include the user router to handle user-related API endpoints.\n    4. Include the resume router to handle resume-related API endpoints.\n    5. Define a health check endpoint at \"/health\" that returns a JSON object with status \"ok\".\n    6. Add static file serving for CSS/JS assets.\n    7. Add template rendering for HTML pages.\n    8. Define dashboard routes for the HTMX-based interface.\n    9. Log a success message indicating the application was created."
+        "Create and configure the FastAPI application.\n\nArgs:\n    None\n\nReturns:\n    FastAPI: The configured FastAPI application instance.\n\nNotes:\n    1. Initialize the FastAPI application with the title \"Resume Editor API\".\n    2. Add CORS middleware to allow requests from any origin (for development only).\n    3. Include the user router to handle user-related API endpoints.\n    4. Include the resume router to handle resume-related API endpoints.\n    5. Include the admin router to handle administrative API endpoints.\n    6. Define a health check endpoint at \"/health\" that returns a JSON object with status \"ok\".\n    7. Add static file serving for CSS/JS assets.\n    8. Add template rendering for HTML pages.\n    9. Define dashboard routes for the HTMX-based interface.\n    10. Log a success message indicating the application was created."
       ],
       [
         "initialize_database() -> UnknownType",
@@ -24,19 +24,19 @@
     ],
     "classes": {}
   },
-  "resume_editor/app/api/__init__.py": {
-    "filepath": "resume_editor/app/api/__init__.py",
+  "./resume_editor/app/api/__init__.py": {
+    "filepath": "./resume_editor/app/api/__init__.py",
     "filename": "__init__.py",
     "functions": [
       [
         "get_app() -> FastAPI",
-        "Creates and configures the FastAPI application instance.\n\nThis function initializes a FastAPI app with the following features:\n- Includes the authentication and resume management routes.\n- Configures middleware for logging and error handling.\n- Sets up CORS to allow frontend access from different origins.\n\nArgs:\n    None.\n\nReturns:\n    FastAPI: A configured FastAPI application instance.\n\nNotes:\n    1. The application is initialized with a title, version, and description.\n    2. Routes are included from the main application setup.\n    3. CORS is enabled with allow_origins set to allow requests from 'http://localhost:3000'.\n    4. The middleware stack includes logging and exception handling.\n    5. The database session is provided via dependency injection through the 'get_db' function.\n    6. The function performs no disk or network I/O.\n    7. The function does not perform any database access."
+        "Creates and configures the FastAPI application instance.\n\nThis function initializes a FastAPI app with the following features:\n- Includes the authentication and resume management routes.\n- Configures middleware for logging and error handling.\n- Sets up CORS to allow frontend access from different origins.\n\nArgs:\n    None.\n\nReturns:\n    FastAPI: A configured FastAPI application instance.\n\nRaises:\n    None.\n\nNotes:\n    1. The application is initialized with a title, version, and description.\n    2. Routes are included from the main application setup.\n    3. CORS is enabled with allow_origins set to allow requests from 'http://localhost:3000'.\n    4. The middleware stack includes logging and exception handling.\n    5. The database session is provided via dependency injection through the 'get_db' function.\n    6. The function performs no disk or network I/O.\n    7. The function does not perform any database access."
       ]
     ],
     "classes": {}
   },
-  "resume_editor/app/api/routes/resume.py": {
-    "filepath": "resume_editor/app/api/routes/resume.py",
+  "./resume_editor/app/api/routes/resume.py": {
+    "filepath": "./resume_editor/app/api/routes/resume.py",
     "filename": "resume.py",
     "functions": [
       [
@@ -50,8 +50,8 @@
     ],
     "classes": {}
   },
-  "resume_editor/app/api/routes/user.py": {
-    "filepath": "resume_editor/app/api/routes/user.py",
+  "./resume_editor/app/api/routes/user.py": {
+    "filepath": "./resume_editor/app/api/routes/user.py",
     "filename": "user.py",
     "functions": [
       [
@@ -67,6 +67,18 @@
         "Create a new user in the database with the provided data.\n\nArgs:\n    db: Database session dependency used to persist the new user.\n    user_data: Data required to create a new user, including username, email, and password.\n\nReturns:\n    User: The newly created User object with all fields populated.\n\nNotes:\n    1. Hash the provided password using a secure hashing algorithm.\n    2. Instantiate a new User object with the username, email, and hashed password.\n    3. Add the new user object to the database session.\n    4. Commit the transaction to persist the user to the database.\n    5. Refresh the object to ensure it contains the latest state from the database.\n    6. Database access: Performs a write operation on the User table."
       ],
       [
+        "get_users(db: Session) -> list[User]",
+        "Retrieve all users from the database.\n\nArgs:\n    db (Session): The database session.\n\nReturns:\n    list[User]: A list of all user objects."
+      ],
+      [
+        "get_user_by_id(db: Session, user_id: int) -> User | None",
+        "Retrieve a single user by ID.\n\nArgs:\n    db (Session): The database session.\n    user_id (int): The ID of the user to retrieve.\n\nReturns:\n    User | None: The user object if found, otherwise None."
+      ],
+      [
+        "delete_user(db: Session, user: User) -> None",
+        "Delete a user from the database.\n\nArgs:\n    db (Session): The database session.\n    user (User): The user object to delete."
+      ],
+      [
         "register_user(user: UserCreate, db: Session) -> UserResponse",
         "Register a new user with the provided credentials.\n\nArgs:\n    user: Data containing username, email, and password for the new user.\n    db: Database session dependency used to interact with the user database.\n\nReturns:\n    UserResponse: The created user's data, excluding the password.\n\nRaises:\n    HTTPException: If the username or email is already registered.\n\nNotes:\n    1. Check if the provided username already exists in the database.\n    2. If the username exists, raise a 400 error.\n    3. Check if the provided email already exists in the database.\n    4. If the email exists, raise a 400 error.\n    5. Create a new user with the provided data and store it in the database.\n    6. Return the newly created user's data (without the password).\n    7. Database access: Performs read and write operations on the User table."
       ],
@@ -79,20 +91,55 @@
         "Update the current user's settings.\n\nArgs:\n    settings_data (UserSettingsUpdateRequest): The settings data to update.\n    db (Session): The database session.\n    current_user (User): The authenticated user.\n\nReturns:\n    UserSettingsResponse: The updated user's settings.\n\nNotes:\n    1. Update the user's settings in the database with the provided data.\n    2. Return the updated settings.\n    3. Database access: Performs a write operation on the UserSettings table."
       ],
       [
-        "login_user(form_data: Annotated[OAuth2PasswordRequestForm, Depends()], db: Session) -> Token",
+        "login_user(form_data: Annotated[OAuth2PasswordRequestForm, Depends()], db: Session, settings: Settings) -> Token",
         "Authenticate a user and return an access token.\n\nArgs:\n    form_data: Form data containing username and password for authentication.\n    db: Database session dependency used to verify user credentials.\n\nReturns:\n    Token: An access token for the authenticated user, formatted as a JWT.\n\nRaises:\n    HTTPException: If the username or password is incorrect.\n\nNotes:\n    1. Attempt to authenticate the user using the provided username and password.\n    2. If authentication fails, raise a 401 error.\n    3. Generate a JWT access token with a defined expiration time.\n    4. Return the access token to the client.\n    5. Database access: Performs a read operation on the User table to verify credentials."
       ]
     ],
     "classes": {}
   },
-  "resume_editor/app/api/routes/route_models.py": {
-    "filepath": "resume_editor/app/api/routes/route_models.py",
+  "./resume_editor/app/api/routes/route_models.py": {
+    "filepath": "./resume_editor/app/api/routes/route_models.py",
     "filename": "route_models.py",
     "functions": [],
     "classes": {}
   },
-  "resume_editor/app/api/routes/route_logic/resume_crud.py": {
-    "filepath": "resume_editor/app/api/routes/route_logic/resume_crud.py",
+  "./resume_editor/app/api/routes/admin.py": {
+    "filepath": "./resume_editor/app/api/routes/admin.py",
+    "filename": "admin.py",
+    "functions": [
+      [
+        "admin_create_user(user_data: AdminUserCreate, db: Session) -> UnknownType",
+        "Admin endpoint to create a new user.\n\nArgs:\n    user_data (AdminUserCreate): The data required to create a new user, including username, password, and optional email.\n    db (Session): The database session used to interact with the database.\n\nReturns:\n    UserResponse: The created user's data, including the user's ID, username, and any other public fields.\n\nNotes:\n    1. Logs the admin's attempt to create a user.\n    2. Reuses the existing logic from create_new_user to create the user.\n    3. Commits the new user to the database.\n    4. Logs the completion of user creation.\n    5. Database access occurs during user creation and commit."
+      ],
+      [
+        "admin_get_users(db: Session) -> UnknownType",
+        "Admin endpoint to list all users.\n\nArgs:\n    db (Session): The database session used to interact with the database.\n\nReturns:\n    list[UserResponse]: A list of all users' data, including their ID, username, and other public fields.\n\nNotes:\n    1. Logs the admin's request to fetch all users.\n    2. Retrieves all users from the database using db_get_users.\n    3. Logs the completion of the fetch operation.\n    4. Database access occurs during the retrieval of users."
+      ],
+      [
+        "admin_get_user(user_id: int, db: Session) -> UnknownType",
+        "Admin endpoint to get a single user by ID.\n\nArgs:\n    user_id (int): The unique identifier of the user to retrieve.\n    db (Session): The database session used to interact with the database.\n\nReturns:\n    UserResponse: The data of the requested user, including their ID, username, and other public fields.\n\nRaises:\n    HTTPException: If the user with the given ID is not found, raises a 404 error.\n\nNotes:\n    1. Logs the admin's request to fetch a user by ID.\n    2. Retrieves the user from the database using get_user_by_id.\n    3. If the user is not found, raises a 404 HTTPException.\n    4. Logs the completion of the fetch operation.\n    5. Database access occurs during the user retrieval."
+      ],
+      [
+        "admin_delete_user(user_id: int, db: Session) -> UnknownType",
+        "Admin endpoint to delete a user.\n\nArgs:\n    user_id (int): The unique identifier of the user to delete.\n    db (Session): The database session used to interact with the database.\n\nRaises:\n    HTTPException: If the user with the given ID is not found, raises a 404 error.\n\nNotes:\n    1. Logs the admin's request to delete a user.\n    2. Retrieves the user from the database using get_user_by_id.\n    3. If the user is not found, raises a 404 HTTPException.\n    4. Deletes the user from the database using db_delete_user.\n    5. Commits the deletion to the database.\n    6. Logs the completion of the deletion.\n    7. Database access occurs during user retrieval, deletion, and commit."
+      ],
+      [
+        "admin_assign_role_to_user(user_id: int, role_name: str, db: Session) -> UnknownType",
+        "Admin endpoint to assign a role to a user.\n\nArgs:\n    user_id (int): The unique identifier of the user to assign the role to.\n    role_name (str): The name of the role to assign.\n    db (Session): The database session used to interact with the database.\n\nReturns:\n    UserResponse: The updated user data, including the newly assigned role.\n\nRaises:\n    HTTPException: If the user or role is not found (404 error), or if the user already has the role (400 error).\n\nNotes:\n    1. Logs the admin's attempt to assign a role to a user.\n    2. Retrieves the user from the database using get_user_by_id.\n    3. If the user is not found, raises a 404 HTTPException.\n    4. Retrieves the role from the database using get_role_by_name.\n    5. If the role is not found, raises a 404 HTTPException.\n    6. Checks if the user already has the role; if so, returns the user without modification.\n    7. Appends the role to the user's roles list.\n    8. Commits the change to the database.\n    9. Refreshes the user object from the database.\n    10. Logs the completion of the role assignment.\n    11. Database access occurs during user and role retrieval, modification, and commit."
+      ],
+      [
+        "admin_remove_role_from_user(user_id: int, role_name: str, db: Session) -> UnknownType",
+        "Admin endpoint to remove a role from a user.\n\nArgs:\n    user_id (int): The unique identifier of the user to remove the role from.\n    role_name (str): The name of the role to remove.\n    db (Session): The database session used to interact with the database.\n\nReturns:\n    UserResponse: The updated user data, excluding the removed role.\n\nRaises:\n    HTTPException: If the user or role is not found (404 error), or if the user does not have the role (400 error).\n\nNotes:\n    1. Logs the admin's attempt to remove a role from a user.\n    2. Retrieves the user from the database using get_user_by_id.\n    3. If the user is not found, raises a 404 HTTPException.\n    4. Retrieves the role from the database using get_role_by_name.\n    5. If the role is not found, raises a 404 HTTPException.\n    6. Checks if the user has the role; if not, raises a 400 HTTPException.\n    7. Removes the role from the user's roles list.\n    8. Commits the change to the database.\n    9. Refreshes the user object from the database.\n    10. Logs the completion of the role removal.\n    11. Database access occurs during user and role retrieval, modification, and commit."
+      ],
+      [
+        "admin_impersonate_user(username: str, db: Session, admin_user: User, settings: Settings) -> UnknownType",
+        "Admin endpoint to impersonate a user.\n\nArgs:\n    username (str): The username of the user to impersonate.\n    db (Session): The database session used to interact with the database.\n    admin_user (User): The currently authenticated admin user.\n\nReturns:\n    Token: A JWT access token for the impersonated user, with the admin's username as the impersonator.\n\nRaises:\n    HTTPException: If the user to impersonate is not found, raises a 404 error.\n\nNotes:\n    1. Logs the admin's attempt to impersonate a user.\n    2. Retrieves the target user from the database by username.\n    3. If the target user is not found, raises a 404 HTTPException.\n    4. Creates a JWT access token with the admin's username as the impersonator.\n    5. Logs the successful creation of the impersonation token."
+      ]
+    ],
+    "classes": {}
+  },
+  "./resume_editor/app/api/routes/route_logic/resume_crud.py": {
+    "filepath": "./resume_editor/app/api/routes/route_logic/resume_crud.py",
     "filename": "resume_crud.py",
     "functions": [
       [
@@ -118,8 +165,8 @@
     ],
     "classes": {}
   },
-  "resume_editor/app/api/routes/route_logic/resume_validation.py": {
-    "filepath": "resume_editor/app/api/routes/route_logic/resume_validation.py",
+  "./resume_editor/app/api/routes/route_logic/resume_validation.py": {
+    "filepath": "./resume_editor/app/api/routes/route_logic/resume_validation.py",
     "filename": "resume_validation.py",
     "functions": [
       [
@@ -129,13 +176,13 @@
     ],
     "classes": {}
   },
-  "resume_editor/app/api/routes/route_logic/resume_filtering.py": {
-    "filepath": "resume_editor/app/api/routes/route_logic/resume_filtering.py",
+  "./resume_editor/app/api/routes/route_logic/resume_filtering.py": {
+    "filepath": "./resume_editor/app/api/routes/route_logic/resume_filtering.py",
     "filename": "resume_filtering.py",
     "functions": [
       [
         "_get_date_from_optional_datetime(dt: datetime | None) -> date | None",
-        "Safely convert an optional datetime object to an optional date object.\n\nArgs:\n    dt (datetime | None): The datetime object to convert, or None.\n\nReturns:\n    date | None: The date portion of the datetime, or None if input is None.\n\nNotes:\n    1. If the input dt is None, return None.\n    2. Otherwise, extract and return the date portion of the datetime object using the date() method."
+        "Extract the date portion from an optional datetime object.\n\nArgs:\n    dt (datetime | None): The datetime object to extract the date from, or None.\n\nReturns:\n    date | None: The date portion of the datetime object, or None if input is None.\n\nNotes:\n    1. If the input dt is None, return None.\n    2. Otherwise, extract and return the date portion of the datetime object using the date() method."
       ],
       [
         "_is_in_date_range(item_start_date: date | None, item_end_date: date | None, filter_start_date: date | None, filter_end_date: date | None) -> bool",
@@ -148,8 +195,8 @@
     ],
     "classes": {}
   },
-  "resume_editor/app/api/routes/route_logic/resume_llm.py": {
-    "filepath": "resume_editor/app/api/routes/route_logic/resume_llm.py",
+  "./resume_editor/app/api/routes/route_logic/resume_llm.py": {
+    "filepath": "./resume_editor/app/api/routes/route_logic/resume_llm.py",
     "filename": "resume_llm.py",
     "functions": [
       [
@@ -158,13 +205,13 @@
       ],
       [
         "refine_resume_section_with_llm(resume_content: str, job_description: str, target_section: str, llm_endpoint: str | None, api_key: str | None) -> str",
-        "Uses an LLM to refine a specific section of a resume based on a job description.\n\nArgs:\n    resume_content (str): The full Markdown content of the resume.\n    job_description (str): The job description to align the resume with.\n    target_section (str): The section of the resume to refine (e.g., \"experience\").\n    llm_endpoint (str | None): The custom LLM endpoint URL.\n    api_key (str | None): The user's decrypted LLM API key.\n\nReturns:\n    str: The refined Markdown content for the target section. Returns an empty string if the target section is empty.\n\nNotes:\n    1. Extract the target section content from the resume using _get_section_content.\n    2. If the extracted content is empty, return an empty string.\n    3. Set up a PydanticOutputParser for structured output based on the RefinedSection model.\n    4. Create a PromptTemplate with instructions for the LLM, including format instructions.\n    5. Initialize the ChatOpenAI client with the specified model, temperature, API base, and API key.\n    6. Create a chain combining the prompt, LLM, and parser.\n    7. Invoke the chain with the job description and resume section content.\n    8. Parse the LLM's JSON-Markdown output using parse_json_markdown if the result is a string.\n    9. Validate the parsed JSON against the RefinedSection model.\n    10. Return the refined_markdown field from the validated result."
+        "Uses an LLM to refine a specific section of a resume based on a job description.\n\nArgs:\n    resume_content (str): The full Markdown content of the resume.\n    job_description (str): The job description to align the resume with.\n    target_section (str): The section of the resume to refine (e.g., \"experience\").\n    llm_endpoint (str | None): The custom LLM endpoint URL.\n    api_key (str | None): The user's decrypted LLM API key.\n\nReturns:\n    str: The refined Markdown content for the target section. Returns an empty string if the target section is empty.\n\nNotes:\n    1. Extract the target section content from the resume using _get_section_content.\n    2. If the extracted content is empty, return an empty string.\n    3. Set up a PydanticOutputParser for structured output based on the RefinedSection model.\n    4. Create a PromptTemplate with instructions for the LLM, including format instructions.\n    5. Initialize the ChatOpenAI client with the specified model, temperature, API base, and API key.\n    6. Create a chain combining the prompt, LLM, and parser.\n    7. Invoke the chain with the job description and resume section content.\n    8. Parse the LLM's JSON-Markdown output using parse_json_markdown if the result is a string.\n    9. Validate the parsed JSON against the RefinedSection model.\n    10. Return the refined_markdown field from the validated result.\n\nNetwork access:\n    - This function makes a network request to the LLM endpoint specified by llm_endpoint."
       ]
     ],
     "classes": {}
   },
-  "resume_editor/app/api/routes/route_logic/settings_crud.py": {
-    "filepath": "resume_editor/app/api/routes/route_logic/settings_crud.py",
+  "./resume_editor/app/api/routes/route_logic/settings_crud.py": {
+    "filepath": "./resume_editor/app/api/routes/route_logic/settings_crud.py",
     "filename": "settings_crud.py",
     "functions": [
       [
@@ -178,8 +225,8 @@
     ],
     "classes": {}
   },
-  "resume_editor/app/api/routes/route_logic/resume_reconstruction.py": {
-    "filepath": "resume_editor/app/api/routes/route_logic/resume_reconstruction.py",
+  "./resume_editor/app/api/routes/route_logic/resume_reconstruction.py": {
+    "filepath": "./resume_editor/app/api/routes/route_logic/resume_reconstruction.py",
     "filename": "resume_reconstruction.py",
     "functions": [
       [
@@ -193,31 +240,74 @@
     ],
     "classes": {}
   },
-  "resume_editor/app/api/routes/route_logic/resume_parsing.py": {
-    "filepath": "resume_editor/app/api/routes/route_logic/resume_parsing.py",
-    "filename": "resume_parsing.py",
+  "./resume_editor/app/api/routes/route_logic/admin_crud.py": {
+    "filepath": "./resume_editor/app/api/routes/route_logic/admin_crud.py",
+    "filename": "admin_crud.py",
     "functions": [
       [
-        "parse_resume_to_writer_object(markdown_content: str) -> WriterResume",
-        "Parse Markdown resume content into a resume_writer Resume object.\n\nArgs:\n    markdown_content (str): The Markdown content to parse, expected to follow a valid resume format.\n\nReturns:\n    WriterResume: The parsed resume object from the resume_writer library, containing structured data for personal info, experience, education, certifications, etc.\n\nRaises:\n    ValueError: If the parsed content contains no valid resume sections (e.g., no personal, education, experience, or certifications data).\n\nNotes:\n    1. Splits the input Markdown content into individual lines.\n    2. Skips any lines before the first valid top-level section header (i.e., lines starting with \"# \" but not \"##\").\n    3. Identifies valid section headers by checking against the keys in WriterResume.expected_blocks().\n    4. If a valid header is found, truncates the lines list to start from that header.\n    5. Creates a ParseContext object using the processed lines and indentation level 1.\n    6. Uses the Resume.parse method to parse the content into a WriterResume object.\n    7. Checks if any of the main resume sections (personal, education, experience, certifications) were successfully parsed.\n    8. Raises ValueError if no valid sections were parsed.\n    9. Returns the fully parsed WriterResume object."
+        "create_user_admin(db: Session, user_data: AdminUserCreate) -> User",
+        "Create a new user as an administrator.\n\nArgs:\n    db (Session): The database session used to interact with the database.\n    user_data (AdminUserCreate): The data required to create a new user, including username, email, password, and other attributes.\n\nReturns:\n    User: The newly created user object with all fields populated, including the generated ID.\n\nNotes:\n    1. Hashes the provided password using the `get_password_hash` utility.\n    2. Creates a new `User` instance with the provided data and the hashed password.\n    3. Adds the new user to the database session.\n    4. Commits the transaction to persist the user to the database.\n    5. Refreshes the user object to ensure it contains the latest data from the database (e.g., auto-generated ID).\n    6. This function performs a database write operation."
       ],
       [
-        "parse_resume(markdown_content: str) -> dict[str, Any]",
-        "Parse Markdown resume content using resume_writer parser and return a dictionary.\n\nArgs:\n    markdown_content (str): The Markdown content to parse, expected to follow a valid resume format.\n\nReturns:\n    dict[str, Any]: A dictionary representation of the parsed resume data, including:\n        - personal: Personal information (e.g., name, email, phone).\n        - experience: List of work experience entries.\n        - education: List of educational qualifications.\n        - certifications: List of certifications.\n        - Any other sections supported by resume_writer.\n\nRaises:\n    HTTPException: If parsing fails due to invalid format or content, with status 422 and a descriptive message.\n\nNotes:\n    1. Logs the start of the parsing process.\n    2. Calls parse_resume_to_writer_object to parse the Markdown content into a WriterResume object.\n    3. Converts the WriterResume object to a dictionary using vars().\n    4. Logs successful completion.\n    5. Returns the dictionary representation.\n    6. No disk, network, or database access is performed."
+        "get_user_by_id_admin(db: Session, user_id: int) -> User | None",
+        "Retrieve a single user by their unique ID as an administrator.\n\nArgs:\n    db (Session): The database session used to query the database.\n    user_id (int): The unique identifier of the user to retrieve.\n\nReturns:\n    User | None: The user object if found, otherwise None.\n\nNotes:\n    1. Queries the database for a user with the specified ID.\n    2. This function performs a database read operation."
       ],
       [
-        "parse_resume_content(markdown_content: str) -> dict[str, Any]",
-        "Parse Markdown resume content and return structured data as a dictionary.\n\nArgs:\n    markdown_content (str): The Markdown content to parse, expected to follow a valid resume format.\n\nReturns:\n    dict: A dictionary containing the structured resume data, including:\n        - personal: Personal information (e.g., name, email, phone).\n        - experience: List of work experience entries.\n        - education: List of educational qualifications.\n        - certifications: List of certifications.\n        - Any other sections supported by resume_writer.\n\nRaises:\n    HTTPException: If parsing fails due to invalid format or content, with status 400 and a descriptive message.\n\nNotes:\n    1. Logs the start of the parsing process.\n    2. Uses the parse_resume function to parse the provided markdown_content.\n    3. Returns the result of parse_resume as a dictionary.\n    4. Logs successful completion.\n    5. No disk, network, or database access is performed."
+        "get_users_admin(db: Session) -> list[User]",
+        "Retrieve all users from the database as an administrator.\n\nArgs:\n    db (Session): The database session used to query the database.\n\nReturns:\n    list[User]: A list of all user objects in the database.\n\nNotes:\n    1. Queries the database for all users.\n    2. This function performs a database read operation."
       ],
       [
-        "validate_resume_content(content: str) -> None",
-        "Validate resume Markdown content for proper format.\n\nArgs:\n    content (str): The Markdown content to validate, expected to be in a format compatible with resume_writer.\n\nReturns:\n    None: The function returns nothing if validation passes.\n\nRaises:\n    HTTPException: If parsing fails due to invalid format, with status 422 and a descriptive message.\n\nNotes:\n    1. Logs the start of the validation process.\n    2. Attempts to parse the provided content using the parse_resume function.\n    3. If parsing fails, raises an HTTPException with a descriptive error message.\n    4. Logs successful completion if no exception is raised.\n    5. No disk, network, or database access is performed."
+        "get_user_by_username_admin(db: Session, username: str) -> User | None",
+        "Retrieve a single user by their username as an administrator.\n\nArgs:\n    db (Session): The database session used to query the database.\n    username (str): The unique username of the user to retrieve.\n\nReturns:\n    User | None: The user object if found, otherwise None.\n\nNotes:\n    1. Queries the database for a user with the specified username.\n    2. This function performs a database read operation."
+      ],
+      [
+        "delete_user_admin(db: Session, user: User) -> None",
+        "Delete a user from the database as an administrator.\n\nArgs:\n    db (Session): The database session used to interact with the database.\n    user (User): The user object to be deleted.\n\nReturns:\n    None\n\nNotes:\n    1. Removes the specified user from the database session.\n    2. Commits the transaction to permanently delete the user from the database.\n    3. This function performs a database write operation."
+      ],
+      [
+        "get_role_by_name_admin(db: Session, name: str) -> Role | None",
+        "Retrieve a role from the database by its unique name.\n\nThis function is intended for administrative use to fetch a role before\nperforming actions like assigning it to or removing it from a user.\n\nArgs:\n    db (Session): The SQLAlchemy database session.\n    name (str): The unique name of the role to retrieve.\n\nReturns:\n    Role | None: The `Role` object if found, otherwise `None`.\n\nNotes:\n    1. Queries the database for a role with the given name.\n    2. This function performs a database read operation."
+      ],
+      [
+        "assign_role_to_user_admin(db: Session, user: User, role: Role) -> User",
+        "Assign a role to a user if they do not already have it.\n\nThis administrative function associates a `Role` with a `User`.\nIt checks for the role's existence on the user before appending to prevent duplicates.\nChanges are committed to the database.\n\nArgs:\n    db (Session): The SQLAlchemy database session.\n    user (User): The user object to which the role will be assigned.\n    role (Role): The role object to assign.\n\nReturns:\n    User: The updated user object, refreshed from the database if changes were made.\n\nNotes:\n    1. Checks if the user already has the role.\n    2. If not, adds the role to the user's roles and commits the change.\n    3. This function performs a database write operation if the role is added."
+      ],
+      [
+        "remove_role_from_user_admin(db: Session, user: User, role: Role) -> User",
+        "Remove a role from a user if they have it.\n\nThis administrative function disassociates a `Role` from a `User`.\nIt checks if the user has the role before attempting removal.\nChanges are committed to the database.\n\nArgs:\n    db (Session): The SQLAlchemy database session.\n    user (User): The user object from which the role will be removed.\n    role (Role): The role object to remove.\n\nReturns:\n    User: The updated user object, refreshed from the database if changes were made.\n\nNotes:\n    1. Checks if the user has the role.\n    2. If so, removes the role from the user's roles and commits the change.\n    3. This function performs a database write operation if the role is removed."
+      ],
+      [
+        "impersonate_user_admin(db: Session, user_id: int) -> str | None",
+        "Generate an impersonation token for a user.\n\nArgs:\n    db (Session): The database session used to interact with the database.\n    user_id (int): The unique identifier of the user to impersonate.\n\nReturns:\n    str | None: The access token if the user is found, otherwise None.\n\nNotes:\n    1. Retrieves the user by ID using `get_user_by_id_admin`.\n    2. If the user exists, creates an access token for them using `SecurityManager`.\n    3. Returns the token, or None if the user was not found.\n    4. This function performs a database read operation."
       ]
     ],
     "classes": {}
   },
-  "resume_editor/app/api/routes/route_logic/resume_serialization.py": {
-    "filepath": "resume_editor/app/api/routes/route_logic/resume_serialization.py",
+  "./resume_editor/app/api/routes/route_logic/resume_parsing.py": {
+    "filepath": "./resume_editor/app/api/routes/route_logic/resume_parsing.py",
+    "filename": "resume_parsing.py",
+    "functions": [
+      [
+        "parse_resume_to_writer_object(markdown_content: str) -> WriterResume",
+        "Parse Markdown resume content into a resume_writer Resume object.\n\nArgs:\n    markdown_content (str): The Markdown content to parse, expected to follow a valid resume format.\n\nReturns:\n    WriterResume: The parsed resume object from the resume_writer library, containing structured data for personal info, experience, education, certifications, etc.\n\nRaises:\n    ValueError: If the parsed content contains no valid resume sections (e.g., no personal, education, experience, or certifications data).\n\nNotes:\n    1. Split the input Markdown content into individual lines.\n    2. Skip any lines before the first valid top-level section header (i.e., lines starting with \"# \" but not \"##\").\n    3. Identify valid section headers by checking against the keys in WriterResume.expected_blocks().\n    4. If a valid header is found, truncate the lines list to start from that header.\n    5. Create a ParseContext object using the processed lines and indentation level 1.\n    6. Use the Resume.parse method to parse the content into a WriterResume object.\n    7. Check if any of the main resume sections (personal, education, experience, certifications) were successfully parsed.\n    8. Raise ValueError if no valid sections were parsed.\n    9. Return the fully parsed WriterResume object."
+      ],
+      [
+        "parse_resume(markdown_content: str) -> dict[str, Any]",
+        "Parse Markdown resume content using resume_writer parser and return a dictionary.\n\nArgs:\n    markdown_content (str): The Markdown content to parse, expected to follow a valid resume format.\n\nReturns:\n    dict[str, Any]: A dictionary representation of the parsed resume data, including:\n        - personal: Personal information (e.g., name, email, phone).\n        - experience: List of work experience entries.\n        - education: List of educational qualifications.\n        - certifications: List of certifications.\n        - Any other sections supported by resume_writer.\n\nRaises:\n    HTTPException: If parsing fails due to invalid format or content, with status 422 and a descriptive message.\n\nNotes:\n    1. Log the start of the parsing process.\n    2. Call parse_resume_to_writer_object to parse the Markdown content into a WriterResume object.\n    3. Convert the WriterResume object to a dictionary using vars().\n    4. Log successful completion.\n    5. Return the dictionary representation.\n    6. No disk, network, or database access is performed."
+      ],
+      [
+        "parse_resume_content(markdown_content: str) -> dict[str, Any]",
+        "Parse Markdown resume content and return structured data as a dictionary.\n\nArgs:\n    markdown_content (str): The Markdown content to parse, expected to follow a valid resume format.\n\nReturns:\n    dict: A dictionary containing the structured resume data, including:\n        - personal: Personal information (e.g., name, email, phone).\n        - experience: List of work experience entries.\n        - education: List of educational qualifications.\n        - certifications: List of certifications.\n        - Any other sections supported by resume_writer.\n\nRaises:\n    HTTPException: If parsing fails due to invalid format or content, with status 400 and a descriptive message.\n\nNotes:\n    1. Log the start of the parsing process.\n    2. Use the parse_resume function to parse the provided markdown_content.\n    3. Return the result of parse_resume as a dictionary.\n    4. Log successful completion.\n    5. No disk, network, or database access is performed."
+      ],
+      [
+        "validate_resume_content(content: str) -> None",
+        "Validate resume Markdown content for proper format.\n\nArgs:\n    content (str): The Markdown content to validate, expected to be in a format compatible with resume_writer.\n\nReturns:\n    None: The function returns nothing if validation passes.\n\nRaises:\n    HTTPException: If parsing fails due to invalid format, with status 422 and a descriptive message.\n\nNotes:\n    1. Log the start of the validation process.\n    2. Attempt to parse the provided content using the parse_resume function.\n    3. If parsing fails, raise an HTTPException with a descriptive error message.\n    4. Log successful completion if no exception is raised.\n    5. No disk, network, or database access is performed."
+      ]
+    ],
+    "classes": {}
+  },
+  "./resume_editor/app/api/routes/route_logic/resume_serialization.py": {
+    "filepath": "./resume_editor/app/api/routes/route_logic/resume_serialization.py",
     "filename": "resume_serialization.py",
     "functions": [
       [
@@ -267,20 +357,20 @@
     ],
     "classes": {}
   },
-  "resume_editor/app/utils/__init__.py": {
-    "filepath": "resume_editor/app/utils/__init__.py",
+  "./resume_editor/app/utils/__init__.py": {
+    "filepath": "./resume_editor/app/utils/__init__.py",
     "filename": "__init__.py",
     "functions": [],
     "classes": {}
   },
-  "resume_editor/app/core/__init__.py": {
-    "filepath": "resume_editor/app/core/__init__.py",
+  "./resume_editor/app/core/__init__.py": {
+    "filepath": "./resume_editor/app/core/__init__.py",
     "filename": "__init__.py",
     "functions": [],
     "classes": {}
   },
-  "resume_editor/app/core/config.py": {
-    "filepath": "resume_editor/app/core/config.py",
+  "./resume_editor/app/core/config.py": {
+    "filepath": "./resume_editor/app/core/config.py",
     "filename": "config.py",
     "functions": [
       [
@@ -294,16 +384,20 @@
         [
           [
             "database_url(self: UnknownType) -> PostgresDsn",
-            "Assembled database URL from components.\n\nArgs:\n    None: This property does not take any arguments.\n\nReturns:\n    PostgresDsn: The fully assembled PostgreSQL connection URL.\n\nNotes:\n    1. Constructs the database URL using the components: scheme, username, password, host, port, and path.\n    2. The scheme is set to \"postgresql\".\n    3. The username, password, host, port, and database name are retrieved from the instance attributes.\n    4. The resulting URL is returned as a PostgresDsn object."
+            "Assembled database URL from components.\n\nArgs:\n    None: This property does not take any arguments.\n\nReturns:\n    PostgresDsn: The fully assembled PostgreSQL connection URL.\n\nNotes:\n    1. Constructs the database URL using the components: scheme, username, password, host, port, and path.\n    2. The scheme is set to \"postgresql\".\n    3. The username, password, host, port, and database name are retrieved from the instance attributes.\n    4. The resulting URL is returned as a PostgresDsn object.\n    5. This function performs disk access to read the .env file at startup."
           ]
         ]
       ]
     }
   },
-  "resume_editor/app/core/security.py": {
-    "filepath": "resume_editor/app/core/security.py",
+  "./resume_editor/app/core/security.py": {
+    "filepath": "./resume_editor/app/core/security.py",
     "filename": "security.py",
     "functions": [
+      [
+        "create_access_token(data: dict, settings: Settings, expires_delta: timedelta | None, impersonator: str | None) -> str",
+        "Create a JWT access token.\n\nArgs:\n    data (dict): The data to encode in the token (e.g., user ID, role).\n    settings (Settings): The application settings object.\n    expires_delta (Optional[timedelta]): Custom expiration time for the token. If None, uses default value.\n    impersonator (str | None): The username of the administrator impersonating the user.\n\nReturns:\n    str: The encoded JWT token as a string.\n\nNotes:\n    1. Copy the data to avoid modifying the original.\n    2. If an impersonator is specified, add it to the token claims.\n    3. Set expiration time based on expires_delta or default.\n    4. Encode the data with the secret key and algorithm.\n    5. No database or network access in this function."
+      ],
       [
         "verify_password(plain_password: str, hashed_password: str) -> bool",
         "Verify a plain password against a hashed password.\n\nArgs:\n    plain_password (str): The plain text password to verify.\n    hashed_password (str): The hashed password to compare against.\n\nReturns:\n    bool: True if the password matches, False otherwise.\n\nNotes:\n    1. Use bcrypt to verify the password.\n    2. No database or network access in this function."
@@ -325,41 +419,31 @@
         "Decrypts data using Fernet symmetric encryption.\n\nArgs:\n    encrypted_data (str): The encrypted data to decrypt.\n\nReturns:\n    str: The decrypted plaintext data.\n\nNotes:\n    1. Use Fernet to decrypt the data.\n    2. No database or network access in this function."
       ]
     ],
-    "classes": {
-      "SecurityManager": [
-        "Manages user authentication and authorization using password hashing and JWT tokens.\n\nAttributes:\n    settings (Settings): Configuration settings for the security system.\n    access_token_expire_minutes (int): Duration in minutes for access token expiration.\n    secret_key (str): Secret key used for signing JWT tokens.\n    algorithm (str): Algorithm used for JWT encoding.",
-        [
-          [
-            "__init__(self: UnknownType) -> UnknownType",
-            "Initialize the SecurityManager with configuration settings.\n\nNotes:\n    1. Retrieve the application settings using get_settings().\n    2. Assign the access token expiration time from settings.\n    3. Set the secret key for JWT signing from settings.\n    4. Set the JWT algorithm from settings."
-          ],
-          [
-            "create_access_token(self: UnknownType, data: dict, expires_delta: timedelta | None) -> str",
-            "Create a JWT access token.\n\nArgs:\n    data (dict): The data to encode in the token (e.g., user ID, role).\n    expires_delta (Optional[timedelta]): Custom expiration time for the token. If None, uses default value.\n\nReturns:\n    str: The encoded JWT token as a string.\n\nNotes:\n    1. Copy the data to avoid modifying the original.\n    2. Set expiration time based on expires_delta or default.\n    3. Encode the data with the secret key and algorithm.\n    4. No database or network access in this function."
-          ]
-        ]
-      ]
-    }
+    "classes": {}
   },
-  "resume_editor/app/core/auth.py": {
-    "filepath": "resume_editor/app/core/auth.py",
+  "./resume_editor/app/core/auth.py": {
+    "filepath": "./resume_editor/app/core/auth.py",
     "filename": "auth.py",
     "functions": [
       [
         "get_current_user(token: Annotated[str, Depends(oauth2_scheme)], db: Session) -> User",
         "Retrieve the authenticated user from the provided JWT token.\n\nArgs:\n    token: JWT token extracted from the request header, used to authenticate the user.\n        Type: str\n        Purpose: The JWT token that contains the user's identity and is used for authentication.\n    db: Database session dependency used to query the database for the user.\n        Type: Session\n        Purpose: Provides a connection to the database to retrieve the user record by username.\n\nReturns:\n    User: The authenticated User object corresponding to the token's subject (username).\n        Type: User\n        Purpose: Returns the user object if authentication is successful.\n\nRaises:\n    HTTPException: Raised when the credentials are invalid or the user is not found.\n        Status Code: 401 UNAUTHORIZED\n        Detail: \"Could not validate credentials\"\n        Headers: {\"WWW-Authenticate\": \"Bearer\"}\n\nNotes:\n    1. Initialize an HTTP 401 exception with a generic error message and \"Bearer\" authentication header.\n    2. Decode the JWT token using the secret key and algorithm to extract the subject (username).\n    3. If the subject (username) is missing from the token payload, raise the credentials exception.\n    4. If the JWT token is invalid or malformed, catch the JWTError and raise the credentials exception.\n    5. Query the database using the retrieved username to find the corresponding User record.\n    6. If the user is not found in the database, raise the credentials exception.\n    7. Return the User object if all authentication checks pass.\n\nDatabase Access:\n    - Queries the User table to retrieve a user record by username."
+      ],
+      [
+        "get_current_admin_user(current_user: Annotated[User, Depends(get_current_user)]) -> User",
+        "Verify that the current user has administrator privileges.\n\nThis dependency relies on `get_current_user` to retrieve the authenticated user.\nIt then checks the user's roles to determine if they are an administrator.\n\nArgs:\n    current_user (User): The user object obtained from the `get_current_user`\n        dependency.\n\nReturns:\n    User: The user object if the user has the 'admin' role.\n\nRaises:\n    HTTPException: A 403 Forbidden error if the user is not an admin.\n\nNotes:\n    1. Retrieves user from `get_current_user` dependency.\n    2. Iterates through the user's roles.\n    3. If a role with the name 'admin' is found, returns the user object.\n    4. If no 'admin' role is found, raises an HTTPException with status 403."
       ]
     ],
     "classes": {}
   },
-  "resume_editor/app/database/__init__.py": {
-    "filepath": "resume_editor/app/database/__init__.py",
+  "./resume_editor/app/database/__init__.py": {
+    "filepath": "./resume_editor/app/database/__init__.py",
     "filename": "__init__.py",
     "functions": [],
     "classes": {}
   },
-  "resume_editor/app/database/database.py": {
-    "filepath": "resume_editor/app/database/database.py",
+  "./resume_editor/app/database/database.py": {
+    "filepath": "./resume_editor/app/database/database.py",
     "filename": "database.py",
     "functions": [
       [
@@ -377,23 +461,23 @@
     ],
     "classes": {}
   },
-  "resume_editor/app/models/__init__.py": {
-    "filepath": "resume_editor/app/models/__init__.py",
+  "./resume_editor/app/models/__init__.py": {
+    "filepath": "./resume_editor/app/models/__init__.py",
     "filename": "__init__.py",
     "functions": [],
     "classes": {}
   },
-  "resume_editor/app/models/user.py": {
-    "filepath": "resume_editor/app/models/user.py",
+  "./resume_editor/app/models/user.py": {
+    "filepath": "./resume_editor/app/models/user.py",
     "filename": "user.py",
     "functions": [],
     "classes": {
       "User": [
-        "User model for authentication and session management.\n\nAttributes:\n    id (int): Unique identifier for the user.\n    username (str): Unique username for the user.\n    email (str): Unique email address for the user.\n    hashed_password (str): Hashed password for the user.\n    is_active (bool): Whether the user account is active.",
+        "User model for authentication and session management.\n\nAttributes:\n    id (int): Unique identifier for the user.\n    username (str): Unique username for the user.\n    email (str): Unique email address for the user.\n    hashed_password (str): Hashed password for the user.\n    is_active (bool): Whether the user account is active.\n    attributes (dict): Flexible key-value store for user-specific attributes.\n    roles (list[Role]): Roles assigned to the user for authorization.\n    resumes (list[Resume]): Resumes associated with the user.\n    settings (UserSettings): User-specific settings.",
         [
           [
-            "__init__(self: UnknownType, username: str, email: str, hashed_password: str, is_active: bool) -> UnknownType",
-            "Initialize a User instance.\n\nArgs:\n    username (str): Unique username for the user. Must be a non-empty string.\n    email (str): Unique email address for the user. Must be a non-empty string.\n    hashed_password (str): Hashed password for the user. Must be a non-empty string.\n    is_active (bool): Whether the user account is active. Must be a boolean.\n\nReturns:\n    None\n\nNotes:\n    1. Validate that username is a non-empty string.\n    2. Validate that email is a non-empty string.\n    3. Validate that hashed_password is a non-empty string.\n    4. Validate that is_active is a boolean.\n    5. Assign all values to instance attributes.\n    6. Log the initialization of the user with their username.\n    7. This operation does not involve network, disk, or database access."
+            "__init__(self: UnknownType, username: str, email: str, hashed_password: str, is_active: bool, attributes: dict[str, Any] | None) -> UnknownType",
+            "Initialize a User instance.\n\nArgs:\n    username (str): Unique username for the user. Must be a non-empty string.\n    email (str): Unique email address for the user. Must be a non-empty string.\n    hashed_password (str): Hashed password for the user. Must be a non-empty string.\n    is_active (bool): Whether the user account is active. Must be a boolean.\n    attributes (dict | None): Flexible key-value attributes for the user.\n\nReturns:\n    None\n\nNotes:\n    1. Validate that username is a non-empty string.\n    2. Validate that email is a non-empty string.\n    3. Validate that hashed_password is a non-empty string.\n    4. Validate that is_active is a boolean.\n    5. Validate that attributes is a dict or None.\n    6. Assign all values to instance attributes.\n    7. Log the initialization of the user with their username.\n    8. This operation does not involve network, disk, or database access."
           ],
           [
             "validate_username(self: UnknownType, key: UnknownType, username: UnknownType) -> UnknownType",
@@ -410,13 +494,17 @@
           [
             "validate_is_active(self: UnknownType, key: UnknownType, is_active: UnknownType) -> UnknownType",
             "Validate the is_active field.\n\nArgs:\n    key (str): The field name being validated (should be 'is_active').\n    is_active (bool): The is_active value to validate. Must be a boolean.\n\nReturns:\n    bool: The validated is_active value.\n\nNotes:\n    1. Ensure is_active is a boolean.\n    2. This operation does not involve network, disk, or database access."
+          ],
+          [
+            "validate_attributes(self: UnknownType, key: UnknownType, attributes: UnknownType) -> UnknownType",
+            "Validate the attributes field.\n\nArgs:\n    key (str): The field name being validated (should be 'attributes').\n    attributes (dict | None): The attributes value to validate. Must be a dictionary or None.\n\nReturns:\n    dict | None: The validated attributes.\n\nNotes:\n    1. If attributes is not None, ensure it is a dictionary.\n    2. This operation does not involve network, disk, or database access."
           ]
         ]
       ]
     }
   },
-  "resume_editor/app/models/user_settings.py": {
-    "filepath": "resume_editor/app/models/user_settings.py",
+  "./resume_editor/app/models/user_settings.py": {
+    "filepath": "./resume_editor/app/models/user_settings.py",
     "filename": "user_settings.py",
     "functions": [],
     "classes": {
@@ -431,8 +519,8 @@
       ]
     }
   },
-  "resume_editor/app/models/resume_model.py": {
-    "filepath": "resume_editor/app/models/resume_model.py",
+  "./resume_editor/app/models/resume_model.py": {
+    "filepath": "./resume_editor/app/models/resume_model.py",
     "filename": "resume_model.py",
     "functions": [],
     "classes": {
@@ -447,14 +535,20 @@
       ]
     }
   },
-  "resume_editor/app/models/resume/resume.py": {
-    "filepath": "resume_editor/app/models/resume/resume.py",
+  "./resume_editor/app/models/role.py": {
+    "filepath": "./resume_editor/app/models/role.py",
+    "filename": "role.py",
+    "functions": [],
+    "classes": {}
+  },
+  "./resume_editor/app/models/resume/resume.py": {
+    "filepath": "./resume_editor/app/models/resume/resume.py",
     "filename": "resume.py",
     "functions": [],
     "classes": {}
   },
-  "resume_editor/app/models/resume/education.py": {
-    "filepath": "resume_editor/app/models/resume/education.py",
+  "./resume_editor/app/models/resume/education.py": {
+    "filepath": "./resume_editor/app/models/resume/education.py",
     "filename": "education.py",
     "functions": [],
     "classes": {
@@ -463,23 +557,23 @@
         [
           [
             "validate_school(cls: UnknownType, v: UnknownType) -> UnknownType",
-            "Validate the school field.\n\nArgs:\n    v: The school value to validate. Must be a non-empty string.\n\nReturns:\n    str: The validated school (stripped of leading/trailing whitespace).\n\nRaises:\n    ValueError: If the school is empty or contains only whitespace.\n\nNotes:\n    1. Ensure school is a string.\n    2. Ensure school is not empty after stripping whitespace."
+            "Validate the school field.\n\nArgs:\n    v (str): The school value to validate. Must be a non-empty string.\n\nReturns:\n    str: The validated school (stripped of leading/trailing whitespace).\n\nRaises:\n    ValueError: If the school is empty or contains only whitespace.\n\nNotes:\n    1. Ensure school is a string.\n    2. Ensure school is not empty after stripping whitespace."
           ],
           [
             "validate_degree(cls: UnknownType, v: UnknownType) -> UnknownType",
-            "Validate the degree field.\n\nArgs:\n    v: The degree value to validate. Must be a non-empty string or None.\n\nReturns:\n    str: The validated degree (stripped of leading/trailing whitespace).\n\nRaises:\n    ValueError: If the degree is empty after stripping whitespace.\n\nNotes:\n    1. Ensure degree is a string or None.\n    2. Ensure degree is not empty after stripping whitespace."
+            "Validate the degree field.\n\nArgs:\n    v (str | None): The degree value to validate. Must be a non-empty string or None.\n\nReturns:\n    str | None: The validated degree (stripped of leading/trailing whitespace) or None.\n\nRaises:\n    ValueError: If the degree is empty after stripping whitespace.\n\nNotes:\n    1. Ensure degree is a string or None.\n    2. Ensure degree is not empty after stripping whitespace."
           ],
           [
             "validate_major(cls: UnknownType, v: UnknownType) -> UnknownType",
-            "Validate the major field.\n\nArgs:\n    v: The major value to validate. Must be a non-empty string or None.\n\nReturns:\n    str: The validated major (stripped of leading/trailing whitespace).\n\nRaises:\n    ValueError: If the major is empty after stripping whitespace.\n\nNotes:\n    1. Ensure major is a string or None.\n    2. Ensure major is not empty after stripping whitespace."
+            "Validate the major field.\n\nArgs:\n    v (str | None): The major value to validate. Must be a non-empty string or None.\n\nReturns:\n    str | None: The validated major (stripped of leading/trailing whitespace) or None.\n\nRaises:\n    ValueError: If the major is empty after stripping whitespace.\n\nNotes:\n    1. Ensure major is a string or None.\n    2. Ensure major is not empty after stripping whitespace."
           ],
           [
             "validate_gpa(cls: UnknownType, v: UnknownType) -> UnknownType",
-            "Validate the gpa field.\n\nArgs:\n    v: The gpa value to validate. Must be a non-empty string or None.\n\nReturns:\n    str: The validated gpa (stripped of leading/trailing whitespace).\n\nRaises:\n    ValueError: If the gpa is empty after stripping whitespace.\n\nNotes:\n    1. Ensure gpa is a string or None.\n    2. Ensure gpa is not empty after stripping whitespace."
+            "Validate the gpa field.\n\nArgs:\n    v (str | None): The gpa value to validate. Must be a non-empty string or None.\n\nReturns:\n    str | None: The validated gpa (stripped of leading/trailing whitespace) or None.\n\nRaises:\n    ValueError: If the gpa is empty after stripping whitespace.\n\nNotes:\n    1. Ensure gpa is a string or None.\n    2. Ensure gpa is not empty after stripping whitespace."
           ],
           [
             "validate_end_date(cls: UnknownType, v: UnknownType, info: UnknownType) -> UnknownType",
-            "Validate that start_date is not after end_date.\n\nArgs:\n    v: The date value to validate.\n    info: Validation info containing data.\n\nReturns:\n    datetime: The validated date.\n\nRaises:\n    ValueError: If end_date is before start_date.\n\nNotes:\n    1. If both start_date and end_date are provided, ensure start_date is not after end_date."
+            "Validate that start_date is not after end_date.\n\nArgs:\n    v (datetime | None): The end_date value to validate.\n    info (ValidationInfo): Validation info containing data.\n\nReturns:\n    datetime | None: The validated end_date.\n\nRaises:\n    ValueError: If end_date is before start_date.\n\nNotes:\n    1. If both start_date and end_date are provided, ensure start_date is not after end_date."
           ]
         ]
       ],
@@ -488,7 +582,7 @@
         [
           [
             "__iter__(self: UnknownType) -> UnknownType",
-            "Iterate over the degrees.\n\nReturns:\n    Iterator over the degrees list.\n\nNotes:\n    No external access (network, disk, or database) is performed."
+            "Iterate over the degrees.\n\nReturns:\n    Iterator: An iterator over the degrees list.\n\nNotes:\n    No external access (network, disk, or database) is performed."
           ],
           [
             "__len__(self: UnknownType) -> UnknownType",
@@ -496,14 +590,14 @@
           ],
           [
             "__getitem__(self: UnknownType, index: UnknownType) -> UnknownType",
-            "Return the degree at the given index.\n\nArgs:\n    index: The index of the degree to retrieve.\n\nReturns:\n    The Degree object at the specified index.\n\nNotes:\n    No external access (network, disk, or database) is performed."
+            "Return the degree at the given index.\n\nArgs:\n    index (int): The index of the degree to retrieve.\n\nReturns:\n    Degree: The Degree object at the specified index.\n\nNotes:\n    No external access (network, disk, or database) is performed."
           ]
         ]
       ]
     }
   },
-  "resume_editor/app/models/resume/certifications.py": {
-    "filepath": "resume_editor/app/models/resume/certifications.py",
+  "./resume_editor/app/models/resume/certifications.py": {
+    "filepath": "./resume_editor/app/models/resume/certifications.py",
     "filename": "certifications.py",
     "functions": [],
     "classes": {
@@ -512,15 +606,15 @@
         [
           [
             "validate_name(cls: UnknownType, v: UnknownType) -> UnknownType",
-            "Validate the name field.\n\nArgs:\n    v: The name value to validate. Must be a non-empty string.\n\nReturns:\n    str: The validated name.\n\nRaises:\n    ValueError: If the name is not a string or is empty.\n\nNotes:\n    1. Ensure name is a string.\n    2. Ensure name is not empty."
+            "Validate the name field.\n\nArgs:\n    v (str): The name value to validate. Must be a non-empty string.\n\nReturns:\n    str: The validated name, stripped of leading/trailing whitespace.\n\nRaises:\n    ValueError: If the name is not a string or is empty.\n\nNotes:\n    1. Ensure name is a string.\n    2. Ensure name is not empty."
           ],
           [
             "validate_optional_strings(cls: UnknownType, v: UnknownType) -> UnknownType",
-            "Validate optional string fields.\n\nArgs:\n    v: The field value to validate. Must be a string or None.\n\nReturns:\n    str: The validated field value.\n\nRaises:\n    ValueError: If the field is neither a string nor None.\n\nNotes:\n    1. Ensure field is a string or None."
+            "Validate optional string fields.\n\nArgs:\n    v (str | None): The field value to validate. Must be a string or None.\n\nReturns:\n    str | None: The validated field value.\n\nRaises:\n    ValueError: If the field is neither a string nor None.\n\nNotes:\n    1. Ensure field is a string or None."
           ],
           [
             "validate_dates(cls: UnknownType, v: UnknownType) -> UnknownType",
-            "Validate the date fields.\n\nArgs:\n    v: The date value to validate. Must be a datetime object or None.\n\nReturns:\n    datetime: The validated date.\n\nRaises:\n    ValueError: If the date is neither a datetime object nor None.\n\nNotes:\n    1. Ensure date is a datetime object or None."
+            "Validate the date fields.\n\nArgs:\n    v (datetime | None): The date value to validate. Must be a datetime object or None.\n\nReturns:\n    datetime | None: The validated date.\n\nRaises:\n    ValueError: If the date is neither a datetime object nor None.\n\nNotes:\n    1. Ensure date is a datetime object or None."
           ],
           [
             "validate_date_order(self: UnknownType) -> UnknownType",
@@ -533,7 +627,7 @@
         [
           [
             "validate_certifications(cls: UnknownType, v: UnknownType) -> UnknownType",
-            "Validate the certifications field.\n\nArgs:\n    v: The certifications value to validate. Must be a list of Certification objects.\n\nReturns:\n    list[Certification]: The validated certifications list.\n\nRaises:\n    ValueError: If certifications is not a list or contains non-Certification items.\n\nNotes:\n    1. Ensure certifications is a list.\n    2. Ensure all items in certifications are instances of Certification."
+            "Validate the certifications field.\n\nArgs:\n    v (list[Certification]): The certifications value to validate. Must be a list of Certification objects.\n\nReturns:\n    list[Certification]: The validated certifications list.\n\nRaises:\n    ValueError: If certifications is not a list or contains non-Certification items.\n\nNotes:\n    1. Ensure certifications is a list.\n    2. Ensure all items in certifications are instances of Certification."
           ],
           [
             "__iter__(self: UnknownType) -> UnknownType",
@@ -541,22 +635,22 @@
           ],
           [
             "__len__(self: UnknownType) -> UnknownType",
-            "Return the number of certifications.\n\nReturns:\n    The integer count of certifications in the list.\n\nNotes:\n    1. Return the length of the certifications list."
+            "Return the number of certifications.\n\nReturns:\n    int: The integer count of certifications in the list.\n\nNotes:\n    1. Return the length of the certifications list."
           ],
           [
             "__getitem__(self: UnknownType, index: UnknownType) -> UnknownType",
-            "Return the certification at the given index.\n\nArgs:\n    index: The index of the certification to retrieve.\n\nReturns:\n    The Certification object at the specified index.\n\nNotes:\n    1. Retrieve and return the certification at the given index."
+            "Return the certification at the given index.\n\nArgs:\n    index (int): The index of the certification to retrieve.\n\nReturns:\n    Certification: The Certification object at the specified index.\n\nNotes:\n    1. Retrieve and return the certification at the given index."
           ],
           [
             "list_class(self: UnknownType) -> UnknownType",
-            "Return the type that will be contained in the list.\n\nReturns:\n    The Certification class.\n\nNotes:\n    1. Return the Certification class."
+            "Return the type that will be contained in the list.\n\nReturns:\n    type: The Certification class.\n\nNotes:\n    1. Return the Certification class."
           ]
         ]
       ]
     }
   },
-  "resume_editor/app/models/resume/personal.py": {
-    "filepath": "resume_editor/app/models/resume/personal.py",
+  "./resume_editor/app/models/resume/personal.py": {
+    "filepath": "./resume_editor/app/models/resume/personal.py",
     "filename": "personal.py",
     "functions": [],
     "classes": {
@@ -635,14 +729,14 @@
       ]
     }
   },
-  "resume_editor/app/models/resume/__init__.py": {
-    "filepath": "resume_editor/app/models/resume/__init__.py",
+  "./resume_editor/app/models/resume/__init__.py": {
+    "filepath": "./resume_editor/app/models/resume/__init__.py",
     "filename": "__init__.py",
     "functions": [],
     "classes": {}
   },
-  "resume_editor/app/models/resume/experience.py": {
-    "filepath": "resume_editor/app/models/resume/experience.py",
+  "./resume_editor/app/models/resume/experience.py": {
+    "filepath": "./resume_editor/app/models/resume/experience.py",
     "filename": "experience.py",
     "functions": [],
     "classes": {
@@ -762,20 +856,20 @@
       ]
     }
   },
-  "resume_editor/app/schemas/user.py": {
-    "filepath": "resume_editor/app/schemas/user.py",
+  "./resume_editor/app/schemas/user.py": {
+    "filepath": "./resume_editor/app/schemas/user.py",
     "filename": "user.py",
     "functions": [],
     "classes": {}
   },
-  "resume_editor/app/schemas/__init__.py": {
-    "filepath": "resume_editor/app/schemas/__init__.py",
+  "./resume_editor/app/schemas/__init__.py": {
+    "filepath": "./resume_editor/app/schemas/__init__.py",
     "filename": "__init__.py",
     "functions": [],
     "classes": {}
   },
-  "resume_editor/app/schemas/llm.py": {
-    "filepath": "resume_editor/app/schemas/llm.py",
+  "./resume_editor/app/schemas/llm.py": {
+    "filepath": "./resume_editor/app/schemas/llm.py",
     "filename": "llm.py",
     "functions": [],
     "classes": {}

@@ -14,8 +14,7 @@ log = logging.getLogger(__name__)
 
 
 def get_user_settings(db: Session, user_id: int) -> UserSettings | None:
-    """
-    Retrieves the settings for a given user.
+    """Retrieves the settings for a given user.
 
     Args:
         db (Session): The database session used to query the database.
@@ -28,7 +27,6 @@ def get_user_settings(db: Session, user_id: int) -> UserSettings | None:
         1. Queries the database for a UserSettings record where user_id matches the provided user_id.
         2. Returns the first matching record or None if no record is found.
         3. This function performs a single database read operation.
-
     """
     _msg = f"Getting settings for user_id: {user_id}"
     log.debug(_msg)
@@ -40,8 +38,7 @@ def update_user_settings(
     user_id: int,
     settings_data: "UserSettingsUpdateRequest",
 ) -> UserSettings:
-    """
-    Creates or updates settings for a user.
+    """Creates or updates settings for a user.
 
     Args:
         db (Session): The database session used to perform database operations.
@@ -59,12 +56,11 @@ def update_user_settings(
         5. Commits the transaction to the database.
         6. Refreshes the session to ensure the returned object has the latest data from the database.
         7. This function performs a database read and possibly a write operation.
-
     """
     _msg = f"Updating settings for user_id: {user_id}"
     log.debug(_msg)
 
-    settings = get_user_settings(db, user_id)
+    settings = get_user_settings(db=db, user_id=user_id)
     if not settings:
         _msg = f"No settings found for user_id: {user_id}. Creating new settings."
         log.debug(_msg)
@@ -79,7 +75,7 @@ def update_user_settings(
 
     if settings_data.api_key is not None:
         if settings_data.api_key:
-            settings.encrypted_api_key = encrypt_data(settings_data.api_key)
+            settings.encrypted_api_key = encrypt_data(data=settings_data.api_key)
         else:
             settings.encrypted_api_key = None
 

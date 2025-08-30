@@ -15,7 +15,6 @@ class InclusionStatus(str, Enum):
         INCLUDE (str): Indicates the item should be included in the resume.
         NOT_RELEVANT (str): Indicates the item is not relevant to the resume.
         OMIT (str): Indicates the item should be omitted from the resume.
-
     """
 
     INCLUDE = "Include"
@@ -29,7 +28,6 @@ class RoleSummary(BaseModel):
 
     Attributes:
         text (str): The text content of the role summary.
-
     """
 
     text: str
@@ -41,7 +39,6 @@ class RoleResponsibilities(BaseModel):
 
     Attributes:
         text (str): The text content of the responsibilities.
-
     """
 
     text: str
@@ -53,7 +50,6 @@ class RoleSkills(BaseModel):
 
     Attributes:
         skills (list[str]): A list of non-empty, stripped skill strings.
-
     """
 
     skills: list[str] = []
@@ -76,7 +72,6 @@ class RoleSkills(BaseModel):
             3. Strip whitespace from each skill and filter out empty strings.
             4. Raise a ValueError if skills is not a list or if any skill is not a string.
             5. Return the cleaned list of non-empty skills.
-
         """
         cleaned_skills = []
         for skill in v:
@@ -91,7 +86,6 @@ class RoleSkills(BaseModel):
 
         Returns:
             Iterator over the skills list.
-
         """
         return iter(self.skills)
 
@@ -101,7 +95,6 @@ class RoleSkills(BaseModel):
 
         Returns:
             int: The number of skills.
-
         """
         return len(self.skills)
 
@@ -114,7 +107,6 @@ class RoleSkills(BaseModel):
 
         Returns:
             str: The skill at the specified index.
-
         """
         return self.skills[index]
 
@@ -134,7 +126,6 @@ class RoleBasics(BaseModel):
         employment_type (str | None): The employment type or None.
         agency_name (str | None): The name of the agency or None.
         inclusion_status (InclusionStatus): The inclusion status of the role.
-
     """
 
     company: str
@@ -168,7 +159,6 @@ class RoleBasics(BaseModel):
             2. Ensure company is not empty.
             3. Strip whitespace from the company name.
             4. Raise a ValueError if company is not a string or is empty.
-
         """
         if not v.strip():
             raise ValueError("company must not be empty")
@@ -194,7 +184,6 @@ class RoleBasics(BaseModel):
             2. Ensure title is not empty.
             3. Strip whitespace from the title.
             4. Raise a ValueError if title is not a string or is empty.
-
         """
         if not v.strip():
             raise ValueError("title must not be empty")
@@ -220,7 +209,6 @@ class RoleBasics(BaseModel):
             1. Ensure end_date is a datetime object or None.
             2. If end_date is provided, ensure it is not before start_date.
             3. Raise a ValueError if end_date is not a datetime object or None, or if end_date is before start_date.
-
         """
         if v is None:
             return v
@@ -246,7 +234,6 @@ class Role(BaseModel):
         summary (RoleSummary | None): The RoleSummary object describing the role.
         responsibilities (RoleResponsibilities | None): The RoleResponsibilities object listing duties.
         skills (RoleSkills | None): The RoleSkills object listing skills used.
-
     """
 
     basics: RoleBasics | None = None
@@ -261,7 +248,6 @@ class Roles(BaseModel):
 
     Attributes:
         roles (list[Role]): A list of Role objects.
-
     """
 
     roles: list[Role] = []
@@ -272,7 +258,6 @@ class Roles(BaseModel):
 
         Returns:
             Iterator over the roles list.
-
         """
         return iter(self.roles)
 
@@ -282,7 +267,6 @@ class Roles(BaseModel):
 
         Returns:
             int: The number of roles.
-
         """
         return len(self.roles)
 
@@ -295,7 +279,6 @@ class Roles(BaseModel):
 
         Returns:
             Role: The role at the specified index.
-
         """
         return self.roles[index]
 
@@ -306,7 +289,6 @@ class Roles(BaseModel):
 
         Returns:
             The Role class.
-
         """
         return Role
 
@@ -317,7 +299,6 @@ class ProjectSkills(BaseModel):
 
     Attributes:
         skills (list[str]): A list of non-empty, stripped skill strings.
-
     """
 
     skills: list[str] = []
@@ -343,7 +324,6 @@ class ProjectSkills(BaseModel):
             3. Strip whitespace from each skill and filter out empty strings.
             4. Raise a ValueError if skills is not a list or if any skill is not a string.
             5. Return the cleaned list of non-empty skills.
-
         """
         cleaned_skills = []
         for skill in v:
@@ -358,7 +338,6 @@ class ProjectSkills(BaseModel):
 
         Returns:
             Iterator over the skills list.
-
         """
         return iter(self.skills)
 
@@ -368,7 +347,6 @@ class ProjectSkills(BaseModel):
 
         Returns:
             int: The number of skills.
-
         """
         return len(self.skills)
 
@@ -381,7 +359,6 @@ class ProjectSkills(BaseModel):
 
         Returns:
             str: The skill at the specified index.
-
         """
         return self.skills[index]
 
@@ -397,7 +374,6 @@ class ProjectOverview(BaseModel):
         start_date (datetime | None): The start date as a datetime object or None.
         end_date (datetime | None): The end date as a datetime object or None.
         inclusion_status (InclusionStatus): The inclusion status of the project.
-
     """
 
     title: str
@@ -427,7 +403,6 @@ class ProjectOverview(BaseModel):
             2. Ensure title is not empty.
             3. Strip whitespace from the title.
             4. Raise a ValueError if title is not a string or is empty.
-
         """
         if not v.strip():
             raise ValueError("title must not be empty")
@@ -452,7 +427,6 @@ class ProjectOverview(BaseModel):
         Notes:
             1. If both start_date and end_date are provided, ensure start_date is not after end_date.
             2. Raise a ValueError if end_date is before start_date.
-
         """
         if v is not None and (start_date := info.data.get("start_date")) is not None:
             if v < start_date:
@@ -466,7 +440,6 @@ class ProjectDescription(BaseModel):
 
     Attributes:
         text (str): The text content of the project description.
-
     """
 
     text: str
@@ -480,7 +453,6 @@ class Project(BaseModel):
         overview (ProjectOverview | None): The ProjectOverview object containing project metadata.
         description (ProjectDescription): The ProjectDescription object describing the project.
         skills (ProjectSkills | None): The ProjectSkills object listing skills used.
-
     """
 
     overview: ProjectOverview | None = None
@@ -494,7 +466,6 @@ class Projects(BaseModel):
 
     Attributes:
         projects (list[Project]): A list of Project objects.
-
     """
 
     projects: list[Project] = []
@@ -505,7 +476,6 @@ class Projects(BaseModel):
 
         Returns:
             Iterator over the projects list.
-
         """
         return iter(self.projects)
 
@@ -515,7 +485,6 @@ class Projects(BaseModel):
 
         Returns:
             int: The number of projects.
-
         """
         return len(self.projects)
 
@@ -528,7 +497,6 @@ class Projects(BaseModel):
 
         Returns:
             Project: The project at the specified index.
-
         """
         return self.projects[index]
 
@@ -539,7 +507,6 @@ class Projects(BaseModel):
 
         Returns:
             The Project class.
-
         """
         return Project
 
@@ -551,7 +518,6 @@ class Experience(BaseModel):
     Attributes:
         roles (Roles | None): A Roles object containing work experience.
         projects (Projects | None): A Projects object containing project details.
-
     """
 
     roles: Roles | None = None

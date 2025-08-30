@@ -27,11 +27,12 @@ def create_app() -> FastAPI:
         2. Add CORS middleware to allow requests from any origin (for development only).
         3. Include the user router to handle user-related API endpoints.
         4. Include the resume router to handle resume-related API endpoints.
-        5. Define a health check endpoint at "/health" that returns a JSON object with status "ok".
-        6. Add static file serving for CSS/JS assets.
-        7. Add template rendering for HTML pages.
-        8. Define dashboard routes for the HTMX-based interface.
-        9. Log a success message indicating the application was created.
+        5. Include the admin router to handle administrative API endpoints.
+        6. Define a health check endpoint at "/health" that returns a JSON object with status "ok".
+        7. Add static file serving for CSS/JS assets.
+        8. Add template rendering for HTML pages.
+        9. Define dashboard routes for the HTMX-based interface.
+        10. Log a success message indicating the application was created.
 
     """
     _msg = "Creating FastAPI application"

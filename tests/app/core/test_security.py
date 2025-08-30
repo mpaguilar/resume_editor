@@ -79,11 +79,9 @@ def test_authenticate_user():
 def test_create_and_validate_access_token(mock_settings):
     """Test JWT access token creation and content validation."""
     data = {"sub": "testuser"}
-    manager = security_module.SecurityManager()
-    token = manager.create_access_token(data)
-    assert isinstance(token, str)
-
     settings = mock_settings.return_value
+    token = security_module.create_access_token(data, settings)
+    assert isinstance(token, str)
     decoded_payload = jwt.decode(
         token,
         settings.secret_key,
@@ -104,10 +102,10 @@ def test_create_access_token_with_custom_expiry(mock_settings):
     """Test JWT access token creation with a custom expires_delta."""
     data = {"sub": "testuser"}
     expires_delta = timedelta(minutes=15)
-    manager = security_module.SecurityManager()
-    token = manager.create_access_token(data, expires_delta=expires_delta)
-
     settings = mock_settings.return_value
+    token = security_module.create_access_token(
+        data, settings, expires_delta=expires_delta
+    )
     decoded_payload = jwt.decode(
         token,
         settings.secret_key,
@@ -136,13 +134,3 @@ def test_decrypt_invalid_data_raises_error(mock_settings):
     """Test decryption of invalid data raises InvalidToken."""
     with pytest.raises(InvalidToken):
         security_module.decrypt_data("this-is-not-a-valid-fernet-token")
-
-
-def test_security_manager_init(mock_settings):
-    """Test SecurityManager initialization."""
-    manager = security_module.SecurityManager()
-    settings = mock_settings.return_value
-    assert manager.settings is not None
-    assert manager.access_token_expire_minutes == settings.access_token_expire_minutes
-    assert manager.secret_key == settings.secret_key
-    assert manager.algorithm == settings.algorithm

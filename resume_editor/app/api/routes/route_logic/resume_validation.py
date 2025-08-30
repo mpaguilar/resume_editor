@@ -11,8 +11,7 @@ def perform_pre_save_validation(
     markdown_content: str,
     original_content: str | None = None,
 ) -> None:
-    """
-    Perform comprehensive pre-save validation on resume content.
+    """Perform comprehensive pre-save validation on resume content.
 
     Args:
         markdown_content (str): The updated resume Markdown content to validate.
@@ -30,6 +29,5 @@ def perform_pre_save_validation(
         3. This function performs validation checks on resume content before saving to ensure data integrity.
         4. Validation includes parsing the Markdown content to verify its structure and format.
         5. The function accesses the resume parsing module to validate the content structure.
-
     """
     validate_resume_content(markdown_content)

@@ -10,13 +10,13 @@ Classes:
 Functions:
     get_engine: Returns the SQLAlchemy engine instance for the database.
 
-Args:
+    Args:
         None
 
-Returns:
+    Returns:
         Engine: The SQLAlchemy engine configured to connect to the database.
 
-Notes:
+    Notes:
         1. Retrieves the database URL from the application settings.
         2. Creates a SQLAlchemy engine using the URL with appropriate configuration options.
         3. Returns the configured engine instance.
@@ -24,13 +24,13 @@ Notes:
 
     get_session_local: Returns the SQLAlchemy session factory for creating database sessions.
 
-Args:
+    Args:
         None
 
-Returns:
+    Returns:
         sessionmaker: A factory for creating database sessions.
 
-Notes:
+    Notes:
         1. Creates a session factory using the previously created engine.
         2. Configures the session to be autocommit=False and autoflush=False.
         3. Returns the session factory.

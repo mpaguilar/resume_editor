@@ -26,8 +26,6 @@ Notes:
 
 """
 
-from typing import List
-
 from fastapi import FastAPI
 
 
@@ -45,6 +43,9 @@ def get_app() -> FastAPI:
 
     Returns:
         FastAPI: A configured FastAPI application instance.
+
+    Raises:
+        None.
 
     Notes:
         1. The application is initialized with a title, version, and description.

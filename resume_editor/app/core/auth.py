@@ -50,7 +50,6 @@ def get_current_user(
 
     Database Access:
         - Queries the User table to retrieve a user record by username.
-
     """
     settings = get_settings()
     credentials_exception = HTTPException(

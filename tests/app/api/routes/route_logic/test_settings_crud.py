@@ -55,9 +55,9 @@ def test_update_user_settings_existing_settings(mock_get_settings, mock_encrypt_
 
     result = update_user_settings(mock_db, 1, update_data)
 
-    mock_get_settings.assert_called_once_with(mock_db, 1)
+    mock_get_settings.assert_called_once_with(db=mock_db, user_id=1)
     assert result.llm_endpoint == "http://new.com"
-    mock_encrypt_data.assert_called_once_with("new_key")
+    mock_encrypt_data.assert_called_once_with(data="new_key")
     assert result.encrypted_api_key == "encrypted_key"
     mock_db.commit.assert_called_once()
     mock_db.refresh.assert_called_once_with(existing_settings)
@@ -84,12 +84,12 @@ def test_update_user_settings_new_settings(mock_get_settings, mock_encrypt_data)
 
         result = update_user_settings(mock_db, 1, update_data)
 
-        mock_get_settings.assert_called_once_with(mock_db, 1)
+        mock_get_settings.assert_called_once_with(db=mock_db, user_id=1)
         mock_user_settings_model.assert_called_once_with(user_id=1)
         mock_db.add.assert_called_once_with(mock_settings_instance)
 
         assert mock_settings_instance.llm_endpoint == "http://new.com"
-        mock_encrypt_data.assert_called_once_with("new_key")
+        mock_encrypt_data.assert_called_once_with(data="new_key")
         assert mock_settings_instance.encrypted_api_key == "encrypted_key"
 
         mock_db.commit.assert_called_once()
@@ -109,7 +109,7 @@ def test_update_user_settings_remove_api_key(mock_get_settings, mock_encrypt_dat
 
     result = update_user_settings(mock_db, 1, update_data)
 
-    mock_get_settings.assert_called_once_with(mock_db, 1)
+    mock_get_settings.assert_called_once_with(db=mock_db, user_id=1)
     assert result.encrypted_api_key is None
     mock_encrypt_data.assert_not_called()
     mock_db.commit.assert_called_once()
@@ -127,7 +127,7 @@ def test_update_user_settings_remove_endpoint(mock_get_settings):
 
     result = update_user_settings(mock_db, 1, update_data)
 
-    mock_get_settings.assert_called_once_with(mock_db, 1)
+    mock_get_settings.assert_called_once_with(db=mock_db, user_id=1)
     assert result.llm_endpoint is None
     mock_db.commit.assert_called_once()
     mock_db.refresh.assert_called_once_with(existing_settings)
@@ -146,7 +146,7 @@ def test_update_user_settings_no_api_key_change(mock_get_settings, mock_encrypt_
 
     result = update_user_settings(mock_db, 1, update_data)
 
-    mock_get_settings.assert_called_once_with(mock_db, 1)
+    mock_get_settings.assert_called_once_with(db=mock_db, user_id=1)
     assert result.llm_endpoint == "http://some-url.com"
     assert result.encrypted_api_key == "old_encrypted_key"
     mock_encrypt_data.assert_not_called()
@@ -171,6 +171,6 @@ def test_update_user_settings_no_endpoint_change(mock_get_settings, mock_encrypt
     # The old value should be preserved
     assert result.llm_endpoint == "http://old-url.com"
     assert result.encrypted_api_key == "encrypted_key"
-    mock_encrypt_data.assert_called_once_with("new_key")
+    mock_encrypt_data.assert_called_once_with(data="new_key")
     mock_db.commit.assert_called_once()
     mock_db.refresh.assert_called_once_with(existing_settings)

@@ -24,11 +24,12 @@ Notes:
     2. Add CORS middleware to allow requests from any origin (for development only).
     3. Include the user router to handle user-related API endpoints.
     4. Include the resume router to handle resume-related API endpoints.
-    5. Define a health check endpoint at "/health" that returns a JSON object with status "ok".
-    6. Add static file serving for CSS/JS assets.
-    7. Add template rendering for HTML pages.
-    8. Define dashboard routes for the HTMX-based interface.
-    9. Log a success message indicating the application was created.
+    5. Include the admin router to handle administrative API endpoints.
+    6. Define a health check endpoint at "/health" that returns a JSON object with status "ok".
+    7. Add static file serving for CSS/JS assets.
+    8. Add template rendering for HTML pages.
+    9. Define dashboard routes for the HTMX-based interface.
+    10. Log a success message indicating the application was created.
 
 ---
 
@@ -74,6 +75,9 @@ Args:
 
 Returns:
     FastAPI: A configured FastAPI application instance.
+
+Raises:
+    None.
 
 Notes:
     1. The application is initialized with a title, version, and description.
@@ -192,6 +196,41 @@ Notes:
 
 ---
 
+## function: `get_users(db: Session) -> list[User]`
+
+Retrieve all users from the database.
+
+Args:
+    db (Session): The database session.
+
+Returns:
+    list[User]: A list of all user objects.
+
+---
+
+## function: `get_user_by_id(db: Session, user_id: int) -> User | None`
+
+Retrieve a single user by ID.
+
+Args:
+    db (Session): The database session.
+    user_id (int): The ID of the user to retrieve.
+
+Returns:
+    User | None: The user object if found, otherwise None.
+
+---
+
+## function: `delete_user(db: Session, user: User) -> None`
+
+Delete a user from the database.
+
+Args:
+    db (Session): The database session.
+    user (User): The user object to delete.
+
+---
+
 ## function: `register_user(user: UserCreate, db: Session) -> UserResponse`
 
 Register a new user with the provided credentials.
@@ -254,7 +293,7 @@ Notes:
 
 ---
 
-## function: `login_user(form_data: Annotated[OAuth2PasswordRequestForm, Depends()], db: Session) -> Token`
+## function: `login_user(form_data: Annotated[OAuth2PasswordRequestForm, Depends()], db: Session, settings: Settings) -> Token`
 
 Authenticate a user and return an access token.
 
@@ -282,6 +321,179 @@ Notes:
 
 ===
 # File: `route_models.py`
+
+
+===
+
+===
+# File: `admin.py`
+
+## function: `admin_create_user(user_data: AdminUserCreate, db: Session) -> UnknownType`
+
+Admin endpoint to create a new user.
+
+Args:
+    user_data (AdminUserCreate): The data required to create a new user, including username, password, and optional email.
+    db (Session): The database session used to interact with the database.
+
+Returns:
+    UserResponse: The created user's data, including the user's ID, username, and any other public fields.
+
+Notes:
+    1. Logs the admin's attempt to create a user.
+    2. Reuses the existing logic from create_new_user to create the user.
+    3. Commits the new user to the database.
+    4. Logs the completion of user creation.
+    5. Database access occurs during user creation and commit.
+
+---
+
+## function: `admin_get_users(db: Session) -> UnknownType`
+
+Admin endpoint to list all users.
+
+Args:
+    db (Session): The database session used to interact with the database.
+
+Returns:
+    list[UserResponse]: A list of all users' data, including their ID, username, and other public fields.
+
+Notes:
+    1. Logs the admin's request to fetch all users.
+    2. Retrieves all users from the database using db_get_users.
+    3. Logs the completion of the fetch operation.
+    4. Database access occurs during the retrieval of users.
+
+---
+
+## function: `admin_get_user(user_id: int, db: Session) -> UnknownType`
+
+Admin endpoint to get a single user by ID.
+
+Args:
+    user_id (int): The unique identifier of the user to retrieve.
+    db (Session): The database session used to interact with the database.
+
+Returns:
+    UserResponse: The data of the requested user, including their ID, username, and other public fields.
+
+Raises:
+    HTTPException: If the user with the given ID is not found, raises a 404 error.
+
+Notes:
+    1. Logs the admin's request to fetch a user by ID.
+    2. Retrieves the user from the database using get_user_by_id.
+    3. If the user is not found, raises a 404 HTTPException.
+    4. Logs the completion of the fetch operation.
+    5. Database access occurs during the user retrieval.
+
+---
+
+## function: `admin_delete_user(user_id: int, db: Session) -> UnknownType`
+
+Admin endpoint to delete a user.
+
+Args:
+    user_id (int): The unique identifier of the user to delete.
+    db (Session): The database session used to interact with the database.
+
+Raises:
+    HTTPException: If the user with the given ID is not found, raises a 404 error.
+
+Notes:
+    1. Logs the admin's request to delete a user.
+    2. Retrieves the user from the database using get_user_by_id.
+    3. If the user is not found, raises a 404 HTTPException.
+    4. Deletes the user from the database using db_delete_user.
+    5. Commits the deletion to the database.
+    6. Logs the completion of the deletion.
+    7. Database access occurs during user retrieval, deletion, and commit.
+
+---
+
+## function: `admin_assign_role_to_user(user_id: int, role_name: str, db: Session) -> UnknownType`
+
+Admin endpoint to assign a role to a user.
+
+Args:
+    user_id (int): The unique identifier of the user to assign the role to.
+    role_name (str): The name of the role to assign.
+    db (Session): The database session used to interact with the database.
+
+Returns:
+    UserResponse: The updated user data, including the newly assigned role.
+
+Raises:
+    HTTPException: If the user or role is not found (404 error), or if the user already has the role (400 error).
+
+Notes:
+    1. Logs the admin's attempt to assign a role to a user.
+    2. Retrieves the user from the database using get_user_by_id.
+    3. If the user is not found, raises a 404 HTTPException.
+    4. Retrieves the role from the database using get_role_by_name.
+    5. If the role is not found, raises a 404 HTTPException.
+    6. Checks if the user already has the role; if so, returns the user without modification.
+    7. Appends the role to the user's roles list.
+    8. Commits the change to the database.
+    9. Refreshes the user object from the database.
+    10. Logs the completion of the role assignment.
+    11. Database access occurs during user and role retrieval, modification, and commit.
+
+---
+
+## function: `admin_remove_role_from_user(user_id: int, role_name: str, db: Session) -> UnknownType`
+
+Admin endpoint to remove a role from a user.
+
+Args:
+    user_id (int): The unique identifier of the user to remove the role from.
+    role_name (str): The name of the role to remove.
+    db (Session): The database session used to interact with the database.
+
+Returns:
+    UserResponse: The updated user data, excluding the removed role.
+
+Raises:
+    HTTPException: If the user or role is not found (404 error), or if the user does not have the role (400 error).
+
+Notes:
+    1. Logs the admin's attempt to remove a role from a user.
+    2. Retrieves the user from the database using get_user_by_id.
+    3. If the user is not found, raises a 404 HTTPException.
+    4. Retrieves the role from the database using get_role_by_name.
+    5. If the role is not found, raises a 404 HTTPException.
+    6. Checks if the user has the role; if not, raises a 400 HTTPException.
+    7. Removes the role from the user's roles list.
+    8. Commits the change to the database.
+    9. Refreshes the user object from the database.
+    10. Logs the completion of the role removal.
+    11. Database access occurs during user and role retrieval, modification, and commit.
+
+---
+
+## function: `admin_impersonate_user(username: str, db: Session, admin_user: User, settings: Settings) -> UnknownType`
+
+Admin endpoint to impersonate a user.
+
+Args:
+    username (str): The username of the user to impersonate.
+    db (Session): The database session used to interact with the database.
+    admin_user (User): The currently authenticated admin user.
+
+Returns:
+    Token: A JWT access token for the impersonated user, with the admin's username as the impersonator.
+
+Raises:
+    HTTPException: If the user to impersonate is not found, raises a 404 error.
+
+Notes:
+    1. Logs the admin's attempt to impersonate a user.
+    2. Retrieves the target user from the database by username.
+    3. If the target user is not found, raises a 404 HTTPException.
+    4. Creates a JWT access token with the admin's username as the impersonator.
+    5. Logs the successful creation of the impersonation token.
+
+---
 
 
 ===
@@ -431,13 +643,13 @@ Notes:
 
 ## function: `_get_date_from_optional_datetime(dt: datetime | None) -> date | None`
 
-Safely convert an optional datetime object to an optional date object.
+Extract the date portion from an optional datetime object.
 
 Args:
-    dt (datetime | None): The datetime object to convert, or None.
+    dt (datetime | None): The datetime object to extract the date from, or None.
 
 Returns:
-    date | None: The date portion of the datetime, or None if input is None.
+    date | None: The date portion of the datetime object, or None if input is None.
 
 Notes:
     1. If the input dt is None, return None.
@@ -544,6 +756,9 @@ Notes:
     9. Validate the parsed JSON against the RefinedSection model.
     10. Return the refined_markdown field from the validated result.
 
+Network access:
+    - This function makes a network request to the LLM endpoint specified by llm_endpoint.
+
 ---
 
 
@@ -648,6 +863,186 @@ Notes:
 ===
 
 ===
+# File: `admin_crud.py`
+
+## function: `create_user_admin(db: Session, user_data: AdminUserCreate) -> User`
+
+Create a new user as an administrator.
+
+Args:
+    db (Session): The database session used to interact with the database.
+    user_data (AdminUserCreate): The data required to create a new user, including username, email, password, and other attributes.
+
+Returns:
+    User: The newly created user object with all fields populated, including the generated ID.
+
+Notes:
+    1. Hashes the provided password using the `get_password_hash` utility.
+    2. Creates a new `User` instance with the provided data and the hashed password.
+    3. Adds the new user to the database session.
+    4. Commits the transaction to persist the user to the database.
+    5. Refreshes the user object to ensure it contains the latest data from the database (e.g., auto-generated ID).
+    6. This function performs a database write operation.
+
+---
+
+## function: `get_user_by_id_admin(db: Session, user_id: int) -> User | None`
+
+Retrieve a single user by their unique ID as an administrator.
+
+Args:
+    db (Session): The database session used to query the database.
+    user_id (int): The unique identifier of the user to retrieve.
+
+Returns:
+    User | None: The user object if found, otherwise None.
+
+Notes:
+    1. Queries the database for a user with the specified ID.
+    2. This function performs a database read operation.
+
+---
+
+## function: `get_users_admin(db: Session) -> list[User]`
+
+Retrieve all users from the database as an administrator.
+
+Args:
+    db (Session): The database session used to query the database.
+
+Returns:
+    list[User]: A list of all user objects in the database.
+
+Notes:
+    1. Queries the database for all users.
+    2. This function performs a database read operation.
+
+---
+
+## function: `get_user_by_username_admin(db: Session, username: str) -> User | None`
+
+Retrieve a single user by their username as an administrator.
+
+Args:
+    db (Session): The database session used to query the database.
+    username (str): The unique username of the user to retrieve.
+
+Returns:
+    User | None: The user object if found, otherwise None.
+
+Notes:
+    1. Queries the database for a user with the specified username.
+    2. This function performs a database read operation.
+
+---
+
+## function: `delete_user_admin(db: Session, user: User) -> None`
+
+Delete a user from the database as an administrator.
+
+Args:
+    db (Session): The database session used to interact with the database.
+    user (User): The user object to be deleted.
+
+Returns:
+    None
+
+Notes:
+    1. Removes the specified user from the database session.
+    2. Commits the transaction to permanently delete the user from the database.
+    3. This function performs a database write operation.
+
+---
+
+## function: `get_role_by_name_admin(db: Session, name: str) -> Role | None`
+
+Retrieve a role from the database by its unique name.
+
+This function is intended for administrative use to fetch a role before
+performing actions like assigning it to or removing it from a user.
+
+Args:
+    db (Session): The SQLAlchemy database session.
+    name (str): The unique name of the role to retrieve.
+
+Returns:
+    Role | None: The `Role` object if found, otherwise `None`.
+
+Notes:
+    1. Queries the database for a role with the given name.
+    2. This function performs a database read operation.
+
+---
+
+## function: `assign_role_to_user_admin(db: Session, user: User, role: Role) -> User`
+
+Assign a role to a user if they do not already have it.
+
+This administrative function associates a `Role` with a `User`.
+It checks for the role's existence on the user before appending to prevent duplicates.
+Changes are committed to the database.
+
+Args:
+    db (Session): The SQLAlchemy database session.
+    user (User): The user object to which the role will be assigned.
+    role (Role): The role object to assign.
+
+Returns:
+    User: The updated user object, refreshed from the database if changes were made.
+
+Notes:
+    1. Checks if the user already has the role.
+    2. If not, adds the role to the user's roles and commits the change.
+    3. This function performs a database write operation if the role is added.
+
+---
+
+## function: `remove_role_from_user_admin(db: Session, user: User, role: Role) -> User`
+
+Remove a role from a user if they have it.
+
+This administrative function disassociates a `Role` from a `User`.
+It checks if the user has the role before attempting removal.
+Changes are committed to the database.
+
+Args:
+    db (Session): The SQLAlchemy database session.
+    user (User): The user object from which the role will be removed.
+    role (Role): The role object to remove.
+
+Returns:
+    User: The updated user object, refreshed from the database if changes were made.
+
+Notes:
+    1. Checks if the user has the role.
+    2. If so, removes the role from the user's roles and commits the change.
+    3. This function performs a database write operation if the role is removed.
+
+---
+
+## function: `impersonate_user_admin(db: Session, user_id: int) -> str | None`
+
+Generate an impersonation token for a user.
+
+Args:
+    db (Session): The database session used to interact with the database.
+    user_id (int): The unique identifier of the user to impersonate.
+
+Returns:
+    str | None: The access token if the user is found, otherwise None.
+
+Notes:
+    1. Retrieves the user by ID using `get_user_by_id_admin`.
+    2. If the user exists, creates an access token for them using `SecurityManager`.
+    3. Returns the token, or None if the user was not found.
+    4. This function performs a database read operation.
+
+---
+
+
+===
+
+===
 # File: `resume_parsing.py`
 
 ## function: `parse_resume_to_writer_object(markdown_content: str) -> WriterResume`
@@ -664,15 +1059,15 @@ Raises:
     ValueError: If the parsed content contains no valid resume sections (e.g., no personal, education, experience, or certifications data).
 
 Notes:
-    1. Splits the input Markdown content into individual lines.
-    2. Skips any lines before the first valid top-level section header (i.e., lines starting with "# " but not "##").
-    3. Identifies valid section headers by checking against the keys in WriterResume.expected_blocks().
-    4. If a valid header is found, truncates the lines list to start from that header.
-    5. Creates a ParseContext object using the processed lines and indentation level 1.
-    6. Uses the Resume.parse method to parse the content into a WriterResume object.
-    7. Checks if any of the main resume sections (personal, education, experience, certifications) were successfully parsed.
-    8. Raises ValueError if no valid sections were parsed.
-    9. Returns the fully parsed WriterResume object.
+    1. Split the input Markdown content into individual lines.
+    2. Skip any lines before the first valid top-level section header (i.e., lines starting with "# " but not "##").
+    3. Identify valid section headers by checking against the keys in WriterResume.expected_blocks().
+    4. If a valid header is found, truncate the lines list to start from that header.
+    5. Create a ParseContext object using the processed lines and indentation level 1.
+    6. Use the Resume.parse method to parse the content into a WriterResume object.
+    7. Check if any of the main resume sections (personal, education, experience, certifications) were successfully parsed.
+    8. Raise ValueError if no valid sections were parsed.
+    9. Return the fully parsed WriterResume object.
 
 ---
 
@@ -695,11 +1090,11 @@ Raises:
     HTTPException: If parsing fails due to invalid format or content, with status 422 and a descriptive message.
 
 Notes:
-    1. Logs the start of the parsing process.
-    2. Calls parse_resume_to_writer_object to parse the Markdown content into a WriterResume object.
-    3. Converts the WriterResume object to a dictionary using vars().
-    4. Logs successful completion.
-    5. Returns the dictionary representation.
+    1. Log the start of the parsing process.
+    2. Call parse_resume_to_writer_object to parse the Markdown content into a WriterResume object.
+    3. Convert the WriterResume object to a dictionary using vars().
+    4. Log successful completion.
+    5. Return the dictionary representation.
     6. No disk, network, or database access is performed.
 
 ---
@@ -723,10 +1118,10 @@ Raises:
     HTTPException: If parsing fails due to invalid format or content, with status 400 and a descriptive message.
 
 Notes:
-    1. Logs the start of the parsing process.
-    2. Uses the parse_resume function to parse the provided markdown_content.
-    3. Returns the result of parse_resume as a dictionary.
-    4. Logs successful completion.
+    1. Log the start of the parsing process.
+    2. Use the parse_resume function to parse the provided markdown_content.
+    3. Return the result of parse_resume as a dictionary.
+    4. Log successful completion.
     5. No disk, network, or database access is performed.
 
 ---
@@ -745,10 +1140,10 @@ Raises:
     HTTPException: If parsing fails due to invalid format, with status 422 and a descriptive message.
 
 Notes:
-    1. Logs the start of the validation process.
-    2. Attempts to parse the provided content using the parse_resume function.
-    3. If parsing fails, raises an HTTPException with a descriptive error message.
-    4. Logs successful completion if no exception is raised.
+    1. Log the start of the validation process.
+    2. Attempt to parse the provided content using the parse_resume function.
+    3. If parsing fails, raise an HTTPException with a descriptive error message.
+    4. Log successful completion if no exception is raised.
     5. No disk, network, or database access is performed.
 
 ---
@@ -1104,6 +1499,7 @@ Notes:
     2. The scheme is set to "postgresql".
     3. The username, password, host, port, and database name are retrieved from the instance attributes.
     4. The resulting URL is returned as a PostgresDsn object.
+    5. This function performs disk access to read the .env file at startup.
 
 ---
 
@@ -1111,6 +1507,28 @@ Notes:
 
 ===
 # File: `security.py`
+
+## function: `create_access_token(data: dict, settings: Settings, expires_delta: timedelta | None, impersonator: str | None) -> str`
+
+Create a JWT access token.
+
+Args:
+    data (dict): The data to encode in the token (e.g., user ID, role).
+    settings (Settings): The application settings object.
+    expires_delta (Optional[timedelta]): Custom expiration time for the token. If None, uses default value.
+    impersonator (str | None): The username of the administrator impersonating the user.
+
+Returns:
+    str: The encoded JWT token as a string.
+
+Notes:
+    1. Copy the data to avoid modifying the original.
+    2. If an impersonator is specified, add it to the token claims.
+    3. Set expiration time based on expires_delta or default.
+    4. Encode the data with the secret key and algorithm.
+    5. No database or network access in this function.
+
+---
 
 ## function: `verify_password(plain_password: str, hashed_password: str) -> bool`
 
@@ -1196,46 +1614,6 @@ Notes:
 
 ---
 
-## `SecurityManager` class
-
-Manages user authentication and authorization using password hashing and JWT tokens.
-
-Attributes:
-    settings (Settings): Configuration settings for the security system.
-    access_token_expire_minutes (int): Duration in minutes for access token expiration.
-    secret_key (str): Secret key used for signing JWT tokens.
-    algorithm (str): Algorithm used for JWT encoding.
-
----
-## method: `SecurityManager.__init__(self: UnknownType) -> UnknownType`
-
-Initialize the SecurityManager with configuration settings.
-
-Notes:
-    1. Retrieve the application settings using get_settings().
-    2. Assign the access token expiration time from settings.
-    3. Set the secret key for JWT signing from settings.
-    4. Set the JWT algorithm from settings.
-
----
-## method: `SecurityManager.create_access_token(self: UnknownType, data: dict, expires_delta: timedelta | None) -> str`
-
-Create a JWT access token.
-
-Args:
-    data (dict): The data to encode in the token (e.g., user ID, role).
-    expires_delta (Optional[timedelta]): Custom expiration time for the token. If None, uses default value.
-
-Returns:
-    str: The encoded JWT token as a string.
-
-Notes:
-    1. Copy the data to avoid modifying the original.
-    2. Set expiration time based on expires_delta or default.
-    3. Encode the data with the secret key and algorithm.
-    4. No database or network access in this function.
-
----
 
 ===
 
@@ -1276,6 +1654,31 @@ Notes:
 
 Database Access:
     - Queries the User table to retrieve a user record by username.
+
+---
+
+## function: `get_current_admin_user(current_user: Annotated[User, Depends(get_current_user)]) -> User`
+
+Verify that the current user has administrator privileges.
+
+This dependency relies on `get_current_user` to retrieve the authenticated user.
+It then checks the user's roles to determine if they are an administrator.
+
+Args:
+    current_user (User): The user object obtained from the `get_current_user`
+        dependency.
+
+Returns:
+    User: The user object if the user has the 'admin' role.
+
+Raises:
+    HTTPException: A 403 Forbidden error if the user is not an admin.
+
+Notes:
+    1. Retrieves user from `get_current_user` dependency.
+    2. Iterates through the user's roles.
+    3. If a role with the name 'admin' is found, returns the user object.
+    4. If no 'admin' role is found, raises an HTTPException with status 403.
 
 ---
 
@@ -1365,9 +1768,13 @@ Attributes:
     email (str): Unique email address for the user.
     hashed_password (str): Hashed password for the user.
     is_active (bool): Whether the user account is active.
+    attributes (dict): Flexible key-value store for user-specific attributes.
+    roles (list[Role]): Roles assigned to the user for authorization.
+    resumes (list[Resume]): Resumes associated with the user.
+    settings (UserSettings): User-specific settings.
 
 ---
-## method: `User.__init__(self: UnknownType, username: str, email: str, hashed_password: str, is_active: bool) -> UnknownType`
+## method: `User.__init__(self: UnknownType, username: str, email: str, hashed_password: str, is_active: bool, attributes: dict[str, Any] | None) -> UnknownType`
 
 Initialize a User instance.
 
@@ -1376,6 +1783,7 @@ Args:
     email (str): Unique email address for the user. Must be a non-empty string.
     hashed_password (str): Hashed password for the user. Must be a non-empty string.
     is_active (bool): Whether the user account is active. Must be a boolean.
+    attributes (dict | None): Flexible key-value attributes for the user.
 
 Returns:
     None
@@ -1385,9 +1793,10 @@ Notes:
     2. Validate that email is a non-empty string.
     3. Validate that hashed_password is a non-empty string.
     4. Validate that is_active is a boolean.
-    5. Assign all values to instance attributes.
-    6. Log the initialization of the user with their username.
-    7. This operation does not involve network, disk, or database access.
+    5. Validate that attributes is a dict or None.
+    6. Assign all values to instance attributes.
+    7. Log the initialization of the user with their username.
+    8. This operation does not involve network, disk, or database access.
 
 ---
 ## method: `User.validate_username(self: UnknownType, key: UnknownType, username: UnknownType) -> UnknownType`
@@ -1454,6 +1863,22 @@ Returns:
 
 Notes:
     1. Ensure is_active is a boolean.
+    2. This operation does not involve network, disk, or database access.
+
+---
+## method: `User.validate_attributes(self: UnknownType, key: UnknownType, attributes: UnknownType) -> UnknownType`
+
+Validate the attributes field.
+
+Args:
+    key (str): The field name being validated (should be 'attributes').
+    attributes (dict | None): The attributes value to validate. Must be a dictionary or None.
+
+Returns:
+    dict | None: The validated attributes.
+
+Notes:
+    1. If attributes is not None, ensure it is a dictionary.
     2. This operation does not involve network, disk, or database access.
 
 ---
@@ -1543,6 +1968,12 @@ Notes:
 ===
 
 ===
+# File: `role.py`
+
+
+===
+
+===
 # File: `resume.py`
 
 
@@ -1569,7 +2000,7 @@ Attributes:
 Validate the school field.
 
 Args:
-    v: The school value to validate. Must be a non-empty string.
+    v (str): The school value to validate. Must be a non-empty string.
 
 Returns:
     str: The validated school (stripped of leading/trailing whitespace).
@@ -1587,10 +2018,10 @@ Notes:
 Validate the degree field.
 
 Args:
-    v: The degree value to validate. Must be a non-empty string or None.
+    v (str | None): The degree value to validate. Must be a non-empty string or None.
 
 Returns:
-    str: The validated degree (stripped of leading/trailing whitespace).
+    str | None: The validated degree (stripped of leading/trailing whitespace) or None.
 
 Raises:
     ValueError: If the degree is empty after stripping whitespace.
@@ -1605,10 +2036,10 @@ Notes:
 Validate the major field.
 
 Args:
-    v: The major value to validate. Must be a non-empty string or None.
+    v (str | None): The major value to validate. Must be a non-empty string or None.
 
 Returns:
-    str: The validated major (stripped of leading/trailing whitespace).
+    str | None: The validated major (stripped of leading/trailing whitespace) or None.
 
 Raises:
     ValueError: If the major is empty after stripping whitespace.
@@ -1623,10 +2054,10 @@ Notes:
 Validate the gpa field.
 
 Args:
-    v: The gpa value to validate. Must be a non-empty string or None.
+    v (str | None): The gpa value to validate. Must be a non-empty string or None.
 
 Returns:
-    str: The validated gpa (stripped of leading/trailing whitespace).
+    str | None: The validated gpa (stripped of leading/trailing whitespace) or None.
 
 Raises:
     ValueError: If the gpa is empty after stripping whitespace.
@@ -1641,11 +2072,11 @@ Notes:
 Validate that start_date is not after end_date.
 
 Args:
-    v: The date value to validate.
-    info: Validation info containing data.
+    v (datetime | None): The end_date value to validate.
+    info (ValidationInfo): Validation info containing data.
 
 Returns:
-    datetime: The validated date.
+    datetime | None: The validated end_date.
 
 Raises:
     ValueError: If end_date is before start_date.
@@ -1667,7 +2098,7 @@ Attributes:
 Iterate over the degrees.
 
 Returns:
-    Iterator over the degrees list.
+    Iterator: An iterator over the degrees list.
 
 Notes:
     No external access (network, disk, or database) is performed.
@@ -1689,10 +2120,10 @@ Notes:
 Return the degree at the given index.
 
 Args:
-    index: The index of the degree to retrieve.
+    index (int): The index of the degree to retrieve.
 
 Returns:
-    The Degree object at the specified index.
+    Degree: The Degree object at the specified index.
 
 Notes:
     No external access (network, disk, or database) is performed.
@@ -1721,10 +2152,10 @@ Attributes:
 Validate the name field.
 
 Args:
-    v: The name value to validate. Must be a non-empty string.
+    v (str): The name value to validate. Must be a non-empty string.
 
 Returns:
-    str: The validated name.
+    str: The validated name, stripped of leading/trailing whitespace.
 
 Raises:
     ValueError: If the name is not a string or is empty.
@@ -1739,10 +2170,10 @@ Notes:
 Validate optional string fields.
 
 Args:
-    v: The field value to validate. Must be a string or None.
+    v (str | None): The field value to validate. Must be a string or None.
 
 Returns:
-    str: The validated field value.
+    str | None: The validated field value.
 
 Raises:
     ValueError: If the field is neither a string nor None.
@@ -1756,10 +2187,10 @@ Notes:
 Validate the date fields.
 
 Args:
-    v: The date value to validate. Must be a datetime object or None.
+    v (datetime | None): The date value to validate. Must be a datetime object or None.
 
 Returns:
-    datetime: The validated date.
+    datetime | None: The validated date.
 
 Raises:
     ValueError: If the date is neither a datetime object nor None.
@@ -1795,7 +2226,7 @@ Attributes:
 Validate the certifications field.
 
 Args:
-    v: The certifications value to validate. Must be a list of Certification objects.
+    v (list[Certification]): The certifications value to validate. Must be a list of Certification objects.
 
 Returns:
     list[Certification]: The validated certifications list.
@@ -1824,7 +2255,7 @@ Notes:
 Return the number of certifications.
 
 Returns:
-    The integer count of certifications in the list.
+    int: The integer count of certifications in the list.
 
 Notes:
     1. Return the length of the certifications list.
@@ -1835,10 +2266,10 @@ Notes:
 Return the certification at the given index.
 
 Args:
-    index: The index of the certification to retrieve.
+    index (int): The index of the certification to retrieve.
 
 Returns:
-    The Certification object at the specified index.
+    Certification: The Certification object at the specified index.
 
 Notes:
     1. Retrieve and return the certification at the given index.
@@ -1849,7 +2280,7 @@ Notes:
 Return the type that will be contained in the list.
 
 Returns:
-    The Certification class.
+    type: The Certification class.
 
 Notes:
     1. Return the Certification class.

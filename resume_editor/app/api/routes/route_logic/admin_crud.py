@@ -2,7 +2,7 @@ import logging
 
 from sqlalchemy.orm import Session
 
-from resume_editor.app.core.security import SecurityManager, get_password_hash
+from resume_editor.app.core.security import get_password_hash
 from resume_editor.app.models.role import Role
 from resume_editor.app.models.user import User
 from resume_editor.app.schemas.user import AdminUserCreate
@@ -15,17 +15,19 @@ def create_user_admin(db: Session, user_data: AdminUserCreate) -> User:
     Create a new user as an administrator.
 
     Args:
-        db (Session): The database session.
-        user_data (AdminUserCreate): The user data.
+        db (Session): The database session used to interact with the database.
+        user_data (AdminUserCreate): The data required to create a new user, including username, email, password, and other attributes.
 
     Returns:
-        User: The created user.
+        User: The newly created user object with all fields populated, including the generated ID.
 
     Notes:
-        1. Hashes the user's password.
-        2. Creates a new User instance.
-        3. Adds the user to the database, commits, and refreshes.
-        4. This function performs a database write operation.
+        1. Hashes the provided password using the `get_password_hash` utility.
+        2. Creates a new `User` instance with the provided data and the hashed password.
+        3. Adds the new user to the database session.
+        4. Commits the transaction to persist the user to the database.
+        5. Refreshes the user object to ensure it contains the latest data from the database (e.g., auto-generated ID).
+        6. This function performs a database write operation.
 
     """
     _msg = f"Hashing password for user: {user_data.username}"
@@ -59,17 +61,17 @@ def create_user_admin(db: Session, user_data: AdminUserCreate) -> User:
 
 def get_user_by_id_admin(db: Session, user_id: int) -> User | None:
     """
-    Retrieve a single user by ID as an administrator.
+    Retrieve a single user by their unique ID as an administrator.
 
     Args:
-        db (Session): The database session.
-        user_id (int): The ID of the user to retrieve.
+        db (Session): The database session used to query the database.
+        user_id (int): The unique identifier of the user to retrieve.
 
     Returns:
         User | None: The user object if found, otherwise None.
 
     Notes:
-        1. Queries the database for a user with the given ID.
+        1. Queries the database for a user with the specified ID.
         2. This function performs a database read operation.
 
     """
@@ -78,13 +80,13 @@ def get_user_by_id_admin(db: Session, user_id: int) -> User | None:
 
 def get_users_admin(db: Session) -> list[User]:
     """
-    Retrieve all users as an administrator.
+    Retrieve all users from the database as an administrator.
 
     Args:
-        db (Session): The database session.
+        db (Session): The database session used to query the database.
 
     Returns:
-        list[User]: A list of all user objects.
+        list[User]: A list of all user objects in the database.
 
     Notes:
         1. Queries the database for all users.
@@ -94,20 +96,40 @@ def get_users_admin(db: Session) -> list[User]:
     return db.query(User).all()
 
 
-def delete_user_admin(db: Session, user: User) -> None:
+def get_user_by_username_admin(db: Session, username: str) -> User | None:
     """
-    Delete a user as an administrator.
+    Retrieve a single user by their username as an administrator.
 
     Args:
-        db (Session): The database session.
-        user (User): The user object to delete.
+        db (Session): The database session used to query the database.
+        username (str): The unique username of the user to retrieve.
+
+    Returns:
+        User | None: The user object if found, otherwise None.
+
+    Notes:
+        1. Queries the database for a user with the specified username.
+        2. This function performs a database read operation.
+
+    """
+    return db.query(User).filter(User.username == username).first()
+
+
+def delete_user_admin(db: Session, user: User) -> None:
+    """
+    Delete a user from the database as an administrator.
+
+    Args:
+        db (Session): The database session used to interact with the database.
+        user (User): The user object to be deleted.
 
     Returns:
         None
 
     Notes:
-        1. Deletes the given user from the database and commits the change.
-        2. This function performs a database write operation.
+        1. Removes the specified user from the database session.
+        2. Commits the transaction to permanently delete the user from the database.
+        3. This function performs a database write operation.
 
     """
     db.delete(user)
@@ -116,7 +138,7 @@ def delete_user_admin(db: Session, user: User) -> None:
 
 def get_role_by_name_admin(db: Session, name: str) -> Role | None:
     """
-    Retrieve a role from the database by its name.
+    Retrieve a role from the database by its unique name.
 
     This function is intended for administrative use to fetch a role before
     performing actions like assigning it to or removing it from a user.
@@ -221,37 +243,3 @@ def remove_role_from_user_admin(db: Session, user: User, role: Role) -> User:
     return user
 
 
-def impersonate_user_admin(db: Session, user_id: int) -> str | None:
-    """
-    Generate an impersonation token for a user.
-
-    Args:
-        db (Session): The database session.
-        user_id (int): The ID of the user to impersonate.
-
-    Returns:
-        str | None: The access token if the user is found, otherwise None.
-
-    Notes:
-        1. Retrieves user by ID using `get_user_by_id_admin`.
-        2. If user exists, creates an access token for them using `SecurityManager`.
-        3. Returns token, or None if user not found.
-
-    """
-    _msg = "impersonate_user_admin starting"
-    log.debug(_msg)
-
-    user = get_user_by_id_admin(db=db, user_id=user_id)
-    if not user:
-        _msg = f"User with id {user_id} not found for impersonation."
-        log.info(_msg)
-        _msg = "impersonate_user_admin returning"
-        log.debug(_msg)
-        return None
-
-    security_manager = SecurityManager()
-    access_token = security_manager.create_access_token(data={"sub": user.username})
-
-    _msg = "impersonate_user_admin returning"
-    log.debug(_msg)
-    return access_token

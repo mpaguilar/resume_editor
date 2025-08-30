@@ -8,7 +8,7 @@ from fastapi.security import OAuth2PasswordBearer
 from jose import jwt
 from sqlalchemy.orm import Session
 
-from resume_editor.app.core.config import get_settings
+from resume_editor.app.core.config import Settings, get_settings
 
 if TYPE_CHECKING:
     from resume_editor.app.models.user import User
@@ -18,73 +18,50 @@ log = logging.getLogger(__name__)
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/users/login")
 
 
-class SecurityManager:
+def create_access_token(
+    data: dict,
+    settings: Settings,
+    expires_delta: timedelta | None = None,
+    impersonator: str | None = None,
+) -> str:
     """
-    Manages user authentication and authorization using password hashing and JWT tokens.
+    Create a JWT access token.
 
-    Attributes:
-        settings (Settings): Configuration settings for the security system.
-        access_token_expire_minutes (int): Duration in minutes for access token expiration.
-        secret_key (str): Secret key used for signing JWT tokens.
-        algorithm (str): Algorithm used for JWT encoding.
+    Args:
+        data (dict): The data to encode in the token (e.g., user ID, role).
+        settings (Settings): The application settings object.
+        expires_delta (Optional[timedelta]): Custom expiration time for the token. If None, uses default value.
+        impersonator (str | None): The username of the administrator impersonating the user.
+
+    Returns:
+        str: The encoded JWT token as a string.
+
+    Notes:
+        1. Copy the data to avoid modifying the original.
+        2. If an impersonator is specified, add it to the token claims.
+        3. Set expiration time based on expires_delta or default.
+        4. Encode the data with the secret key and algorithm.
+        5. No database or network access in this function.
 
     """
-
-    def __init__(self):
-        """
-        Initialize the SecurityManager with configuration settings.
-
-        Notes:
-            1. Retrieve the application settings using get_settings().
-            2. Assign the access token expiration time from settings.
-            3. Set the secret key for JWT signing from settings.
-            4. Set the JWT algorithm from settings.
-
-        """
-        self.settings = get_settings()
-        self.access_token_expire_minutes = self.settings.access_token_expire_minutes
-        self.secret_key = self.settings.secret_key
-        self.algorithm = self.settings.algorithm
-
-    def create_access_token(
-        self,
-        data: dict,
-        expires_delta: timedelta | None = None,
-    ) -> str:
-        """
-        Create a JWT access token.
-
-        Args:
-            data (dict): The data to encode in the token (e.g., user ID, role).
-            expires_delta (Optional[timedelta]): Custom expiration time for the token. If None, uses default value.
-
-        Returns:
-            str: The encoded JWT token as a string.
-
-        Notes:
-            1. Copy the data to avoid modifying the original.
-            2. Set expiration time based on expires_delta or default.
-            3. Encode the data with the secret key and algorithm.
-            4. No database or network access in this function.
-
-        """
-        _msg = "Creating access token"
-        log.debug(_msg)
-
-        to_encode = data.copy()
-        if expires_delta:
-            expire = datetime.now(UTC) + expires_delta
-        else:
-            expire = datetime.now(UTC) + timedelta(
-                minutes=self.access_token_expire_minutes,
-            )
-        to_encode.update({"exp": expire})
-        encoded_jwt = jwt.encode(
-            to_encode,
-            self.secret_key,
-            algorithm=self.algorithm,
+    _msg = "Creating access token"
+    log.debug(_msg)
+    to_encode = data.copy()
+    if impersonator:
+        to_encode["impersonator"] = impersonator
+    if expires_delta:
+        expire = datetime.now(UTC) + expires_delta
+    else:
+        expire = datetime.now(UTC) + timedelta(
+            minutes=settings.access_token_expire_minutes,
         )
-        return encoded_jwt
+    to_encode.update({"exp": expire})
+    encoded_jwt = jwt.encode(
+        to_encode,
+        settings.secret_key,
+        algorithm=settings.algorithm,
+    )
+    return encoded_jwt
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:

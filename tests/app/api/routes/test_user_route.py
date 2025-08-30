@@ -6,10 +6,14 @@ from sqlalchemy.orm import Session
 
 from resume_editor.app.api.routes.user import (
     create_new_user,
+    delete_user,
     get_user_by_email,
+    get_user_by_id,
+    get_users,
     get_user_by_username,
 )
 from resume_editor.app.core.auth import get_current_user
+from resume_editor.app.core.config import Settings, get_settings
 from resume_editor.app.core.security import get_password_hash
 from resume_editor.app.database.database import get_db
 from resume_editor.app.main import create_app
@@ -35,6 +39,7 @@ def test_user():
 @pytest.fixture
 def client_with_db():
     """Fixture for a test client with a mocked database."""
+    get_settings.cache_clear()
     app = create_app()
     mock_db = Mock()
 
@@ -142,6 +147,10 @@ def test_register_user_duplicate_email(
 def test_login_success(client_with_db, test_user):
     """Test successful user login."""
     client, mock_db = client_with_db
+
+    test_settings = get_settings()
+    client.app.dependency_overrides[get_settings] = lambda: test_settings
+
     query_result_mock = Mock()
     query_result_mock.filter.return_value.first.return_value = test_user
     mock_db.query.return_value = query_result_mock
@@ -157,13 +166,10 @@ def test_login_success(client_with_db, test_user):
     # Verify the token
     from jose import jwt
 
-    from resume_editor.app.core.config import get_settings
-
-    settings = get_settings()
     decoded_token = jwt.decode(
         data["access_token"],
-        settings.secret_key,
-        algorithms=[settings.algorithm],
+        test_settings.secret_key,
+        algorithms=[test_settings.algorithm],
     )
     assert decoded_token["sub"] == test_user.username
 
@@ -251,6 +257,10 @@ def test_update_user_settings(mock_update_settings, authenticated_client, test_u
 def test_access_protected_route_with_token(client_with_db, test_user):
     """Test accessing a protected route with a valid JWT token."""
     client, mock_db = client_with_db
+
+    test_settings = get_settings()
+    client.app.dependency_overrides[get_settings] = lambda: test_settings
+
     # Mock the database call for login and for get_current_user
     # We set up a mock that will be returned every time `query` is called.
     query_result_mock = Mock()
@@ -269,10 +279,13 @@ def test_access_protected_route_with_token(client_with_db, test_user):
     # 2. Access a protected route with the token
     with patch(
         "resume_editor.app.api.routes.user.settings_crud.get_user_settings"
-    ) as mock_get_user_settings:
+    ) as mock_get_user_settings, patch(
+        "resume_editor.app.core.auth.get_settings"
+    ) as mock_auth_get_settings:
         mock_get_user_settings.return_value = (
             None  # We don't care about the return value
         )
+        mock_auth_get_settings.return_value = test_settings
 
         headers = {"Authorization": f"Bearer {token}"}
         settings_response = client.get("/api/users/settings", headers=headers)
@@ -347,6 +360,38 @@ def test_create_new_user_helper(mock_get_password_hash):
     mock_db.commit.assert_called_once()
     mock_db.refresh.assert_called_once_with(added_user)
     assert new_user == added_user
+
+
+def test_get_users_helper(test_user):
+    """Test retrieving all users helper."""
+    mock_db = Mock(spec=Session)
+    mock_db.query.return_value.all.return_value = [test_user]
+    users = get_users(mock_db)
+    assert users is not None
+    assert len(users) == 1
+    assert users[0].username == "testuser"
+    mock_db.query.assert_called_with(DBUser)
+    mock_db.query.return_value.all.assert_called_once()
+
+
+def test_get_user_by_id_helper(test_user):
+    """Test retrieving a user by ID helper."""
+    mock_db = Mock(spec=Session)
+    mock_db.query.return_value.filter.return_value.first.return_value = test_user
+    user = get_user_by_id(mock_db, 1)
+    assert user is not None
+    assert user.id == 1
+    assert user.username == "testuser"
+    mock_db.query.assert_called_with(DBUser)
+    mock_db.query.return_value.filter.return_value.first.assert_called_once()
+
+
+def test_delete_user_helper(test_user):
+    """Test deleting a user helper."""
+    mock_db = Mock(spec=Session)
+    delete_user(mock_db, test_user)
+    mock_db.delete.assert_called_once_with(test_user)
+    mock_db.commit.assert_called_once()
 
 
 # Tests for schemas
