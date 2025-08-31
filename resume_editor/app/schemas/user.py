@@ -212,17 +212,20 @@ class AdminUserUpdateRequest(BaseModel):
     Allows administrators to modify specific user properties.
 
     Args:
-        force_password_change (bool): Flag to require the user to change their password on next login.
+        email (EmailStr, optional): The user's new email address.
+        force_password_change (bool, optional): Flag to require the user to change their password on next login.
 
     Attributes:
-        force_password_change (bool): Flag to require the user to change their password on next login.
+        email (EmailStr | None): The user's new email address.
+        force_password_change (bool | None): Flag to require the user to change their password on next login.
 
     Notes:
-        1. This model is used in administrative endpoints.
+        1. This model is used in administrative endpoints for partial updates.
 
     """
 
-    force_password_change: bool
+    email: EmailStr | None = None
+    force_password_change: bool | None = None
 
 
 class Token(BaseModel):

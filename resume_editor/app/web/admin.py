@@ -7,11 +7,12 @@ from sqlalchemy.orm import Session
 
 from resume_editor.app.api.routes.route_logic.admin_crud import get_users_admin
 from resume_editor.app.core.auth import (
-    _verify_admin_privileges,
     get_optional_current_user_from_cookie,
+    verify_admin_privileges,
 )
 from resume_editor.app.database.database import get_db
 from resume_editor.app.models.user import User
+from resume_editor.app.schemas.user import AdminUserResponse
 
 log = logging.getLogger(__name__)
 
@@ -55,9 +56,10 @@ async def admin_users_page(
             status_code=status.HTTP_307_TEMPORARY_REDIRECT,
         )
 
-    _verify_admin_privileges(user=current_user)
+    verify_admin_privileges(user=current_user)
 
-    users = get_users_admin(db=db)
+    db_users = get_users_admin(db=db)
+    users = [AdminUserResponse.model_validate(user) for user in db_users]
     return templates.TemplateResponse(
         request,
         "admin/users.html",

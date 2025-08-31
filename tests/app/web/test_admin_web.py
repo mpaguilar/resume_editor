@@ -126,7 +126,7 @@ def test_admin_users_page_as_admin(mock_get_users_admin):
     assert cols_user1[1].text.strip() == "user1@test.com"
     assert cols_user1[2].text.strip() == "Never"
     assert cols_user1[3].text.strip() == "0"
-    assert "No" in cols_user1[4].text
+    assert "No" in cols_user1[4].text.strip()
 
     # Check User 2
     cols_user2 = rows[1].find_all("td")
@@ -134,7 +134,7 @@ def test_admin_users_page_as_admin(mock_get_users_admin):
     assert cols_user2[1].text.strip() == "user2@test.com"
     assert cols_user2[2].text.strip() == "2025-08-31 12:00:00"
     assert cols_user2[3].text.strip() == "1"
-    assert "Yes" in cols_user2[4].text
+    assert "Yes" in cols_user2[4].text.strip()
 
     # Check User 3 (attributes is None)
     cols_user3 = rows[2].find_all("td")
@@ -142,6 +142,6 @@ def test_admin_users_page_as_admin(mock_get_users_admin):
     assert cols_user3[1].text.strip() == "user3@test.com"
     assert cols_user3[2].text.strip() == "Never"
     assert cols_user3[3].text.strip() == "0"
-    assert "No" in cols_user3[4].text
+    assert "No" in cols_user3[4].text.strip()
 
     app.dependency_overrides.clear()

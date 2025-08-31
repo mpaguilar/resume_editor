@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Admin Dashboard</title>
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100">
+    <div class="flex h-screen">
+        <!-- Sidebar -->
+        <aside class="w-64 bg-gray-800 text-white p-4">
+            <h1 class="text-2xl font-bold mb-8">Admin Panel</h1>
+            <nav>
+                <ul>
+                    <li><a href="/admin/users" class="block py-2 px-4 rounded hover:bg-gray-700">Users</a></li>
+                    <!-- Add other admin links here -->
+                </ul>
+            </nav>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="flex-1 p-8 overflow-y-auto">
+            {% block content %}{% endblock %}
+        </main>
+    </div>
+
+    <!-- Modal for forms -->
+    <div id="modal" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full" style="display:none; z-index: 50;">
+        <div class="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+            <div id="modal-content">
+                <!-- Form content will be loaded here by HTMX -->
+            </div>
+        </div>
+    </div>
+</body>
+</html>

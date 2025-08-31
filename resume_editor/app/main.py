@@ -14,7 +14,9 @@ from resume_editor.app.api.routes.route_logic.settings_crud import (
     update_user_settings,
 )
 from resume_editor.app.api.routes.user import router as user_router
-from resume_editor.app.core.auth import get_optional_current_user_from_cookie
+from resume_editor.app.core.auth import (
+    get_optional_current_user_from_cookie,
+)
 from resume_editor.app.core.config import Settings, get_settings
 from resume_editor.app.core.security import (
     authenticate_user,
@@ -24,8 +26,11 @@ from resume_editor.app.core.security import (
 )
 from resume_editor.app.database.database import get_db
 from resume_editor.app.models.user import User
-from resume_editor.app.schemas.user import UserSettingsUpdateRequest
+from resume_editor.app.schemas.user import (
+    UserSettingsUpdateRequest,
+)
 from resume_editor.app.web.admin import router as admin_web_router
+from resume_editor.app.web.admin_forms import router as admin_forms_router
 
 log = logging.getLogger(__name__)
 
@@ -75,6 +80,7 @@ def create_app() -> FastAPI:
     app.include_router(resume_router)
     app.include_router(admin_router)
     app.include_router(admin_web_router)
+    app.include_router(admin_forms_router)
 
     @app.get("/health")
     async def health_check() -> dict[str, str]:
@@ -915,6 +921,9 @@ def create_app() -> FastAPI:
     return app
 
 
+app = create_app()
+
+
 def initialize_database():
     """
     Initialize the database.
@@ -938,7 +947,6 @@ def main():
     """Entry point for running the application directly."""
     import uvicorn
 
-    app = create_app()
     initialize_database()
     uvicorn.run(app, host="0.0.0.0", port=8000)
 

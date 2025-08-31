@@ -20,60 +20,83 @@ from resume_editor.app.schemas.user import AdminUserCreate, AdminUserUpdateReque
 
 
 @pytest.mark.parametrize(
-    "is_active, attributes",
+    "email_update, force_password_change, existing_attributes",
     [
-        (True, None),
-        (False, {"key": "value"}),
+        (None, None, None),
+        (None, True, None),
+        (None, False, {"force_password_change": True}),
+        ("new@test.com", None, None),
+        ("new@test.com", True, {"other_key": "value"}),
     ],
 )
 @patch("resume_editor.app.api.routes.route_logic.admin_crud.get_user_by_id_admin")
-@patch("resume_editor.app.api.routes.route_logic.admin_crud.get_password_hash")
-def test_create_user_admin(
-    mock_get_password_hash: MagicMock,
+@patch("resume_editor.app.api.routes.route_logic.admin_crud.flag_modified")
+def test_update_user_admin(
+    mock_flag_modified: MagicMock,
     mock_get_user_by_id_admin: MagicMock,
-    is_active: bool,
-    attributes: dict | None,
+    email_update: str | None,
+    force_password_change: bool | None,
+    existing_attributes: dict | None,
 ):
-    """Test creating a user as an admin with various options."""
+    """Test updating a user with various combinations of data."""
     mock_db = MagicMock(spec=Session)
-    user_data = AdminUserCreate(
-        username="testuser",
-        email="test@example.com",
-        password="password",
-        is_active=is_active,
-        attributes=attributes,
-    )
-    mock_get_password_hash.return_value = "hashed_password"
-    # Mock the user instance that is added to the db
-    mock_user_instance = User(
-        username=user_data.username,
-        email=user_data.email,
-        hashed_password="hashed_password",
-        is_active=is_active,
-        attributes=attributes,
-    )
-    mock_user_instance.id = 1
-    # Mock the re-fetched user
-    mock_get_user_by_id_admin.return_value = mock_user_instance
+    original_email = "test@test.com"
 
-    with patch(
-        "resume_editor.app.api.routes.route_logic.admin_crud.User",
-        return_value=mock_user_instance,
-    ) as mock_user_class:
-        created_user = create_user_admin(mock_db, user_data)
+    # User object passed to the function
+    user_to_update = User(username="test", email=original_email, hashed_password="pw")
+    user_to_update.id = 1
+    user_to_update.attributes = (
+        existing_attributes.copy() if existing_attributes is not None else None
+    )
 
-        mock_get_password_hash.assert_called_once_with("password")
-        mock_user_class.assert_called_once_with(
-            username=user_data.username,
-            email=user_data.email,
-            hashed_password="hashed_password",
-            is_active=is_active,
-            attributes=attributes,
+    # Mock the re-fetched user object to reflect expected state
+    refetched_user = User(username="test", email=original_email, hashed_password="pw")
+    refetched_user.id = 1
+
+    expected_attributes = (
+        existing_attributes.copy() if existing_attributes is not None else {}
+    )
+    if force_password_change is not None:
+        expected_attributes["force_password_change"] = force_password_change
+
+    refetched_user.attributes = expected_attributes if expected_attributes else None
+    refetched_user.email = email_update if email_update else original_email
+    mock_get_user_by_id_admin.return_value = refetched_user
+
+    update_data = AdminUserUpdateRequest(
+        email=email_update,
+        force_password_change=force_password_change,
+    )
+
+    updated_user = update_user_admin(
+        db=mock_db,
+        user=user_to_update,
+        update_data=update_data,
+    )
+
+    # Check that the original object's attributes were modified correctly
+    if email_update:
+        assert user_to_update.email == email_update
+    else:
+        assert user_to_update.email == original_email
+
+    if force_password_change is not None:
+        assert (
+            user_to_update.attributes["force_password_change"] is force_password_change
         )
-        mock_db.add.assert_called_once_with(mock_user_instance)
-        mock_db.commit.assert_called_once()
-        mock_get_user_by_id_admin.assert_called_once_with(db=mock_db, user_id=1)
-        assert created_user == mock_user_instance
+        if existing_attributes and "other_key" in existing_attributes:
+            assert "other_key" in user_to_update.attributes
+        mock_flag_modified.assert_called_once_with(user_to_update, "attributes")
+    else:
+        mock_flag_modified.assert_not_called()
+
+    # Check function calls
+    mock_db.commit.assert_called_once()
+    mock_get_user_by_id_admin.assert_called_once_with(db=mock_db, user_id=1)
+
+    # Check that the re-fetched user is returned
+    assert updated_user == refetched_user
+    assert updated_user is not user_to_update
 
 
 @pytest.mark.parametrize("user_exists", [True, False])
@@ -247,53 +270,59 @@ def test_remove_role_from_user_admin(
         mock_get_user_by_id_admin.assert_not_called()
 
 
-@pytest.mark.parametrize("force_password_change", [True, False])
-@pytest.mark.parametrize("existing_attributes", [None, {}, {"other_key": "value"}])
+@pytest.mark.parametrize(
+    "is_active, attributes",
+    [
+        (True, None),
+        (False, {"key": "value"}),
+        (True, {"force_password_change": True}),
+    ],
+)
 @patch("resume_editor.app.api.routes.route_logic.admin_crud.get_user_by_id_admin")
-@patch("resume_editor.app.api.routes.route_logic.admin_crud.flag_modified")
-def test_update_user_admin(
-    mock_flag_modified,
-    mock_get_user_by_id_admin,
-    existing_attributes,
-    force_password_change,
+@patch("resume_editor.app.api.routes.route_logic.admin_crud.get_password_hash")
+def test_create_user_admin(
+    mock_get_password_hash: MagicMock,
+    mock_get_user_by_id_admin: MagicMock,
+    is_active: bool,
+    attributes: dict | None,
 ):
-    """Test updating a user with and without existing attributes."""
+    """Test creating a user as an admin with various options."""
     mock_db = MagicMock(spec=Session)
-
-    # User object passed to the function
-    user_to_update = User(username="test", email="test@test.com", hashed_password="pw")
-    user_to_update.id = 1
-    user_to_update.attributes = (
-        existing_attributes.copy() if existing_attributes is not None else None
+    user_data = AdminUserCreate(
+        username="testuser",
+        email="test@example.com",
+        password="password",
+        is_active=is_active,
+        attributes=attributes,
     )
-
-    # Mock the re-fetched user object
-    refetched_user = User(username="test", email="test@test.com", hashed_password="pw")
-    refetched_user.id = 1
-    refetched_user.attributes = (
-        existing_attributes.copy() if existing_attributes else {}
+    mock_get_password_hash.return_value = "hashed_password"
+    # Mock the user instance that is added to the db
+    mock_user_instance = User(
+        username=user_data.username,
+        email=user_data.email,
+        hashed_password="hashed_password",
+        is_active=is_active,
+        attributes=attributes,
     )
-    refetched_user.attributes["force_password_change"] = force_password_change
-    mock_get_user_by_id_admin.return_value = refetched_user
+    mock_user_instance.id = 1
+    # Mock the re-fetched user
+    mock_get_user_by_id_admin.return_value = mock_user_instance
 
-    update_data = AdminUserUpdateRequest(force_password_change=force_password_change)
+    with patch(
+        "resume_editor.app.api.routes.route_logic.admin_crud.User",
+        return_value=mock_user_instance,
+    ) as mock_user_class:
+        created_user = create_user_admin(mock_db, user_data)
 
-    updated_user = update_user_admin(
-        db=mock_db,
-        user=user_to_update,
-        update_data=update_data,
-    )
-
-    # Check that the original object's attributes were modified
-    assert user_to_update.attributes["force_password_change"] is force_password_change
-    if existing_attributes:
-        assert "other_key" in user_to_update.attributes
-
-    # Check function calls
-    mock_flag_modified.assert_called_once_with(user_to_update, "attributes")
-    mock_db.commit.assert_called_once()
-    mock_get_user_by_id_admin.assert_called_once_with(db=mock_db, user_id=1)
-
-    # Check that the re-fetched user is returned
-    assert updated_user == refetched_user
-    assert updated_user is not user_to_update
+        mock_get_password_hash.assert_called_once_with("password")
+        mock_user_class.assert_called_once_with(
+            username=user_data.username,
+            email=user_data.email,
+            hashed_password="hashed_password",
+            is_active=is_active,
+            attributes=attributes,
+        )
+        mock_db.add.assert_called_once_with(mock_user_instance)
+        mock_db.commit.assert_called_once()
+        mock_get_user_by_id_admin.assert_called_once_with(db=mock_db, user_id=1)
+        assert created_user == mock_user_instance

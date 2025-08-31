@@ -146,7 +146,7 @@ def get_optional_current_user_from_cookie(
         return None
 
 
-def _verify_admin_privileges(user: User) -> User:
+def verify_admin_privileges(user: User) -> User:
     """
     Verify that a user has admin privileges.
 
@@ -199,7 +199,7 @@ def get_current_admin_user(
     _msg = "get_current_admin_user starting"
     log.debug(_msg)
 
-    _verify_admin_privileges(user=current_user)
+    verify_admin_privileges(user=current_user)
 
     _msg = "get_current_admin_user returning"
     log.debug(_msg)
@@ -235,7 +235,7 @@ def get_current_admin_user_from_cookie(
     _msg = "get_current_admin_user_from_cookie starting"
     log.debug(_msg)
 
-    _verify_admin_privileges(user=current_user)
+    verify_admin_privileges(user=current_user)
 
     _msg = "get_current_admin_user_from_cookie returning"
     log.debug(_msg)

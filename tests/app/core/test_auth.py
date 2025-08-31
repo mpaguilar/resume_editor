@@ -7,12 +7,12 @@ from jose import JWTError
 from sqlalchemy.orm import Session
 
 from resume_editor.app.core.auth import (
-    _verify_admin_privileges,
     get_current_admin_user,
     get_current_admin_user_from_cookie,
     get_current_user,
     get_current_user_from_cookie,
     get_optional_current_user_from_cookie,
+    verify_admin_privileges,
 )
 from resume_editor.app.models.role import Role
 from resume_editor.app.models.user import User
@@ -397,7 +397,7 @@ def test_get_current_admin_user_from_cookie_without_admin_role():
     app.dependency_overrides.clear()
 
 
-# --- Tests for _verify_admin_privileges ---
+# --- Tests for verify_admin_privileges ---
 
 
 def test_verify_admin_privileges_with_admin_role():
@@ -408,7 +408,7 @@ def test_verify_admin_privileges_with_admin_role():
         hashed_password="password",
     )
     admin_user.roles = [Role(name="admin")]
-    assert _verify_admin_privileges(admin_user) == admin_user
+    assert verify_admin_privileges(admin_user) == admin_user
 
 
 def test_verify_admin_privileges_without_admin_role():
@@ -416,7 +416,7 @@ def test_verify_admin_privileges_without_admin_role():
     user = User(username="user", email="user@test.com", hashed_password="password")
     user.roles = [Role(name="user")]
     with pytest.raises(HTTPException) as exc_info:
-        _verify_admin_privileges(user)
+        verify_admin_privileges(user)
     assert exc_info.value.status_code == status.HTTP_403_FORBIDDEN
     assert exc_info.value.detail == "The user does not have admin privileges"
 
@@ -426,6 +426,6 @@ def test_verify_admin_privileges_with_no_roles():
     user = User(username="user", email="user@test.com", hashed_password="password")
     user.roles = []
     with pytest.raises(HTTPException) as exc_info:
-        _verify_admin_privileges(user)
+        verify_admin_privileges(user)
     assert exc_info.value.status_code == status.HTTP_403_FORBIDDEN
     assert exc_info.value.detail == "The user does not have admin privileges"

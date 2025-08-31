@@ -304,12 +304,16 @@ def update_user_admin(
     _msg = "update_user_admin starting"
     log.debug(_msg)
     user_id = user.id
-    if user.attributes is None:
-        user.attributes = {}
 
-    user.attributes["force_password_change"] = update_data.force_password_change
+    if update_data.email is not None:
+        user.email = update_data.email
 
-    flag_modified(user, "attributes")
+    if update_data.force_password_change is not None:
+        if user.attributes is None:
+            user.attributes = {}
+
+        user.attributes["force_password_change"] = update_data.force_password_change
+        flag_modified(user, "attributes")
 
     db.commit()
     refetched_user = get_user_by_id_admin(db=db, user_id=user_id)

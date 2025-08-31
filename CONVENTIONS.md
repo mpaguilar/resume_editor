@@ -116,6 +116,10 @@
 * Do not use duplicate file names for tests, even in separate paths. This causes errors.
     * All test files **must** have unique filenames
 
+# HTML considerations
+* Prefer putting HTML into templates
+* Putting HTML into Python code is discouraged
+
 # Context management
 It is **important** to keep the size of individual files manageable.
 
