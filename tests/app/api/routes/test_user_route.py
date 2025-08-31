@@ -11,11 +11,11 @@ from resume_editor.app.api.routes.user import (
     delete_user,
     get_user_by_email,
     get_user_by_id,
-    get_users,
     get_user_by_username,
+    get_users,
 )
 from resume_editor.app.core.auth import get_current_user
-from resume_editor.app.core.config import Settings, get_settings
+from resume_editor.app.core.config import get_settings
 from resume_editor.app.core.security import get_password_hash
 from resume_editor.app.database.database import get_db
 from resume_editor.app.main import create_app
@@ -291,7 +291,7 @@ def test_access_protected_route_with_token(client_with_db, test_user):
     # 2. Access a protected route with the token
     with (
         patch(
-            "resume_editor.app.api.routes.user.settings_crud.get_user_settings"
+            "resume_editor.app.api.routes.user.settings_crud.get_user_settings",
         ) as mock_get_user_settings,
         patch("resume_editor.app.core.auth.get_settings") as mock_auth_get_settings,
     ):
@@ -358,7 +358,9 @@ def test_create_new_user_helper(mock_get_password_hash):
     mock_db = Mock(spec=Session)
     mock_get_password_hash.return_value = "hashed_password"
     user_data = UserCreate(
-        username="newuser", email="new@example.com", password="password"
+        username="newuser",
+        email="new@example.com",
+        password="password",
     )
 
     new_user = create_new_user(mock_db, user_data)
@@ -448,7 +450,8 @@ def test_change_password_success(authenticated_client, test_user):
 
     with (
         patch(
-            "resume_editor.app.api.routes.user.verify_password", return_value=True
+            "resume_editor.app.api.routes.user.verify_password",
+            return_value=True,
         ) as mock_verify,
         patch(
             "resume_editor.app.api.routes.user.get_password_hash",
@@ -474,7 +477,8 @@ def test_change_password_incorrect_current_password(authenticated_client, test_u
     test_user.hashed_password = "hashed_old_password"
 
     with patch(
-        "resume_editor.app.api.routes.user.verify_password", return_value=False
+        "resume_editor.app.api.routes.user.verify_password",
+        return_value=False,
     ) as mock_verify:
         response = client.post(
             "/api/users/change-password",

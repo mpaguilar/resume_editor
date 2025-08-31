@@ -7,9 +7,6 @@ from cryptography.fernet import InvalidToken
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
-from resume_editor.app.core.auth import get_current_user
-from resume_editor.app.core.config import get_settings
-from resume_editor.app.database.database import get_db
 from resume_editor.app.api.routes.route_models import (
     CertificationsResponse,
     EducationResponse,
@@ -18,6 +15,9 @@ from resume_editor.app.api.routes.route_models import (
     RefineAction,
     RefineTargetSection,
 )
+from resume_editor.app.core.auth import get_current_user
+from resume_editor.app.core.config import get_settings
+from resume_editor.app.database.database import get_db
 from resume_editor.app.main import create_app
 from resume_editor.app.models.resume_model import Resume as DatabaseResume
 from resume_editor.app.models.user import User as DBUser
@@ -910,7 +910,7 @@ def test_export_resume_docx_with_date_filter(
     mock_build_sections.return_value = VALID_MINIMAL_RESUME_CONTENT
 
     response = client_with_auth_and_resume.get(
-        "/api/resumes/1/export/docx?format=plain&start_date=2020-01-01"
+        "/api/resumes/1/export/docx?format=plain&start_date=2020-01-01",
     )
 
     assert response.status_code == 200
@@ -935,7 +935,7 @@ def test_export_resume_docx_parsing_error(client_with_auth_and_resume, test_resu
         side_effect=ValueError("Parsing failure"),
     ):
         response = client_with_auth_and_resume.get(
-            f"/api/resumes/{test_resume.id}/export/docx?format=plain&start_date=2020-01-01"
+            f"/api/resumes/{test_resume.id}/export/docx?format=plain&start_date=2020-01-01",
         )
         assert response.status_code == 422
         assert "Parsing failure" in response.json()["detail"]
@@ -1038,7 +1038,7 @@ def test_export_resume_markdown_with_date_filter(
     mock_build_sections.return_value = "filtered content"
 
     response = client_with_auth_and_resume.get(
-        f"/api/resumes/{test_resume.id}/export/markdown?start_date=2020-01-01"
+        f"/api/resumes/{test_resume.id}/export/markdown?start_date=2020-01-01",
     )
 
     assert response.status_code == 200
@@ -1058,7 +1058,7 @@ def test_export_resume_markdown_parsing_error(client_with_auth_and_resume, test_
         side_effect=ValueError("Parsing failure"),
     ):
         response = client_with_auth_and_resume.get(
-            f"/api/resumes/{test_resume.id}/export/markdown?start_date=2020-01-01"
+            f"/api/resumes/{test_resume.id}/export/markdown?start_date=2020-01-01",
         )
         assert response.status_code == 422
         assert "Parsing failure" in response.json()["detail"]
@@ -1767,7 +1767,9 @@ def test_accept_refined_resume_save_as_new_partial(
     mock_build_sections.return_value = reconstructed_content
 
     new_resume = DatabaseResume(
-        user_id=test_user.id, name="New Name", content=reconstructed_content
+        user_id=test_user.id,
+        name="New Name",
+        content=reconstructed_content,
     )
     new_resume.id = 2
     mock_create_db.return_value = new_resume
@@ -1826,7 +1828,8 @@ def test_accept_refined_resume_reconstruction_error(
 
 
 def test_accept_refined_resume_save_as_new_no_name(
-    client_with_auth_and_resume, test_resume
+    client_with_auth_and_resume,
+    test_resume,
 ):
     """Test that saving as new without a name fails."""
     response = client_with_auth_and_resume.post(
@@ -1859,7 +1862,8 @@ def test_accept_refined_resume_invalid_action(client_with_auth_and_resume, test_
 
 
 def test_accept_refined_resume_invalid_section(
-    client_with_auth_and_resume, test_resume
+    client_with_auth_and_resume,
+    test_resume,
 ):
     """Test that providing an invalid section to the accept endpoint fails."""
     response = client_with_auth_and_resume.post(
@@ -1906,8 +1910,9 @@ def test_generate_resume_list_html_no_selection():
 
 def test_generate_resume_list_html_with_selection():
     """Test that _generate_resume_list_html correctly marks an item as selected."""
-    from resume_editor.app.api.routes.resume import _generate_resume_list_html
     import re
+
+    from resume_editor.app.api.routes.resume import _generate_resume_list_html
 
     r1 = DatabaseResume(user_id=1, name="R1", content="c1")
     r1.id = 1
@@ -2013,16 +2018,19 @@ def test_update_personal_info_pre_save_validation_fails(
 
 
 @patch(
-    "resume_editor.app.api.routes.route_logic.resume_serialization.extract_education_info"
+    "resume_editor.app.api.routes.route_logic.resume_serialization.extract_education_info",
 )
 def test_update_personal_info_form_reconstruction_fails(
-    mock_extract_edu, client_with_auth_and_resume, test_resume
+    mock_extract_edu,
+    client_with_auth_and_resume,
+    test_resume,
 ):
     """Test that a reconstruction failure within the form update is handled."""
     mock_extract_edu.side_effect = ValueError("Bad education section")
     update_data = {"name": "New Name"}
     response = client_with_auth_and_resume.post(
-        f"/api/resumes/{test_resume.id}/edit/personal", json=update_data
+        f"/api/resumes/{test_resume.id}/edit/personal",
+        json=update_data,
     )
     assert response.status_code == 422
     assert (
@@ -2095,7 +2103,9 @@ def test_update_education_invalid_data(client_with_auth_and_resume, test_resume)
 
 @patch("resume_editor.app.api.routes.resume.extract_education_info")
 def test_update_education_extraction_fails(
-    mock_extract, client_with_auth_and_resume, test_resume
+    mock_extract,
+    client_with_auth_and_resume,
+    test_resume,
 ):
     """Test that a parsing failure during education update is handled."""
     mock_extract.side_effect = ValueError("Bad education section")
@@ -2166,7 +2176,9 @@ def test_update_experience_invalid_data(
 
 @patch("resume_editor.app.api.routes.resume.extract_experience_info")
 def test_update_experience_extraction_fails(
-    mock_extract, client_with_auth_and_resume, test_resume
+    mock_extract,
+    client_with_auth_and_resume,
+    test_resume,
 ):
     """Test that a parsing failure during experience update is handled."""
     mock_extract.side_effect = ValueError("Bad experience section")
@@ -2238,7 +2250,9 @@ def test_update_projects_invalid_data(client_with_auth_and_resume, test_resume):
 
 @patch("resume_editor.app.api.routes.resume.extract_experience_info")
 def test_update_projects_extraction_fails(
-    mock_extract, client_with_auth_and_resume, test_resume
+    mock_extract,
+    client_with_auth_and_resume,
+    test_resume,
 ):
     """Test that a parsing failure during projects update is handled."""
     mock_extract.side_effect = ValueError("Bad projects section")
@@ -2311,7 +2325,9 @@ def test_update_certifications_invalid_data(
 
 @patch("resume_editor.app.api.routes.resume.extract_certifications_info")
 def test_update_certifications_extraction_fails(
-    mock_extract, client_with_auth_and_resume, test_resume
+    mock_extract,
+    client_with_auth_and_resume,
+    test_resume,
 ):
     """Test that a parsing failure during certifications update is handled."""
     mock_extract.side_effect = ValueError("Bad certifications section")

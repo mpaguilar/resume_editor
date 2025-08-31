@@ -49,11 +49,14 @@ def test_update_user_settings_no_existing(mock_get_settings, mock_encrypt):
     mock_encrypt.return_value = "encrypted_key"
 
     update_data = UserSettingsUpdateRequest(
-        llm_endpoint="http://new.com", api_key="new_key"
+        llm_endpoint="http://new.com",
+        api_key="new_key",
     )
 
     result = update_user_settings(
-        db=mock_db, user_id=user_id, settings_data=update_data
+        db=mock_db,
+        user_id=user_id,
+        settings_data=update_data,
     )
 
     mock_get_settings.assert_called_once_with(db=mock_db, user_id=user_id)
@@ -77,17 +80,22 @@ def test_update_user_settings_with_existing(mock_get_settings, mock_encrypt):
     mock_db = Mock(spec=Session)
     user_id = 1
     existing_settings = UserSettings(
-        user_id=1, llm_endpoint="http://old.com", encrypted_api_key="old_encrypted_key"
+        user_id=1,
+        llm_endpoint="http://old.com",
+        encrypted_api_key="old_encrypted_key",
     )
     mock_get_settings.return_value = existing_settings
     mock_encrypt.return_value = "encrypted_new_key"
 
     update_data = UserSettingsUpdateRequest(
-        llm_endpoint="http://new.com", api_key="new_key"
+        llm_endpoint="http://new.com",
+        api_key="new_key",
     )
 
     result = update_user_settings(
-        db=mock_db, user_id=user_id, settings_data=update_data
+        db=mock_db,
+        user_id=user_id,
+        settings_data=update_data,
     )
 
     mock_get_settings.assert_called_once_with(db=mock_db, user_id=user_id)
@@ -109,14 +117,18 @@ def test_update_user_settings_clear_values(mock_get_settings, mock_encrypt):
     mock_db = Mock(spec=Session)
     user_id = 1
     existing_settings = UserSettings(
-        user_id=1, llm_endpoint="http://old.com", encrypted_api_key="old_encrypted_key"
+        user_id=1,
+        llm_endpoint="http://old.com",
+        encrypted_api_key="old_encrypted_key",
     )
     mock_get_settings.return_value = existing_settings
 
     update_data = UserSettingsUpdateRequest(llm_endpoint="", api_key="")
 
     result = update_user_settings(
-        db=mock_db, user_id=user_id, settings_data=update_data
+        db=mock_db,
+        user_id=user_id,
+        settings_data=update_data,
     )
 
     mock_get_settings.assert_called_once_with(db=mock_db, user_id=user_id)
@@ -136,7 +148,9 @@ def test_update_user_settings_partial_update_key(mock_get_settings, mock_encrypt
     mock_db = Mock(spec=Session)
     user_id = 1
     existing_settings = UserSettings(
-        user_id=1, llm_endpoint="http://old.com", encrypted_api_key="old_encrypted_key"
+        user_id=1,
+        llm_endpoint="http://old.com",
+        encrypted_api_key="old_encrypted_key",
     )
     mock_get_settings.return_value = existing_settings
     mock_encrypt.return_value = "encrypted_new_key"
@@ -145,7 +159,9 @@ def test_update_user_settings_partial_update_key(mock_get_settings, mock_encrypt
     update_data = UserSettingsUpdateRequest(api_key="new_key")
 
     result = update_user_settings(
-        db=mock_db, user_id=user_id, settings_data=update_data
+        db=mock_db,
+        user_id=user_id,
+        settings_data=update_data,
     )
 
     assert existing_settings.llm_endpoint == "http://old.com"  # Should not change
@@ -164,14 +180,18 @@ def test_update_user_settings_partial_update_endpoint(mock_get_settings, mock_en
     mock_db = Mock(spec=Session)
     user_id = 1
     existing_settings = UserSettings(
-        user_id=1, llm_endpoint="http://old.com", encrypted_api_key="old_encrypted_key"
+        user_id=1,
+        llm_endpoint="http://old.com",
+        encrypted_api_key="old_encrypted_key",
     )
     mock_get_settings.return_value = existing_settings
 
     # Update only llm_endpoint
     update_data = UserSettingsUpdateRequest(llm_endpoint="http://verynew.com")
     result = update_user_settings(
-        db=mock_db, user_id=user_id, settings_data=update_data
+        db=mock_db,
+        user_id=user_id,
+        settings_data=update_data,
     )
 
     assert existing_settings.llm_endpoint == "http://verynew.com"

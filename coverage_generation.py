@@ -258,7 +258,8 @@ def get_missed_code_details(file_info: dict[str, Any]) -> dict[str, Any]:
     type=click.Path(exists=True, file_okay=False, dir_okay=True, readable=True),
 )
 def main(source_dir: str):
-    """Generates a detailed code coverage report from PyTest output.
+    """
+    Generates a detailed code coverage report from PyTest output.
 
     SOURCE_DIR: The directory containing the source code to be analyzed.
     """

@@ -1,5 +1,4 @@
 import logging
-import runpy
 import subprocess
 from unittest.mock import patch
 

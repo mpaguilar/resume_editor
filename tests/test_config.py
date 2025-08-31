@@ -1,5 +1,4 @@
 import os
-from functools import lru_cache
 from unittest.mock import patch
 
 import pytest

@@ -3,10 +3,9 @@ import runpy
 from unittest.mock import MagicMock, Mock, patch
 
 import pytest
+from fastapi import status
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
-
-from fastapi import status
 
 from resume_editor.app.core.auth import (
     get_current_user,
@@ -177,7 +176,8 @@ def test_dashboard_with_invalid_cookie_redirects():
 
 @patch("resume_editor.app.main.get_user_settings")
 def test_settings_page_authenticated_no_settings(
-    mock_get_user_settings, web_auth_client_and_db
+    mock_get_user_settings,
+    web_auth_client_and_db,
 ):
     """Test GET /settings for an authenticated user with no existing settings."""
     client, mock_db = web_auth_client_and_db
@@ -193,12 +193,15 @@ def test_settings_page_authenticated_no_settings(
 
 @patch("resume_editor.app.main.get_user_settings")
 def test_settings_page_with_endpoint_no_key(
-    mock_get_user_settings, web_auth_client_and_db
+    mock_get_user_settings,
+    web_auth_client_and_db,
 ):
     """Test GET /settings for a user with endpoint set but no API key."""
     client, mock_db = web_auth_client_and_db
     mock_settings = UserSettings(
-        user_id=1, llm_endpoint="http://test.com", encrypted_api_key=None
+        user_id=1,
+        llm_endpoint="http://test.com",
+        encrypted_api_key=None,
     )
     mock_get_user_settings.return_value = mock_settings
 
@@ -212,12 +215,15 @@ def test_settings_page_with_endpoint_no_key(
 
 @patch("resume_editor.app.main.get_user_settings")
 def test_settings_page_authenticated_with_settings(
-    mock_get_user_settings, web_auth_client_and_db
+    mock_get_user_settings,
+    web_auth_client_and_db,
 ):
     """Test GET /settings for a user with existing settings."""
     client, mock_db = web_auth_client_and_db
     mock_settings = UserSettings(
-        user_id=1, llm_endpoint="http://test.com", encrypted_api_key="encrypted_key"
+        user_id=1,
+        llm_endpoint="http://test.com",
+        encrypted_api_key="encrypted_key",
     )
     mock_get_user_settings.return_value = mock_settings
 
@@ -237,7 +243,8 @@ def test_post_settings_authenticated(mock_update_user_settings, web_auth_client_
 
     # Test with new values
     response = client.post(
-        "/settings", data={"llm_endpoint": "http://new.com", "api_key": "new_key"}
+        "/settings",
+        data={"llm_endpoint": "http://new.com", "api_key": "new_key"},
     )
 
     assert response.status_code == 200
@@ -292,7 +299,8 @@ def test_create_resume_form_loads():
 
 
 def test_initialize_database_logging(caplog):
-    """Test that initialize_database logs the correct message.
+    """
+    Test that initialize_database logs the correct message.
 
     Args:
         caplog: Pytest fixture to capture logs.
@@ -304,6 +312,7 @@ def test_initialize_database_logging(caplog):
         1. Set the logging level to DEBUG.
         2. Call initialize_database.
         3. Assert that the expected message is in the logs.
+
     """
     _msg = "Testing initialize_database logging"
     log.debug(_msg)
@@ -404,7 +413,9 @@ def test_main_entrypoint(mock_uvicorn_run):
 def test_login_success():
     """Test successful login."""
     mock_user = User(
-        username="testuser", email="t@t.com", hashed_password="hashedpassword"
+        username="testuser",
+        email="t@t.com",
+        hashed_password="hashedpassword",
     )
     mock_db = Mock()
     mock_settings = Mock()
@@ -420,10 +431,12 @@ def test_login_success():
 
     with (
         patch(
-            "resume_editor.app.main.authenticate_user", return_value=mock_user
+            "resume_editor.app.main.authenticate_user",
+            return_value=mock_user,
         ) as mock_auth,
         patch(
-            "resume_editor.app.main.create_access_token", return_value="fake-token"
+            "resume_editor.app.main.create_access_token",
+            return_value="fake-token",
         ) as mock_create_token,
     ):
         test_app = create_app()
@@ -443,10 +456,13 @@ def test_login_success():
         assert "HttpOnly" in response.headers["set-cookie"]
 
         mock_auth.assert_called_once_with(
-            db=mock_db, username="testuser", password="password"
+            db=mock_db,
+            username="testuser",
+            password="password",
         )
         mock_create_token.assert_called_once_with(
-            data={"sub": "testuser"}, settings=mock_settings
+            data={"sub": "testuser"},
+            settings=mock_settings,
         )
 
         test_app.dependency_overrides.clear()
@@ -464,7 +480,8 @@ def test_login_failure():
         return mock_settings
 
     with patch(
-        "resume_editor.app.main.authenticate_user", return_value=None
+        "resume_editor.app.main.authenticate_user",
+        return_value=None,
     ) as mock_auth:
         test_app = create_app()
         client = TestClient(test_app)
@@ -481,7 +498,9 @@ def test_login_failure():
         assert "Invalid username or password" in response.text
 
         mock_auth.assert_called_once_with(
-            db=mock_db, username="testuser", password="wrongpassword"
+            db=mock_db,
+            username="testuser",
+            password="wrongpassword",
         )
 
         test_app.dependency_overrides.clear()
@@ -574,7 +593,8 @@ def test_change_password_form_success():
 
     with (
         patch(
-            "resume_editor.app.main.verify_password", return_value=True
+            "resume_editor.app.main.verify_password",
+            return_value=True,
         ) as mock_verify,
         patch(
             "resume_editor.app.main.get_password_hash",
@@ -688,7 +708,8 @@ def test_change_password_form_incorrect_current_password():
     app.dependency_overrides[get_optional_current_user_from_cookie] = get_mock_user
 
     with patch(
-        "resume_editor.app.main.verify_password", return_value=False
+        "resume_editor.app.main.verify_password",
+        return_value=False,
     ) as mock_verify:
         response = client.post(
             "/change-password",

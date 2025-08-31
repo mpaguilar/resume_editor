@@ -24,7 +24,8 @@ class DocstringProcessor:
     """Main class for processing Python files and managing docstrings."""
 
     def __init__(self, delay: int = DEFAULT_DELAY):
-        """Initialize the docstring processor.
+        """
+        Initialize the docstring processor.
 
         Args:
             delay: Delay in seconds between LLM API calls
@@ -34,7 +35,8 @@ class DocstringProcessor:
         self.model = Model("openrouter/qwen/qwen3-30b-a3b-instruct-2507")
 
     def create_docstring_prompt(self) -> str:
-        """Create the prompt for updating docstrings.
+        """
+        Create the prompt for updating docstrings.
 
         Returns:
             str: The prompt for updating docstrings
@@ -91,7 +93,8 @@ class ResumeResponse(BaseModel):
         """
 
     def create_coder(self, filepath: str) -> Coder:
-        """Create a coder instance for processing the file.
+        """
+        Create a coder instance for processing the file.
 
         Args:
             filepath: Path to the file to process
@@ -110,7 +113,8 @@ class ResumeResponse(BaseModel):
         )
 
     def update_docstrings(self, filepath: str) -> None:
-        """Update docstrings in the specified file using an LLM.
+        """
+        Update docstrings in the specified file using an LLM.
 
         Args:
             filepath: Path to the file to process
@@ -126,7 +130,8 @@ class ResumeResponse(BaseModel):
         sleep(self.delay)
 
     def parse_function_node(self, node: ast.FunctionDef) -> tuple[str, str]:
-        """Parse a function node to extract signature and docstring.
+        """
+        Parse a function node to extract signature and docstring.
 
         Args:
             node: AST function node to parse
@@ -150,7 +155,8 @@ class ResumeResponse(BaseModel):
         self,
         node: ast.ClassDef,
     ) -> tuple[str, str, list[tuple[str, str]]]:
-        """Parse a class node to extract class info and methods.
+        """
+        Parse a class node to extract class info and methods.
 
         Args:
             node: AST class node to parse
@@ -172,7 +178,8 @@ class ResumeResponse(BaseModel):
         return class_name, class_docstring, class_methods
 
     def extract_docstrings_from_file(self, filepath: str) -> dict[str, Any]:
-        """Extract docstrings from a Python file.
+        """
+        Extract docstrings from a Python file.
 
         Args:
             filepath: Path to the Python file to process
@@ -204,7 +211,8 @@ class ResumeResponse(BaseModel):
         }
 
     def load_existing_docstrings(self) -> dict[str, Any]:
-        """Load existing docstrings from the JSON file.
+        """
+        Load existing docstrings from the JSON file.
 
         Returns:
             Dict[str, Any]: Dictionary containing existing docstrings
@@ -216,7 +224,8 @@ class ResumeResponse(BaseModel):
         return {}
 
     def save_docstrings(self, docstrings: dict[str, Any]) -> None:
-        """Save docstrings to the JSON file.
+        """
+        Save docstrings to the JSON file.
 
         Args:
             docstrings: Dictionary containing docstrings to save
@@ -229,7 +238,8 @@ class ResumeResponse(BaseModel):
             json.dump(docstrings, f, indent=2)
 
     def generate_markdown_from_docstrings(self, docstrings: dict[str, Any]) -> None:
-        """Generate DOCSTRINGS.md from the docstrings data.
+        """
+        Generate DOCSTRINGS.md from the docstrings data.
 
         Args:
             docstrings: Dictionary containing docstrings data
@@ -265,7 +275,8 @@ class ResumeResponse(BaseModel):
                 output_file.write("\n===\n\n")
 
     def process_file(self, filepath: str, use_llm: bool = True) -> None:
-        """Process a single Python file for docstring extraction.
+        """
+        Process a single Python file for docstring extraction.
 
         Args:
             filepath: Path to the Python file to process
@@ -299,7 +310,8 @@ class ResumeResponse(BaseModel):
             print(f"Error processing {filepath}: {e}")
 
     def clean_and_rebuild(self, project_root: str) -> None:
-        """Clean existing docstrings file and rebuild from scratch.
+        """
+        Clean existing docstrings file and rebuild from scratch.
 
         Args:
             project_root: Root directory to search for Python files
@@ -368,7 +380,8 @@ def main(
     no_llm: bool,
     markdown_only: bool,
 ) -> None:
-    """Generates or updates docstrings for functions and classes.
+    """
+    Generates or updates docstrings for functions and classes.
     Writes results to DOCSTRINGS.md
     """
     # Check for incompatible combinations

@@ -1,4 +1,5 @@
-"""Add roles and user attributes
+"""
+Add roles and user attributes
 
 Revision ID: d204a83ef0df
 Revises: 17fcea02ecca
@@ -6,17 +7,18 @@ Create Date: 2025-08-28 15:48:01.853388
 
 """
 
-from typing import Sequence, Union
+from collections.abc import Sequence
 
-from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
+from alembic import op
+
 # revision identifiers, used by Alembic.
 revision: str = "d204a83ef0df"
-down_revision: Union[str, Sequence[str], None] = "17fcea02ecca"
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | Sequence[str] | None = "17fcea02ecca"
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:

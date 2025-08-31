@@ -1,7 +1,8 @@
 import logging
+from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, EmailStr
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, computed_field
 
 log = logging.getLogger(__name__)
 
@@ -157,6 +158,71 @@ class UserResponse(UserBase):
     attributes: dict[str, Any] | None = None
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class AdminUserResponse(UserResponse):
+    """
+    Detailed user response schema for administrators.
+
+    Extends the standard UserResponse to include additional administrative fields.
+
+    Args:
+        id (int): Unique identifier assigned to the user in the database.
+        username (str): Unique username for the user.
+        email (EmailStr): Unique email address for the user.
+        is_active (bool): Indicates if the user account is active.
+        roles (list[RoleResponse]): List of roles assigned to the user.
+        attributes (dict[str, Any] | None): Flexible key-value attributes for the user.
+        last_login_at (datetime | None): Timestamp of the last successful login.
+
+    Attributes:
+        last_login_at (datetime | None): Timestamp of the last successful login.
+        force_password_change (bool): Flag indicating if the user must change their password.
+        resume_count (int): The number of resumes associated with the user.
+
+    Notes:
+        1. This model is for administrative use only.
+        2. It provides a more detailed view of user data.
+        3. `resume_count` and `force_password_change` are computed fields.
+
+    """
+
+    last_login_at: datetime | None = None
+    resumes: list[Any] = Field(default=[], exclude=True)
+
+    @computed_field  # type: ignore[misc]
+    @property
+    def resume_count(self) -> int:
+        """Computes the number of resumes for the user."""
+        return len(self.resumes)
+
+    @computed_field  # type: ignore[misc]
+    @property
+    def force_password_change(self) -> bool:
+        """Checks if the user must change their password."""
+        if hasattr(self, "attributes") and self.attributes:
+            return bool(self.attributes.get("force_password_change", False))
+        return False
+
+
+class AdminUserUpdateRequest(BaseModel):
+    """
+    Schema for an admin to update a user's attributes.
+
+    Allows administrators to modify specific user properties.
+
+    Args:
+        force_password_change (bool): Flag to require the user to change their password on next login.
+
+    Attributes:
+        force_password_change (bool): Flag to require the user to change their password on next login.
+
+    Notes:
+        1. This model is used in administrative endpoints.
+
+    """
+
+    force_password_change: bool
 
 
 class Token(BaseModel):

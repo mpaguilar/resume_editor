@@ -8,6 +8,8 @@
 * Functions **must** be short, and serve a single purpose. Avoid long functions, create new functions as needed.
 * Functions **must** be easily mocked, avoid complexity.
 * All text output for questions and answers **must** be in Markdown format
+* All assigned variables should be used. 
+    * If a variable is unused, remove the variable.
 
 # Preferred libraries
 
@@ -80,7 +82,8 @@
 * When logging from an exception, use `log.exception`
 
 # Deprecated usage
-`typing.List` is deprecated, use `list` instead
+* `typing.List` is deprecated, use `list` instead
+* `datetime.datetime.utcnow()` is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: `datetime.datetime.now(datetime.UTC)`
 
 # Docstrings
 * Every function should have a docstring.
@@ -100,6 +103,7 @@
     ```
     Notes:
         <some notes>
+
     ```
 
 # Unit tests
@@ -109,6 +113,7 @@
 * Each `*.py` file should have its own test file. For example `example.py` should have a test file named `test_example.py`
 * Unit tests should be run with a logging level of DEBUG
 * Unit tests should be written before the code, and they should fail if the code is incorrect.
+* Do not use duplicate file names for tests, even in separate paths. This causes errors.
 
 # Context management
 It is **important** to keep the size of individual files manageable.

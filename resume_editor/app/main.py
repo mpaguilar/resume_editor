@@ -275,11 +275,10 @@ def create_app() -> FastAPI:
 
         user_settings = get_user_settings(db=db, user_id=current_user.id)
         context = {
-            "request": request,
             "llm_endpoint": user_settings.llm_endpoint if user_settings else None,
             "api_key_is_set": bool(user_settings and user_settings.encrypted_api_key),
         }
-        return templates.TemplateResponse("settings.html", context)
+        return templates.TemplateResponse(request, "settings.html", context)
 
     @app.post("/settings", response_class=HTMLResponse)
     async def update_settings(

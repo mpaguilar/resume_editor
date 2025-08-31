@@ -201,8 +201,8 @@ Company: Test Corp
                             "title": "Dev",
                             "start_date": datetime(2022, 1, 1),
                             "inclusion_status": InclusionStatus.OMIT,
-                        }
-                    }
+                        },
+                    },
                 ],
                 "projects": [
                     {
@@ -211,7 +211,7 @@ Company: Test Corp
                             "inclusion_status": InclusionStatus.OMIT,
                         },
                         "description": {"text": "desc"},
-                    }
+                    },
                 ],
             },
             id="all_omitted",
@@ -283,7 +283,7 @@ def test_serialize_experience_not_relevant_role_with_full_basics():
                 },
                 "summary": {"text": "This summary should be excluded."},
                 "responsibilities": {
-                    "text": "These responsibilities should be excluded."
+                    "text": "These responsibilities should be excluded.",
                 },
                 "skills": {"skills": ["Skill G", "Skill H"]},
             },
@@ -385,7 +385,7 @@ def test_serialize_not_relevant_project_with_only_title():
                     "inclusion_status": InclusionStatus.NOT_RELEVANT,
                 },
                 "description": {"text": "A description to be ignored."},
-            }
+            },
         ],
         roles=[],
     )
@@ -402,7 +402,7 @@ def test_serialize_not_relevant_project_with_only_title():
 
     Title: A project
 
-    """
+    """,
     )
     assert markdown.strip() == expected_markdown.strip()
 
@@ -419,7 +419,7 @@ def test_serialize_not_relevant_role_with_only_basics():
                     "inclusion_status": InclusionStatus.NOT_RELEVANT,
                 },
                 "summary": {"text": "A summary to be ignored."},
-            }
+            },
         ],
         projects=[],
     )
@@ -438,7 +438,7 @@ def test_serialize_not_relevant_role_with_only_basics():
     Title: A Role
     Start date: 01/2020
 
-    """
+    """,
     )
     assert markdown.strip() == expected_markdown.strip()
 
@@ -498,7 +498,7 @@ def test_extract_experience_info_with_all_fields():
 
     * Skill 3
     * Skill 4
-    """
+    """,
     )
     result = extract_experience_info(resume_content)
 
@@ -587,7 +587,7 @@ def test_extract_experience_info_various_configurations():
 
     A description.
 
-    """
+    """,
     )
     result = extract_experience_info(resume_content)
 
@@ -864,7 +864,7 @@ def test_serialize_experience_project_no_overview():
             {
                 "overview": None,
                 "description": {"text": "A project description without overview"},
-            }
+            },
         ],
         roles=[],
     )
@@ -907,7 +907,7 @@ def test_serialize_project_with_empty_overview_and_content():
 
     A sample description.
 
-    """
+    """,
     )
     assert markdown.strip() == expected_markdown.strip()
 
@@ -979,7 +979,7 @@ def test_serialize_role_empty_basics_with_summary():
 
         This is a summary text.
 
-        """
+        """,
     )
     assert markdown.strip() == expected_markdown.strip()
 

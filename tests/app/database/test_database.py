@@ -27,7 +27,9 @@ def test_get_session_local_creates_factory_once():
     # First call should create the session factory
     factory1 = get_session_local()
     sessionmaker.assert_called_once_with(
-        autocommit=False, autoflush=False, bind=get_engine()
+        autocommit=False,
+        autoflush=False,
+        bind=get_engine(),
     )
     assert factory1 is not None
 

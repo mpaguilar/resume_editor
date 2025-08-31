@@ -55,7 +55,7 @@ def test_get_section_content(section_name, extractor, serializer, expected_outpu
     """Test that _get_section_content correctly calls extract and serialize for each section."""
     with (
         patch(
-            f"resume_editor.app.api.routes.route_logic.resume_llm.{extractor}"
+            f"resume_editor.app.api.routes.route_logic.resume_llm.{extractor}",
         ) as mock_extract,
         patch(
             f"resume_editor.app.api.routes.route_logic.resume_llm.{serializer}",
@@ -85,7 +85,11 @@ def test_refine_resume_section_with_llm_empty_section(mock_get_section):
     """Test that the LLM is not called for an empty resume section."""
     mock_get_section.return_value = "  "
     result = refine_resume_section_with_llm(
-        "resume", "job desc", "personal", "http://fake.llm", "key"
+        "resume",
+        "job desc",
+        "personal",
+        "http://fake.llm",
+        "key",
     )
     assert result == ""
     mock_get_section.assert_called_once_with("resume", "personal")
@@ -96,7 +100,10 @@ def test_refine_resume_section_with_llm_empty_section(mock_get_section):
 @patch("resume_editor.app.api.routes.route_logic.resume_llm.PydanticOutputParser")
 @patch("resume_editor.app.api.routes.route_logic.resume_llm._get_section_content")
 def test_refine_resume_section_pydantic_object(
-    mock_get_section, mock_parser_class, mock_prompt_class, mock_llm_class
+    mock_get_section,
+    mock_parser_class,
+    mock_prompt_class,
+    mock_llm_class,
 ):
     """Test LLM refinement when the chain returns a Pydantic object."""
     mock_get_section.return_value = "Some content"
@@ -112,7 +119,11 @@ def test_refine_resume_section_pydantic_object(
     chain_mock.invoke.return_value = refined_section_obj
 
     result = refine_resume_section_with_llm(
-        "resume", "job desc", "personal", "http://fake.llm", "key"
+        "resume",
+        "job desc",
+        "personal",
+        "http://fake.llm",
+        "key",
     )
 
     assert result == "refined content"
@@ -123,7 +134,7 @@ def test_refine_resume_section_pydantic_object(
         api_key="key",
     )
     chain_mock.invoke.assert_called_once_with(
-        {"job_description": "job desc", "resume_section": "Some content"}
+        {"job_description": "job desc", "resume_section": "Some content"},
     )
 
 
@@ -154,11 +165,15 @@ def test_refine_resume_section_string_return(
     mock_parse_json.return_value = {"refined_markdown": "refined content from string"}
 
     result = refine_resume_section_with_llm(
-        "resume", "job desc", "personal", "http://fake.llm", "key"
+        "resume",
+        "job desc",
+        "personal",
+        "http://fake.llm",
+        "key",
     )
 
     assert result == "refined content from string"
     mock_parse_json.assert_called_once_with(
-        '```json\n{"refined_markdown": "refined content from string"}\n```'
+        '```json\n{"refined_markdown": "refined content from string"}\n```',
     )
     chain_mock.invoke.assert_called_once()

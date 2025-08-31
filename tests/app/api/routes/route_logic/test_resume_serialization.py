@@ -42,7 +42,7 @@ def test_update_resume_content_with_structured_data():
         Company: Old Corp
         Title: Junior Developer
         Start date: 01/2020
-    """
+    """,
     )
 
     personal_info = PersonalInfoResponse(

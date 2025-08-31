@@ -104,7 +104,9 @@ def test_create_access_token_with_custom_expiry(mock_settings):
     expires_delta = timedelta(minutes=15)
     settings = mock_settings.return_value
     token = security_module.create_access_token(
-        data, settings, expires_delta=expires_delta
+        data,
+        settings,
+        expires_delta=expires_delta,
     )
     decoded_payload = jwt.decode(
         token,

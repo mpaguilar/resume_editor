@@ -54,7 +54,7 @@ def mock_database_imports():
         patch("resume_editor.app.database.database.sessionmaker"),
         patch("resume_editor.app.core.config.get_settings") as mock_get_settings,
         patch(
-            "resume_editor.app.core.security.get_settings"
+            "resume_editor.app.core.security.get_settings",
         ) as mock_get_settings_security,
         patch("resume_editor.app.core.auth.get_settings") as mock_get_settings_auth,
     ):

@@ -14,10 +14,14 @@ def cli():
 
 @cli.command("generate-migration")
 @click.option(
-    "-m", "--message", required=True, help="A short message describing the migration."
+    "-m",
+    "--message",
+    required=True,
+    help="A short message describing the migration.",
 )
 def generate_migration(message: str):
-    """Generate a new database migration script.
+    """
+    Generate a new database migration script.
 
     This command wraps 'alembic revision --autogenerate'.
 
@@ -56,7 +60,8 @@ def generate_migration(message: str):
 
 @cli.command("apply-migrations")
 def apply_migrations():
-    """Apply all pending migrations to the database.
+    """
+    Apply all pending migrations to the database.
 
     This command wraps 'alembic upgrade head'.
 
