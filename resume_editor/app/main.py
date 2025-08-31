@@ -230,6 +230,38 @@ def create_app() -> FastAPI:
 
         return templates.TemplateResponse(request, "dashboard.html")
 
+    @app.get("/settings", response_class=HTMLResponse)
+    async def settings_page(
+        request: Request,
+        current_user: User | None = Depends(get_optional_current_user_from_cookie),
+    ):
+        """
+        Serve the user settings page.
+
+        Args:
+            request: The HTTP request object.
+            current_user: The authenticated user, if one exists.
+
+        Returns:
+            TemplateResponse: The rendered settings template if authenticated.
+            RedirectResponse: Redirect to login if not authenticated.
+
+        Notes:
+            1. Depend on `get_optional_current_user_from_cookie` to get the current user.
+            2. If no user is returned, redirect to the `/login` page.
+            3. On success, render the `settings.html` template.
+
+        """
+        _msg = "Settings page requested"
+        log.debug(_msg)
+        if not current_user:
+            return RedirectResponse(
+                url="/login",
+                status_code=status.HTTP_307_TEMPORARY_REDIRECT,
+            )
+
+        return templates.TemplateResponse(request, "settings.html")
+
     @app.get("/dashboard/create-resume-form")
     async def create_resume_form():
         """

@@ -104,6 +104,27 @@ def test_unauthenticated_dashboard_redirects():
     app.dependency_overrides.clear()
 
 
+def test_settings_page_access_unauthenticated():
+    """Test unauthenticated access to settings page redirects to login."""
+    app = create_app()
+    client = TestClient(app, follow_redirects=False)
+
+    # Mock the database dependency
+    mock_db = Mock()
+
+    def get_mock_db():
+        yield mock_db
+
+    app.dependency_overrides[get_db] = get_mock_db
+
+    response = client.get("/settings")
+
+    assert response.status_code == 307
+    assert response.headers["location"] == "/login"
+
+    app.dependency_overrides.clear()
+
+
 def test_dashboard_with_invalid_cookie_redirects():
     app = create_app()
     client = TestClient(app, follow_redirects=False)
@@ -125,22 +146,21 @@ def test_dashboard_with_invalid_cookie_redirects():
     app.dependency_overrides.clear()
 
 
-def test_authenticated_dashboard_access():
-    app = create_app()
-    mock_user = User(username="testuser", email="test@test.com", hashed_password="pw")
+def test_settings_page_access_authenticated(authenticated_client: TestClient):
+    """Test that an authenticated user can access the settings page."""
+    response = authenticated_client.get("/settings")
+    assert response.status_code == 200
+    assert "User Settings" in response.text
 
-    def get_mock_user():
-        return mock_user
 
-    app.dependency_overrides[get_optional_current_user_from_cookie] = get_mock_user
-
-    client = TestClient(app)
-    response = client.get("/dashboard")
+def test_authenticated_dashboard_access(authenticated_client: TestClient):
+    """Test that an authenticated user can access the dashboard."""
+    response = authenticated_client.get("/dashboard")
 
     assert response.status_code == 200
     assert "Resume Editor Dashboard" in response.text
-
-    app.dependency_overrides.clear()
+    assert 'href="/settings"' in response.text
+    assert 'href="/logout"' in response.text
 
 
 def test_create_resume_form_loads():
