@@ -1,7 +1,7 @@
 import logging
 from typing import Any
 
-from sqlalchemy import Boolean, Column, ForeignKey, Integer, String, Table
+from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String, Table
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship, validates
 
@@ -28,6 +28,8 @@ class User(Base):
         email (str): Unique email address for the user.
         hashed_password (str): Hashed password for the user.
         is_active (bool): Whether the user account is active.
+        last_login_at (datetime): Timestamp of the last successful login.
+        force_password_change (bool): If true, user must change password on next login.
         attributes (dict): Flexible key-value store for user-specific attributes.
         roles (list[Role]): Roles assigned to the user for authorization.
         resumes (list[Resume]): Resumes associated with the user.
@@ -42,6 +44,8 @@ class User(Base):
     email = Column(String, unique=True, index=True, nullable=False)
     hashed_password = Column(String, nullable=False)
     is_active = Column(Boolean, default=True, nullable=False)
+    last_login_at = Column(DateTime, nullable=True)
+    force_password_change = Column(Boolean, default=False, nullable=False)
     attributes = Column(JSONB, nullable=True)
 
     # Relationship to Role
