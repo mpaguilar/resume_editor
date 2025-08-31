@@ -16,7 +16,12 @@ from resume_editor.app.api.routes.route_logic.settings_crud import (
 from resume_editor.app.api.routes.user import router as user_router
 from resume_editor.app.core.auth import get_optional_current_user_from_cookie
 from resume_editor.app.core.config import Settings, get_settings
-from resume_editor.app.core.security import authenticate_user, create_access_token
+from resume_editor.app.core.security import (
+    authenticate_user,
+    create_access_token,
+    get_password_hash,
+    verify_password,
+)
 from resume_editor.app.database.database import get_db
 from resume_editor.app.models.user import User
 from resume_editor.app.schemas.user import UserSettingsUpdateRequest
@@ -327,6 +332,65 @@ def create_app() -> FastAPI:
 
         return HTMLResponse(
             '<div class="p-4 mb-4 text-sm text-green-800 rounded-lg bg-green-50" role="alert"><span class="font-medium">Success!</span> Your settings have been updated.</div>',
+        )
+
+    @app.post("/change-password", response_class=HTMLResponse)
+    async def change_password_form(
+        request: Request,
+        current_password: Annotated[str, Form()],
+        new_password: Annotated[str, Form()],
+        confirm_new_password: Annotated[str, Form()],
+        db: Session = Depends(get_db),
+        current_user: User | None = Depends(get_optional_current_user_from_cookie),
+    ):
+        """
+        Handle user password change from form.
+
+        Args:
+            request: The HTTP request object.
+            current_password (str): The current password from the form.
+            new_password (str): The new password from the form.
+            confirm_new_password (str): The new password confirmation from the form.
+            db (Session): The database session.
+            current_user: The authenticated user, if one exists.
+
+        Returns:
+            HTMLResponse: A success or error message snippet.
+            RedirectResponse: Redirects to login if user is not authenticated.
+
+        Notes:
+            1. Redirect to login if user is not authenticated.
+            2. Check if new password and confirmation match. If not, return an error.
+            3. Verify current password. If incorrect, return an error.
+            4. Hash new password and update user record.
+            5. Return a success message.
+
+        """
+        _msg = "Password change form submitted"
+        log.debug(_msg)
+
+        if not current_user:
+            return RedirectResponse(
+                url="/login",
+                status_code=status.HTTP_307_TEMPORARY_REDIRECT,
+            )
+
+        if new_password != confirm_new_password:
+            return HTMLResponse(
+                '<div class="p-4 mb-4 text-sm text-red-800 rounded-lg bg-red-50" role="alert"><span class="font-medium">Error!</span> New passwords do not match.</div>',
+            )
+
+        if not verify_password(current_password, current_user.hashed_password):
+            return HTMLResponse(
+                '<div class="p-4 mb-4 text-sm text-red-800 rounded-lg bg-red-50" role="alert"><span class="font-medium">Error!</span> Incorrect current password.</div>',
+            )
+
+        # Update password
+        current_user.hashed_password = get_password_hash(new_password)
+        db.commit()
+
+        return HTMLResponse(
+            '<div class="p-4 mb-4 text-sm text-green-800 rounded-lg bg-green-50" role="alert"><span class="font-medium">Success!</span> Your password has been changed.</div>',
         )
 
     @app.get("/dashboard/create-resume-form")

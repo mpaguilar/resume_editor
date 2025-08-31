@@ -6,12 +6,14 @@ from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 
 from resume_editor.app.api.routes.route_logic import settings_crud
+from resume_editor.app.api.routes.route_models import PasswordChangeRequest
 from resume_editor.app.core.auth import get_current_user
 from resume_editor.app.core.config import Settings, get_settings
 from resume_editor.app.core.security import (
     authenticate_user,
     create_access_token,
     get_password_hash,
+    verify_password,
 )
 from resume_editor.app.database.database import get_db
 from resume_editor.app.models.user import User
@@ -291,6 +293,59 @@ def update_user_settings(
         llm_endpoint=settings.llm_endpoint,
         api_key_is_set=bool(settings.encrypted_api_key),
     )
+
+
+@router.post("/change-password")
+def change_password(
+    password_data: PasswordChangeRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Change the current user's password.
+
+    Args:
+        password_data (PasswordChangeRequest): The current and new passwords.
+        db (Session): The database session.
+        current_user (User): The authenticated user.
+
+    Returns:
+        dict: A success message.
+
+    Raises:
+        HTTPException: If the current password is incorrect.
+
+    Notes:
+        1. Verify the current password against the stored hash.
+        2. If invalid, raise a 400 Bad Request error.
+        3. Hash the new password.
+        4. Update the user's hashed_password in the database.
+        5. Commit the transaction.
+        6. Return a success message.
+
+    """
+    _msg = "Changing password for current user"
+    log.debug(_msg)
+
+    # Verify current password
+    if not verify_password(
+        password_data.current_password,
+        current_user.hashed_password,
+    ):
+        _msg = "Incorrect current password"
+        log.warning(_msg)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Incorrect current password",
+        )
+
+    # Hash new password and update user
+    current_user.hashed_password = get_password_hash(password_data.new_password)
+    db.commit()
+
+    _msg = "Password updated successfully"
+    log.debug(_msg)
+    return {"message": "Password updated successfully"}
 
 
 @router.post("/login", response_model=Token)

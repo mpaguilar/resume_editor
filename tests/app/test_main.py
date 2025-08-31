@@ -1,6 +1,6 @@
 import logging
 import runpy
-from unittest.mock import Mock, patch
+from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 from fastapi.testclient import TestClient
@@ -546,3 +546,163 @@ def test_get_resume_html_response(api_auth_client_and_db):
     assert "Test Resume" in response.text
     assert "# Test Resume Content" in response.text
     assert "readonly" in response.text
+
+
+def test_change_password_form_success():
+    """Test successful password change via form."""
+    app = create_app()
+    client = TestClient(app)
+
+    mock_db = MagicMock()
+    mock_user = User(
+        username="testuser",
+        email="test@example.com",
+        hashed_password="hashed_old_password",
+    )
+    mock_user.id = 1
+
+    from resume_editor.app.main import get_db, get_optional_current_user_from_cookie
+
+    def get_mock_db():
+        yield mock_db
+
+    def get_mock_user():
+        return mock_user
+
+    app.dependency_overrides[get_db] = get_mock_db
+    app.dependency_overrides[get_optional_current_user_from_cookie] = get_mock_user
+
+    with (
+        patch(
+            "resume_editor.app.main.verify_password", return_value=True
+        ) as mock_verify,
+        patch(
+            "resume_editor.app.main.get_password_hash",
+            return_value="hashed_new_password",
+        ) as mock_hash,
+    ):
+        response = client.post(
+            "/change-password",
+            data={
+                "current_password": "old_password",
+                "new_password": "new_password",
+                "confirm_new_password": "new_password",
+            },
+        )
+
+        assert response.status_code == 200
+        assert "Success!" in response.text
+        assert "Your password has been changed" in response.text
+        mock_verify.assert_called_once_with("old_password", "hashed_old_password")
+        mock_hash.assert_called_once_with("new_password")
+        assert mock_user.hashed_password == "hashed_new_password"
+        mock_db.commit.assert_called_once()
+
+    app.dependency_overrides.clear()
+
+
+def test_change_password_form_unauthenticated():
+    """Test password change form when unauthenticated."""
+    app = create_app()
+    client = TestClient(app, follow_redirects=False)
+
+    from resume_editor.app.main import get_optional_current_user_from_cookie
+
+    def get_mock_user_none():
+        return None
+
+    app.dependency_overrides[get_optional_current_user_from_cookie] = get_mock_user_none
+
+    response = client.post(
+        "/change-password",
+        data={
+            "current_password": "old_password",
+            "new_password": "new_password",
+            "confirm_new_password": "new_password",
+        },
+    )
+
+    assert response.status_code == 307
+    assert response.headers["location"] == "/login"
+
+    app.dependency_overrides.clear()
+
+
+def test_change_password_form_passwords_do_not_match():
+    """Test password change form when new passwords do not match."""
+    app = create_app()
+    client = TestClient(app)
+
+    mock_user = User(
+        username="testuser",
+        email="test@example.com",
+        hashed_password="hashed_old_password",
+    )
+    mock_user.id = 1
+
+    from resume_editor.app.main import get_optional_current_user_from_cookie
+
+    def get_mock_user():
+        return mock_user
+
+    app.dependency_overrides[get_optional_current_user_from_cookie] = get_mock_user
+
+    response = client.post(
+        "/change-password",
+        data={
+            "current_password": "old_password",
+            "new_password": "new_password",
+            "confirm_new_password": "different_password",
+        },
+    )
+
+    assert response.status_code == 200
+    assert "Error!" in response.text
+    assert "New passwords do not match" in response.text
+
+    app.dependency_overrides.clear()
+
+
+def test_change_password_form_incorrect_current_password():
+    """Test password change form with incorrect current password."""
+    app = create_app()
+    client = TestClient(app)
+
+    mock_db = MagicMock()
+    mock_user = User(
+        username="testuser",
+        email="test@example.com",
+        hashed_password="hashed_old_password",
+    )
+    mock_user.id = 1
+
+    from resume_editor.app.main import get_db, get_optional_current_user_from_cookie
+
+    def get_mock_db():
+        yield mock_db
+
+    def get_mock_user():
+        return mock_user
+
+    app.dependency_overrides[get_db] = get_mock_db
+    app.dependency_overrides[get_optional_current_user_from_cookie] = get_mock_user
+
+    with patch(
+        "resume_editor.app.main.verify_password", return_value=False
+    ) as mock_verify:
+        response = client.post(
+            "/change-password",
+            data={
+                "current_password": "wrong_password",
+                "new_password": "new_password",
+                "confirm_new_password": "new_password",
+            },
+        )
+
+        assert response.status_code == 200
+        assert "Error!" in response.text
+        assert "Incorrect current password" in response.text
+        mock_verify.assert_called_once_with("wrong_password", "hashed_old_password")
+        mock_db.commit.assert_not_called()
+
+    app.dependency_overrides.clear()

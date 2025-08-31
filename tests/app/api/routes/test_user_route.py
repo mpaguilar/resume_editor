@@ -1,6 +1,7 @@
 from unittest.mock import Mock, patch
 
 import pytest
+from fastapi import status
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
@@ -426,3 +427,64 @@ def test_user_response_schema_with_data():
     assert len(user_response.roles) == 1
     assert user_response.roles[0].id == 1
     assert user_response.roles[0].name == "admin"
+
+
+# Tests for /change-password
+def test_change_password_success(authenticated_client, test_user):
+    """Test successful password change."""
+    client, mock_db = authenticated_client
+    test_user.hashed_password = "hashed_old_password"
+
+    with (
+        patch(
+            "resume_editor.app.api.routes.user.verify_password", return_value=True
+        ) as mock_verify,
+        patch(
+            "resume_editor.app.api.routes.user.get_password_hash",
+            return_value="hashed_new_password",
+        ) as mock_hash,
+    ):
+        response = client.post(
+            "/api/users/change-password",
+            json={"current_password": "old_password", "new_password": "new_password"},
+        )
+
+        assert response.status_code == status.HTTP_200_OK
+        assert response.json() == {"message": "Password updated successfully"}
+        mock_verify.assert_called_once_with("old_password", "hashed_old_password")
+        mock_hash.assert_called_once_with("new_password")
+        assert test_user.hashed_password == "hashed_new_password"
+        mock_db.commit.assert_called_once()
+
+
+def test_change_password_incorrect_current_password(authenticated_client, test_user):
+    """Test password change with incorrect current password."""
+    client, mock_db = authenticated_client
+    test_user.hashed_password = "hashed_old_password"
+
+    with patch(
+        "resume_editor.app.api.routes.user.verify_password", return_value=False
+    ) as mock_verify:
+        response = client.post(
+            "/api/users/change-password",
+            json={
+                "current_password": "wrong_password",
+                "new_password": "new_password",
+            },
+        )
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert response.json() == {"detail": "Incorrect current password"}
+        mock_verify.assert_called_once_with("wrong_password", "hashed_old_password")
+        mock_db.commit.assert_not_called()
+
+
+def test_change_password_unauthenticated(client_with_db):
+    """Test password change by unauthenticated user."""
+    client, _ = client_with_db
+    response = client.post(
+        "/api/users/change-password",
+        json={"current_password": "old_password", "new_password": "new_password"},
+    )
+    assert response.status_code == status.HTTP_401_UNAUTHORIZED
+    assert response.json()["detail"] == "Not authenticated"

@@ -418,6 +418,31 @@ class RefineAcceptRequest(BaseModel):
     new_resume_name: str | None = None
 
 
+class PasswordChangeRequest(BaseModel):
+    """
+    Request model for changing a user's password.
+
+    Attributes:
+        current_password (str): The user's current password.
+        new_password (str): The desired new password.
+
+    Args:
+        current_password (str): The user's current password for verification.
+        new_password (str): The new password to be set.
+
+    Returns:
+        PasswordChangeRequest: An instance of the model with the password details.
+
+    Notes:
+        1. This model is used by the password change API endpoint.
+        2. No external resources are accessed during model creation.
+
+    """
+
+    current_password: str
+    new_password: str
+
+
 # Response models for structured data
 class PersonalInfoResponse(BaseModel):
     """
