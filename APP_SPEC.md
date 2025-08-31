@@ -17,25 +17,30 @@ Pay attention to the `BasicBlockParse` class. It is a base class for many parsin
 ## User Management
 
 * User registration, login (username/password), and logout.
+* Secure user password change functionality.
 * Secure storage of user settings, including encrypted API keys and LLM endpoints.
 * Role-based access control with two roles: `user` and `admin`.
-* Flexible user attribute system to support features like account limits or expiration dates.
+* Tracking of last login time for each user.
+* Flexible user attribute system to support features like forcing a password change.
 
 ## Admin Interface
 
-* A dedicated interface for administrative tasks.
-* Full user management: create, list, and delete users.
+* A dedicated, HTMX-powered web interface for administrative tasks.
+* Full user management: create, list, edit, and delete users via the web UI.
+* View detailed user information, including last login time and resume count.
+* Ability to enforce password changes for users.
 * Role management: assign and remove roles from users.
 * User impersonation to provide support or troubleshoot issues.
 
 ## Web Dashboard
 
-* An HTMX-powered web dashboard for managing resumes.
+* An HTMX-powered web dashboard for managing resumes and user settings.
 * View a list of all resumes for the current user.
 * View resume details, including a rendered view of the Markdown.
 * Create new resumes from a form.
 * Edit all sections of a resume (personal, education, experience, etc.) through dedicated forms.
 * Initiate actions like AI refinement and export from the dashboard.
+* A dedicated settings page for managing LLM configurations and changing passwords.
 
 ## Resume Management
 
