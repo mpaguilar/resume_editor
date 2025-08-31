@@ -16,6 +16,8 @@ from resume_editor.app.core.config import get_settings
 from resume_editor.app.database.database import get_db
 from resume_editor.app.main import create_app, initialize_database, main
 from resume_editor.app.models.user import User
+from resume_editor.app.models.user_settings import UserSettings
+from resume_editor.app.schemas.user import UserSettingsUpdateRequest
 
 log = logging.getLogger(__name__)
 
@@ -43,20 +45,24 @@ def api_auth_client_and_db():
 
 
 @pytest.fixture
-def authenticated_client():
-    """Fixture for an authenticated test client using cookie-based auth."""
+def web_auth_client_and_db():
+    """Fixture for an authenticated test client for web routes."""
     app = create_app()
     mock_user = User(username="testuser", email="test@test.com", hashed_password="pw")
     mock_user.id = 1
+    mock_db = Mock(spec=Session)
 
     def get_mock_user():
         return mock_user
 
+    def get_mock_db():
+        yield mock_db
+
+    app.dependency_overrides[get_db] = get_mock_db
     app.dependency_overrides[get_optional_current_user_from_cookie] = get_mock_user
 
     with TestClient(app) as c:
-        yield c
-
+        yield c, mock_db
     app.dependency_overrides.clear()
 
 
@@ -104,6 +110,29 @@ def test_unauthenticated_dashboard_redirects():
     app.dependency_overrides.clear()
 
 
+def test_post_settings_unauthenticated():
+    """Test POST /settings for an unauthenticated user redirects to login."""
+    app = create_app()
+    client = TestClient(app, follow_redirects=False)
+
+    # Mock the database dependency
+    mock_db = Mock()
+
+    def get_mock_db():
+        yield mock_db
+
+    app.dependency_overrides[get_db] = get_mock_db
+
+    response = client.post(
+        "/settings",
+        data={"llm_endpoint": "some_endpoint", "api_key": "some_key"},
+    )
+    assert response.status_code == status.HTTP_307_TEMPORARY_REDIRECT
+    assert response.headers["location"] == "/login"
+
+    app.dependency_overrides.clear()
+
+
 def test_settings_page_access_unauthenticated():
     """Test unauthenticated access to settings page redirects to login."""
     app = create_app()
@@ -146,16 +175,107 @@ def test_dashboard_with_invalid_cookie_redirects():
     app.dependency_overrides.clear()
 
 
-def test_settings_page_access_authenticated(authenticated_client: TestClient):
-    """Test that an authenticated user can access the settings page."""
-    response = authenticated_client.get("/settings")
+@patch("resume_editor.app.main.get_user_settings")
+def test_settings_page_authenticated_no_settings(
+    mock_get_user_settings, web_auth_client_and_db
+):
+    """Test GET /settings for an authenticated user with no existing settings."""
+    client, mock_db = web_auth_client_and_db
+    mock_get_user_settings.return_value = None
+
+    response = client.get("/settings")
+
     assert response.status_code == 200
-    assert "User Settings" in response.text
+    assert 'value=""' in response.text
+    assert 'placeholder="Enter your API key"' in response.text
+    mock_get_user_settings.assert_called_once_with(db=mock_db, user_id=1)
 
 
-def test_authenticated_dashboard_access(authenticated_client: TestClient):
+@patch("resume_editor.app.main.get_user_settings")
+def test_settings_page_with_endpoint_no_key(
+    mock_get_user_settings, web_auth_client_and_db
+):
+    """Test GET /settings for a user with endpoint set but no API key."""
+    client, mock_db = web_auth_client_and_db
+    mock_settings = UserSettings(
+        user_id=1, llm_endpoint="http://test.com", encrypted_api_key=None
+    )
+    mock_get_user_settings.return_value = mock_settings
+
+    response = client.get("/settings")
+
+    assert response.status_code == 200
+    assert 'value="http://test.com"' in response.text
+    assert 'placeholder="Enter your API key"' in response.text
+    mock_get_user_settings.assert_called_once_with(db=mock_db, user_id=1)
+
+
+@patch("resume_editor.app.main.get_user_settings")
+def test_settings_page_authenticated_with_settings(
+    mock_get_user_settings, web_auth_client_and_db
+):
+    """Test GET /settings for a user with existing settings."""
+    client, mock_db = web_auth_client_and_db
+    mock_settings = UserSettings(
+        user_id=1, llm_endpoint="http://test.com", encrypted_api_key="encrypted_key"
+    )
+    mock_get_user_settings.return_value = mock_settings
+
+    response = client.get("/settings")
+
+    assert response.status_code == 200
+    assert 'value="http://test.com"' in response.text
+    assert 'placeholder="************"' in response.text
+    assert "encrypted_key" not in response.text
+    mock_get_user_settings.assert_called_once_with(db=mock_db, user_id=1)
+
+
+@patch("resume_editor.app.main.update_user_settings")
+def test_post_settings_authenticated(mock_update_user_settings, web_auth_client_and_db):
+    """Test POST /settings for an authenticated user."""
+    client, mock_db = web_auth_client_and_db
+
+    # Test with new values
+    response = client.post(
+        "/settings", data={"llm_endpoint": "http://new.com", "api_key": "new_key"}
+    )
+
+    assert response.status_code == 200
+    assert "Your settings have been updated." in response.text
+
+    mock_update_user_settings.assert_called_once()
+    _args, kwargs = mock_update_user_settings.call_args
+    assert kwargs["db"] == mock_db
+    assert kwargs["user_id"] == 1
+    settings_data = kwargs["settings_data"]
+    assert isinstance(settings_data, UserSettingsUpdateRequest)
+    assert settings_data.llm_endpoint == "http://new.com"
+    assert settings_data.api_key == "new_key"
+
+
+@patch("resume_editor.app.main.update_user_settings")
+def test_post_settings_empty_values(mock_update_user_settings, web_auth_client_and_db):
+    """Test POST /settings with empty values to clear settings."""
+    client, mock_db = web_auth_client_and_db
+
+    response = client.post("/settings", data={"llm_endpoint": "", "api_key": ""})
+
+    assert response.status_code == 200
+    assert "Your settings have been updated." in response.text
+
+    mock_update_user_settings.assert_called_once()
+    _args, kwargs = mock_update_user_settings.call_args
+    assert kwargs["user_id"] == 1
+    settings_data = kwargs["settings_data"]
+    assert isinstance(settings_data, UserSettingsUpdateRequest)
+    assert settings_data.llm_endpoint == ""
+    assert settings_data.api_key == ""
+
+
+def test_authenticated_dashboard_access(web_auth_client_and_db):
     """Test that an authenticated user can access the dashboard."""
-    response = authenticated_client.get("/dashboard")
+    client, _ = web_auth_client_and_db
+    response = client.get("/dashboard")
 
     assert response.status_code == 200
     assert "Resume Editor Dashboard" in response.text

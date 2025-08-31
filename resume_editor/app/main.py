@@ -9,12 +9,17 @@ from sqlalchemy.orm import Session
 
 from resume_editor.app.api.routes.admin import router as admin_router
 from resume_editor.app.api.routes.resume import router as resume_router
+from resume_editor.app.api.routes.route_logic.settings_crud import (
+    get_user_settings,
+    update_user_settings,
+)
 from resume_editor.app.api.routes.user import router as user_router
 from resume_editor.app.core.auth import get_optional_current_user_from_cookie
 from resume_editor.app.core.config import Settings, get_settings
 from resume_editor.app.core.security import authenticate_user, create_access_token
 from resume_editor.app.database.database import get_db
 from resume_editor.app.models.user import User
+from resume_editor.app.schemas.user import UserSettingsUpdateRequest
 
 log = logging.getLogger(__name__)
 
@@ -234,6 +239,7 @@ def create_app() -> FastAPI:
     async def settings_page(
         request: Request,
         current_user: User | None = Depends(get_optional_current_user_from_cookie),
+        db: Session = Depends(get_db),
     ):
         """
         Serve the user settings page.
@@ -241,6 +247,7 @@ def create_app() -> FastAPI:
         Args:
             request: The HTTP request object.
             current_user: The authenticated user, if one exists.
+            db (Session): The database session.
 
         Returns:
             TemplateResponse: The rendered settings template if authenticated.
@@ -249,7 +256,8 @@ def create_app() -> FastAPI:
         Notes:
             1. Depend on `get_optional_current_user_from_cookie` to get the current user.
             2. If no user is returned, redirect to the `/login` page.
-            3. On success, render the `settings.html` template.
+            3. Fetch user settings from the database.
+            4. On success, render the `settings.html` template with user settings.
 
         """
         _msg = "Settings page requested"
@@ -260,7 +268,66 @@ def create_app() -> FastAPI:
                 status_code=status.HTTP_307_TEMPORARY_REDIRECT,
             )
 
-        return templates.TemplateResponse(request, "settings.html")
+        user_settings = get_user_settings(db=db, user_id=current_user.id)
+        context = {
+            "request": request,
+            "llm_endpoint": user_settings.llm_endpoint if user_settings else None,
+            "api_key_is_set": bool(user_settings and user_settings.encrypted_api_key),
+        }
+        return templates.TemplateResponse("settings.html", context)
+
+    @app.post("/settings", response_class=HTMLResponse)
+    async def update_settings(
+        request: Request,
+        llm_endpoint: Annotated[str, Form()],
+        api_key: Annotated[str, Form()],
+        db: Session = Depends(get_db),
+        current_user: User | None = Depends(get_optional_current_user_from_cookie),
+    ):
+        """
+        Handle user settings update.
+
+        Args:
+            request: The HTTP request object.
+            llm_endpoint (str): The LLM endpoint from the form.
+            api_key (str): The API key from the form.
+            db (Session): The database session.
+            current_user: The authenticated user, if one exists.
+
+        Returns:
+            HTMLResponse: A success message snippet on success.
+            RedirectResponse: Redirects to login if user is not authenticated.
+
+        Notes:
+            1. Redirect to login if user is not authenticated.
+            2. Construct a UserSettingsUpdateRequest object from form data.
+            3. Call update_user_settings to persist changes.
+            4. Return an HTML snippet with a success message.
+
+        """
+        _msg = "Settings update submitted"
+        log.debug(_msg)
+
+        if not current_user:
+            return RedirectResponse(
+                url="/login",
+                status_code=status.HTTP_307_TEMPORARY_REDIRECT,
+            )
+
+        settings_data = UserSettingsUpdateRequest(
+            llm_endpoint=llm_endpoint,
+            api_key=api_key,
+        )
+
+        update_user_settings(
+            db=db,
+            user_id=current_user.id,
+            settings_data=settings_data,
+        )
+
+        return HTMLResponse(
+            '<div class="p-4 mb-4 text-sm text-green-800 rounded-lg bg-green-50" role="alert"><span class="font-medium">Success!</span> Your settings have been updated.</div>',
+        )
 
     @app.get("/dashboard/create-resume-form")
     async def create_resume_form():
