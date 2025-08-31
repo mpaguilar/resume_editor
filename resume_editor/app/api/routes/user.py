@@ -1,4 +1,5 @@
 import logging
+from datetime import datetime, timezone
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -370,9 +371,11 @@ def login_user(
     Notes:
         1. Attempt to authenticate the user using the provided username and password.
         2. If authentication fails, raise a 401 error.
-        3. Generate a JWT access token with a defined expiration time.
-        4. Return the access token to the client.
-        5. Database access: Performs a read operation on the User table to verify credentials.
+        3. Update the user's last_login_at timestamp to the current UTC time.
+        4. Commit the change to the database.
+        5. Generate a JWT access token with a defined expiration time.
+        6. Return the access token to the client.
+        7. Database access: Performs read and write operations on the User table.
 
     """
     _msg = f"Starting login_user for username: {form_data.username}"
@@ -389,6 +392,11 @@ def login_user(
             detail="Incorrect username or password",
             headers={"WWW-Authenticate": "Bearer"},
         )
+
+    _msg = f"Updating last_login_at for user: {user.username}"
+    log.debug(_msg)
+    user.last_login_at = datetime.now(timezone.utc)
+    db.commit()
 
     _msg = f"Creating access token for user: {form_data.username}"
     log.debug(_msg)

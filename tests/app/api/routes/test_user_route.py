@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 from unittest.mock import Mock, patch
 
 import pytest
@@ -145,12 +146,17 @@ def test_register_user_duplicate_email(
 
 
 # Tests for /login
-def test_login_success(client_with_db, test_user):
-    """Test successful user login."""
+@patch("resume_editor.app.api.routes.user.datetime")
+def test_login_success(mock_datetime, client_with_db, test_user):
+    """Test successful user login and `last_login_at` update."""
     client, mock_db = client_with_db
 
     test_settings = get_settings()
     client.app.dependency_overrides[get_settings] = lambda: test_settings
+
+    test_user.last_login_at = None
+    test_now = datetime(2025, 1, 1, tzinfo=timezone.utc)
+    mock_datetime.now.return_value = test_now
 
     query_result_mock = Mock()
     query_result_mock.filter.return_value.first.return_value = test_user
@@ -163,6 +169,11 @@ def test_login_success(client_with_db, test_user):
     data = response.json()
     assert "access_token" in data
     assert data["token_type"] == "bearer"
+
+    # Verify last_login_at was updated
+    assert test_user.last_login_at == test_now
+    mock_db.commit.assert_called_once()
+    mock_datetime.now.assert_called_with(timezone.utc)
 
     # Verify the token
     from jose import jwt

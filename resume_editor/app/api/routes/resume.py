@@ -1162,11 +1162,6 @@ async def update_personal_info_structured(
         # Create updated personal info object
         updated_info = PersonalInfoResponse(**request.model_dump())
 
-        # Extract other sections from existing content
-        education_info = extract_education_info(resume.content)
-        experience_info = extract_experience_info(resume.content)
-        certifications_info = extract_certifications_info(resume.content)
-
         # Reconstruct resume with updated personal info
         updated_content = update_resume_content_with_structured_data(
             current_content=resume.content,

@@ -158,3 +158,7 @@ def test_something():
     # clear the overrides
     app.dependency_overrides.clear()
 ```
+
+# Test file name exception
+
+The tests for `app/api/routes/user.py` are in `tests/app/api/routes/test_user_route.py`, not in `tests/app/api/routes/test_user.py`. This is to prevent a naming collision which causes errors during test collection.
