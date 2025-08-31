@@ -20,6 +20,7 @@ def api_authenticated_client():
     # Mock the current user and database session
     mock_user = Mock(spec=User)
     mock_user.id = 1
+    mock_user.roles = []
 
     mock_db = Mock()
 
@@ -42,7 +43,9 @@ def api_authenticated_client():
 def web_authenticated_client():
     """Fixture for an authenticated test client for web routes (cookie-based)."""
     app = create_app()
-    mock_user = Mock(spec=User, id=1)
+    mock_user = Mock(spec=User)
+    mock_user.id = 1
+    mock_user.roles = []
 
     def get_mock_user():
         return mock_user

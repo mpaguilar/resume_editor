@@ -27,6 +27,11 @@
                 <p class="text-gray-600">Manage and edit your resumes</p>
             </div>
             <div class="flex items-center space-x-4">
+                {% if current_user and current_user.roles|selectattr('name', 'equalto', 'admin')|list|length > 0 %}
+                <a href="/admin/users" class="text-sm font-medium text-gray-600 hover:text-blue-600">
+                    Admin
+                </a>
+                {% endif %}
                 <a href="/settings" class="text-sm font-medium text-gray-600 hover:text-blue-600">
                     Settings
                 </a>

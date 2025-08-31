@@ -107,8 +107,6 @@ def test_refine_resume_section_pydantic_object(
 ):
     """Test LLM refinement when the chain returns a Pydantic object."""
     mock_get_section.return_value = "Some content"
-    mock_parser_instance = mock_parser_class.return_value
-    mock_llm_instance = mock_llm_class.return_value
     mock_prompt_instance = mock_prompt_class.return_value
 
     # Mock the chain of |.
@@ -152,8 +150,6 @@ def test_refine_resume_section_string_return(
 ):
     """Test LLM refinement when the chain returns a string to be parsed."""
     mock_get_section.return_value = "Some content"
-    mock_parser_instance = mock_parser_class.return_value
-    mock_llm_instance = mock_llm_class.return_value
     mock_prompt_instance = mock_prompt_class.return_value
 
     chain_mock = Mock()

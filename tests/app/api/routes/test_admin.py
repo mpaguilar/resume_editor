@@ -385,7 +385,8 @@ def test_admin_update_user_success(
     mock_update_user_admin.return_value = updated_user
 
     response = client.put(
-        "/api/admin/users/2", json={"force_password_change": force_password_change}
+        "/api/admin/users/2",
+        json={"force_password_change": force_password_change},
     )
 
     assert response.status_code == status.HTTP_200_OK

@@ -251,9 +251,7 @@ def admin_assign_role_to_user(
         log.debug(_msg)
         return db_user
 
-    updated_user = admin_crud.assign_role_to_user_admin(
-        db=db, user=db_user, role=role
-    )
+    updated_user = admin_crud.assign_role_to_user_admin(db=db, user=db_user, role=role)
 
     _msg = f"Admin finished assigning role '{role_name}' to user with id: {user_id}"
     log.debug(_msg)
@@ -313,7 +311,9 @@ def admin_remove_role_from_user(
         raise HTTPException(status_code=400, detail="User does not have this role")
 
     updated_user = admin_crud.remove_role_from_user_admin(
-        db=db, user=db_user, role=role
+        db=db,
+        user=db_user,
+        role=role,
     )
 
     _msg = f"Admin finished removing role '{role_name}' from user with id: {user_id}"

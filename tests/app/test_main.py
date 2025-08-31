@@ -452,7 +452,7 @@ def test_login_success():
 
         assert response.status_code == status.HTTP_307_TEMPORARY_REDIRECT
         assert response.headers["location"] == "/dashboard"
-        assert 'access_token="Bearer fake-token"' in response.headers["set-cookie"]
+        assert "access_token=fake-token" in response.headers["set-cookie"]
         assert "HttpOnly" in response.headers["set-cookie"]
 
         mock_auth.assert_called_once_with(

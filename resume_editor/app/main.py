@@ -25,6 +25,7 @@ from resume_editor.app.core.security import (
 from resume_editor.app.database.database import get_db
 from resume_editor.app.models.user import User
 from resume_editor.app.schemas.user import UserSettingsUpdateRequest
+from resume_editor.app.web.admin import router as admin_web_router
 
 log = logging.getLogger(__name__)
 
@@ -73,6 +74,7 @@ def create_app() -> FastAPI:
     app.include_router(user_router)
     app.include_router(resume_router)
     app.include_router(admin_router)
+    app.include_router(admin_web_router)
 
     @app.get("/health")
     async def health_check() -> dict[str, str]:
@@ -180,7 +182,7 @@ def create_app() -> FastAPI:
         )
         response.set_cookie(
             key="access_token",
-            value=f"Bearer {access_token}",
+            value=access_token,
             httponly=True,
         )
         return response
@@ -238,7 +240,11 @@ def create_app() -> FastAPI:
                 status_code=status.HTTP_307_TEMPORARY_REDIRECT,
             )
 
-        return templates.TemplateResponse(request, "dashboard.html")
+        return templates.TemplateResponse(
+            request,
+            "dashboard.html",
+            {"current_user": current_user},
+        )
 
     @app.get("/settings", response_class=HTMLResponse)
     async def settings_page(

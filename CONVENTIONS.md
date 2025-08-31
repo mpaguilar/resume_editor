@@ -114,6 +114,7 @@
 * Unit tests should be run with a logging level of DEBUG
 * Unit tests should be written before the code, and they should fail if the code is incorrect.
 * Do not use duplicate file names for tests, even in separate paths. This causes errors.
+    * All test files **must** have unique filenames
 
 # Context management
 It is **important** to keep the size of individual files manageable.

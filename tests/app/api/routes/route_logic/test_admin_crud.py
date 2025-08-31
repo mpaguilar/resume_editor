@@ -182,20 +182,25 @@ def test_get_role_by_name_admin(role_exists: bool):
 @pytest.mark.parametrize("role_already_assigned", [True, False])
 @patch("resume_editor.app.api.routes.route_logic.admin_crud.get_user_by_id_admin")
 def test_assign_role_to_user_admin(
-    mock_get_user_by_id_admin: MagicMock, role_already_assigned: bool
+    mock_get_user_by_id_admin: MagicMock,
+    role_already_assigned: bool,
 ):
     """Test assign_role_to_user_admin for new and existing role cases."""
     mock_db = MagicMock(spec=Session)
     mock_role = Role(name="admin")
     initial_user = User(
-        username="testuser", email="test@test.com", hashed_password="hashed"
+        username="testuser",
+        email="test@test.com",
+        hashed_password="hashed",
     )
     initial_user.id = 1
     initial_user.roles = [mock_role] if role_already_assigned else []
     mock_get_user_by_id_admin.return_value = initial_user
 
     updated_user = assign_role_to_user_admin(
-        db=mock_db, user=initial_user, role=mock_role
+        db=mock_db,
+        user=initial_user,
+        role=mock_role,
     )
 
     if not role_already_assigned:
@@ -211,13 +216,16 @@ def test_assign_role_to_user_admin(
 @pytest.mark.parametrize("role_is_assigned", [True, False])
 @patch("resume_editor.app.api.routes.route_logic.admin_crud.get_user_by_id_admin")
 def test_remove_role_from_user_admin(
-    mock_get_user_by_id_admin: MagicMock, role_is_assigned: bool
+    mock_get_user_by_id_admin: MagicMock,
+    role_is_assigned: bool,
 ):
     """Test remove_role_from_user_admin for existing and non-existing role cases."""
     mock_db = MagicMock(spec=Session)
     mock_role = Role(name="admin")
     initial_user = User(
-        username="testuser", email="test@test.com", hashed_password="hashed"
+        username="testuser",
+        email="test@test.com",
+        hashed_password="hashed",
     )
     initial_user.id = 1
     initial_user.roles = [mock_role] if role_is_assigned else []
@@ -240,9 +248,7 @@ def test_remove_role_from_user_admin(
 
 
 @pytest.mark.parametrize("force_password_change", [True, False])
-@pytest.mark.parametrize(
-    "existing_attributes", [None, {}, {"other_key": "value"}]
-)
+@pytest.mark.parametrize("existing_attributes", [None, {}, {"other_key": "value"}])
 @patch("resume_editor.app.api.routes.route_logic.admin_crud.get_user_by_id_admin")
 @patch("resume_editor.app.api.routes.route_logic.admin_crud.flag_modified")
 def test_update_user_admin(

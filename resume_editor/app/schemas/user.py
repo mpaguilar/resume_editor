@@ -200,7 +200,7 @@ class AdminUserResponse(UserResponse):
     @property
     def force_password_change(self) -> bool:
         """Checks if the user must change their password."""
-        if hasattr(self, "attributes") and self.attributes:
+        if self.attributes:
             return bool(self.attributes.get("force_password_change", False))
         return False
 

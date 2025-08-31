@@ -77,6 +77,7 @@ class User(Base):
         hashed_password: str,
         is_active: bool = True,
         attributes: dict[str, Any] | None = None,
+        id: int | None = None,
     ):
         """
         Initialize a User instance.
@@ -87,6 +88,7 @@ class User(Base):
             hashed_password (str): Hashed password for the user. Must be a non-empty string.
             is_active (bool): Whether the user account is active. Must be a boolean.
             attributes (dict | None): Flexible key-value attributes for the user.
+            id (int | None): The unique identifier of the user, for testing purposes.
 
         Returns:
             None
@@ -105,6 +107,8 @@ class User(Base):
         _msg = f"Initializing User with username: {username}"
         log.debug(_msg)
 
+        if id is not None:
+            self.id = id
         self.username = username
         self.email = email
         self.hashed_password = hashed_password

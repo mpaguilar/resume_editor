@@ -7,7 +7,9 @@ from jose import JWTError
 from sqlalchemy.orm import Session
 
 from resume_editor.app.core.auth import (
+    _verify_admin_privileges,
     get_current_admin_user,
+    get_current_admin_user_from_cookie,
     get_current_user,
     get_current_user_from_cookie,
     get_optional_current_user_from_cookie,
@@ -338,3 +340,92 @@ def test_get_current_admin_user_with_no_roles():
     assert response.json() == {"detail": "The user does not have admin privileges"}
 
     app.dependency_overrides.clear()
+
+
+# --- Tests for get_current_admin_user_from_cookie ---
+
+
+@app.get("/admin-only-cookie")
+async def admin_only_cookie_route(
+    current_user: User = Depends(get_current_admin_user_from_cookie),
+):
+    """A test route protected by get_current_admin_user_from_cookie."""
+    return {"message": "Welcome admin from cookie"}
+
+
+def test_get_current_admin_user_from_cookie_with_admin_role():
+    """Test that an admin user from a cookie is granted access."""
+    admin_user = User(
+        username="admin",
+        email="admin@test.com",
+        hashed_password="password",
+    )
+    admin_role = Role(name="admin")
+    admin_user.roles = [admin_role]
+
+    def override_get_current_user_from_cookie():
+        return admin_user
+
+    app.dependency_overrides[get_current_user_from_cookie] = (
+        override_get_current_user_from_cookie
+    )
+
+    response = client.get("/admin-only-cookie")
+    assert response.status_code == 200
+    assert response.json() == {"message": "Welcome admin from cookie"}
+
+    app.dependency_overrides.clear()
+
+
+def test_get_current_admin_user_from_cookie_without_admin_role():
+    """Test that a non-admin user from a cookie is denied access."""
+    user = User(username="user", email="user@test.com", hashed_password="password")
+    user_role = Role(name="user")
+    user.roles = [user_role]
+
+    def override_get_current_user_from_cookie():
+        return user
+
+    app.dependency_overrides[get_current_user_from_cookie] = (
+        override_get_current_user_from_cookie
+    )
+
+    response = client.get("/admin-only-cookie")
+    assert response.status_code == 403
+    assert response.json() == {"detail": "The user does not have admin privileges"}
+
+    app.dependency_overrides.clear()
+
+
+# --- Tests for _verify_admin_privileges ---
+
+
+def test_verify_admin_privileges_with_admin_role():
+    """Test that a user with the 'admin' role is verified."""
+    admin_user = User(
+        username="admin",
+        email="admin@test.com",
+        hashed_password="password",
+    )
+    admin_user.roles = [Role(name="admin")]
+    assert _verify_admin_privileges(admin_user) == admin_user
+
+
+def test_verify_admin_privileges_without_admin_role():
+    """Test that a user without the 'admin' role raises an HTTPException."""
+    user = User(username="user", email="user@test.com", hashed_password="password")
+    user.roles = [Role(name="user")]
+    with pytest.raises(HTTPException) as exc_info:
+        _verify_admin_privileges(user)
+    assert exc_info.value.status_code == status.HTTP_403_FORBIDDEN
+    assert exc_info.value.detail == "The user does not have admin privileges"
+
+
+def test_verify_admin_privileges_with_no_roles():
+    """Test that a user with no roles raises an HTTPException."""
+    user = User(username="user", email="user@test.com", hashed_password="password")
+    user.roles = []
+    with pytest.raises(HTTPException) as exc_info:
+        _verify_admin_privileges(user)
+    assert exc_info.value.status_code == status.HTTP_403_FORBIDDEN
+    assert exc_info.value.detail == "The user does not have admin privileges"
