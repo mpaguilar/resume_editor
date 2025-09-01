@@ -110,10 +110,10 @@
 * Unit tests are run with `pytest`.
 * Tests are located in `./tests` and its subdirectories.
 * Tests should be written as functions, do **not** use test classes.
-* Each `*.py` file should have its own test file. For example `example.py` should have a test file named `test_example.py`
+* Each `*.py` file should have its own test file.
 * Unit tests should be run with a logging level of DEBUG
 * Unit tests should be written before the code, and they should fail if the code is incorrect.
-* Do not use duplicate file names for tests, even in separate paths. This causes errors.
+* IMPORTANT: Do not use duplicate file names for tests, even in separate paths. This causes errors.
     * All test files **must** have unique filenames
 
 # HTML considerations
@@ -171,4 +171,4 @@ def test_something():
 
 # Test file name exception
 
-The tests for `app/api/routes/user.py` are in `tests/app/api/routes/test_user_route.py`, not in `tests/app/api/routes/test_user.py`. This is to prevent a naming collision which causes errors during test collection.
+There are several cases where test files may not be named exactly the same as the python file. For example, the tests for `app/api/routes/user.py` are in `tests/app/api/routes/test_user_route.py`, not in `tests/app/api/routes/test_user.py`. This is to prevent a naming collision which causes errors during test collection. There are a few cases of this, so be sure to look for existing test files before creating a new one.

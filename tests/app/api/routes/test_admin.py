@@ -467,6 +467,27 @@ def test_admin_delete_user_not_found(
     assert response.json()["detail"] == "User not found"
 
 
+def test_admin_delete_user_self_delete_fails(
+    client,
+    app,
+):
+    """Test that an admin cannot delete themselves via the API."""
+    mock_db = MagicMock()
+    mock_admin_user = MagicMock(spec=User)
+    mock_admin_user.id = 1
+    setup_dependency_overrides(app, mock_db, mock_admin_user)
+
+    with patch(
+        "resume_editor.app.api.routes.admin.admin_crud.get_user_by_id_admin"
+    ) as mock_get_user_by_id_admin:
+        mock_get_user_by_id_admin.return_value = mock_admin_user
+
+        response = client.delete("/api/admin/users/1")
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert response.json()["detail"] == "Administrators cannot delete themselves."
+
+
 @patch("resume_editor.app.api.routes.admin.admin_crud.assign_role_to_user_admin")
 @patch("resume_editor.app.api.routes.admin.admin_crud.get_role_by_name_admin")
 @patch("resume_editor.app.api.routes.admin.admin_crud.get_user_by_id_admin")
