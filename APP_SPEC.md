@@ -17,11 +17,11 @@ Pay attention to the `BasicBlockParse` class. It is a base class for many parsin
 ## User Management
 
 * User registration, login (username/password), and logout.
-* Secure user password change functionality.
+* Secure user password change functionality, including a mandatory password change workflow.
 * Secure storage of user settings, including encrypted API keys and LLM endpoints.
 * Role-based access control with two roles: `user` and `admin`.
 * Tracking of last login time for each user.
-* Flexible user attribute system to support features like forcing a password change.
+* Flexible user attribute system to support features like forcing a password change on next login.
 
 ## Admin Interface
 
