@@ -119,6 +119,7 @@
 # HTML considerations
 * Prefer putting HTML into templates
 * Putting HTML into Python code is discouraged
+* Template and HTML are kept in `resume_editor/app/templates`
 
 # Context management
 It is **important** to keep the size of individual files manageable.

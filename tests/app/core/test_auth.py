@@ -282,11 +282,14 @@ def test_get_current_user_from_cookie_user_not_found(
 @patch("resume_editor.app.core.auth.get_settings")
 @patch("resume_editor.app.core.auth.jwt.decode")
 def test_get_current_user_from_cookie_force_change_redirect(
-    mock_jwt_decode, mock_get_settings, mock_request,
+    mock_jwt_decode,
+    mock_get_settings,
+    mock_request,
 ):
     """Test user is redirected if force_password_change is true."""
     mock_get_settings.return_value = MagicMock(
-        secret_key="test-secret", algorithm="HS256",
+        secret_key="test-secret",
+        algorithm="HS256",
     )
     mock_db = MagicMock(spec=Session)
     user_with_force = User(
@@ -313,11 +316,14 @@ def test_get_current_user_from_cookie_force_change_redirect(
 @patch("resume_editor.app.core.auth.get_settings")
 @patch("resume_editor.app.core.auth.jwt.decode")
 def test_get_current_user_from_cookie_force_change_htmx_redirect(
-    mock_jwt_decode, mock_get_settings, mock_request,
+    mock_jwt_decode,
+    mock_get_settings,
+    mock_request,
 ):
     """Test user is redirected via HTMX if force_password_change is true."""
     mock_get_settings.return_value = MagicMock(
-        secret_key="test-secret", algorithm="HS256",
+        secret_key="test-secret",
+        algorithm="HS256",
     )
     mock_db = MagicMock(spec=Session)
     user_with_force = User(
@@ -336,21 +342,26 @@ def test_get_current_user_from_cookie_force_change_htmx_redirect(
     with pytest.raises(HTTPException) as exc_info:
         get_current_user_from_cookie(request=mock_request, db=mock_db)
 
-    assert exc_info.value.status_code == status.HTTP_200_OK
+    assert exc_info.value.status_code == status.HTTP_401_UNAUTHORIZED
     assert exc_info.value.headers["HX-Redirect"] == "/api/users/change-password"
 
 
 @pytest.mark.parametrize(
-    "path", ["/api/users/change-password", "/logout", "/static/style.css"],
+    "path",
+    ["/api/users/change-password", "/logout", "/static/style.css"],
 )
 @patch("resume_editor.app.core.auth.get_settings")
 @patch("resume_editor.app.core.auth.jwt.decode")
 def test_get_current_user_from_cookie_force_change_no_redirect_on_allowed_paths(
-    mock_jwt_decode, mock_get_settings, mock_request, path,
+    mock_jwt_decode,
+    mock_get_settings,
+    mock_request,
+    path,
 ):
     """Test user is not redirected on allowed paths when force_password_change is true."""
     mock_get_settings.return_value = MagicMock(
-        secret_key="test-secret", algorithm="HS256",
+        secret_key="test-secret",
+        algorithm="HS256",
     )
     mock_db = MagicMock(spec=Session)
     user_with_force = User(
@@ -372,11 +383,14 @@ def test_get_current_user_from_cookie_force_change_no_redirect_on_allowed_paths(
 @patch("resume_editor.app.core.auth.get_settings")
 @patch("resume_editor.app.core.auth.jwt.decode")
 def test_get_current_user_from_cookie_no_force_change(
-    mock_jwt_decode, mock_get_settings, mock_request,
+    mock_jwt_decode,
+    mock_get_settings,
+    mock_request,
 ):
     """Test user is not redirected if force_password_change is false."""
     mock_get_settings.return_value = MagicMock(
-        secret_key="test-secret", algorithm="HS256",
+        secret_key="test-secret",
+        algorithm="HS256",
     )
     mock_db = MagicMock(spec=Session)
     user_no_force = User(
@@ -423,13 +437,16 @@ def test_get_optional_current_user_from_cookie_success(
 
 @patch(
     "resume_editor.app.core.auth.get_current_user_from_cookie",
-    side_effect=HTTPException(status_code=401),
+    side_effect=HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Could not validate credentials",
+    ),
 )
-def test_get_optional_current_user_from_cookie_failure(
+def test_get_optional_current_user_from_cookie_returns_none_on_auth_error(
     mock_get_current_user_from_cookie,
     mock_request,
 ):
-    """Test optional user retrieval when underlying function fails."""
+    """Test optional user retrieval returns None on a standard auth error."""
     mock_db = MagicMock(spec=Session)
 
     user = get_optional_current_user_from_cookie(request=mock_request, db=mock_db)
@@ -439,6 +456,25 @@ def test_get_optional_current_user_from_cookie_failure(
         request=mock_request,
         db=mock_db,
     )
+
+
+@patch("resume_editor.app.core.auth.get_current_user_from_cookie")
+def test_get_optional_current_user_from_cookie_reraises_other_exceptions(
+    mock_get_current_user_from_cookie,
+    mock_request,
+):
+    """Test that exceptions other than auth errors are re-raised."""
+    mock_db = MagicMock(spec=Session)
+    redirect_exception = HTTPException(
+        status_code=status.HTTP_307_TEMPORARY_REDIRECT,
+        detail="Password change required",
+    )
+    mock_get_current_user_from_cookie.side_effect = redirect_exception
+
+    with pytest.raises(HTTPException) as exc_info:
+        get_optional_current_user_from_cookie(request=mock_request, db=mock_db)
+
+    assert exc_info.value == redirect_exception
 
 
 def test_get_current_admin_user_with_no_roles():

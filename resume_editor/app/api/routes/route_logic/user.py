@@ -10,36 +10,48 @@ from resume_editor.app.models.user import User
 log = logging.getLogger(__name__)
 
 
-def change_password(db: Session, user: User, current_password: str, new_password: str):
+def change_password(
+    db: Session, user: User, new_password: str, current_password: str | None = None,
+):
     """Change a user's password and unset the force_password_change flag.
 
     Args:
         db (Session): The database session used to persist changes to the user record.
         user (User): The user object whose password is being changed.
-        current_password (str): The user's current password, used for verification.
         new_password (str): The new password to set for the user.
+        current_password (str | None): The user's current password, used for verification. Required for standard changes, optional for forced changes.
 
     Returns:
         None: This function does not return a value.
 
     Raises:
-        HTTPException: If the current password does not match the stored hash, a 400 Bad Request error is raised with the detail "Incorrect current password".
+        HTTPException: For a standard password change, if the current password is not provided or is incorrect, a 400 Bad Request error is raised.
 
     Notes:
-        1. Verify the current password against the stored hash using verify_password.
-        2. If the current password is invalid, raise an HTTPException with status 400.
-        3. Hash the new password using get_password_hash.
-        4. Update the user's hashed_password attribute with the new hash.
-        5. Ensure the user's attributes are initialized as a dictionary.
-        6. Set the 'force_password_change' key in attributes to False.
-        7. Mark the attributes as modified to ensure SQLAlchemy tracks changes.
-        8. Commit the transaction to persist changes to the database.
+        1. Determine if it's a forced password change by checking the user's attributes.
+        2. For a standard password change (when `force_password_change` is False), verify that `current_password` is provided and correct. If not, raise an HTTPException.
+        3. For a forced password change, the current password check is bypassed.
+        4. Hash the new password using get_password_hash.
+        5. Update the user's hashed_password attribute with the new hash.
+        6. Ensure the user's attributes are initialized as a dictionary if they are None.
+        7. Set the 'force_password_change' key in attributes to False.
+        8. Mark the attributes as modified to ensure SQLAlchemy tracks changes.
+        9. Commit the transaction to persist changes to the database.
+        10. Database access: The function performs a write operation to update the user's password and attributes in the database.
     """
     _msg = f"Changing password for user {user.username}"
     log.debug(_msg)
 
-    if not verify_password(current_password, user.hashed_password):
-        _msg = "Incorrect current password"
+    is_forced_change = user.attributes is not None and user.attributes.get(
+        "force_password_change",
+    )
+
+    # For a standard password change, the current password must be provided and correct.
+    if not is_forced_change and (
+        not current_password
+        or not verify_password(current_password, user.hashed_password)
+    ):
+        _msg = "Incorrect current password for a standard password change."
         log.warning(_msg)
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

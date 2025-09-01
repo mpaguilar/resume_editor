@@ -1,7 +1,9 @@
 import logging
+from pathlib import Path
 
-from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
 from resume_editor.app.api.routes.route_logic import admin_crud
@@ -17,47 +19,43 @@ log = logging.getLogger(__name__)
 
 router = APIRouter(tags=["admin-forms"])
 
+TEMPLATES_DIR = Path(__file__).resolve().parent.parent / "templates"
+templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
+
 
 @router.get("/admin/users/create-form", response_class=HTMLResponse)
 async def get_admin_create_user_form(
     request: Request,
     current_user: User | None = Depends(get_optional_current_user_from_cookie),
 ):
-    """Serves the form to create a new user."""
+    """Serves the form to create a new user.
+
+    Args:
+        request (Request): The incoming HTTP request object.
+        current_user (User | None): The currently authenticated user, retrieved from the session cookie. If not present, redirects to login.
+
+    Returns:
+        HTMLResponse: The HTML form for creating a new user, or a redirect to the login page if the user is not authenticated.
+
+    Raises:
+        HTTPException: If the current user is not authenticated, raises a 307 redirect to the login page.
+
+    Notes:
+        1. Checks if the current user is authenticated via the session cookie.
+        2. If not authenticated, redirects to the login page.
+        3. Verifies that the authenticated user has admin privileges.
+        4. Renders the create user form template with the request context.
+    """
     if not current_user:
         return RedirectResponse(
             url="/login",
             status_code=status.HTTP_307_TEMPORARY_REDIRECT,
         )
     verify_admin_privileges(user=current_user)
-    return HTMLResponse(
-        """
-        <div id="modal-content">
-            <form hx-post="/admin/users/create" hx-target="#user-list-container" hx-swap="innerHTML">
-                <h2 class="text-2xl font-bold mb-4">Create New User</h2>
-                <div class="mb-4">
-                    <label for="username">Username</label>
-                    <input type="text" name="username" required class="w-full p-2 border rounded">
-                </div>
-                <div class="mb-4">
-                    <label for="email">Email</label>
-                    <input type="email" name="email" required class="w-full p-2 border rounded">
-                </div>
-                <div class="mb-4">
-                    <label for="password">Password</label>
-                    <input type="password" name="password" required class="w-full p-2 border rounded">
-                </div>
-                <div class="mb-4">
-                    <input type="checkbox" name="force_password_change" value="true" class="mr-2">
-                    <label for="force_password_change">Force password change on next login</label>
-                </div>
-                <div class="flex justify-end space-x-2">
-                    <button type="button" onclick="document.getElementById('modal').style.display='none'" class="bg-gray-400 text-white px-4 py-2 rounded">Cancel</button>
-                    <button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded">Create User</button>
-                </div>
-            </form>
-        </div>
-        """,
+    return templates.TemplateResponse(
+        request,
+        "admin/partials/create_user_form.html",
+        {"request": request},
     )
 
 
@@ -67,7 +65,29 @@ async def handle_admin_create_user_form(
     db: Session = Depends(get_db),
     current_user: User | None = Depends(get_optional_current_user_from_cookie),
 ):
-    """Handles the submission of the create user form."""
+    """Handles the submission of the create user form.
+
+    Args:
+        request (Request): The incoming HTTP request object containing form data.
+        db (Session): The database session dependency for interacting with the database.
+        current_user (User | None): The currently authenticated user, retrieved from the session cookie. If not present, redirects to login.
+
+    Returns:
+        HTMLResponse: The updated user list HTML fragment, or a redirect to the login page if the user is not authenticated.
+
+    Raises:
+        HTTPException: If the current user is not authenticated, raises a 307 redirect to the login page.
+
+    Notes:
+        1. Checks if the current user is authenticated via the session cookie.
+        2. If not authenticated, redirects to the login page.
+        3. Verifies that the authenticated user has admin privileges.
+        4. Parses form data from the request (username, email, password, force_password_change).
+        5. Constructs an AdminUserCreate schema with the form data.
+        6. Calls the admin_crud.create_user_admin function to persist the new user to the database.
+        7. Retrieves the updated list of users from the database.
+        8. Renders the user list template with the updated user list and current user context.
+    """
     if not current_user:
         return RedirectResponse(
             url="/login",
@@ -81,7 +101,7 @@ async def handle_admin_create_user_form(
     password = form_data.get("password")
     force_password_change = form_data.get("force_password_change") == "true"
 
-    attributes = {"force_password_change": True} if force_password_change else None
+    attributes = {"force_password_change": True} if force_password_change else {}
     user_data = AdminUserCreate(
         username=username,
         email=email,
@@ -89,10 +109,13 @@ async def handle_admin_create_user_form(
         attributes=attributes,
     )
     admin_crud.create_user_admin(db=db, user_data=user_data)
-    response = Response(status_code=status.HTTP_200_OK)
-    response.headers["HX-Trigger"] = "userListChanged"
-    response.headers["HX-Redirect"] = "/admin/users"
-    return response
+
+    db_users = admin_crud.get_users_admin(db=db)
+    return templates.TemplateResponse(
+        request,
+        "admin/partials/user_list.html",
+        {"request": request, "users": db_users, "current_user": current_user},
+    )
 
 
 @router.get("/admin/users/{user_id}/edit-form", response_class=HTMLResponse)
@@ -102,7 +125,28 @@ async def get_admin_edit_user_form(
     db: Session = Depends(get_db),
     current_user: User | None = Depends(get_optional_current_user_from_cookie),
 ):
-    """Serves the form to edit an existing user."""
+    """Serves the form to edit an existing user.
+
+    Args:
+        request (Request): The incoming HTTP request object.
+        user_id (int): The unique identifier of the user to be edited.
+        db (Session): The database session dependency for interacting with the database.
+        current_user (User | None): The currently authenticated user, retrieved from the session cookie. If not present, redirects to login.
+
+    Returns:
+        HTMLResponse: The HTML form for editing the user, or a redirect to the login page if the user is not authenticated.
+
+    Raises:
+        HTTPException: If the current user is not authenticated, raises a 307 redirect to the login page. If the user with the given ID is not found, raises a 404 error.
+
+    Notes:
+        1. Checks if the current user is authenticated via the session cookie.
+        2. If not authenticated, redirects to the login page.
+        3. Verifies that the authenticated user has admin privileges.
+        4. Queries the database to retrieve the user with the given ID.
+        5. If the user is not found, raises a 404 HTTP exception.
+        6. Renders the edit user form template with the request context and user data.
+    """
     if not current_user:
         return RedirectResponse(
             url="/login",
@@ -113,33 +157,10 @@ async def get_admin_edit_user_form(
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
-    force_change = (
-        user.attributes.get("force_password_change", False)
-        if user.attributes
-        else False
-    )
-    checked = "checked" if force_change else ""
-
-    return HTMLResponse(
-        f"""
-        <div id="modal-content">
-            <form hx-post="/admin/users/{user_id}/edit" hx-target="#user-row-{user_id}" hx-swap="outerHTML">
-                <h2 class="text-2xl font-bold mb-4">Edit User: {user.username}</h2>
-                <div class="mb-4">
-                    <label for="email">Email</label>
-                    <input type="email" name="email" value="{user.email}" required class="w-full p-2 border rounded">
-                </div>
-                <div class="mb-4">
-                    <input type="checkbox" name="force_password_change" value="true" {checked} class="mr-2">
-                    <label for="force_password_change">Force password change on next login</label>
-                </div>
-                <div class="flex justify-end space-x-2">
-                    <button type="button" onclick="document.getElementById('modal').style.display='none'" class="bg-gray-400 text-white px-4 py-2 rounded">Cancel</button>
-                    <button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded">Save Changes</button>
-                </div>
-            </form>
-        </div>
-        """,
+    return templates.TemplateResponse(
+        request,
+        "admin/partials/edit_user_form.html",
+        {"request": request, "user": user},
     )
 
 
@@ -150,7 +171,34 @@ async def handle_admin_edit_user_form(
     db: Session = Depends(get_db),
     current_user: User | None = Depends(get_optional_current_user_from_cookie),
 ):
-    """Handles the submission of the edit user form."""
+    """Handles the submission of the edit user form.
+
+    Args:
+        request (Request): The incoming HTTP request object containing form data.
+        user_id (int): The unique identifier of the user to be edited.
+        db (Session): The database session dependency for interacting with the database.
+        current_user (User | None): The currently authenticated user, retrieved from the session cookie. If not present, redirects to login.
+
+    Returns:
+        HTMLResponse: The updated user list HTML fragment, or a redirect to the login page if the user is not authenticated.
+
+    Raises:
+        HTTPException: If the current user is not authenticated, raises a 307 redirect to the login page. If the user with the given ID is not found, raises a 404 error.
+
+    Notes:
+        1. Checks if the current user is authenticated via the session cookie.
+        2. If not authenticated, redirects to the login page.
+        3. Verifies that the authenticated user has admin privileges.
+        4. Parses form data from the request (email, force_password_change).
+        5. Queries the database to retrieve the user with the given ID.
+        6. If the user is not found, raises a 404 HTTP exception.
+        7. Constructs an AdminUserUpdateRequest schema with the form data.
+        8. Calls the admin_crud.update_user_admin function to update the user in the database.
+        9. Retrieves the updated list of users from the database.
+        10. Finds the updated user in the list to pass to the template.
+        11. Renders the user list template with the updated user list and current user context.
+        12. Sends an HX-Trigger header to notify the frontend that the user list has changed.
+    """
     if not current_user:
         return RedirectResponse(
             url="/login",
@@ -170,9 +218,19 @@ async def handle_admin_edit_user_form(
         email=email,
         force_password_change=force_password_change,
     )
-    admin_crud.update_user_admin(db=db, user=user, update_data=update_data)
+    updated_user = admin_crud.update_user_admin(
+        db=db, user=user, update_data=update_data,
+    )
 
-    response = Response(status_code=status.HTTP_200_OK)
-    response.headers["HX-Trigger"] = "userListChanged"
-    response.headers["HX-Redirect"] = "/admin/users"
-    return response
+    db_users = admin_crud.get_users_admin(db=db)
+    # Find the updated user in the list to pass to the template
+    user_for_template = next(
+        (u for u in db_users if u.id == updated_user.id),
+        None,
+    )
+    return templates.TemplateResponse(
+        request,
+        "admin/partials/user_list.html",
+        {"request": request, "users": db_users, "current_user": current_user},
+        headers={"HX-Trigger": "userListChanged"},
+    )

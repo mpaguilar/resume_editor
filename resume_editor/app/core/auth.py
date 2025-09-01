@@ -113,7 +113,7 @@ def get_current_user_from_cookie(
         8. If the user is not found in the database, raise the credentials exception.
         9. Check if the user's attributes indicate a forced password change.
         10. If the user is required to change their password and the current path is not one of the allowed paths (change password, logout, or static assets), redirect to the change password endpoint.
-        11. For HTMX requests, send a 200 OK with a special header to trigger a redirect.
+        11. For HTMX requests, send a 401 with a special header to trigger a client-side redirect.
         12. For regular requests, send a 307 Temporary Redirect to the change password endpoint.
         13. Return the User object if all checks pass.
 
@@ -124,6 +124,7 @@ def get_current_user_from_cookie(
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
+        headers={},
     )
     token = request.cookies.get("access_token")
 
@@ -149,24 +150,27 @@ def get_current_user_from_cookie(
     if user.attributes and user.attributes.get("force_password_change"):
         path = request.url.path
         # Allow access to the change password page, logout, and static assets
-        if not (
-            path == "/api/users/change-password"
-            or path.startswith("/logout")
-            or path.startswith("/static")
+        allowed_paths = [
+            "/api/users/change-password",
+            "/logout",
+        ]
+        if not any(path.startswith(p) for p in allowed_paths) and not path.startswith(
+            "/static",
         ):
             redirect_url = "/api/users/change-password"
+            # For HTMX requests, we can't send a normal redirect.
+            # Instead, we send a special header to trigger a client-side redirect.
+            # For regular requests, we send a 307 Temporary Redirect.
             if "hx-request" in request.headers:
-                # For HTMX requests, we can't send a normal redirect.
-                # Instead, we send a 200 OK with a special header.
                 raise HTTPException(
-                    status_code=status.HTTP_200_OK,
+                    status_code=status.HTTP_401_UNAUTHORIZED,
                     headers={"HX-Redirect": redirect_url},
+                    detail="Password change required",
                 )
-            else:
-                raise HTTPException(
-                    status_code=status.HTTP_307_TEMPORARY_REDIRECT,
-                    headers={"Location": redirect_url},
-                )
+            raise HTTPException(
+                status_code=status.HTTP_307_TEMPORARY_REDIRECT,
+                headers={"Location": redirect_url},
+            )
 
     return user
 
@@ -201,7 +205,15 @@ def get_optional_current_user_from_cookie(
     """
     try:
         return get_current_user_from_cookie(request=request, db=db)
-    except HTTPException:
+    except HTTPException as e:
+        # A redirect for a forced password change is not an authentication failure,
+        # so it should be propagated.
+        if e.status_code == status.HTTP_307_TEMPORARY_REDIRECT or (
+            e.headers and e.headers.get("HX-Redirect")
+        ):
+            raise e
+        # For any other HTTPException (like missing token, which results in a 401),
+        # return None as this indicates an unauthenticated user.
         return None
 
 
@@ -229,7 +241,6 @@ def verify_admin_privileges(user: User) -> User:
         2. Check if any role has the name 'admin'.
         3. If no role with the name 'admin' is found, log a warning and raise an HTTPException with status 403.
         4. Return the user object if an 'admin' role is found.
-
     """
     if not any(role.name == "admin" for role in user.roles):
         _msg = f"User {user.username} does not have admin privileges"
@@ -271,7 +282,6 @@ def get_current_admin_user(
         2. Call `verify_admin_privileges` to check if the user has admin roles.
         3. Log a debug message indicating the function is returning.
         4. Return the user object if the user has admin privileges.
-
     """
     _msg = "get_current_admin_user starting"
     log.debug(_msg)
@@ -313,7 +323,6 @@ def get_current_admin_user_from_cookie(
         2. Call `verify_admin_privileges` to check if the user has admin roles.
         3. Log a debug message indicating the function is returning.
         4. Return the user object if the user has admin privileges.
-
     """
     _msg = "get_current_admin_user_from_cookie starting"
     log.debug(_msg)

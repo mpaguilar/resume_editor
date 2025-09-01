@@ -146,11 +146,17 @@ def test_admin_users_page_as_admin(mock_get_users_admin, client, app):
 def test_admin_delete_user_web_success(client, app):
     mock_db_session = MagicMock()
     admin_user = User(
-        id=1, username="admin", email="admin@test.com", hashed_password="hashed",
+        id=1,
+        username="admin",
+        email="admin@test.com",
+        hashed_password="hashed",
     )
     admin_user.roles = [Role(id=1, name="admin")]
     user_to_delete = User(
-        id=2, username="delete_me", email="delete@me.com", hashed_password="hashed",
+        id=2,
+        username="delete_me",
+        email="delete@me.com",
+        hashed_password="hashed",
     )
     user_to_delete.roles = []
 
@@ -188,7 +194,10 @@ def test_admin_delete_user_web_redirects_if_not_logged_in(client, app):
 def test_admin_delete_user_web_forbidden_if_not_admin(client, app):
     mock_db_session = MagicMock()
     non_admin_user = User(
-        id=1, username="test", email="test@test.com", hashed_password="hashed",
+        id=1,
+        username="test",
+        email="test@test.com",
+        hashed_password="hashed",
     )
     non_admin_user.roles = []  # No admin role
     setup_dependency_overrides(app, mock_db_session, non_admin_user)
@@ -201,7 +210,10 @@ def test_admin_delete_user_web_forbidden_if_not_admin(client, app):
 def test_admin_delete_user_web_not_found(client, app):
     mock_db_session = MagicMock()
     admin_user = User(
-        id=1, username="admin", email="admin@test.com", hashed_password="hashed",
+        id=1,
+        username="admin",
+        email="admin@test.com",
+        hashed_password="hashed",
     )
     admin_user.roles = [Role(name="admin")]
     setup_dependency_overrides(app, mock_db_session, admin_user)
@@ -216,7 +228,10 @@ def test_admin_delete_user_web_not_found(client, app):
 def test_admin_delete_user_web_self_delete_fails(client, app):
     mock_db_session = MagicMock()
     admin_user = User(
-        id=1, username="admin", email="admin@test.com", hashed_password="hashed",
+        id=1,
+        username="admin",
+        email="admin@test.com",
+        hashed_password="hashed",
     )
     admin_user.roles = [Role(name="admin")]
     setup_dependency_overrides(app, mock_db_session, admin_user)

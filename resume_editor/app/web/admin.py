@@ -1,4 +1,5 @@
 import logging
+from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -26,7 +27,8 @@ router = APIRouter(
     tags=["admin_web"],
 )
 
-templates = Jinja2Templates(directory="templates")
+TEMPLATES_DIR = Path(__file__).resolve().parent.parent / "templates"
+templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 
 
 @router.get("/users", response_class=HTMLResponse)
@@ -56,6 +58,7 @@ async def admin_users_page(
         4. Retrieves all users from the database using the get_users_admin function.
         5. Converts each user to an AdminUserResponse model for consistent response formatting.
         6. Renders the "admin/users.html" template with the list of users and current user context.
+        7. Database access: Reads all users from the database via get_users_admin.
     """
     _msg = "Admin users page requested"
     log.debug(_msg)
@@ -110,6 +113,7 @@ async def admin_delete_user_web(
         8. Retrieves the updated list of users from the database.
         9. Converts each user to an AdminUserResponse model for consistent response formatting.
         10. Renders the "admin/partials/user_list.html" template with the updated user list and current user context.
+        11. Database access: Reads and deletes a user from the database via get_user_by_id_admin and delete_user_admin.
     """
     _msg = f"Admin delete user web requested for user_id: {user_id}"
     log.debug(_msg)
@@ -129,7 +133,8 @@ async def admin_delete_user_web(
     # Prevent admin from deleting themselves
     if user_to_delete.id == current_user.id:
         raise HTTPException(
-            status_code=400, detail="Administrators cannot delete themselves.",
+            status_code=400,
+            detail="Administrators cannot delete themselves.",
         )
 
     delete_user_admin(db=db, user=user_to_delete)

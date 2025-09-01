@@ -34,6 +34,7 @@ def test_user():
         username="testuser",
         email="test@example.com",
         hashed_password=get_password_hash("testpassword"),
+        attributes={},
     )
     user.id = 1
     return user
@@ -113,7 +114,7 @@ def test_register_user_success(
     assert data["username"] == "testuser"
     assert data["email"] == "test@example.com"
     assert data["roles"] == []
-    assert data["attributes"] is None
+    assert data["attributes"] == {}
     mock_get_by_username.assert_called_once()
     mock_get_by_email.assert_called_once()
     mock_create_user.assert_called_once()
@@ -462,14 +463,18 @@ def test_user_response_schema_with_data():
 
 # Tests for /change-password
 @patch(
-    "resume_editor.app.api.routes.route_logic.user.verify_password", return_value=True,
+    "resume_editor.app.api.routes.route_logic.user.verify_password",
+    return_value=True,
 )
 @patch(
     "resume_editor.app.api.routes.route_logic.user.get_password_hash",
     return_value="new_hashed_password",
 )
 def test_change_password_success_and_unsets_flag(
-    mock_get_hash, mock_verify, authenticated_cookie_client, test_user,
+    mock_get_hash,
+    mock_verify,
+    authenticated_cookie_client,
+    test_user,
 ):
     """
     Test successful password change, unsets force_password_change flag, and redirects.
@@ -479,12 +484,16 @@ def test_change_password_success_and_unsets_flag(
     original_hashed_password = test_user.hashed_password
     response = client.post(
         "/api/users/change-password",
-        json={"current_password": "old_password", "new_password": "new_password"},
+        data={
+            "current_password": "old_password",
+            "new_password": "new_password",
+            "confirm_new_password": "new_password",
+        },
         follow_redirects=False,
     )
     assert response.status_code == status.HTTP_303_SEE_OTHER
     assert response.headers["location"] == "/dashboard"
-    mock_verify.assert_called_once_with("old_password", original_hashed_password)
+    mock_verify.assert_not_called()
     mock_get_hash.assert_called_once_with("new_password")
     assert test_user.hashed_password == "new_hashed_password"
     assert test_user.attributes["force_password_change"] is False
@@ -492,14 +501,18 @@ def test_change_password_success_and_unsets_flag(
 
 
 @patch(
-    "resume_editor.app.api.routes.route_logic.user.verify_password", return_value=True,
+    "resume_editor.app.api.routes.route_logic.user.verify_password",
+    return_value=True,
 )
 @patch(
     "resume_editor.app.api.routes.route_logic.user.get_password_hash",
     return_value="new_hashed_password",
 )
 def test_change_password_success_htmx(
-    mock_get_hash, mock_verify, authenticated_cookie_client, test_user,
+    mock_get_hash,
+    mock_verify,
+    authenticated_cookie_client,
+    test_user,
 ):
     """
     Test successful password change with HTMX redirect.
@@ -508,7 +521,11 @@ def test_change_password_success_htmx(
     test_user.attributes = {"force_password_change": True}
     response = client.post(
         "/api/users/change-password",
-        json={"current_password": "old_password", "new_password": "new_password"},
+        data={
+            "current_password": "old_password",
+            "new_password": "new_password",
+            "confirm_new_password": "new_password",
+        },
         headers={"HX-Request": "true"},
     )
     assert response.status_code == status.HTTP_200_OK
@@ -518,14 +535,18 @@ def test_change_password_success_htmx(
 
 
 @patch(
-    "resume_editor.app.api.routes.route_logic.user.verify_password", return_value=True,
+    "resume_editor.app.api.routes.route_logic.user.verify_password",
+    return_value=True,
 )
 @patch(
     "resume_editor.app.api.routes.route_logic.user.get_password_hash",
     return_value="new_hashed_password",
 )
 def test_change_password_with_none_attributes(
-    mock_get_hash, mock_verify, authenticated_cookie_client, test_user,
+    mock_get_hash,
+    mock_verify,
+    authenticated_cookie_client,
+    test_user,
 ):
     """
     Test successful password change when user attributes are initially None.
@@ -536,7 +557,11 @@ def test_change_password_with_none_attributes(
 
     client.post(
         "/api/users/change-password",
-        json={"current_password": "old_password", "new_password": "new_password"},
+        data={
+            "current_password": "old_password",
+            "new_password": "new_password",
+            "confirm_new_password": "new_password",
+        },
         follow_redirects=False,
     )
 
@@ -549,14 +574,83 @@ def test_change_password_with_none_attributes(
 
 
 @patch(
-    "resume_editor.app.api.routes.route_logic.user.verify_password", return_value=True,
+    "resume_editor.app.api.routes.route_logic.user.get_password_hash",
+    return_value="new_hashed_password",
+)
+def test_change_password_forced_without_current_password(
+    mock_get_hash,
+    authenticated_cookie_client,
+    test_user,
+):
+    """
+    Test successful forced password change without providing current password.
+    """
+    client, mock_db = authenticated_cookie_client
+    test_user.attributes = {"force_password_change": True}
+
+    response = client.post(
+        "/api/users/change-password",
+        data={"new_password": "new_password", "confirm_new_password": "new_password"},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == status.HTTP_303_SEE_OTHER
+    assert response.headers["location"] == "/dashboard"
+    mock_get_hash.assert_called_once_with("new_password")
+    assert test_user.hashed_password == "new_hashed_password"
+    assert test_user.attributes["force_password_change"] is False
+    mock_db.commit.assert_called_once()
+
+
+@patch(
+    "resume_editor.app.api.routes.route_logic.user.get_password_hash",
+    return_value="new_hashed_password",
+)
+@patch("resume_editor.app.api.routes.route_logic.user.verify_password")
+def test_change_password_forced_with_incorrect_current_password_succeeds(
+    mock_verify, mock_get_hash, authenticated_cookie_client, test_user,
+):
+    """
+    Test forced password change with incorrect current password succeeds.
+
+    The current password check should be bypassed during a forced change.
+    """
+    client, mock_db = authenticated_cookie_client
+    test_user.attributes = {"force_password_change": True}
+    test_user.hashed_password = "hashed_old_password"
+
+    response = client.post(
+        "/api/users/change-password",
+        data={
+            "current_password": "wrong_password",
+            "new_password": "new_password",
+            "confirm_new_password": "new_password",
+        },
+        follow_redirects=False,
+    )
+
+    assert response.status_code == status.HTTP_303_SEE_OTHER
+    assert response.headers["location"] == "/dashboard"
+
+    mock_verify.assert_not_called()
+    mock_get_hash.assert_called_once_with("new_password")
+    assert test_user.hashed_password == "new_hashed_password"
+    assert test_user.attributes["force_password_change"] is False
+    mock_db.commit.assert_called_once()
+
+
+@patch(
+    "resume_editor.app.api.routes.route_logic.user.verify_password",
+    return_value=True,
 )
 @patch(
     "resume_editor.app.api.routes.route_logic.user.get_password_hash",
     return_value="new_hashed_password",
 )
 def test_change_password_logic_when_attributes_is_none(
-    mock_get_hash, mock_verify, test_user,
+    mock_get_hash,
+    mock_verify,
+    test_user,
 ):
     """Test change_password logic directly when attributes are None."""
     mock_db = Mock(spec=Session)
@@ -583,17 +677,21 @@ def test_change_password_logic_when_attributes_is_none(
     return_value=False,
 )
 def test_change_password_incorrect_current_password(
-    mock_verify, authenticated_cookie_client, test_user,
+    mock_verify,
+    authenticated_cookie_client,
+    test_user,
 ):
     """Test password change with incorrect current password."""
     client, mock_db = authenticated_cookie_client
     test_user.hashed_password = "hashed_old_password"
     response = client.post(
         "/api/users/change-password",
-        json={
+        data={
             "current_password": "wrong_password",
             "new_password": "new_password",
+            "confirm_new_password": "new_password",
         },
+        headers={"Accept": "application/json"},
     )
     assert response.status_code == status.HTTP_400_BAD_REQUEST
     assert response.json()["detail"] == "Incorrect current password"
@@ -606,10 +704,46 @@ def test_change_password_unauthenticated(client_with_db):
     client, _ = client_with_db
     response = client.post(
         "/api/users/change-password",
-        json={"current_password": "old_password", "new_password": "new_password"},
+        data={
+            "current_password": "old_password",
+            "new_password": "new_password",
+            "confirm_new_password": "new_password",
+        },
     )
     assert response.status_code == status.HTTP_401_UNAUTHORIZED
     assert response.json()["detail"] == "Could not validate credentials"
+
+
+def test_change_password_confirmation_mismatch(authenticated_cookie_client):
+    """Test password change when new password and confirmation don't match."""
+    client, _ = authenticated_cookie_client
+    response = client.post(
+        "/api/users/change-password",
+        data={
+            "current_password": "old_password",
+            "new_password": "new_password",
+            "confirm_new_password": "different_password",
+        },
+        headers={"Accept": "text/html"},
+    )
+    assert response.status_code == status.HTTP_400_BAD_REQUEST
+    assert "New passwords do not match." in response.text
+
+
+def test_change_password_confirmation_mismatch_json(authenticated_cookie_client):
+    """Test password change with confirmation mismatch returns JSON."""
+    client, _ = authenticated_cookie_client
+    response = client.post(
+        "/api/users/change-password",
+        data={
+            "current_password": "old_password",
+            "new_password": "new_password",
+            "confirm_new_password": "different_password",
+        },
+        headers={"Accept": "application/json"},
+    )
+    assert response.status_code == status.HTTP_400_BAD_REQUEST
+    assert response.json()["detail"] == "New passwords do not match."
 
 
 def test_get_change_password_page(authenticated_cookie_client):

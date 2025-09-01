@@ -95,6 +95,11 @@ async def test_handle_admin_create_user_form(mock_create_user_admin: MagicMock):
         override_get_optional_current_user_from_cookie
     )
 
+    new_user = User(
+        id=2, username="newuser", email="new@test.com", hashed_password="pw",
+    )
+    mock_create_user_admin.return_value = new_user
+
     with TestClient(app) as client:
         form_data = {
             "username": "newuser",
@@ -102,9 +107,13 @@ async def test_handle_admin_create_user_form(mock_create_user_admin: MagicMock):
             "password": "password",
             "force_password_change": "true",
         }
-        response = client.post("/admin/users/create", data=form_data)
+        with patch(
+            "resume_editor.app.web.admin_forms.admin_crud.get_users_admin",
+            return_value=[admin_user, new_user],
+        ):
+            response = client.post("/admin/users/create", data=form_data)
         assert response.status_code == 200
-        assert response.headers["hx-redirect"] == "/admin/users"
+        assert "newuser" in response.text
         mock_create_user_admin.assert_called_once()
         # Verify call arguments
         call_args = mock_create_user_admin.call_args[1]
@@ -191,14 +200,27 @@ async def test_handle_admin_edit_user_form(
         override_get_optional_current_user_from_cookie
     )
 
+    # This will be the "updated" user object returned by the update_user_admin mock
+    updated_target_user = User(
+        id=2,
+        username="testuser",
+        email="updated@test.com",
+        hashed_password="pw",
+    )
+    mock_update_user.return_value = updated_target_user
+
     with TestClient(app) as client:
         form_data = {
             "email": "updated@test.com",
             "force_password_change": "true",
         }
-        response = client.post("/admin/users/2/edit", data=form_data)
+        with patch(
+            "resume_editor.app.web.admin_forms.admin_crud.get_users_admin",
+            return_value=[admin_user, updated_target_user],
+        ):
+            response = client.post("/admin/users/2/edit", data=form_data)
         assert response.status_code == 200
-        assert response.headers["hx-redirect"] == "/admin/users"
+        assert "updated@test.com" in response.text
         mock_update_user.assert_called_once()
         call_args = mock_update_user.call_args[1]
         assert call_args["update_data"].email == "updated@test.com"

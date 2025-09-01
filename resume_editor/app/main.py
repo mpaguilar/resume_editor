@@ -1,4 +1,5 @@
 import logging
+from pathlib import Path
 from typing import Annotated
 
 from fastapi import Depends, FastAPI, Form, Request, status
@@ -73,7 +74,8 @@ def create_app() -> FastAPI:
     )
 
     # Setup templates
-    templates = Jinja2Templates(directory="resume_editor/templates")
+    TEMPLATES_DIR = Path(__file__).resolve().parent / "templates"
+    templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 
     # Include API routers
     app.include_router(user_router)
@@ -240,6 +242,7 @@ def create_app() -> FastAPI:
         """
         _msg = "Dashboard page requested"
         log.debug(_msg)
+
         if not current_user:
             return RedirectResponse(
                 url="/login",
@@ -249,7 +252,7 @@ def create_app() -> FastAPI:
         return templates.TemplateResponse(
             request,
             "dashboard.html",
-            {"current_user": current_user},
+            {"request": request, "current_user": current_user},
         )
 
     @app.get("/settings", response_class=HTMLResponse)

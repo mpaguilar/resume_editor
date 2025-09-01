@@ -1,8 +1,9 @@
 import logging
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from fastapi import APIRouter, Depends, Form, HTTPException, Request, Response, status
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.security import OAuth2PasswordRequestForm
 from fastapi.templating import Jinja2Templates
@@ -10,7 +11,6 @@ from sqlalchemy.orm import Session
 
 from resume_editor.app.api.routes.route_logic import settings_crud
 from resume_editor.app.api.routes.route_logic import user as user_logic
-from resume_editor.app.api.routes.route_models import PasswordChangeRequest
 from resume_editor.app.core.auth import get_current_user, get_current_user_from_cookie
 from resume_editor.app.core.config import Settings, get_settings
 from resume_editor.app.core.security import (
@@ -31,7 +31,8 @@ from resume_editor.app.schemas.user import (
 log = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/users", tags=["users"])
-templates = Jinja2Templates(directory="resume_editor/app/templates")
+TEMPLATES_DIR = Path(__file__).resolve().parent.parent.parent / "templates"
+templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 
 
 def get_user_by_username(db: Session, username: str) -> User | None:
@@ -161,6 +162,7 @@ def delete_user(db: Session, user: User) -> None:
         1. Remove the user object from the database session.
         2. Commit the transaction to persist the deletion.
         3. Database access: Performs a write operation on the User table.
+
     """
     db.delete(user)
     db.commit()
@@ -289,47 +291,106 @@ def update_user_settings(
 @router.post("/change-password")
 def change_password(
     request: Request,
-    password_data: PasswordChangeRequest,
+    new_password: str = Form(),
+    confirm_new_password: str = Form(),
+    current_password: str | None = Form(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user_from_cookie),
 ):
     """Change the current user's password.
 
+    This endpoint handles both standard and forced password changes. For forced
+    changes, the current password is not required. It validates that the
+    new and confirmed passwords match.
+
+    It performs content negotiation based on the 'Accept' header.
+    - 'application/json': Returns JSON responses (for API clients).
+    - Other (e.g., 'text/html'): Returns HTML responses (for web UI).
+
     Args:
         request (Request): The request object.
-        password_data (PasswordChangeRequest): The current and new passwords.
+        new_password (str): The new password from the form.
+        confirm_new_password (str): The new password confirmation from the form.
+        current_password (str | None): The user's current password. Optional for forced changes.
         db (Session): The database session.
         current_user (User): The authenticated user.
 
     Returns:
-        Response: A redirect response on success.
-
-    Raises:
-        HTTPException: If the current password is incorrect.
+        Response: Redirects to the dashboard on success, otherwise renders the
+                  change password page with an error message or returns a JSON error.
 
     Notes:
-        1. Call the business logic to change the password.
-        2. Return a redirect response (standard or HTMX).
+        1. Checks if new password and confirmation match.
+        2. Calls the business logic to change the password.
+        3. On success, redirects to the dashboard (handling HTMX requests).
+        4. On failure (e.g., password mismatch or incorrect current password),
+           it re-renders the change password page with an error message or returns JSON.
+
     """
     _msg = "Changing password for current user"
     log.debug(_msg)
 
-    user_logic.change_password(
-        db=db,
-        user=current_user,
-        current_password=password_data.current_password,
-        new_password=password_data.new_password,
-    )
+    is_json_request = "application/json" in request.headers.get("accept", "")
+
+    if new_password != confirm_new_password:
+        error_detail = "New passwords do not match."
+        log.warning(error_detail)
+        if is_json_request:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, detail=error_detail,
+            )
+        is_forced_change = (
+            current_user.attributes is not None
+            and current_user.attributes.get("force_password_change", False)
+        )
+        context = {
+            "user": current_user,
+            "error": error_detail,
+            "is_forced_change": is_forced_change,
+        }
+        return templates.TemplateResponse(
+            request,
+            "pages/change_password.html",
+            context,
+            status_code=status.HTTP_400_BAD_REQUEST,
+        )
+
+    try:
+        user_logic.change_password(
+            db=db,
+            user=current_user,
+            new_password=new_password,
+            current_password=current_password,
+        )
+    except HTTPException as e:
+        if is_json_request:
+            raise e
+        is_forced_change = (
+            current_user.attributes is not None
+            and current_user.attributes.get("force_password_change", False)
+        )
+        context = {
+            "user": current_user,
+            "error": e.detail,
+            "is_forced_change": is_forced_change,
+        }
+        return templates.TemplateResponse(
+            request,
+            "pages/change_password.html",
+            context,
+            status_code=e.status_code,
+        )
 
     _msg = "Password updated successfully"
     log.debug(_msg)
 
+    redirect_url = "/dashboard"
     if "hx-request" in request.headers:
         response = Response(status_code=status.HTTP_200_OK)
-        response.headers["HX-Redirect"] = "/dashboard"
+        response.headers["HX-Redirect"] = redirect_url
         return response
     else:
-        return RedirectResponse(url="/dashboard", status_code=status.HTTP_303_SEE_OTHER)
+        return RedirectResponse(url=redirect_url, status_code=status.HTTP_303_SEE_OTHER)
 
 
 @router.get(
@@ -339,9 +400,15 @@ def change_password(
     include_in_schema=False,
 )
 def get_change_password_page(
-    request: Request, user: User = Depends(get_current_user_from_cookie),
+    request: Request,
+    user: User = Depends(get_current_user_from_cookie),
 ):
-    """Renders the page for forcing a password change.
+    """
+    Renders the page for changing a password.
+
+    This page can be used for both forced and standard password changes. The
+    template will conditionally render fields based on whether the user is
+    being forced to change their password.
 
     Args:
         request (Request): The incoming HTTP request.
@@ -351,14 +418,22 @@ def get_change_password_page(
         HTMLResponse: The rendered HTML page for changing the password.
 
     Notes:
-        1. Render the change password template with the current user context.
-        2. Return the HTML response to the client.
+        1. Render the change_password.html template with the current user context.
+        2. The template checks for `user.attributes.force_password_change` to
+           determine which version of the form to display.
+        3. Return the HTML response to the client.
+
     """
     _msg = "Rendering change password page"
     log.debug(_msg)
-    return templates.TemplateResponse(
-        request, "pages/change-password.html", {"user": user},
+    is_forced_change = user.attributes is not None and user.attributes.get(
+        "force_password_change", False,
     )
+    context = {
+        "user": user,
+        "is_forced_change": is_forced_change,
+    }
+    return templates.TemplateResponse(request, "pages/change_password.html", context)
 
 
 @router.post("/login", response_model=Token)

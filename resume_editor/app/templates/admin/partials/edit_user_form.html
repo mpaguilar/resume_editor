@@ -1,0 +1,21 @@
+<div id="modal-content">
+    <form hx-post="/admin/users/{{ user.id }}/edit" hx-target="#user-row-{{ user.id }}" hx-swap="outerHTML"
+          hx-on::after-request="document.getElementById('modal').style.display='none'">
+        <h2 class="text-2xl font-bold mb-4">Edit User: {{ user.username }}</h2>
+        <div class="mb-4">
+            <label for="email">Email</label>
+            <input type="email" name="email" value="{{ user.email }}" required class="w-full p-2 border rounded">
+        </div>
+        <div class="mb-4">
+            {% set force_change = user.attributes.get("force_password_change", False) if user.attributes else False %}
+            <input type="checkbox" name="force_password_change" value="true" class="mr-2" {% if force_change %}checked{% endif %}>
+            <label for="force_password_change">Force password change on next login</label>
+        </div>
+        <div class="flex justify-end space-x-2">
+            <button type="button" onclick="document.getElementById('modal').style.display='none'"
+                    class="bg-gray-400 text-white px-4 py-2 rounded">Cancel
+            </button>
+            <button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded">Save Changes</button>
+        </div>
+    </form>
+</div>

@@ -3220,31 +3220,46 @@ Notes:
 
 ---
 
-## function: `change_password(request: Request, password_data: PasswordChangeRequest, db: Session, current_user: User) -> UnknownType`
+## function: `change_password(request: Request, new_password: str, confirm_new_password: str, current_password: str | None, db: Session, current_user: User) -> UnknownType`
 
 Change the current user's password.
 
+This endpoint handles both standard and forced password changes. For forced
+changes, the current password is not required. It validates that the
+new and confirmed passwords match.
+
+It performs content negotiation based on the 'Accept' header.
+- 'application/json': Returns JSON responses (for API clients).
+- Other (e.g., 'text/html'): Returns HTML responses (for web UI).
+
 Args:
     request (Request): The request object.
-    password_data (PasswordChangeRequest): The current and new passwords.
+    new_password (str): The new password from the form.
+    confirm_new_password (str): The new password confirmation from the form.
+    current_password (str | None): The user's current password. Optional for forced changes.
     db (Session): The database session.
     current_user (User): The authenticated user.
 
 Returns:
-    Response: A redirect response on success.
-
-Raises:
-    HTTPException: If the current password is incorrect.
+    Response: Redirects to the dashboard on success, otherwise renders the
+              change password page with an error message or returns a JSON error.
 
 Notes:
-    1. Call the business logic to change the password.
-    2. Return a redirect response (standard or HTMX).
+    1. Checks if new password and confirmation match.
+    2. Calls the business logic to change the password.
+    3. On success, redirects to the dashboard (handling HTMX requests).
+    4. On failure (e.g., password mismatch or incorrect current password),
+       it re-renders the change password page with an error message or returns JSON.
 
 ---
 
 ## function: `get_change_password_page(request: Request, user: User) -> UnknownType`
 
-Renders the page for forcing a password change.
+Renders the page for changing a password.
+
+This page can be used for both forced and standard password changes. The
+template will conditionally render fields based on whether the user is
+being forced to change their password.
 
 Args:
     request (Request): The incoming HTTP request.
@@ -3254,8 +3269,10 @@ Returns:
     HTMLResponse: The rendered HTML page for changing the password.
 
 Notes:
-    1. Render the change password template with the current user context.
-    2. Return the HTML response to the client.
+    1. Render the change_password.html template with the current user context.
+    2. The template checks for `user.attributes.force_password_change` to
+       determine which version of the form to display.
+    3. Return the HTML response to the client.
 
 ---
 
@@ -4695,7 +4712,7 @@ Notes:
     8. If the user is not found in the database, raise the credentials exception.
     9. Check if the user's attributes indicate a forced password change.
     10. If the user is required to change their password and the current path is not one of the allowed paths (change password, logout, or static assets), redirect to the change password endpoint.
-    11. For HTMX requests, send a 200 OK with a special header to trigger a redirect.
+    11. For HTMX requests, send a 401 with a special header to trigger a client-side redirect.
     12. For regular requests, send a 307 Temporary Redirect to the change password endpoint.
     13. Return the User object if all checks pass.
 
@@ -6102,33 +6119,41 @@ Checks if the user must change their password.
 ===
 # File: `user.py`
 
-## function: `change_password(db: Session, user: User, current_password: str, new_password: str) -> UnknownType`
+## function: `change_password(db: Session, user: User, new_password: str, current_password: str | None) -> UnknownType`
 
 Change a user's password and unset the force_password_change flag.
 
 Args:
     db (Session): The database session used to persist changes to the user record.
     user (User): The user object whose password is being changed.
-    current_password (str): The user's current password, used for verification.
     new_password (str): The new password to set for the user.
+    current_password (str | None): The user's current password, used for verification. Required for standard changes, optional for forced changes.
 
 Returns:
     None: This function does not return a value.
 
 Raises:
-    HTTPException: If the current password does not match the stored hash, a 400 Bad Request error is raised with the detail "Incorrect current password".
+    HTTPException: For a standard password change, if the current password is not provided or is incorrect, a 400 Bad Request error is raised.
 
 Notes:
-    1. Verify the current password against the stored hash using verify_password.
-    2. If the current password is invalid, raise an HTTPException with status 400.
-    3. Hash the new password using get_password_hash.
-    4. Update the user's hashed_password attribute with the new hash.
-    5. Ensure the user's attributes are initialized as a dictionary.
-    6. Set the 'force_password_change' key in attributes to False.
-    7. Mark the attributes as modified to ensure SQLAlchemy tracks changes.
-    8. Commit the transaction to persist changes to the database.
+    1. Determine if it's a forced password change by checking the user's attributes.
+    2. For a standard password change (when `force_password_change` is False), verify that `current_password` is provided and correct. If not, raise an HTTPException.
+    3. For a forced password change, the current password check is bypassed.
+    4. Hash the new password using get_password_hash.
+    5. Update the user's hashed_password attribute with the new hash.
+    6. Ensure the user's attributes are initialized as a dictionary if they are None.
+    7. Set the 'force_password_change' key in attributes to False.
+    8. Mark the attributes as modified to ensure SQLAlchemy tracks changes.
+    9. Commit the transaction to persist changes to the database.
+    10. Database access: The function performs a write operation to update the user's password and attributes in the database.
 
 ---
+
+
+===
+
+===
+# File: `admin_forms.py`
 
 
 ===
