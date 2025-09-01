@@ -2,19 +2,21 @@ import logging
 from datetime import datetime, timezone
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.security import OAuth2PasswordRequestForm
+from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
 from resume_editor.app.api.routes.route_logic import settings_crud
+from resume_editor.app.api.routes.route_logic import user as user_logic
 from resume_editor.app.api.routes.route_models import PasswordChangeRequest
-from resume_editor.app.core.auth import get_current_user
+from resume_editor.app.core.auth import get_current_user, get_current_user_from_cookie
 from resume_editor.app.core.config import Settings, get_settings
 from resume_editor.app.core.security import (
     authenticate_user,
     create_access_token,
     get_password_hash,
-    verify_password,
 )
 from resume_editor.app.database.database import get_db
 from resume_editor.app.models.user import User
@@ -29,11 +31,11 @@ from resume_editor.app.schemas.user import (
 log = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/users", tags=["users"])
+templates = Jinja2Templates(directory="resume_editor/app/templates")
 
 
 def get_user_by_username(db: Session, username: str) -> User | None:
-    """
-    Retrieve a user from the database using their username.
+    """Retrieve a user from the database using their username.
 
     Args:
         db: Database session dependency used to query the database.
@@ -46,7 +48,6 @@ def get_user_by_username(db: Session, username: str) -> User | None:
         1. Query the database for a user with the given username.
         2. Return the first match or None if no user is found.
         3. Database access: Performs a read operation on the User table.
-
     """
     _msg = f"Querying database for username: {username}"
     log.debug(_msg)
@@ -57,8 +58,7 @@ def get_user_by_username(db: Session, username: str) -> User | None:
 
 
 def get_user_by_email(db: Session, email: str) -> User | None:
-    """
-    Retrieve a user from the database using their email address.
+    """Retrieve a user from the database using their email address.
 
     Args:
         db: Database session dependency used to query the database.
@@ -71,7 +71,6 @@ def get_user_by_email(db: Session, email: str) -> User | None:
         1. Query the database for a user with the given email.
         2. Return the first match or None if no user is found.
         3. Database access: Performs a read operation on the User table.
-
     """
     _msg = f"Querying database for email: {email}"
     log.debug(_msg)
@@ -82,8 +81,7 @@ def get_user_by_email(db: Session, email: str) -> User | None:
 
 
 def create_new_user(db: Session, user_data: UserCreate) -> User:
-    """
-    Create a new user in the database with the provided data.
+    """Create a new user in the database with the provided data.
 
     Args:
         db: Database session dependency used to persist the new user.
@@ -99,7 +97,6 @@ def create_new_user(db: Session, user_data: UserCreate) -> User:
         4. Commit the transaction to persist the user to the database.
         5. Refresh the object to ensure it contains the latest state from the database.
         6. Database access: Performs a write operation on the User table.
-
     """
     _msg = f"Hashing password for user: {user_data.username}"
     log.debug(_msg)
@@ -129,22 +126,19 @@ def create_new_user(db: Session, user_data: UserCreate) -> User:
 
 
 def get_users(db: Session) -> list[User]:
-    """
-    Retrieve all users from the database.
+    """Retrieve all users from the database.
 
     Args:
         db (Session): The database session.
 
     Returns:
         list[User]: A list of all user objects.
-
     """
     return db.query(User).all()
 
 
 def get_user_by_id(db: Session, user_id: int) -> User | None:
-    """
-    Retrieve a single user by ID.
+    """Retrieve a single user by ID.
 
     Args:
         db (Session): The database session.
@@ -152,19 +146,21 @@ def get_user_by_id(db: Session, user_id: int) -> User | None:
 
     Returns:
         User | None: The user object if found, otherwise None.
-
     """
     return db.query(User).filter(User.id == user_id).first()
 
 
 def delete_user(db: Session, user: User) -> None:
-    """
-    Delete a user from the database.
+    """Delete a user from the database.
 
     Args:
         db (Session): The database session.
         user (User): The user object to delete.
 
+    Notes:
+        1. Remove the user object from the database session.
+        2. Commit the transaction to persist the deletion.
+        3. Database access: Performs a write operation on the User table.
     """
     db.delete(user)
     db.commit()
@@ -172,8 +168,7 @@ def delete_user(db: Session, user: User) -> None:
 
 @router.post("/register", response_model=UserResponse)
 def register_user(user: UserCreate, db: Session = Depends(get_db)) -> UserResponse:
-    """
-    Register a new user with the provided credentials.
+    """Register a new user with the provided credentials.
 
     Args:
         user: Data containing username, email, and password for the new user.
@@ -193,7 +188,6 @@ def register_user(user: UserCreate, db: Session = Depends(get_db)) -> UserRespon
         5. Create a new user with the provided data and store it in the database.
         6. Return the newly created user's data (without the password).
         7. Database access: Performs read and write operations on the User table.
-
     """
     _msg = f"Starting register_user for username: {user.username}"
     log.debug(_msg)
@@ -236,8 +230,7 @@ def get_user_settings(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """
-    Get the current user's settings.
+    """Get the current user's settings.
 
     Args:
         db (Session): The database session.
@@ -250,7 +243,6 @@ def get_user_settings(
         1. Retrieve the user's settings from the database.
         2. If no settings exist, return an empty response.
         3. Database access: Performs a read operation on the UserSettings table.
-
     """
     _msg = "Getting settings for current user"
     log.debug(_msg)
@@ -270,8 +262,7 @@ def update_user_settings(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """
-    Update the current user's settings.
+    """Update the current user's settings.
 
     Args:
         settings_data (UserSettingsUpdateRequest): The settings data to update.
@@ -285,7 +276,6 @@ def update_user_settings(
         1. Update the user's settings in the database with the provided data.
         2. Return the updated settings.
         3. Database access: Performs a write operation on the UserSettings table.
-
     """
     _msg = "Updating settings for current user"
     log.debug(_msg)
@@ -298,55 +288,77 @@ def update_user_settings(
 
 @router.post("/change-password")
 def change_password(
+    request: Request,
     password_data: PasswordChangeRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_from_cookie),
 ):
-    """
-    Change the current user's password.
+    """Change the current user's password.
 
     Args:
+        request (Request): The request object.
         password_data (PasswordChangeRequest): The current and new passwords.
         db (Session): The database session.
         current_user (User): The authenticated user.
 
     Returns:
-        dict: A success message.
+        Response: A redirect response on success.
 
     Raises:
         HTTPException: If the current password is incorrect.
 
     Notes:
-        1. Verify the current password against the stored hash.
-        2. If invalid, raise a 400 Bad Request error.
-        3. Hash the new password.
-        4. Update the user's hashed_password in the database.
-        5. Commit the transaction.
-        6. Return a success message.
-
+        1. Call the business logic to change the password.
+        2. Return a redirect response (standard or HTMX).
     """
     _msg = "Changing password for current user"
     log.debug(_msg)
 
-    # Verify current password
-    if not verify_password(
-        password_data.current_password,
-        current_user.hashed_password,
-    ):
-        _msg = "Incorrect current password"
-        log.warning(_msg)
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Incorrect current password",
-        )
-
-    # Hash new password and update user
-    current_user.hashed_password = get_password_hash(password_data.new_password)
-    db.commit()
+    user_logic.change_password(
+        db=db,
+        user=current_user,
+        current_password=password_data.current_password,
+        new_password=password_data.new_password,
+    )
 
     _msg = "Password updated successfully"
     log.debug(_msg)
-    return {"message": "Password updated successfully"}
+
+    if "hx-request" in request.headers:
+        response = Response(status_code=status.HTTP_200_OK)
+        response.headers["HX-Redirect"] = "/dashboard"
+        return response
+    else:
+        return RedirectResponse(url="/dashboard", status_code=status.HTTP_303_SEE_OTHER)
+
+
+@router.get(
+    "/change-password",
+    response_class=HTMLResponse,
+    name="change_password_page",
+    include_in_schema=False,
+)
+def get_change_password_page(
+    request: Request, user: User = Depends(get_current_user_from_cookie),
+):
+    """Renders the page for forcing a password change.
+
+    Args:
+        request (Request): The incoming HTTP request.
+        user (User): The authenticated user, retrieved from the cookie.
+
+    Returns:
+        HTMLResponse: The rendered HTML page for changing the password.
+
+    Notes:
+        1. Render the change password template with the current user context.
+        2. Return the HTML response to the client.
+    """
+    _msg = "Rendering change password page"
+    log.debug(_msg)
+    return templates.TemplateResponse(
+        request, "pages/change-password.html", {"user": user},
+    )
 
 
 @router.post("/login", response_model=Token)
@@ -355,8 +367,7 @@ def login_user(
     db: Session = Depends(get_db),
     settings: Settings = Depends(get_settings),
 ) -> Token:
-    """
-    Authenticate a user and return an access token.
+    """Authenticate a user and return an access token.
 
     Args:
         form_data: Form data containing username and password for authentication.
@@ -376,7 +387,6 @@ def login_user(
         5. Generate a JWT access token with a defined expiration time.
         6. Return the access token to the client.
         7. Database access: Performs read and write operations on the User table.
-
     """
     _msg = f"Starting login_user for username: {form_data.username}"
     log.debug(_msg)

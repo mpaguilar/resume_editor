@@ -478,7 +478,7 @@ def test_admin_delete_user_self_delete_fails(
     setup_dependency_overrides(app, mock_db, mock_admin_user)
 
     with patch(
-        "resume_editor.app.api.routes.admin.admin_crud.get_user_by_id_admin"
+        "resume_editor.app.api.routes.admin.admin_crud.get_user_by_id_admin",
     ) as mock_get_user_by_id_admin:
         mock_get_user_by_id_admin.return_value = mock_admin_user
 

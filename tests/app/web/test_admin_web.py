@@ -1,7 +1,7 @@
-import pytest
 from datetime import datetime
 from unittest.mock import MagicMock, patch
 
+import pytest
 from bs4 import BeautifulSoup
 from fastapi import status
 from fastapi.testclient import TestClient
@@ -34,9 +34,7 @@ def client(app):
 def setup_dependency_overrides(app, mock_db: MagicMock, mock_user: User | None):
     """Helper to set up dependency overrides for tests."""
     app.dependency_overrides[get_db] = lambda: mock_db
-    app.dependency_overrides[
-        get_optional_current_user_from_cookie
-    ] = lambda: mock_user
+    app.dependency_overrides[get_optional_current_user_from_cookie] = lambda: mock_user
 
 
 def test_admin_users_page_not_authenticated(client, app):
@@ -148,23 +146,21 @@ def test_admin_users_page_as_admin(mock_get_users_admin, client, app):
 def test_admin_delete_user_web_success(client, app):
     mock_db_session = MagicMock()
     admin_user = User(
-        id=1, username="admin", email="admin@test.com", hashed_password="hashed"
+        id=1, username="admin", email="admin@test.com", hashed_password="hashed",
     )
     admin_user.roles = [Role(id=1, name="admin")]
     user_to_delete = User(
-        id=2, username="delete_me", email="delete@me.com", hashed_password="hashed"
+        id=2, username="delete_me", email="delete@me.com", hashed_password="hashed",
     )
     user_to_delete.roles = []
 
     setup_dependency_overrides(app, mock_db_session, admin_user)
 
-    with patch(
-        "resume_editor.app.web.admin.get_user_by_id_admin"
-    ) as mock_get_user, patch(
-        "resume_editor.app.web.admin.delete_user_admin"
-    ) as mock_delete, patch(
-        "resume_editor.app.web.admin.get_users_admin"
-    ) as mock_get_users:
+    with (
+        patch("resume_editor.app.web.admin.get_user_by_id_admin") as mock_get_user,
+        patch("resume_editor.app.web.admin.delete_user_admin") as mock_delete,
+        patch("resume_editor.app.web.admin.get_users_admin") as mock_get_users,
+    ):
         mock_get_user.return_value = user_to_delete
         # After deletion, get_users_admin should only return the admin user
         mock_get_users.return_value = [admin_user]
@@ -192,7 +188,7 @@ def test_admin_delete_user_web_redirects_if_not_logged_in(client, app):
 def test_admin_delete_user_web_forbidden_if_not_admin(client, app):
     mock_db_session = MagicMock()
     non_admin_user = User(
-        id=1, username="test", email="test@test.com", hashed_password="hashed"
+        id=1, username="test", email="test@test.com", hashed_password="hashed",
     )
     non_admin_user.roles = []  # No admin role
     setup_dependency_overrides(app, mock_db_session, non_admin_user)
@@ -205,14 +201,12 @@ def test_admin_delete_user_web_forbidden_if_not_admin(client, app):
 def test_admin_delete_user_web_not_found(client, app):
     mock_db_session = MagicMock()
     admin_user = User(
-        id=1, username="admin", email="admin@test.com", hashed_password="hashed"
+        id=1, username="admin", email="admin@test.com", hashed_password="hashed",
     )
     admin_user.roles = [Role(name="admin")]
     setup_dependency_overrides(app, mock_db_session, admin_user)
 
-    with patch(
-        "resume_editor.app.web.admin.get_user_by_id_admin"
-    ) as mock_get_user:
+    with patch("resume_editor.app.web.admin.get_user_by_id_admin") as mock_get_user:
         mock_get_user.return_value = None
         response = client.delete("/admin/users/999")
         assert response.status_code == 404
@@ -222,14 +216,12 @@ def test_admin_delete_user_web_not_found(client, app):
 def test_admin_delete_user_web_self_delete_fails(client, app):
     mock_db_session = MagicMock()
     admin_user = User(
-        id=1, username="admin", email="admin@test.com", hashed_password="hashed"
+        id=1, username="admin", email="admin@test.com", hashed_password="hashed",
     )
     admin_user.roles = [Role(name="admin")]
     setup_dependency_overrides(app, mock_db_session, admin_user)
 
-    with patch(
-        "resume_editor.app.web.admin.get_user_by_id_admin"
-    ) as mock_get_user:
+    with patch("resume_editor.app.web.admin.get_user_by_id_admin") as mock_get_user:
         # Admin trying to delete themselves
         mock_get_user.return_value = admin_user
         response = client.delete("/admin/users/1")

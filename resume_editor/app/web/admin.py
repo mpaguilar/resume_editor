@@ -35,21 +35,27 @@ async def admin_users_page(
     db: Session = Depends(get_db),
     current_user: User | None = Depends(get_optional_current_user_from_cookie),
 ):
-    """
-    Serves the admin page for managing users.
+    """Serves the admin page for managing users.
 
     Args:
-        request: The HTTP request object.
-        db: Database session dependency.
-        current_user: The authenticated admin user, if one exists.
+        request: The HTTP request object containing client request data.
+        db: Database session dependency used to interact with the database.
+        current_user: The authenticated user, if any, retrieved from the session cookie.
 
     Returns:
-        TemplateResponse: The rendered admin users management page.
-        RedirectResponse: Redirects to login if user is not authenticated.
+        TemplateResponse: The rendered admin users management page with user data.
+        RedirectResponse: Redirects to the login page if the user is not authenticated.
 
     Raises:
-        HTTPException: If the user is not an admin.
+        HTTPException: If the authenticated user does not have admin privileges.
 
+    Notes:
+        1. Logs a debug message indicating the admin users page was requested.
+        2. Checks if the current user is authenticated. If not, redirects to the login page.
+        3. Verifies that the authenticated user has admin privileges.
+        4. Retrieves all users from the database using the get_users_admin function.
+        5. Converts each user to an AdminUserResponse model for consistent response formatting.
+        6. Renders the "admin/users.html" template with the list of users and current user context.
     """
     _msg = "Admin users page requested"
     log.debug(_msg)
@@ -78,20 +84,32 @@ async def admin_delete_user_web(
     db: Session = Depends(get_db),
     current_user: User | None = Depends(get_optional_current_user_from_cookie),
 ):
-    """
-    Handles the deletion of a user from the admin web interface.
+    """Handles the deletion of a user from the admin web interface.
 
     Args:
-        request: The HTTP request object.
-        user_id: The ID of the user to delete.
-        db: Database session dependency.
-        current_user: The authenticated admin user.
+        request: The HTTP request object containing client request data.
+        user_id: The unique identifier of the user to be deleted.
+        db: Database session dependency used to interact with the database.
+        current_user: The authenticated admin user, if any, retrieved from the session cookie.
 
     Returns:
-        TemplateResponse: The rendered partial for the updated user list.
+        TemplateResponse: The rendered partial template for the updated user list.
 
     Raises:
-        HTTPException: If user is not found, or if the current user is not an admin.
+        HTTPException: If the user is not found, or if the current user is not an admin.
+        HTTPException: If the current user attempts to delete themselves.
+
+    Notes:
+        1. Logs a debug message indicating the delete request for the specified user.
+        2. Checks if the current user is authenticated. If not, redirects to the login page.
+        3. Verifies that the authenticated user has admin privileges.
+        4. Retrieves the user to be deleted from the database using the user_id.
+        5. Raises a 404 error if the user is not found.
+        6. Prevents the admin from deleting themselves by raising a 400 error.
+        7. Deletes the user from the database using the delete_user_admin function.
+        8. Retrieves the updated list of users from the database.
+        9. Converts each user to an AdminUserResponse model for consistent response formatting.
+        10. Renders the "admin/partials/user_list.html" template with the updated user list and current user context.
     """
     _msg = f"Admin delete user web requested for user_id: {user_id}"
     log.debug(_msg)
@@ -111,7 +129,7 @@ async def admin_delete_user_web(
     # Prevent admin from deleting themselves
     if user_to_delete.id == current_user.id:
         raise HTTPException(
-            status_code=400, detail="Administrators cannot delete themselves."
+            status_code=400, detail="Administrators cannot delete themselves.",
         )
 
     delete_user_admin(db=db, user=user_to_delete)

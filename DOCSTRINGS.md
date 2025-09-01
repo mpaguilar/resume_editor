@@ -3151,6 +3151,11 @@ Args:
     db (Session): The database session.
     user (User): The user object to delete.
 
+Notes:
+    1. Remove the user object from the database session.
+    2. Commit the transaction to persist the deletion.
+    3. Database access: Performs a write operation on the User table.
+
 ---
 
 ## function: `register_user(user: UserCreate, db: Session) -> UserResponse`
@@ -3215,28 +3220,42 @@ Notes:
 
 ---
 
-## function: `change_password(password_data: PasswordChangeRequest, db: Session, current_user: User) -> UnknownType`
+## function: `change_password(request: Request, password_data: PasswordChangeRequest, db: Session, current_user: User) -> UnknownType`
 
 Change the current user's password.
 
 Args:
+    request (Request): The request object.
     password_data (PasswordChangeRequest): The current and new passwords.
     db (Session): The database session.
     current_user (User): The authenticated user.
 
 Returns:
-    dict: A success message.
+    Response: A redirect response on success.
 
 Raises:
     HTTPException: If the current password is incorrect.
 
 Notes:
-    1. Verify the current password against the stored hash.
-    2. If invalid, raise a 400 Bad Request error.
-    3. Hash the new password.
-    4. Update the user's hashed_password in the database.
-    5. Commit the transaction.
-    6. Return a success message.
+    1. Call the business logic to change the password.
+    2. Return a redirect response (standard or HTMX).
+
+---
+
+## function: `get_change_password_page(request: Request, user: User) -> UnknownType`
+
+Renders the page for forcing a password change.
+
+Args:
+    request (Request): The incoming HTTP request.
+    user (User): The authenticated user, retrieved from the cookie.
+
+Returns:
+    HTMLResponse: The rendered HTML page for changing the password.
+
+Notes:
+    1. Render the change password template with the current user context.
+    2. Return the HTML response to the client.
 
 ---
 
@@ -4649,13 +4668,39 @@ Retrieve the authenticated user from the JWT token in the request cookie.
 
 Args:
     request: The request object, used to access cookies.
+        Type: Request
+        Purpose: Provides access to the HTTP request, including cookies.
     db: Database session dependency.
+        Type: Session
+        Purpose: Provides a connection to the database to retrieve the user record.
 
 Returns:
-    User: The authenticated User object.
+    User: The authenticated User object corresponding to the token's subject (username).
+        Type: User
+        Purpose: Returns the user object if authentication is successful.
 
 Raises:
-    HTTPException: If the token is missing, invalid, or the user is not found.
+    HTTPException: Raised when the token is missing, invalid, or the user is not found.
+        Status Code: 401 UNAUTHORIZED
+        Detail: "Could not validate credentials"
+
+Notes:
+    1. Initialize an HTTP 401 exception with a generic error message.
+    2. Retrieve the JWT token from the request cookies using the key "access_token".
+    3. If the token is not present in the cookies, raise the credentials exception.
+    4. Decode the JWT token using the secret key and algorithm to extract the subject (username).
+    5. If the subject (username) is missing from the token payload, raise the credentials exception.
+    6. If the JWT token is invalid or malformed, catch the JWTError and raise the credentials exception.
+    7. Query the database using the retrieved username to find the corresponding User record.
+    8. If the user is not found in the database, raise the credentials exception.
+    9. Check if the user's attributes indicate a forced password change.
+    10. If the user is required to change their password and the current path is not one of the allowed paths (change password, logout, or static assets), redirect to the change password endpoint.
+    11. For HTMX requests, send a 200 OK with a special header to trigger a redirect.
+    12. For regular requests, send a 307 Temporary Redirect to the change password endpoint.
+    13. Return the User object if all checks pass.
+
+Database Access:
+    - Queries the User table to retrieve a user record by username.
 
 ---
 
@@ -4665,25 +4710,51 @@ Retrieve an optional authenticated user from the JWT token in the request cookie
 
 Args:
     request: The request object, used to access cookies.
+        Type: Request
+        Purpose: Provides access to the HTTP request, including cookies.
     db: Database session dependency.
+        Type: Session
+        Purpose: Provides a connection to the database to retrieve the user record.
 
 Returns:
     User | None: The authenticated User object if the token is valid, otherwise None.
+        Type: User | None
+        Purpose: Returns the user object if authentication succeeds, or None if no valid token is present.
+
+Notes:
+    1. Attempt to retrieve the authenticated user using `get_current_user_from_cookie`.
+    2. If an HTTPException is raised (e.g., invalid or missing token), catch it and return None.
+    3. Return the User object if authentication succeeds.
+
+Database Access:
+    - Queries the User table to retrieve a user record by username.
 
 ---
 
-## function: `_verify_admin_privileges(user: User) -> User`
+## function: `verify_admin_privileges(user: User) -> User`
 
 Verify that a user has admin privileges.
 
 Args:
-    user (User): The user to check.
+    user (User): The user object to check for admin privileges.
+        Type: User
+        Purpose: The user whose roles are checked to determine if they are an admin.
 
 Returns:
-    User: The user if they have admin privileges.
+    User: The user object if they have admin privileges.
+        Type: User
+        Purpose: Returns the user object if the check passes.
 
 Raises:
-    HTTPException: If the user does not have admin privileges.
+    HTTPException: Raised if the user does not have admin privileges.
+        Status Code: 403 FORBIDDEN
+        Detail: "The user does not have admin privileges"
+
+Notes:
+    1. Iterate through the user's roles.
+    2. Check if any role has the name 'admin'.
+    3. If no role with the name 'admin' is found, log a warning and raise an HTTPException with status 403.
+    4. Return the user object if an 'admin' role is found.
 
 ---
 
@@ -4697,18 +4768,24 @@ It then checks the user's roles to determine if they are an administrator.
 Args:
     current_user (User): The user object obtained from the `get_current_user`
         dependency.
+        Type: User
+        Purpose: The authenticated user whose roles are checked for admin privileges.
 
 Returns:
     User: The user object if the user has the 'admin' role.
+        Type: User
+        Purpose: Returns the user object if the user is an admin.
 
 Raises:
     HTTPException: A 403 Forbidden error if the user is not an admin.
+        Status Code: 403 FORBIDDEN
+        Detail: "The user does not have admin privileges"
 
 Notes:
-    1. Retrieves user from `get_current_user` dependency.
-    2. Iterates through the user's roles.
-    3. If a role with the name 'admin' is found, returns the user object.
-    4. If no 'admin' role is found, raises an HTTPException with status 403.
+    1. Log a debug message indicating the function has started.
+    2. Call `verify_admin_privileges` to check if the user has admin roles.
+    3. Log a debug message indicating the function is returning.
+    4. Return the user object if the user has admin privileges.
 
 ---
 
@@ -4722,18 +4799,24 @@ It then checks the user's roles to determine if they are an administrator.
 Args:
     current_user (User): The user object obtained from the `get_current_user_from_cookie`
         dependency.
+        Type: User
+        Purpose: The authenticated user whose roles are checked for admin privileges.
 
 Returns:
     User: The user object if the user has the 'admin' role.
+        Type: User
+        Purpose: Returns the user object if the user is an admin.
 
 Raises:
     HTTPException: A 403 Forbidden error if the user is not an admin.
+        Status Code: 403 FORBIDDEN
+        Detail: "The user does not have admin privileges"
 
 Notes:
-    1. Retrieves user from `get_current_user_from_cookie` dependency.
-    2. Iterates through the user's roles.
-    3. If a role with the name 'admin' is found, returns the user object.
-    4. If no 'admin' role is found, raises an HTTPException with status 403.
+    1. Log a debug message indicating the function has started.
+    2. Call `verify_admin_privileges` to check if the user has admin roles.
+    3. Log a debug message indicating the function is returning.
+    4. Return the user object if the user has admin privileges.
 
 ---
 
@@ -6012,6 +6095,40 @@ Checks if the user must change their password.
 
 ===
 # File: `llm.py`
+
+
+===
+
+===
+# File: `user.py`
+
+## function: `change_password(db: Session, user: User, current_password: str, new_password: str) -> UnknownType`
+
+Change a user's password and unset the force_password_change flag.
+
+Args:
+    db (Session): The database session used to persist changes to the user record.
+    user (User): The user object whose password is being changed.
+    current_password (str): The user's current password, used for verification.
+    new_password (str): The new password to set for the user.
+
+Returns:
+    None: This function does not return a value.
+
+Raises:
+    HTTPException: If the current password does not match the stored hash, a 400 Bad Request error is raised with the detail "Incorrect current password".
+
+Notes:
+    1. Verify the current password against the stored hash using verify_password.
+    2. If the current password is invalid, raise an HTTPException with status 400.
+    3. Hash the new password using get_password_hash.
+    4. Update the user's hashed_password attribute with the new hash.
+    5. Ensure the user's attributes are initialized as a dictionary.
+    6. Set the 'force_password_change' key in attributes to False.
+    7. Mark the attributes as modified to ensure SQLAlchemy tracks changes.
+    8. Commit the transaction to persist changes to the database.
+
+---
 
 
 ===
