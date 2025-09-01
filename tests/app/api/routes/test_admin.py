@@ -53,6 +53,8 @@ def setup_dependency_overrides(app, mock_db: MagicMock, mock_user: User | None):
         ({"force_password_change": False}, False),
     ],
 )
+@patch("resume_editor.app.main.user_crud.user_count", return_value=1)
+@patch("resume_editor.app.main.get_session_local")
 @patch("resume_editor.app.api.routes.admin.admin_crud.create_user_admin")
 @patch("resume_editor.app.api.routes.admin.get_current_admin_user")
 @patch("resume_editor.app.api.routes.admin.get_db")
@@ -60,12 +62,16 @@ def test_admin_create_user_success(
     mock_get_db,
     mock_get_current_admin_user,
     mock_create_user_admin,
+    mock_get_session_local,
+    mock_user_count,
     attributes,
     expected_force_password_change,
     client,
     app,
 ):
     """Test successful user creation by an admin with different attributes."""
+    mock_session = MagicMock()
+    mock_get_session_local.return_value = lambda: mock_session
     mock_db = MagicMock()
     mock_admin_user = MagicMock(spec=User)
     setup_dependency_overrides(app, mock_db, mock_admin_user)
@@ -100,10 +106,15 @@ def test_admin_create_user_success(
     assert data["resume_count"] == 0
     assert data["force_password_change"] is expected_force_password_change
     assert data["last_login_at"] is None
+    mock_user_count.assert_called_once()
 
 
-def test_admin_get_users_forbidden(client, app):
+@patch("resume_editor.app.main.user_crud.user_count", return_value=1)
+@patch("resume_editor.app.main.get_session_local")
+def test_admin_get_users_forbidden(mock_get_session_local, mock_user_count, client, app):
     """Test that a non-admin user cannot list users."""
+    mock_session = MagicMock()
+    mock_get_session_local.return_value = lambda: mock_session
 
     def raise_forbidden():
         raise HTTPException(
@@ -116,14 +127,24 @@ def test_admin_get_users_forbidden(client, app):
     response = client.get("/api/admin/users/")
 
     assert response.status_code == status.HTTP_403_FORBIDDEN
+    mock_user_count.assert_called_once()
 
 
-def test_admin_get_users_unauthorized(client):
+@patch("resume_editor.app.main.user_crud.user_count", return_value=1)
+@patch("resume_editor.app.main.get_session_local")
+def test_admin_get_users_unauthorized(
+    mock_get_session_local, mock_user_count, client
+):
     """Test that an unauthenticated user cannot list users."""
+    mock_session = MagicMock()
+    mock_get_session_local.return_value = lambda: mock_session
     response = client.get("/api/admin/users/")
     assert response.status_code == status.HTTP_401_UNAUTHORIZED
+    mock_user_count.assert_called_once()
 
 
+@patch("resume_editor.app.main.user_crud.user_count", return_value=1)
+@patch("resume_editor.app.main.get_session_local")
 @patch("resume_editor.app.api.routes.admin.admin_crud.get_users_admin")
 @patch("resume_editor.app.api.routes.admin.get_current_admin_user")
 @patch("resume_editor.app.api.routes.admin.get_db")
@@ -131,10 +152,14 @@ def test_admin_get_users_success(
     mock_get_db,
     mock_get_current_admin_user,
     mock_get_users_admin,
+    mock_get_session_local,
+    mock_user_count,
     client,
     app,
 ):
     """Test successful listing of all users by an admin."""
+    mock_session = MagicMock()
+    mock_get_session_local.return_value = lambda: mock_session
     mock_db = MagicMock()
     mock_admin_user = MagicMock(spec=User)
     setup_dependency_overrides(app, mock_db, mock_admin_user)
@@ -268,6 +293,7 @@ def test_admin_get_users_success(
     # Assertions for user7
     user7_data = next(u for u in response_data if u["id"] == 8)
     assert user7_data["force_password_change"] is False
+    mock_user_count.assert_called_once()
 
 
 @pytest.mark.parametrize(
@@ -281,11 +307,15 @@ def test_admin_get_users_success(
         ({"force_password_change": None}, False, 0, None),
     ],
 )
+@patch("resume_editor.app.main.user_crud.user_count", return_value=1)
+@patch("resume_editor.app.main.get_session_local")
 @patch("resume_editor.app.api.routes.admin.admin_crud.get_user_by_id_admin")
 @patch("resume_editor.app.api.routes.admin.get_current_admin_user")
 def test_admin_get_user_success(
     mock_get_current_admin_user,
     mock_get_user_by_id_admin,
+    mock_get_session_local,
+    mock_user_count,
     attributes,
     expected_force_password_change,
     resume_count,
@@ -294,6 +324,8 @@ def test_admin_get_user_success(
     app,
 ):
     """Test successful retrieval of a single user by ID by an admin."""
+    mock_session = MagicMock()
+    mock_get_session_local.return_value = lambda: mock_session
     mock_db = MagicMock()
     mock_admin_user = MagicMock(spec=User)
     setup_dependency_overrides(app, mock_db, mock_admin_user)
@@ -319,17 +351,24 @@ def test_admin_get_user_success(
     assert (response_data["last_login_at"] is not None) == (last_login_at is not None)
     assert response_data["force_password_change"] is expected_force_password_change
     assert response_data["resume_count"] == resume_count
+    mock_user_count.assert_called_once()
 
 
+@patch("resume_editor.app.main.user_crud.user_count", return_value=1)
+@patch("resume_editor.app.main.get_session_local")
 @patch("resume_editor.app.api.routes.admin.admin_crud.get_user_by_id_admin")
 @patch("resume_editor.app.api.routes.admin.get_current_admin_user")
 def test_admin_get_user_not_found(
     mock_get_current_admin_user,
     mock_get_user_by_id_admin,
+    mock_get_session_local,
+    mock_user_count,
     client,
     app,
 ):
     """Test retrieving a non-existent user by an admin."""
+    mock_session = MagicMock()
+    mock_get_session_local.return_value = lambda: mock_session
     mock_db = MagicMock()
     mock_admin_user = MagicMock(spec=User)
     setup_dependency_overrides(app, mock_db, mock_admin_user)
@@ -340,9 +379,12 @@ def test_admin_get_user_not_found(
 
     assert response.status_code == 404
     assert response.json()["detail"] == "User not found"
+    mock_user_count.assert_called_once()
 
 
 @pytest.mark.parametrize("force_password_change", [True, False])
+@patch("resume_editor.app.main.user_crud.user_count", return_value=1)
+@patch("resume_editor.app.main.get_session_local")
 @patch("resume_editor.app.api.routes.admin.admin_crud.update_user_admin")
 @patch("resume_editor.app.api.routes.admin.admin_crud.get_user_by_id_admin")
 @patch("resume_editor.app.api.routes.admin.get_current_admin_user")
@@ -352,11 +394,15 @@ def test_admin_update_user_success(
     mock_get_current_admin_user,
     mock_get_user_by_id_admin,
     mock_update_user_admin,
+    mock_get_session_local,
+    mock_user_count,
     force_password_change,
     client,
     app,
 ):
     """Test successful user update by an admin."""
+    mock_session = MagicMock()
+    mock_get_session_local.return_value = lambda: mock_session
     mock_db = MagicMock()
     mock_admin_user = MagicMock(spec=User)
     setup_dependency_overrides(app, mock_db, mock_admin_user)
@@ -399,17 +445,24 @@ def test_admin_update_user_success(
     assert isinstance(update_data_arg, AdminUserUpdateRequest)
     assert update_data_arg.force_password_change is force_password_change
     assert mock_update_user_admin.call_args.kwargs["user"] == existing_user
+    mock_user_count.assert_called_once()
 
 
+@patch("resume_editor.app.main.user_crud.user_count", return_value=1)
+@patch("resume_editor.app.main.get_session_local")
 @patch("resume_editor.app.api.routes.admin.admin_crud.get_user_by_id_admin")
 @patch("resume_editor.app.api.routes.admin.get_current_admin_user")
 def test_admin_update_user_not_found(
     mock_get_current_admin_user,
     mock_get_user_by_id_admin,
+    mock_get_session_local,
+    mock_user_count,
     client,
     app,
 ):
     """Test updating a non-existent user by an admin."""
+    mock_session = MagicMock()
+    mock_get_session_local.return_value = lambda: mock_session
     mock_db = MagicMock()
     mock_admin_user = MagicMock(spec=User)
     setup_dependency_overrides(app, mock_db, mock_admin_user)
@@ -420,8 +473,11 @@ def test_admin_update_user_not_found(
 
     assert response.status_code == 404
     assert response.json()["detail"] == "User not found"
+    mock_user_count.assert_called_once()
 
 
+@patch("resume_editor.app.main.user_crud.user_count", return_value=1)
+@patch("resume_editor.app.main.get_session_local")
 @patch("resume_editor.app.api.routes.admin.admin_crud.delete_user_admin")
 @patch("resume_editor.app.api.routes.admin.admin_crud.get_user_by_id_admin")
 @patch("resume_editor.app.api.routes.admin.get_current_admin_user")
@@ -429,10 +485,14 @@ def test_admin_delete_user_success(
     mock_get_current_admin_user,
     mock_get_user_by_id_admin,
     mock_delete_user_admin,
+    mock_get_session_local,
+    mock_user_count,
     client,
     app,
 ):
     """Test successful deletion of a user by an admin."""
+    mock_session = MagicMock()
+    mock_get_session_local.return_value = lambda: mock_session
     mock_db = MagicMock()
     mock_admin_user = MagicMock(spec=User)
     setup_dependency_overrides(app, mock_db, mock_admin_user)
@@ -444,17 +504,24 @@ def test_admin_delete_user_success(
 
     assert response.status_code == status.HTTP_204_NO_CONTENT
     mock_delete_user_admin.assert_called_with(mock_db, user=user_to_delete)
+    mock_user_count.assert_called_once()
 
 
+@patch("resume_editor.app.main.user_crud.user_count", return_value=1)
+@patch("resume_editor.app.main.get_session_local")
 @patch("resume_editor.app.api.routes.admin.admin_crud.get_user_by_id_admin")
 @patch("resume_editor.app.api.routes.admin.get_current_admin_user")
 def test_admin_delete_user_not_found(
     mock_get_current_admin_user,
     mock_get_user_by_id_admin,
+    mock_get_session_local,
+    mock_user_count,
     client,
     app,
 ):
     """Test deleting a non-existent user by an admin."""
+    mock_session = MagicMock()
+    mock_get_session_local.return_value = lambda: mock_session
     mock_db = MagicMock()
     mock_admin_user = MagicMock(spec=User)
     setup_dependency_overrides(app, mock_db, mock_admin_user)
@@ -465,13 +532,20 @@ def test_admin_delete_user_not_found(
 
     assert response.status_code == 404
     assert response.json()["detail"] == "User not found"
+    mock_user_count.assert_called_once()
 
 
+@patch("resume_editor.app.main.user_crud.user_count", return_value=1)
+@patch("resume_editor.app.main.get_session_local")
 def test_admin_delete_user_self_delete_fails(
+    mock_get_session_local,
+    mock_user_count,
     client,
     app,
 ):
     """Test that an admin cannot delete themselves via the API."""
+    mock_session = MagicMock()
+    mock_get_session_local.return_value = lambda: mock_session
     mock_db = MagicMock()
     mock_admin_user = MagicMock(spec=User)
     mock_admin_user.id = 1
@@ -486,8 +560,11 @@ def test_admin_delete_user_self_delete_fails(
 
         assert response.status_code == status.HTTP_400_BAD_REQUEST
         assert response.json()["detail"] == "Administrators cannot delete themselves."
+        mock_user_count.assert_called_once()
 
 
+@patch("resume_editor.app.main.user_crud.user_count", return_value=1)
+@patch("resume_editor.app.main.get_session_local")
 @patch("resume_editor.app.api.routes.admin.admin_crud.assign_role_to_user_admin")
 @patch("resume_editor.app.api.routes.admin.admin_crud.get_role_by_name_admin")
 @patch("resume_editor.app.api.routes.admin.admin_crud.get_user_by_id_admin")
@@ -499,9 +576,13 @@ def test_admin_assign_role_to_user_success(
     mock_get_user_by_id_admin,
     mock_get_role_by_name_admin,
     mock_assign_role_to_user_admin,
+    mock_get_session_local,
+    mock_user_count,
     client,
     app,
 ):
+    mock_session = MagicMock()
+    mock_get_session_local.return_value = lambda: mock_session
     mock_db = MagicMock()
     mock_admin = MagicMock(spec=User)
     setup_dependency_overrides(app, mock_db, mock_admin)
@@ -547,16 +628,23 @@ def test_admin_assign_role_to_user_success(
         user=mock_user,
         role=mock_role,
     )
+    mock_user_count.assert_called_once()
 
 
+@patch("resume_editor.app.main.user_crud.user_count", return_value=1)
+@patch("resume_editor.app.main.get_session_local")
 @patch("resume_editor.app.api.routes.admin.admin_crud.get_user_by_id_admin")
 @patch("resume_editor.app.api.routes.admin.get_current_admin_user")
 def test_admin_assign_role_user_not_found(
     mock_get_current_admin_user,
     mock_get_user_by_id_admin,
+    mock_get_session_local,
+    mock_user_count,
     client,
     app,
 ):
+    mock_session = MagicMock()
+    mock_get_session_local.return_value = lambda: mock_session
     mock_db = MagicMock()
     mock_admin = MagicMock(spec=User)
     setup_dependency_overrides(app, mock_db, mock_admin)
@@ -566,8 +654,11 @@ def test_admin_assign_role_user_not_found(
 
     assert response.status_code == status.HTTP_404_NOT_FOUND
     assert response.json()["detail"] == "User not found"
+    mock_user_count.assert_called_once()
 
 
+@patch("resume_editor.app.main.user_crud.user_count", return_value=1)
+@patch("resume_editor.app.main.get_session_local")
 @patch("resume_editor.app.api.routes.admin.admin_crud.get_role_by_name_admin")
 @patch("resume_editor.app.api.routes.admin.admin_crud.get_user_by_id_admin")
 @patch("resume_editor.app.api.routes.admin.get_current_admin_user")
@@ -577,9 +668,13 @@ def test_admin_assign_role_role_not_found(
     mock_get_current_admin_user,
     mock_get_user_by_id_admin,
     mock_get_role_by_name_admin,
+    mock_get_session_local,
+    mock_user_count,
     client,
     app,
 ):
+    mock_session = MagicMock()
+    mock_get_session_local.return_value = lambda: mock_session
     mock_db = MagicMock()
     mock_admin = MagicMock(spec=User)
     setup_dependency_overrides(app, mock_db, mock_admin)
@@ -591,8 +686,11 @@ def test_admin_assign_role_role_not_found(
 
     assert response.status_code == status.HTTP_404_NOT_FOUND
     assert response.json()["detail"] == "Role not found"
+    mock_user_count.assert_called_once()
 
 
+@patch("resume_editor.app.main.user_crud.user_count", return_value=1)
+@patch("resume_editor.app.main.get_session_local")
 @patch("resume_editor.app.api.routes.admin.admin_crud.assign_role_to_user_admin")
 @patch("resume_editor.app.api.routes.admin.admin_crud.get_role_by_name_admin")
 @patch("resume_editor.app.api.routes.admin.admin_crud.get_user_by_id_admin")
@@ -604,9 +702,13 @@ def test_admin_assign_role_already_assigned(
     mock_get_user_by_id_admin,
     mock_get_role_by_name_admin,
     mock_assign_role_to_user_admin,
+    mock_get_session_local,
+    mock_user_count,
     client,
     app,
 ):
+    mock_session = MagicMock()
+    mock_get_session_local.return_value = lambda: mock_session
     mock_db = MagicMock()
     mock_admin = MagicMock(spec=User)
     setup_dependency_overrides(app, mock_db, mock_admin)
@@ -634,8 +736,11 @@ def test_admin_assign_role_already_assigned(
     assert response_data["username"] == "testuser"
     assert response_data["resume_count"] == 0
     mock_assign_role_to_user_admin.assert_not_called()
+    mock_user_count.assert_called_once()
 
 
+@patch("resume_editor.app.main.user_crud.user_count", return_value=1)
+@patch("resume_editor.app.main.get_session_local")
 @patch("resume_editor.app.api.routes.admin.admin_crud.remove_role_from_user_admin")
 @patch("resume_editor.app.api.routes.admin.admin_crud.get_role_by_name_admin")
 @patch("resume_editor.app.api.routes.admin.admin_crud.get_user_by_id_admin")
@@ -647,9 +752,13 @@ def test_admin_remove_role_from_user_success(
     mock_get_user_by_id_admin,
     mock_get_role_by_name_admin,
     mock_remove_role_from_user_admin,
+    mock_get_session_local,
+    mock_user_count,
     client,
     app,
 ):
+    mock_session = MagicMock()
+    mock_get_session_local.return_value = lambda: mock_session
     mock_db = MagicMock()
     mock_admin = MagicMock(spec=User)
     setup_dependency_overrides(app, mock_db, mock_admin)
@@ -693,16 +802,23 @@ def test_admin_remove_role_from_user_success(
         user=mock_user,
         role=mock_role,
     )
+    mock_user_count.assert_called_once()
 
 
+@patch("resume_editor.app.main.user_crud.user_count", return_value=1)
+@patch("resume_editor.app.main.get_session_local")
 @patch("resume_editor.app.api.routes.admin.admin_crud.get_user_by_id_admin")
 @patch("resume_editor.app.api.routes.admin.get_current_admin_user")
 def test_admin_remove_role_from_user_user_not_found(
     mock_get_current_admin_user,
     mock_get_user_by_id_admin,
+    mock_get_session_local,
+    mock_user_count,
     client,
     app,
 ):
+    mock_session = MagicMock()
+    mock_get_session_local.return_value = lambda: mock_session
     mock_db = MagicMock()
     mock_admin = MagicMock(spec=User)
     setup_dependency_overrides(app, mock_db, mock_admin)
@@ -712,8 +828,11 @@ def test_admin_remove_role_from_user_user_not_found(
 
     assert response.status_code == status.HTTP_404_NOT_FOUND
     assert response.json()["detail"] == "User not found"
+    mock_user_count.assert_called_once()
 
 
+@patch("resume_editor.app.main.user_crud.user_count", return_value=1)
+@patch("resume_editor.app.main.get_session_local")
 @patch("resume_editor.app.api.routes.admin.admin_crud.get_role_by_name_admin")
 @patch("resume_editor.app.api.routes.admin.admin_crud.get_user_by_id_admin")
 @patch("resume_editor.app.api.routes.admin.get_current_admin_user")
@@ -723,9 +842,13 @@ def test_admin_remove_role_from_user_role_not_found(
     mock_get_current_admin_user,
     mock_get_user_by_id_admin,
     mock_get_role_by_name_admin,
+    mock_get_session_local,
+    mock_user_count,
     client,
     app,
 ):
+    mock_session = MagicMock()
+    mock_get_session_local.return_value = lambda: mock_session
     mock_db = MagicMock()
     mock_admin = MagicMock(spec=User)
     setup_dependency_overrides(app, mock_db, mock_admin)
@@ -737,8 +860,11 @@ def test_admin_remove_role_from_user_role_not_found(
 
     assert response.status_code == status.HTTP_404_NOT_FOUND
     assert response.json()["detail"] == "Role not found"
+    mock_user_count.assert_called_once()
 
 
+@patch("resume_editor.app.main.user_crud.user_count", return_value=1)
+@patch("resume_editor.app.main.get_session_local")
 @patch("resume_editor.app.api.routes.admin.admin_crud.get_role_by_name_admin")
 @patch("resume_editor.app.api.routes.admin.admin_crud.get_user_by_id_admin")
 @patch("resume_editor.app.api.routes.admin.get_current_admin_user")
@@ -748,9 +874,13 @@ def test_admin_remove_role_from_user_not_assigned(
     mock_get_current_admin_user,
     mock_get_user_by_id_admin,
     mock_get_role_by_name_admin,
+    mock_get_session_local,
+    mock_user_count,
     client,
     app,
 ):
+    mock_session = MagicMock()
+    mock_get_session_local.return_value = lambda: mock_session
     mock_db = MagicMock()
     mock_admin = MagicMock(spec=User)
     setup_dependency_overrides(app, mock_db, mock_admin)
@@ -765,23 +895,37 @@ def test_admin_remove_role_from_user_not_assigned(
 
     assert response.status_code == status.HTTP_400_BAD_REQUEST
     assert response.json()["detail"] == "User does not have this role"
+    mock_user_count.assert_called_once()
 
 
-def test_admin_impersonate_user_unauthorized(client):
+@patch("resume_editor.app.main.user_crud.user_count", return_value=1)
+@patch("resume_editor.app.main.get_session_local")
+def test_admin_impersonate_user_unauthorized(
+    mock_get_session_local, mock_user_count, client
+):
     """Test that an unauthenticated user cannot access the impersonation endpoint."""
+    mock_session = MagicMock()
+    mock_get_session_local.return_value = lambda: mock_session
     response = client.post("/api/admin/impersonate/someuser")
     assert response.status_code == status.HTTP_401_UNAUTHORIZED
+    mock_user_count.assert_called_once()
 
 
+@patch("resume_editor.app.main.user_crud.user_count", return_value=1)
+@patch("resume_editor.app.main.get_session_local")
 @patch("resume_editor.app.api.routes.user.settings_crud.get_user_settings")
 @patch("resume_editor.app.api.routes.admin.admin_crud.get_user_by_username_admin")
 def test_admin_impersonate_user_success_and_use_token(
     mock_get_user_by_username_admin,
     mock_get_user_settings,
+    mock_get_session_local,
+    mock_user_count,
     client,
     app,
 ):
     """Test successful impersonation and using the token to access a protected route."""
+    mock_session = MagicMock()
+    mock_get_session_local.return_value = lambda: mock_session
     mock_db = MagicMock()
     mock_admin_user = User(
         username="admin",
@@ -840,10 +984,18 @@ def test_admin_impersonate_user_success_and_use_token(
         user_id,
     ) = mock_get_user_settings.call_args.args
     assert user_id == mock_target_user.id
+    # Once for impersonation, once for settings get
+    assert mock_user_count.call_count == 2
 
 
-def test_admin_impersonate_user_forbidden(client, app):
+@patch("resume_editor.app.main.user_crud.user_count", return_value=1)
+@patch("resume_editor.app.main.get_session_local")
+def test_admin_impersonate_user_forbidden(
+    mock_get_session_local, mock_user_count, client, app
+):
     """Test that a non-admin user cannot impersonate another user."""
+    mock_session = MagicMock()
+    mock_get_session_local.return_value = lambda: mock_session
 
     def raise_forbidden():
         raise HTTPException(
@@ -856,11 +1008,18 @@ def test_admin_impersonate_user_forbidden(client, app):
     response = client.post("/api/admin/impersonate/someuser")
 
     assert response.status_code == status.HTTP_403_FORBIDDEN
+    mock_user_count.assert_called_once()
 
 
+@patch("resume_editor.app.main.user_crud.user_count", return_value=1)
+@patch("resume_editor.app.main.get_session_local")
 @patch("resume_editor.app.api.routes.admin.admin_crud.get_user_by_username_admin")
-def test_admin_impersonate_user_not_found(mock_get_user_by_username_admin, client, app):
+def test_admin_impersonate_user_not_found(
+    mock_get_user_by_username_admin, mock_get_session_local, mock_user_count, client, app
+):
     """Test impersonation attempt on a non-existent user."""
+    mock_session = MagicMock()
+    mock_get_session_local.return_value = lambda: mock_session
     mock_db = MagicMock()
     mock_admin_user = User(
         username="admin",
@@ -879,3 +1038,4 @@ def test_admin_impersonate_user_not_found(mock_get_user_by_username_admin, clien
         db=mock_db,
         username="nonexistent",
     )
+    mock_user_count.assert_called_once()

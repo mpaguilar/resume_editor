@@ -14,6 +14,7 @@ from resume_editor.app.api.routes.route_logic.settings_crud import (
     get_user_settings,
     update_user_settings,
 )
+from resume_editor.app.api.routes.route_logic import user_crud
 from resume_editor.app.api.routes.user import router as user_router
 from resume_editor.app.core.auth import (
     get_optional_current_user_from_cookie,
@@ -25,7 +26,7 @@ from resume_editor.app.core.security import (
     get_password_hash,
     verify_password,
 )
-from resume_editor.app.database.database import get_db
+from resume_editor.app.database.database import get_db, get_session_local
 from resume_editor.app.models.user import User
 from resume_editor.app.schemas.user import (
     UserSettingsUpdateRequest,
@@ -64,6 +65,42 @@ def create_app() -> FastAPI:
     log.debug(_msg)
 
     app = FastAPI(title="Resume Editor API")
+
+    @app.middleware("http")
+    async def setup_check_middleware(request: Request, call_next):
+        """
+        Redirect to setup page if no users exist.
+        """
+        # Excluded paths that should be accessible even if no users are set up
+        excluded_paths = [
+            "/setup",
+            "/static",
+            "/docs",
+            "/openapi.json",
+            "/health",
+            "/login",
+            "/logout",
+            "/change-password",
+        ]
+        if any(request.url.path.startswith(p) for p in excluded_paths):
+            return await call_next(request)
+
+        # For all other paths, check if users exist
+        redirect_to_setup = False
+        SessionLocal = get_session_local()
+        db = SessionLocal()
+        try:
+            if user_crud.user_count(db=db) == 0:
+                redirect_to_setup = True
+        finally:
+            db.close()
+
+        if redirect_to_setup:
+            return RedirectResponse(url="/setup")
+
+        # Proceed with the request if users exist
+        response = await call_next(request)
+        return response
 
     # Add CORS middleware
     app.add_middleware(

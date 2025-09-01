@@ -84,6 +84,8 @@
 # Deprecated usage
 * `typing.List` is deprecated, use `list` instead
 * `datetime.datetime.utcnow()` is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: `datetime.datetime.now(datetime.UTC)`
+* DeprecationWarning: The `name` is not the first parameter anymore. The first parameter should be the `Request` instance.
+  Replace `TemplateResponse(name, {"request": request})` by `TemplateResponse(request, name)`.
 
 # Docstrings
 * Every function should have a docstring.

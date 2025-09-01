@@ -88,6 +88,8 @@ def authenticated_cookie_client(client_with_db, test_user):
 
 
 # Tests for /register
+@patch("resume_editor.app.main.user_crud.user_count", return_value=1)
+@patch("resume_editor.app.main.get_session_local")
 @patch("resume_editor.app.api.routes.user.get_user_by_username", return_value=None)
 @patch("resume_editor.app.api.routes.user.get_user_by_email", return_value=None)
 @patch("resume_editor.app.api.routes.user.create_new_user")
@@ -95,10 +97,14 @@ def test_register_user_success(
     mock_create_user,
     mock_get_by_email,
     mock_get_by_username,
+    mock_get_session_local,
+    mock_user_count,
     client_with_db,
     test_user,
 ):
     """Test successful user registration."""
+    mock_session = Mock(spec=Session)
+    mock_get_session_local.return_value = lambda: mock_session
     client, _ = client_with_db
     mock_create_user.return_value = test_user
     response = client.post(
@@ -118,15 +124,22 @@ def test_register_user_success(
     mock_get_by_username.assert_called_once()
     mock_get_by_email.assert_called_once()
     mock_create_user.assert_called_once()
+    mock_user_count.assert_called_once()
 
 
+@patch("resume_editor.app.main.user_crud.user_count", return_value=1)
+@patch("resume_editor.app.main.get_session_local")
 @patch("resume_editor.app.api.routes.user.get_user_by_username")
 def test_register_user_duplicate_username(
     mock_get_by_username,
+    mock_get_session_local,
+    mock_user_count,
     client_with_db,
     test_user,
 ):
     """Test registration with a duplicate username fails."""
+    mock_session = Mock(spec=Session)
+    mock_get_session_local.return_value = lambda: mock_session
     client, _ = client_with_db
     mock_get_by_username.return_value = test_user
     response = client.post(
@@ -139,17 +152,24 @@ def test_register_user_duplicate_username(
     )
     assert response.status_code == 400
     assert response.json()["detail"] == "Username already registered"
+    mock_user_count.assert_called_once()
 
 
+@patch("resume_editor.app.main.user_crud.user_count", return_value=1)
+@patch("resume_editor.app.main.get_session_local")
 @patch("resume_editor.app.api.routes.user.get_user_by_username", return_value=None)
 @patch("resume_editor.app.api.routes.user.get_user_by_email")
 def test_register_user_duplicate_email(
     mock_get_by_email,
     mock_get_by_username,
+    mock_get_session_local,
+    mock_user_count,
     client_with_db,
     test_user,
 ):
     """Test registration with a duplicate email fails."""
+    mock_session = Mock(spec=Session)
+    mock_get_session_local.return_value = lambda: mock_session
     client, _ = client_with_db
     mock_get_by_email.return_value = test_user
     response = client.post(
@@ -162,12 +182,19 @@ def test_register_user_duplicate_email(
     )
     assert response.status_code == 400
     assert response.json()["detail"] == "Email already registered"
+    mock_user_count.assert_called_once()
 
 
 # Tests for /login
+@patch("resume_editor.app.main.user_crud.user_count", return_value=1)
+@patch("resume_editor.app.main.get_session_local")
 @patch("resume_editor.app.api.routes.user.datetime")
-def test_login_success(mock_datetime, client_with_db, test_user):
+def test_login_success(
+    mock_datetime, mock_get_session_local, mock_user_count, client_with_db, test_user
+):
     """Test successful user login and `last_login_at` update."""
+    mock_session = Mock(spec=Session)
+    mock_get_session_local.return_value = lambda: mock_session
     client, mock_db = client_with_db
 
     test_settings = get_settings()
@@ -203,10 +230,17 @@ def test_login_success(mock_datetime, client_with_db, test_user):
         algorithms=[test_settings.algorithm],
     )
     assert decoded_token["sub"] == test_user.username
+    mock_user_count.assert_called_once()
 
 
-def test_login_failure_user_not_found(client_with_db):
+@patch("resume_editor.app.main.user_crud.user_count", return_value=1)
+@patch("resume_editor.app.main.get_session_local")
+def test_login_failure_user_not_found(
+    mock_get_session_local, mock_user_count, client_with_db
+):
     """Test that login fails when the user is not found."""
+    mock_session = Mock(spec=Session)
+    mock_get_session_local.return_value = lambda: mock_session
     client, mock_db = client_with_db
     mock_db.query.return_value.filter.return_value.first.return_value = None
     response = client.post(
@@ -215,10 +249,17 @@ def test_login_failure_user_not_found(client_with_db):
     )
     assert response.status_code == 401
     assert response.json()["detail"] == "Incorrect username or password"
+    mock_user_count.assert_called_once()
 
 
-def test_login_failure_wrong_password(client_with_db, test_user):
+@patch("resume_editor.app.main.user_crud.user_count", return_value=1)
+@patch("resume_editor.app.main.get_session_local")
+def test_login_failure_wrong_password(
+    mock_get_session_local, mock_user_count, client_with_db, test_user
+):
     """Test that login fails with an incorrect password."""
+    mock_session = Mock(spec=Session)
+    mock_get_session_local.return_value = lambda: mock_session
     client, mock_db = client_with_db
     query_result_mock = Mock()
     query_result_mock.filter.return_value.first.return_value = test_user
@@ -229,12 +270,23 @@ def test_login_failure_wrong_password(client_with_db, test_user):
     )
     assert response.status_code == 401
     assert response.json()["detail"] == "Incorrect username or password"
+    mock_user_count.assert_called_once()
 
 
 # Tests for /settings
+@patch("resume_editor.app.main.user_crud.user_count", return_value=1)
+@patch("resume_editor.app.main.get_session_local")
 @patch("resume_editor.app.api.routes.user.settings_crud.get_user_settings")
-def test_get_user_settings(mock_get_settings, authenticated_client, test_user):
+def test_get_user_settings(
+    mock_get_settings,
+    mock_get_session_local,
+    mock_user_count,
+    authenticated_client,
+    test_user,
+):
     """Test successfully fetching user settings."""
+    mock_session = Mock(spec=Session)
+    mock_get_session_local.return_value = lambda: mock_session
     client, _ = authenticated_client
     mock_settings = UserSettings(
         user_id=test_user.id,
@@ -248,11 +300,18 @@ def test_get_user_settings(mock_get_settings, authenticated_client, test_user):
     assert data["llm_endpoint"] == "http://llm.test"
     assert data["api_key_is_set"] is True
     mock_get_settings.assert_called_once()
+    mock_user_count.assert_called_once()
 
 
+@patch("resume_editor.app.main.user_crud.user_count", return_value=1)
+@patch("resume_editor.app.main.get_session_local")
 @patch("resume_editor.app.api.routes.user.settings_crud.get_user_settings")
-def test_get_user_settings_none(mock_get_settings, authenticated_client):
+def test_get_user_settings_none(
+    mock_get_settings, mock_get_session_local, mock_user_count, authenticated_client
+):
     """Test fetching settings when none are set."""
+    mock_session = Mock(spec=Session)
+    mock_get_session_local.return_value = lambda: mock_session
     client, _ = authenticated_client
     mock_get_settings.return_value = None
     response = client.get("/api/users/settings")
@@ -260,11 +319,22 @@ def test_get_user_settings_none(mock_get_settings, authenticated_client):
     data = response.json()
     assert data["llm_endpoint"] is None
     assert data["api_key_is_set"] is False
+    mock_user_count.assert_called_once()
 
 
+@patch("resume_editor.app.main.user_crud.user_count", return_value=1)
+@patch("resume_editor.app.main.get_session_local")
 @patch("resume_editor.app.api.routes.user.settings_crud.update_user_settings")
-def test_update_user_settings(mock_update_settings, authenticated_client, test_user):
+def test_update_user_settings(
+    mock_update_settings,
+    mock_get_session_local,
+    mock_user_count,
+    authenticated_client,
+    test_user,
+):
     """Test successfully updating user settings."""
+    mock_session = Mock(spec=Session)
+    mock_get_session_local.return_value = lambda: mock_session
     client, _ = authenticated_client
     mock_settings = UserSettings(
         user_id=test_user.id,
@@ -282,11 +352,18 @@ def test_update_user_settings(mock_update_settings, authenticated_client, test_u
     assert data["llm_endpoint"] == "http://new.llm"
     assert data["api_key_is_set"] is True
     mock_update_settings.assert_called_once()
+    mock_user_count.assert_called_once()
 
 
 # Tests for auth flow
-def test_access_protected_route_with_token(client_with_db, test_user):
+@patch("resume_editor.app.main.user_crud.user_count", return_value=1)
+@patch("resume_editor.app.main.get_session_local")
+def test_access_protected_route_with_token(
+    mock_get_session_local, mock_user_count, client_with_db, test_user
+):
     """Test accessing a protected route with a valid JWT token."""
+    mock_session = Mock(spec=Session)
+    mock_get_session_local.return_value = lambda: mock_session
     client, mock_db = client_with_db
 
     test_settings = get_settings()
@@ -329,23 +406,38 @@ def test_access_protected_route_with_token(client_with_db, test_user):
             user_id,
         ) = mock_get_user_settings.call_args.args
         assert user_id == test_user.id
+        assert mock_user_count.call_count == 2
 
 
-def test_access_protected_route_no_token(client_with_db):
+@patch("resume_editor.app.main.user_crud.user_count", return_value=1)
+@patch("resume_editor.app.main.get_session_local")
+def test_access_protected_route_no_token(
+    mock_get_session_local, mock_user_count, client_with_db
+):
     """Test accessing a protected route without a token fails."""
+    mock_session = Mock(spec=Session)
+    mock_get_session_local.return_value = lambda: mock_session
     client, _ = client_with_db
     response = client.get("/api/users/settings")
     assert response.status_code == 401
     assert response.json()["detail"] == "Not authenticated"
+    mock_user_count.assert_called_once()
 
 
-def test_access_protected_route_invalid_token(client_with_db):
+@patch("resume_editor.app.main.user_crud.user_count", return_value=1)
+@patch("resume_editor.app.main.get_session_local")
+def test_access_protected_route_invalid_token(
+    mock_get_session_local, mock_user_count, client_with_db
+):
     """Test accessing a protected route with a malformed/invalid token."""
+    mock_session = Mock(spec=Session)
+    mock_get_session_local.return_value = lambda: mock_session
     client, _ = client_with_db
     headers = {"Authorization": "Bearer invalidtoken"}
     response = client.get("/api/users/settings", headers=headers)
     assert response.status_code == 401
     assert response.json()["detail"] == "Could not validate credentials"
+    mock_user_count.assert_called_once()
 
 
 # Tests for helper functions
@@ -462,6 +554,8 @@ def test_user_response_schema_with_data():
 
 
 # Tests for /change-password
+@patch("resume_editor.app.main.user_crud.user_count", return_value=1)
+@patch("resume_editor.app.main.get_session_local")
 @patch(
     "resume_editor.app.api.routes.route_logic.user.verify_password",
     return_value=True,
@@ -473,12 +567,16 @@ def test_user_response_schema_with_data():
 def test_change_password_success_and_unsets_flag(
     mock_get_hash,
     mock_verify,
+    mock_get_session_local,
+    mock_user_count,
     authenticated_cookie_client,
     test_user,
 ):
     """
     Test successful password change, unsets force_password_change flag, and redirects.
     """
+    mock_session = Mock(spec=Session)
+    mock_get_session_local.return_value = lambda: mock_session
     client, mock_db = authenticated_cookie_client
     test_user.attributes = {"force_password_change": True}
     original_hashed_password = test_user.hashed_password
@@ -498,8 +596,12 @@ def test_change_password_success_and_unsets_flag(
     assert test_user.hashed_password == "new_hashed_password"
     assert test_user.attributes["force_password_change"] is False
     mock_db.commit.assert_called_once()
+    mock_user_count.assert_called_once()
+    mock_user_count.assert_called_once()
 
 
+@patch("resume_editor.app.main.user_crud.user_count", return_value=1)
+@patch("resume_editor.app.main.get_session_local")
 @patch(
     "resume_editor.app.api.routes.route_logic.user.verify_password",
     return_value=True,
@@ -511,12 +613,16 @@ def test_change_password_success_and_unsets_flag(
 def test_change_password_success_htmx(
     mock_get_hash,
     mock_verify,
+    mock_get_session_local,
+    mock_user_count,
     authenticated_cookie_client,
     test_user,
 ):
     """
     Test successful password change with HTMX redirect.
     """
+    mock_session = Mock(spec=Session)
+    mock_get_session_local.return_value = lambda: mock_session
     client, mock_db = authenticated_cookie_client
     test_user.attributes = {"force_password_change": True}
     response = client.post(
@@ -532,8 +638,11 @@ def test_change_password_success_htmx(
     assert response.headers["hx-redirect"] == "/dashboard"
     assert test_user.attributes["force_password_change"] is False
     mock_db.commit.assert_called_once()
+    mock_user_count.assert_called_once()
 
 
+@patch("resume_editor.app.main.user_crud.user_count", return_value=1)
+@patch("resume_editor.app.main.get_session_local")
 @patch(
     "resume_editor.app.api.routes.route_logic.user.verify_password",
     return_value=True,
@@ -545,12 +654,16 @@ def test_change_password_success_htmx(
 def test_change_password_with_none_attributes(
     mock_get_hash,
     mock_verify,
+    mock_get_session_local,
+    mock_user_count,
     authenticated_cookie_client,
     test_user,
 ):
     """
     Test successful password change when user attributes are initially None.
     """
+    mock_session = Mock(spec=Session)
+    mock_get_session_local.return_value = lambda: mock_session
     client, mock_db = authenticated_cookie_client
     test_user.attributes = None  # Set attributes to None
     original_hashed_password = test_user.hashed_password
@@ -571,20 +684,27 @@ def test_change_password_with_none_attributes(
     assert test_user.attributes is not None
     assert test_user.attributes["force_password_change"] is False
     mock_db.commit.assert_called_once()
+    mock_user_count.assert_called_once()
 
 
+@patch("resume_editor.app.main.user_crud.user_count", return_value=1)
+@patch("resume_editor.app.main.get_session_local")
 @patch(
     "resume_editor.app.api.routes.route_logic.user.get_password_hash",
     return_value="new_hashed_password",
 )
 def test_change_password_forced_without_current_password(
     mock_get_hash,
+    mock_get_session_local,
+    mock_user_count,
     authenticated_cookie_client,
     test_user,
 ):
     """
     Test successful forced password change without providing current password.
     """
+    mock_session = Mock(spec=Session)
+    mock_get_session_local.return_value = lambda: mock_session
     client, mock_db = authenticated_cookie_client
     test_user.attributes = {"force_password_change": True}
 
@@ -600,21 +720,31 @@ def test_change_password_forced_without_current_password(
     assert test_user.hashed_password == "new_hashed_password"
     assert test_user.attributes["force_password_change"] is False
     mock_db.commit.assert_called_once()
+    mock_user_count.assert_called_once()
 
 
+@patch("resume_editor.app.main.user_crud.user_count", return_value=1)
+@patch("resume_editor.app.main.get_session_local")
 @patch(
     "resume_editor.app.api.routes.route_logic.user.get_password_hash",
     return_value="new_hashed_password",
 )
 @patch("resume_editor.app.api.routes.route_logic.user.verify_password")
 def test_change_password_forced_with_incorrect_current_password_succeeds(
-    mock_verify, mock_get_hash, authenticated_cookie_client, test_user,
+    mock_verify,
+    mock_get_hash,
+    mock_get_session_local,
+    mock_user_count,
+    authenticated_cookie_client,
+    test_user,
 ):
     """
     Test forced password change with incorrect current password succeeds.
 
     The current password check should be bypassed during a forced change.
     """
+    mock_session = Mock(spec=Session)
+    mock_get_session_local.return_value = lambda: mock_session
     client, mock_db = authenticated_cookie_client
     test_user.attributes = {"force_password_change": True}
     test_user.hashed_password = "hashed_old_password"
@@ -672,16 +802,22 @@ def test_change_password_logic_when_attributes_is_none(
     mock_db.commit.assert_called_once()
 
 
+@patch("resume_editor.app.main.user_crud.user_count", return_value=1)
+@patch("resume_editor.app.main.get_session_local")
 @patch(
     "resume_editor.app.api.routes.route_logic.user.verify_password",
     return_value=False,
 )
 def test_change_password_incorrect_current_password(
     mock_verify,
+    mock_get_session_local,
+    mock_user_count,
     authenticated_cookie_client,
     test_user,
 ):
     """Test password change with incorrect current password."""
+    mock_session = Mock(spec=Session)
+    mock_get_session_local.return_value = lambda: mock_session
     client, mock_db = authenticated_cookie_client
     test_user.hashed_password = "hashed_old_password"
     response = client.post(
@@ -697,10 +833,17 @@ def test_change_password_incorrect_current_password(
     assert response.json()["detail"] == "Incorrect current password"
     mock_verify.assert_called_once_with("wrong_password", "hashed_old_password")
     mock_db.commit.assert_not_called()
+    mock_user_count.assert_called_once()
 
 
-def test_change_password_unauthenticated(client_with_db):
+@patch("resume_editor.app.main.user_crud.user_count", return_value=1)
+@patch("resume_editor.app.main.get_session_local")
+def test_change_password_unauthenticated(
+    mock_get_session_local, mock_user_count, client_with_db
+):
     """Test password change by unauthenticated user."""
+    mock_session = Mock(spec=Session)
+    mock_get_session_local.return_value = lambda: mock_session
     client, _ = client_with_db
     response = client.post(
         "/api/users/change-password",
@@ -712,10 +855,17 @@ def test_change_password_unauthenticated(client_with_db):
     )
     assert response.status_code == status.HTTP_401_UNAUTHORIZED
     assert response.json()["detail"] == "Could not validate credentials"
+    mock_user_count.assert_called_once()
 
 
-def test_change_password_confirmation_mismatch(authenticated_cookie_client):
+@patch("resume_editor.app.main.user_crud.user_count", return_value=1)
+@patch("resume_editor.app.main.get_session_local")
+def test_change_password_confirmation_mismatch(
+    mock_get_session_local, mock_user_count, authenticated_cookie_client
+):
     """Test password change when new password and confirmation don't match."""
+    mock_session = Mock(spec=Session)
+    mock_get_session_local.return_value = lambda: mock_session
     client, _ = authenticated_cookie_client
     response = client.post(
         "/api/users/change-password",
@@ -728,10 +878,17 @@ def test_change_password_confirmation_mismatch(authenticated_cookie_client):
     )
     assert response.status_code == status.HTTP_400_BAD_REQUEST
     assert "New passwords do not match." in response.text
+    mock_user_count.assert_called_once()
 
 
-def test_change_password_confirmation_mismatch_json(authenticated_cookie_client):
+@patch("resume_editor.app.main.user_crud.user_count", return_value=1)
+@patch("resume_editor.app.main.get_session_local")
+def test_change_password_confirmation_mismatch_json(
+    mock_get_session_local, mock_user_count, authenticated_cookie_client
+):
     """Test password change with confirmation mismatch returns JSON."""
+    mock_session = Mock(spec=Session)
+    mock_get_session_local.return_value = lambda: mock_session
     client, _ = authenticated_cookie_client
     response = client.post(
         "/api/users/change-password",
@@ -744,10 +901,17 @@ def test_change_password_confirmation_mismatch_json(authenticated_cookie_client)
     )
     assert response.status_code == status.HTTP_400_BAD_REQUEST
     assert response.json()["detail"] == "New passwords do not match."
+    mock_user_count.assert_called_once()
 
 
-def test_get_change_password_page(authenticated_cookie_client):
+@patch("resume_editor.app.main.user_crud.user_count", return_value=1)
+@patch("resume_editor.app.main.get_session_local")
+def test_get_change_password_page(
+    mock_get_session_local, mock_user_count, authenticated_cookie_client
+):
     """Test the GET /change-password page renders correctly."""
+    mock_session = Mock(spec=Session)
+    mock_get_session_local.return_value = lambda: mock_session
     client, _ = authenticated_cookie_client
     response = client.get("/api/users/change-password")
     assert response.status_code == status.HTTP_200_OK
@@ -755,3 +919,4 @@ def test_get_change_password_page(authenticated_cookie_client):
     assert "/api/users/change-password" in response.text
     assert "current_password" in response.text
     assert "new_password" in response.text
+    mock_user_count.assert_called_once()

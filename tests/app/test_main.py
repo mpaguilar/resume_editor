@@ -73,12 +73,38 @@ def test_health_check():
     assert response.json() == {"status": "ok"}
 
 
-def test_root_redirects_to_dashboard():
+@patch("resume_editor.app.main.user_crud.user_count", return_value=1)
+@patch("resume_editor.app.main.get_session_local")
+def test_root_redirects_to_dashboard_when_users_exist(
+    mock_get_session_local, mock_user_count
+):
+    """Test root redirects to dashboard when users exist."""
+    mock_session = MagicMock()
+    mock_get_session_local.return_value = lambda: mock_session
+
     app = create_app()
     client = TestClient(app, follow_redirects=False)
     response = client.get("/")
-    assert response.status_code == 307  # RedirectResponse default
+
+    assert response.status_code == 307
     assert response.headers["location"] == "/dashboard"
+    mock_user_count.assert_called_once()
+
+
+@patch("resume_editor.app.main.user_crud.user_count", return_value=0)
+@patch("resume_editor.app.main.get_session_local")
+def test_root_redirects_to_setup_when_no_users(mock_get_session_local, mock_user_count):
+    """Test root redirects to setup when no users exist."""
+    mock_session = MagicMock()
+    mock_get_session_local.return_value = lambda: mock_session
+
+    app = create_app()
+    client = TestClient(app, follow_redirects=False)
+    response = client.get("/")
+
+    assert response.status_code == 307
+    assert response.headers["location"] == "/setup"
+    mock_user_count.assert_called_once()
 
 
 def test_login_page_loads():
@@ -89,11 +115,17 @@ def test_login_page_loads():
     assert "Login to your account" in response.text
 
 
-def test_unauthenticated_dashboard_redirects():
+@patch("resume_editor.app.main.user_crud.user_count", return_value=1)
+@patch("resume_editor.app.main.get_session_local")
+def test_unauthenticated_dashboard_redirects(mock_get_session_local, mock_user_count):
+    """Test unauthenticated access to dashboard redirects to login when users exist."""
+    mock_session = MagicMock()
+    mock_get_session_local.return_value = lambda: mock_session
+
     app = create_app()
     client = TestClient(app, follow_redirects=False)
 
-    # Mock the database dependency
+    # Mock the database dependency for the route
     mock_db = Mock()
 
     def get_mock_db():
@@ -105,12 +137,17 @@ def test_unauthenticated_dashboard_redirects():
 
     assert response.status_code == 307
     assert response.headers["location"] == "/login"
-
+    mock_user_count.assert_called_once()
     app.dependency_overrides.clear()
 
 
-def test_post_settings_unauthenticated():
+@patch("resume_editor.app.main.user_crud.user_count", return_value=1)
+@patch("resume_editor.app.main.get_session_local")
+def test_post_settings_unauthenticated(mock_get_session_local, mock_user_count):
     """Test POST /settings for an unauthenticated user redirects to login."""
+    mock_session = MagicMock()
+    mock_get_session_local.return_value = lambda: mock_session
+
     app = create_app()
     client = TestClient(app, follow_redirects=False)
 
@@ -128,12 +165,17 @@ def test_post_settings_unauthenticated():
     )
     assert response.status_code == status.HTTP_307_TEMPORARY_REDIRECT
     assert response.headers["location"] == "/login"
-
+    mock_user_count.assert_called_once()
     app.dependency_overrides.clear()
 
 
-def test_settings_page_access_unauthenticated():
+@patch("resume_editor.app.main.user_crud.user_count", return_value=1)
+@patch("resume_editor.app.main.get_session_local")
+def test_settings_page_access_unauthenticated(mock_get_session_local, mock_user_count):
     """Test unauthenticated access to settings page redirects to login."""
+    mock_session = MagicMock()
+    mock_get_session_local.return_value = lambda: mock_session
+
     app = create_app()
     client = TestClient(app, follow_redirects=False)
 
@@ -149,11 +191,19 @@ def test_settings_page_access_unauthenticated():
 
     assert response.status_code == 307
     assert response.headers["location"] == "/login"
-
+    mock_user_count.assert_called_once()
     app.dependency_overrides.clear()
 
 
-def test_dashboard_with_invalid_cookie_redirects():
+@patch("resume_editor.app.main.user_crud.user_count", return_value=1)
+@patch("resume_editor.app.main.get_session_local")
+def test_dashboard_with_invalid_cookie_redirects(
+    mock_get_session_local, mock_user_count
+):
+    """Test dashboard access with invalid cookie redirects to login when users exist."""
+    mock_session = MagicMock()
+    mock_get_session_local.return_value = lambda: mock_session
+
     app = create_app()
     client = TestClient(app, follow_redirects=False)
 
@@ -170,16 +220,22 @@ def test_dashboard_with_invalid_cookie_redirects():
 
     assert response.status_code == 307
     assert response.headers["location"] == "/login"
-
+    mock_user_count.assert_called_once()
     app.dependency_overrides.clear()
 
 
+@patch("resume_editor.app.main.user_crud.user_count", return_value=1)
+@patch("resume_editor.app.main.get_session_local")
 @patch("resume_editor.app.main.get_user_settings")
 def test_settings_page_authenticated_no_settings(
     mock_get_user_settings,
+    mock_get_session_local,
+    mock_user_count,
     web_auth_client_and_db,
 ):
     """Test GET /settings for an authenticated user with no existing settings."""
+    mock_session = MagicMock()
+    mock_get_session_local.return_value = lambda: mock_session
     client, mock_db = web_auth_client_and_db
     mock_get_user_settings.return_value = None
 
@@ -189,14 +245,21 @@ def test_settings_page_authenticated_no_settings(
     assert 'value=""' in response.text
     assert 'placeholder="Enter your API key"' in response.text
     mock_get_user_settings.assert_called_once_with(db=mock_db, user_id=1)
+    mock_user_count.assert_called_once()
 
 
+@patch("resume_editor.app.main.user_crud.user_count", return_value=1)
+@patch("resume_editor.app.main.get_session_local")
 @patch("resume_editor.app.main.get_user_settings")
 def test_settings_page_with_endpoint_no_key(
     mock_get_user_settings,
+    mock_get_session_local,
+    mock_user_count,
     web_auth_client_and_db,
 ):
     """Test GET /settings for a user with endpoint set but no API key."""
+    mock_session = MagicMock()
+    mock_get_session_local.return_value = lambda: mock_session
     client, mock_db = web_auth_client_and_db
     mock_settings = UserSettings(
         user_id=1,
@@ -211,14 +274,21 @@ def test_settings_page_with_endpoint_no_key(
     assert 'value="http://test.com"' in response.text
     assert 'placeholder="Enter your API key"' in response.text
     mock_get_user_settings.assert_called_once_with(db=mock_db, user_id=1)
+    mock_user_count.assert_called_once()
 
 
+@patch("resume_editor.app.main.user_crud.user_count", return_value=1)
+@patch("resume_editor.app.main.get_session_local")
 @patch("resume_editor.app.main.get_user_settings")
 def test_settings_page_authenticated_with_settings(
     mock_get_user_settings,
+    mock_get_session_local,
+    mock_user_count,
     web_auth_client_and_db,
 ):
     """Test GET /settings for a user with existing settings."""
+    mock_session = MagicMock()
+    mock_get_session_local.return_value = lambda: mock_session
     client, mock_db = web_auth_client_and_db
     mock_settings = UserSettings(
         user_id=1,
@@ -234,11 +304,21 @@ def test_settings_page_authenticated_with_settings(
     assert 'placeholder="************"' in response.text
     assert "encrypted_key" not in response.text
     mock_get_user_settings.assert_called_once_with(db=mock_db, user_id=1)
+    mock_user_count.assert_called_once()
 
 
+@patch("resume_editor.app.main.user_crud.user_count", return_value=1)
+@patch("resume_editor.app.main.get_session_local")
 @patch("resume_editor.app.main.update_user_settings")
-def test_post_settings_authenticated(mock_update_user_settings, web_auth_client_and_db):
+def test_post_settings_authenticated(
+    mock_update_user_settings,
+    mock_get_session_local,
+    mock_user_count,
+    web_auth_client_and_db,
+):
     """Test POST /settings for an authenticated user."""
+    mock_session = MagicMock()
+    mock_get_session_local.return_value = lambda: mock_session
     client, mock_db = web_auth_client_and_db
 
     # Test with new values
@@ -258,11 +338,21 @@ def test_post_settings_authenticated(mock_update_user_settings, web_auth_client_
     assert isinstance(settings_data, UserSettingsUpdateRequest)
     assert settings_data.llm_endpoint == "http://new.com"
     assert settings_data.api_key == "new_key"
+    mock_user_count.assert_called_once()
 
 
+@patch("resume_editor.app.main.user_crud.user_count", return_value=1)
+@patch("resume_editor.app.main.get_session_local")
 @patch("resume_editor.app.main.update_user_settings")
-def test_post_settings_empty_values(mock_update_user_settings, web_auth_client_and_db):
+def test_post_settings_empty_values(
+    mock_update_user_settings,
+    mock_get_session_local,
+    mock_user_count,
+    web_auth_client_and_db,
+):
     """Test POST /settings with empty values to clear settings."""
+    mock_session = MagicMock()
+    mock_get_session_local.return_value = lambda: mock_session
     client, mock_db = web_auth_client_and_db
 
     response = client.post("/settings", data={"llm_endpoint": "", "api_key": ""})
@@ -277,10 +367,17 @@ def test_post_settings_empty_values(mock_update_user_settings, web_auth_client_a
     assert isinstance(settings_data, UserSettingsUpdateRequest)
     assert settings_data.llm_endpoint == ""
     assert settings_data.api_key == ""
+    mock_user_count.assert_called_once()
 
 
-def test_authenticated_dashboard_access(web_auth_client_and_db):
+@patch("resume_editor.app.main.user_crud.user_count", return_value=1)
+@patch("resume_editor.app.main.get_session_local")
+def test_authenticated_dashboard_access(
+    mock_get_session_local, mock_user_count, web_auth_client_and_db
+):
     """Test that an authenticated user can access the dashboard."""
+    mock_session = MagicMock()
+    mock_get_session_local.return_value = lambda: mock_session
     client, _ = web_auth_client_and_db
     response = client.get("/dashboard")
 
@@ -288,14 +385,21 @@ def test_authenticated_dashboard_access(web_auth_client_and_db):
     assert "Resume Editor Dashboard" in response.text
     assert 'href="/settings"' in response.text
     assert 'href="/logout"' in response.text
+    mock_user_count.assert_called_once()
 
 
-def test_create_resume_form_loads():
+@patch("resume_editor.app.main.user_crud.user_count", return_value=1)
+@patch("resume_editor.app.main.get_session_local")
+def test_create_resume_form_loads(mock_get_session_local, mock_user_count):
+    """Test that the create resume form loads when users exist."""
+    mock_session = MagicMock()
+    mock_get_session_local.return_value = lambda: mock_session
     app = create_app()
     client = TestClient(app)
     response = client.get("/dashboard/create-resume-form")
     assert response.status_code == 200
     assert "Create New Resume" in response.text
+    mock_user_count.assert_called_once()
 
 
 def test_initialize_database_logging(caplog):
@@ -339,49 +443,74 @@ def test_main(mock_initialize_database, mock_uvicorn_run):
     assert call_kwargs == {"host": "0.0.0.0", "port": 8000}
 
 
-def test_edit_personal_info_form_route():
+@patch("resume_editor.app.main.user_crud.user_count", return_value=1)
+@patch("resume_editor.app.main.get_session_local")
+def test_edit_personal_info_form_route(mock_get_session_local, mock_user_count):
     """Test that the edit personal info form endpoint returns 200 OK."""
+    mock_session = MagicMock()
+    mock_get_session_local.return_value = lambda: mock_session
     app = create_app()
     client = TestClient(app)
     response = client.get("/dashboard/resumes/1/edit/personal")
     assert response.status_code == 200
     assert "text/html" in response.headers["content-type"]
+    mock_user_count.assert_called_once()
 
 
-def test_edit_education_form_route():
+@patch("resume_editor.app.main.user_crud.user_count", return_value=1)
+@patch("resume_editor.app.main.get_session_local")
+def test_edit_education_form_route(mock_get_session_local, mock_user_count):
     """Test that the edit education form endpoint returns 200 OK."""
+    mock_session = MagicMock()
+    mock_get_session_local.return_value = lambda: mock_session
     app = create_app()
     client = TestClient(app)
     response = client.get("/dashboard/resumes/1/edit/education")
     assert response.status_code == 200
     assert "text/html" in response.headers["content-type"]
+    mock_user_count.assert_called_once()
 
 
-def test_edit_experience_form_route():
+@patch("resume_editor.app.main.user_crud.user_count", return_value=1)
+@patch("resume_editor.app.main.get_session_local")
+def test_edit_experience_form_route(mock_get_session_local, mock_user_count):
     """Test that the edit experience form endpoint returns 200 OK."""
+    mock_session = MagicMock()
+    mock_get_session_local.return_value = lambda: mock_session
     app = create_app()
     client = TestClient(app)
     response = client.get("/dashboard/resumes/1/edit/experience")
     assert response.status_code == 200
     assert "text/html" in response.headers["content-type"]
+    mock_user_count.assert_called_once()
 
 
-def test_edit_projects_form_route():
+@patch("resume_editor.app.main.user_crud.user_count", return_value=1)
+@patch("resume_editor.app.main.get_session_local")
+def test_edit_projects_form_route(mock_get_session_local, mock_user_count):
     """Test that the edit projects form endpoint returns 200 OK."""
+    mock_session = MagicMock()
+    mock_get_session_local.return_value = lambda: mock_session
     app = create_app()
     client = TestClient(app)
     response = client.get("/dashboard/resumes/1/edit/projects")
     assert response.status_code == 200
     assert "text/html" in response.headers["content-type"]
+    mock_user_count.assert_called_once()
 
 
-def test_edit_certifications_form_route():
+@patch("resume_editor.app.main.user_crud.user_count", return_value=1)
+@patch("resume_editor.app.main.get_session_local")
+def test_edit_certifications_form_route(mock_get_session_local, mock_user_count):
     """Test that the edit certifications form endpoint returns 200 OK."""
+    mock_session = MagicMock()
+    mock_get_session_local.return_value = lambda: mock_session
     app = create_app()
     client = TestClient(app)
     response = client.get("/dashboard/resumes/1/edit/certifications")
     assert response.status_code == 200
     assert "text/html" in response.headers["content-type"]
+    mock_user_count.assert_called_once()
 
 
 @patch("uvicorn.run")
@@ -522,17 +651,30 @@ def test_logout():
 
 # These tests below are for HTMX fragment-returning endpoints.
 # They require an authenticated client.
-def test_get_resume_html_response_not_found(api_auth_client_and_db):
+@patch("resume_editor.app.main.user_crud.user_count", return_value=1)
+@patch("resume_editor.app.main.get_session_local")
+def test_get_resume_html_response_not_found(
+    mock_get_session_local, mock_user_count, api_auth_client_and_db
+):
     """Test get_resume with an unknown ID returns an error message."""
+    mock_session = MagicMock()
+    mock_get_session_local.return_value = lambda: mock_session
     client, mock_db = api_auth_client_and_db
     mock_db.query.return_value.filter.return_value.first.return_value = None
     response = client.get("/api/resumes/999", headers={"HX-Request": "true"})
     assert response.status_code == 404
     assert "Resume not found" in response.text
+    mock_user_count.assert_called_once()
 
 
-def test_list_resumes_html_response(api_auth_client_and_db):
+@patch("resume_editor.app.main.user_crud.user_count", return_value=1)
+@patch("resume_editor.app.main.get_session_local")
+def test_list_resumes_html_response(
+    mock_get_session_local, mock_user_count, api_auth_client_and_db
+):
     """Test that the list resumes endpoint returns HTML when requested by HTMX."""
+    mock_session = MagicMock()
+    mock_get_session_local.return_value = lambda: mock_session
     client, mock_db = api_auth_client_and_db
 
     # Mock the query result
@@ -546,10 +688,17 @@ def test_list_resumes_html_response(api_auth_client_and_db):
     assert response.status_code == 200
     assert "Test Resume" in response.text
     assert 'class="resume-item' in response.text
+    mock_user_count.assert_called_once()
 
 
-def test_get_resume_html_response(api_auth_client_and_db):
+@patch("resume_editor.app.main.user_crud.user_count", return_value=1)
+@patch("resume_editor.app.main.get_session_local")
+def test_get_resume_html_response(
+    mock_get_session_local, mock_user_count, api_auth_client_and_db
+):
     """Test that the get resume endpoint returns HTML when requested by HTMX."""
+    mock_session = MagicMock()
+    mock_get_session_local.return_value = lambda: mock_session
     client, mock_db = api_auth_client_and_db
 
     # Mock the query result
@@ -565,6 +714,7 @@ def test_get_resume_html_response(api_auth_client_and_db):
     assert "Test Resume" in response.text
     assert "# Test Resume Content" in response.text
     assert "readonly" in response.text
+    mock_user_count.assert_called_once()
 
 
 def test_change_password_form_success():
@@ -644,7 +794,6 @@ def test_change_password_form_unauthenticated():
 
     assert response.status_code == 307
     assert response.headers["location"] == "/login"
-
     app.dependency_overrides.clear()
 
 
@@ -679,7 +828,6 @@ def test_change_password_form_passwords_do_not_match():
     assert response.status_code == 200
     assert "Error!" in response.text
     assert "New passwords do not match" in response.text
-
     app.dependency_overrides.clear()
 
 
@@ -727,3 +875,116 @@ def test_change_password_form_incorrect_current_password():
         mock_db.commit.assert_not_called()
 
     app.dependency_overrides.clear()
+
+
+def test_middleware_redirects_to_setup_when_no_users():
+    """
+    Test that the middleware redirects to /setup when no users are in the database.
+    """
+    app = create_app()
+
+    with patch("resume_editor.app.main.get_session_local") as mock_get_session_local:
+        mock_session = MagicMock()
+        mock_get_session_local.return_value = lambda: mock_session
+
+        with patch(
+            "resume_editor.app.main.user_crud.user_count", return_value=0
+        ) as mock_user_count:
+            client = TestClient(app, raise_server_exceptions=False)
+            response = client.get("/dashboard", follow_redirects=False)
+
+            assert response.status_code == 307
+            assert response.headers["location"] == "/setup"
+            mock_user_count.assert_called_once_with(db=mock_session)
+            mock_session.close.assert_called_once()
+
+
+def test_middleware_proceeds_when_users_exist():
+    """
+    Test that the middleware allows the request to proceed when users exist.
+    """
+    app = create_app()
+
+    with patch("resume_editor.app.main.get_session_local") as mock_get_session_local:
+        mock_session = MagicMock()
+        mock_get_session_local.return_value = lambda: mock_session
+
+        with patch(
+            "resume_editor.app.main.user_crud.user_count", return_value=1
+        ) as mock_user_count:
+            with patch(
+                "resume_editor.app.main.get_optional_current_user_from_cookie"
+            ) as mock_get_user:
+                mock_get_user.return_value = None  # Act as if not logged in
+                client = TestClient(app, raise_server_exceptions=False)
+                response = client.get(
+                    "/dashboard", follow_redirects=False
+                )  # /dashboard is not excluded
+
+                # It should pass middleware, then dashboard logic will hit.
+                # dashboard redirects to /login if user is not authenticated.
+                assert response.status_code == 307
+                assert response.headers["location"] == "/login"
+
+                mock_user_count.assert_called_once_with(db=mock_session)
+                mock_session.close.assert_called_once()
+
+
+@pytest.mark.parametrize(
+    "path,expected_status",
+    [
+        (
+            "/setup",
+            200,
+        ),
+        ("/static/style.css", 404),  # No static files mounted
+        ("/docs", 200),
+        ("/openapi.json", 200),
+        ("/health", 200),
+        ("/login", 200),
+        ("/logout", 307),
+        ("/change-password", 405),  # GET not allowed for this path
+    ],
+)
+def test_middleware_excludes_paths(path, expected_status):
+    """
+    Test that the middleware excludes specified paths and does not check user count.
+    """
+    app = create_app()
+    app.dependency_overrides[get_db] = lambda: MagicMock()
+
+    with patch(
+        "resume_editor.app.main.user_crud.user_count", return_value=0
+    ) as mock_main_user_count, patch(
+        "resume_editor.app.api.routes.pages.setup.user_count", return_value=0
+    ):
+        client = TestClient(app)
+        response = client.get(path, follow_redirects=False)
+        assert response.status_code == expected_status
+        mock_main_user_count.assert_not_called()
+    app.dependency_overrides.clear()
+
+
+def test_middleware_db_exception_handling():
+    """
+    Test that the middleware properly closes the db session if user_count fails.
+    """
+    app = create_app()
+
+    with patch("resume_editor.app.main.get_session_local") as mock_get_session_local:
+        mock_session = MagicMock()
+        mock_get_session_local.return_value = lambda: mock_session
+
+        with patch(
+            "resume_editor.app.main.user_crud.user_count",
+            side_effect=Exception("DB Error"),
+        ) as mock_user_count:
+            client = TestClient(app, raise_server_exceptions=False)
+            response = client.get("/dashboard", follow_redirects=False)
+
+            # The server should return a 500 Internal Server Error
+            assert response.status_code == 500
+
+            mock_user_count.assert_called_once_with(db=mock_session)
+            # Crucially, assert that the session was closed despite the exception
+            mock_session.close.assert_called_once()

@@ -37,8 +37,14 @@ def setup_dependency_overrides(app, mock_db: MagicMock, mock_user: User | None):
     app.dependency_overrides[get_optional_current_user_from_cookie] = lambda: mock_user
 
 
-def test_admin_users_page_not_authenticated(client, app):
+@patch("resume_editor.app.main.user_crud.user_count", return_value=1)
+@patch("resume_editor.app.main.get_session_local")
+def test_admin_users_page_not_authenticated(
+    mock_get_session_local, mock_user_count, client, app
+):
     """Test that unauthenticated access to /admin/users redirects to the login page."""
+    mock_session = MagicMock()
+    mock_get_session_local.return_value = lambda: mock_session
     mock_db_session = MagicMock()
     setup_dependency_overrides(app, mock_db_session, None)
 
@@ -46,10 +52,17 @@ def test_admin_users_page_not_authenticated(client, app):
 
     assert response.status_code == 307
     assert response.headers["location"] == "/login"
+    mock_user_count.assert_called_once()
 
 
-def test_admin_users_page_as_non_admin(client, app):
+@patch("resume_editor.app.main.user_crud.user_count", return_value=1)
+@patch("resume_editor.app.main.get_session_local")
+def test_admin_users_page_as_non_admin(
+    mock_get_session_local, mock_user_count, client, app
+):
     """Test that a non-admin user receives a 403 Forbidden error."""
+    mock_session = MagicMock()
+    mock_get_session_local.return_value = lambda: mock_session
     mock_db_session = MagicMock()
     mock_user = User(
         username="testuser",
@@ -63,11 +76,18 @@ def test_admin_users_page_as_non_admin(client, app):
     response = client.get("/admin/users", follow_redirects=False)
     assert response.status_code == 403
     assert "The user does not have admin privileges" in response.text
+    mock_user_count.assert_called_once()
 
 
+@patch("resume_editor.app.main.user_crud.user_count", return_value=1)
+@patch("resume_editor.app.main.get_session_local")
 @patch("resume_editor.app.web.admin.get_users_admin")
-def test_admin_users_page_as_admin(mock_get_users_admin, client, app):
+def test_admin_users_page_as_admin(
+    mock_get_users_admin, mock_get_session_local, mock_user_count, client, app
+):
     """Test that an admin user can successfully access the admin users page and see user data."""
+    mock_session = MagicMock()
+    mock_get_session_local.return_value = lambda: mock_session
     mock_db_session = MagicMock()
     mock_admin = User(
         username="admin",
@@ -141,9 +161,16 @@ def test_admin_users_page_as_admin(mock_get_users_admin, client, app):
     assert cols_user3[2].text.strip() == "Never"
     assert cols_user3[3].text.strip() == "0"
     assert "No" in cols_user3[4].text.strip()
+    mock_user_count.assert_called_once()
 
 
-def test_admin_delete_user_web_success(client, app):
+@patch("resume_editor.app.main.user_crud.user_count", return_value=1)
+@patch("resume_editor.app.main.get_session_local")
+def test_admin_delete_user_web_success(
+    mock_get_session_local, mock_user_count, client, app
+):
+    mock_session = MagicMock()
+    mock_get_session_local.return_value = lambda: mock_session
     mock_db_session = MagicMock()
     admin_user = User(
         id=1,
@@ -179,9 +206,16 @@ def test_admin_delete_user_web_success(client, app):
         mock_get_users.assert_called_once_with(db=mock_db_session)
         assert "delete_me" not in response.text
         assert "admin" in response.text
+        mock_user_count.assert_called_once()
 
 
-def test_admin_delete_user_web_redirects_if_not_logged_in(client, app):
+@patch("resume_editor.app.main.user_crud.user_count", return_value=1)
+@patch("resume_editor.app.main.get_session_local")
+def test_admin_delete_user_web_redirects_if_not_logged_in(
+    mock_get_session_local, mock_user_count, client, app
+):
+    mock_session = MagicMock()
+    mock_get_session_local.return_value = lambda: mock_session
     mock_db_session = MagicMock()
     setup_dependency_overrides(app, mock_db_session, None)
 
@@ -189,9 +223,16 @@ def test_admin_delete_user_web_redirects_if_not_logged_in(client, app):
 
     assert response.status_code == status.HTTP_307_TEMPORARY_REDIRECT
     assert response.headers["location"] == "/login"
+    mock_user_count.assert_called_once()
 
 
-def test_admin_delete_user_web_forbidden_if_not_admin(client, app):
+@patch("resume_editor.app.main.user_crud.user_count", return_value=1)
+@patch("resume_editor.app.main.get_session_local")
+def test_admin_delete_user_web_forbidden_if_not_admin(
+    mock_get_session_local, mock_user_count, client, app
+):
+    mock_session = MagicMock()
+    mock_get_session_local.return_value = lambda: mock_session
     mock_db_session = MagicMock()
     non_admin_user = User(
         id=1,
@@ -205,9 +246,16 @@ def test_admin_delete_user_web_forbidden_if_not_admin(client, app):
     response = client.delete("/admin/users/1", follow_redirects=False)
     assert response.status_code == 403
     assert "The user does not have admin privileges" in response.text
+    mock_user_count.assert_called_once()
 
 
-def test_admin_delete_user_web_not_found(client, app):
+@patch("resume_editor.app.main.user_crud.user_count", return_value=1)
+@patch("resume_editor.app.main.get_session_local")
+def test_admin_delete_user_web_not_found(
+    mock_get_session_local, mock_user_count, client, app
+):
+    mock_session = MagicMock()
+    mock_get_session_local.return_value = lambda: mock_session
     mock_db_session = MagicMock()
     admin_user = User(
         id=1,
@@ -223,9 +271,16 @@ def test_admin_delete_user_web_not_found(client, app):
         response = client.delete("/admin/users/999")
         assert response.status_code == 404
         assert "User not found" in response.text
+        mock_user_count.assert_called_once()
 
 
-def test_admin_delete_user_web_self_delete_fails(client, app):
+@patch("resume_editor.app.main.user_crud.user_count", return_value=1)
+@patch("resume_editor.app.main.get_session_local")
+def test_admin_delete_user_web_self_delete_fails(
+    mock_get_session_local, mock_user_count, client, app
+):
+    mock_session = MagicMock()
+    mock_get_session_local.return_value = lambda: mock_session
     mock_db_session = MagicMock()
     admin_user = User(
         id=1,
@@ -242,3 +297,4 @@ def test_admin_delete_user_web_self_delete_fails(client, app):
         response = client.delete("/admin/users/1")
         assert response.status_code == 400
         assert "Administrators cannot delete themselves." in response.text
+        mock_user_count.assert_called_once()
