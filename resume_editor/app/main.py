@@ -32,6 +32,7 @@ from resume_editor.app.schemas.user import (
 )
 from resume_editor.app.web.admin import router as admin_web_router
 from resume_editor.app.web.admin_forms import router as admin_forms_router
+from resume_editor.app.api.routes.pages.setup import router as setup_router
 
 log = logging.getLogger(__name__)
 
@@ -83,6 +84,7 @@ def create_app() -> FastAPI:
     app.include_router(admin_router)
     app.include_router(admin_web_router)
     app.include_router(admin_forms_router)
+    app.include_router(setup_router)
 
     @app.get("/health")
     async def health_check() -> dict[str, str]:

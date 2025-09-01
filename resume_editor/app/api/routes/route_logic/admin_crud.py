@@ -64,7 +64,7 @@ def create_user_admin(db: Session, user_data: AdminUserCreate) -> User:
     return created_user
 
 
-def create_initial_admin(db: Session, user_data: AdminUserCreate) -> User:
+def create_initial_admin(db: Session, username: str, password: str) -> User:
     """
     Create the initial administrator account.
 
@@ -74,7 +74,8 @@ def create_initial_admin(db: Session, user_data: AdminUserCreate) -> User:
 
     Args:
         db (Session): The database session.
-        user_data (AdminUserCreate): The data for the new admin user.
+        username (str): The username for the new admin user.
+        password (str): The password for the new admin user.
 
     Returns:
         User: The created admin user object.
@@ -84,29 +85,32 @@ def create_initial_admin(db: Session, user_data: AdminUserCreate) -> User:
 
     Notes:
         1. Hashes the provided password.
-        2. Creates a new User instance.
-        3. Queries for the 'admin' role. Raises RuntimeError if not found.
-        4. Appends the 'admin' role to the new user's roles.
-        5. Adds the user to the database session.
-        6. Commits the transaction.
-        7. Re-fetches the user to load relationships.
-        8. This function performs database read and write operations.
+        2. Creates a placeholder email address.
+        3. Creates a new User instance.
+        4. Queries for the 'admin' role. Raises RuntimeError if not found.
+        5. Appends the 'admin' role to the new user's roles.
+        6. Adds the user to the database session.
+        7. Commits the transaction.
+        8. Re-fetches the user to load relationships.
+        9. This function performs database read and write operations.
     """
     _msg = "create_initial_admin starting"
     log.debug(_msg)
 
-    _msg = f"Hashing password for initial admin: {user_data.username}"
+    _msg = f"Hashing password for initial admin: {username}"
     log.debug(_msg)
-    hashed_password = get_password_hash(user_data.password)
+    hashed_password = get_password_hash(password)
 
-    _msg = f"Creating new user object for initial admin: {user_data.username}"
+    # Create a dummy email address; the user can change this later.
+    email = f"{username}@placeholder.email"
+    _msg = f"Creating new user object for initial admin: {username} with email {email}"
     log.debug(_msg)
     db_user = User(
-        username=user_data.username,
-        email=user_data.email,
+        username=username,
+        email=email,
         hashed_password=hashed_password,
         is_active=True,  # Initial admin is always active
-        attributes=user_data.attributes,
+        attributes={},  # Start with empty attributes
     )
 
     _msg = "Fetching 'admin' role"
@@ -130,7 +134,7 @@ def create_initial_admin(db: Session, user_data: AdminUserCreate) -> User:
     db.commit()
 
     _msg = (
-        f"Initial admin {user_data.username} committed, "
+        f"Initial admin {username} committed, "
         f"re-fetching with loaded relationships."
     )
     log.debug(_msg)

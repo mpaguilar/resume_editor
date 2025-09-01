@@ -342,14 +342,13 @@ def test_create_initial_admin_success(
     """
     mock_db = MagicMock(spec=Session)
     mock_role = Role(name="admin", id=1)
-    mock_user_data = AdminUserCreate(
-        username="admin", email="admin@example.com", password="password"
-    )
+    username = "admin"
+    password = "password"
 
     # User object that's "created" and passed to add()
     created_db_user = User(
-        username="admin",
-        email="admin@example.com",
+        username=username,
+        email=f"{username}@placeholder.email",
         hashed_password="hashed_password",
         id=1,
     )
@@ -357,36 +356,34 @@ def test_create_initial_admin_success(
     # Fully formed user object that is returned by get_user_by_id_admin
     mock_returned_user = User(
         id=1,
-        username="admin",
-        email="admin@example.com",
+        username=username,
+        email=f"{username}@placeholder.email",
         hashed_password="hashed_password",
     )
     mock_returned_user.roles.append(mock_role)
 
     mock_get_password_hash.return_value = "hashed_password"
     mock_get_role_by_name_admin.return_value = mock_role
-
-    # This mocks the user that is re-fetched
     mock_get_user_by_id_admin.return_value = mock_returned_user
 
     with patch(
         "resume_editor.app.api.routes.route_logic.admin_crud.User",
         return_value=created_db_user,
     ) as mock_user_class:
-        result = create_initial_admin(db=mock_db, user_data=mock_user_data)
+        result = create_initial_admin(
+            db=mock_db, username=username, password=password
+        )
 
-        mock_get_password_hash.assert_called_once_with("password")
+        mock_get_password_hash.assert_called_once_with(password)
         mock_get_role_by_name_admin.assert_called_once_with(db=mock_db, name="admin")
         mock_db.add.assert_called_once_with(created_db_user)
         mock_db.commit.assert_called_once()
-
-        added_user = mock_db.add.call_args.args[0]
-
         mock_get_user_by_id_admin.assert_called_once_with(
-            db=mock_db, user_id=added_user.id
+            db=mock_db, user_id=created_db_user.id
         )
+
         assert result is mock_returned_user
-        assert result.username == "admin"
+        assert result.username == username
         assert "admin" in [role.name for role in result.roles]
 
 
@@ -399,9 +396,8 @@ def test_create_initial_admin_role_not_found(
     Test create_initial_admin when the 'admin' role is not found.
     """
     mock_db = MagicMock(spec=Session)
-    mock_user_data = AdminUserCreate(
-        username="admin", email="admin@example.com", password="password"
-    )
+    username = "admin"
+    password = "password"
 
     mock_get_password_hash.return_value = "hashed_password"
     mock_get_role_by_name_admin.return_value = None
@@ -409,9 +405,9 @@ def test_create_initial_admin_role_not_found(
     with pytest.raises(
         RuntimeError, match="Admin role not found. Database may not be seeded correctly."
     ):
-        create_initial_admin(db=mock_db, user_data=mock_user_data)
+        create_initial_admin(db=mock_db, username=username, password=password)
 
-    mock_get_password_hash.assert_called_once_with("password")
+    mock_get_password_hash.assert_called_once_with(password)
     mock_get_role_by_name_admin.assert_called_once_with(db=mock_db, name="admin")
     mock_db.add.assert_not_called()
     mock_db.commit.assert_not_called()
