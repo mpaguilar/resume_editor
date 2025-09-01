@@ -64,6 +64,84 @@ def create_user_admin(db: Session, user_data: AdminUserCreate) -> User:
     return created_user
 
 
+def create_initial_admin(db: Session, user_data: AdminUserCreate) -> User:
+    """
+    Create the initial administrator account.
+
+    This function creates the first user and assigns them the 'admin' role. It
+    is intended to be used only during initial application setup when no users
+    exist in the database.
+
+    Args:
+        db (Session): The database session.
+        user_data (AdminUserCreate): The data for the new admin user.
+
+    Returns:
+        User: The created admin user object.
+
+    Raises:
+        RuntimeError: If the 'admin' role is not found in the database.
+
+    Notes:
+        1. Hashes the provided password.
+        2. Creates a new User instance.
+        3. Queries for the 'admin' role. Raises RuntimeError if not found.
+        4. Appends the 'admin' role to the new user's roles.
+        5. Adds the user to the database session.
+        6. Commits the transaction.
+        7. Re-fetches the user to load relationships.
+        8. This function performs database read and write operations.
+    """
+    _msg = "create_initial_admin starting"
+    log.debug(_msg)
+
+    _msg = f"Hashing password for initial admin: {user_data.username}"
+    log.debug(_msg)
+    hashed_password = get_password_hash(user_data.password)
+
+    _msg = f"Creating new user object for initial admin: {user_data.username}"
+    log.debug(_msg)
+    db_user = User(
+        username=user_data.username,
+        email=user_data.email,
+        hashed_password=hashed_password,
+        is_active=True,  # Initial admin is always active
+        attributes=user_data.attributes,
+    )
+
+    _msg = "Fetching 'admin' role"
+    log.debug(_msg)
+    admin_role = get_role_by_name_admin(db=db, name="admin")
+    if not admin_role:
+        _err_msg = "Admin role not found. Database may not be seeded correctly."
+        log.error(_err_msg)
+        raise RuntimeError(_err_msg)
+
+    _msg = "Assigning 'admin' role to the new user"
+    log.debug(_msg)
+    db_user.roles.append(admin_role)
+
+    _msg = "Adding initial admin to the database session"
+    log.debug(_msg)
+    db.add(db_user)
+
+    _msg = "Committing initial admin to the database"
+    log.debug(_msg)
+    db.commit()
+
+    _msg = (
+        f"Initial admin {user_data.username} committed, "
+        f"re-fetching with loaded relationships."
+    )
+    log.debug(_msg)
+    created_user = get_user_by_id_admin(db=db, user_id=db_user.id)
+    assert created_user is not None, "Failed to re-fetch created initial admin user"
+
+    _msg = "create_initial_admin returning"
+    log.debug(_msg)
+    return created_user
+
+
 def get_user_by_id_admin(db: Session, user_id: int) -> User | None:
     """
     Retrieve a single user by their unique ID as an administrator.
