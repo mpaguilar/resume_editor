@@ -1,8 +1,9 @@
+import html
 import logging
 from pathlib import Path
 from typing import Annotated
 
-from fastapi import Depends, FastAPI, Form, Request, status
+from fastapi import Depends, FastAPI, Form, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
@@ -10,6 +11,9 @@ from sqlalchemy.orm import Session
 
 from resume_editor.app.api.routes.admin import router as admin_router
 from resume_editor.app.api.routes.resume import router as resume_router
+from resume_editor.app.api.routes.route_logic.resume_crud import (
+    get_resume_by_id_and_user,
+)
 from resume_editor.app.api.routes.route_logic.settings_crud import (
     get_user_settings,
     update_user_settings,
@@ -442,7 +446,7 @@ def create_app() -> FastAPI:
         html_content = """
         <div class="h-full flex flex-col">
             <h2 class="text-xl font-semibold mb-4">Create New Resume</h2>
-            <form hx-post="/api/resumes" hx-target="#resume-list" hx-swap="innerHTML" hx-trigger="submit">
+            <form hx-post="/api/resumes" hx-target="#resume-content" hx-swap="innerHTML" hx-ext="json-enc">
                 <div class="mb-4">
                     <label for="name" class="block text-sm font-medium text-gray-700 mb-1">Resume Name</label>
                     <input 
@@ -461,7 +465,7 @@ def create_app() -> FastAPI:
                         rows="20"
                         required
                         class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm"
-                        placeholder="# Personal&#10;## Contact Information&#10;&#10;Name: Jane Doe&#10;# Education&#10;## Degrees&#10;### Degree&#10;&#10;School: State University&#10;# Certifications&#10;## Certification&#10;&#10;Name: Certified Professional&#10;# Experience&#10;## Roles&#10;### Role&#10;#### Basics&#10;&#10;Company: A Company, LLC&#10;&#10;Title: Engineer&#10;&#10;Start date: 01/2020&#10;## Projects&#10;### Project&#10;#### Overview&#10;&#10;Title: A Project&#10;#### Description&#10;&#10;A description of the project."></textarea>
+                        placeholder="# Personal&#10;## Contact Information&#10;&#10;Name: Jane Doe&#10;&#10;# Education&#10;## Degrees&#10;### Degree&#10;&#10;School: State University&#10;&#10;# Certifications&#10;## Certification&#10;&#10;Name: Certified Professional&#10;&#10;# Experience&#10;## Roles&#10;### Role&#10;#### Basics&#10;&#10;Company: A Company, LLC&#10;&#10;Title: Engineer&#10;&#10;Start date: 01/2020&#10;## Projects&#10;### Project&#10;#### Overview&#10;&#10;Title: A Project&#10;#### Description&#10;&#10;A description of the project."></textarea>
                 </div>
                 <div class="flex space-x-3">
                     <button 
@@ -472,6 +476,66 @@ def create_app() -> FastAPI:
                     <button 
                         type="button"
                         hx-get="/dashboard"
+                        hx-target="#resume-content"
+                        hx-swap="innerHTML"
+                        class="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded-md text-sm font-medium">
+                        Cancel
+                    </button>
+                </div>
+            </form>
+        </div>
+        """
+        return HTMLResponse(content=html_content)
+
+    @app.get("/dashboard/edit-resume-form/{resume_id}", response_class=HTMLResponse)
+    async def edit_resume_form(
+        request: Request,
+        resume_id: int,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_user_from_cookie),
+    ):
+        """
+        Serve the form for editing an existing resume.
+        """
+        _msg = f"Edit resume form requested for resume {resume_id}"
+        log.debug(_msg)
+        resume = get_resume_by_id_and_user(
+            db, resume_id=resume_id, user_id=current_user.id
+        )
+
+        html_content = f"""
+        <div class="h-full flex flex-col">
+            <h2 class="text-xl font-semibold mb-4">Edit Resume</h2>
+            <form hx-put="/api/resumes/{resume.id}" hx-target="#resume-content" hx-swap="innerHTML" hx-ext="json-enc">
+                <div class="mb-4">
+                    <label for="name" class="block text-sm font-medium text-gray-700 mb-1">Resume Name</label>
+                    <input 
+                        type="text" 
+                        id="name" 
+                        name="name" 
+                        required
+                        value="{html.escape(resume.name)}"
+                        class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+                <div class="mb-4">
+                    <label for="content" class="block text-sm font-medium text-gray-700 mb-1">Resume Content (Markdown)</label>
+                    <textarea 
+                        id="content" 
+                        name="content" 
+                        rows="20"
+                        required
+                        class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm"
+                        >{html.escape(resume.content)}</textarea>
+                </div>
+                <div class="flex space-x-3">
+                    <button 
+                        type="submit"
+                        class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-md text-sm font-medium">
+                        Save Resume
+                    </button>
+                    <button 
+                        type="button"
+                        hx-get="/api/resumes/{resume_id}"
                         hx-target="#resume-content"
                         hx-swap="innerHTML"
                         class="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded-md text-sm font-medium">

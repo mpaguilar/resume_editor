@@ -2,246 +2,130 @@ from unittest.mock import Mock, patch
 
 import pytest
 from fastapi import HTTPException
+from fastapi.testclient import TestClient
 
-from resume_editor.app.api.routes.resume import (
-    ResumeCreateRequest,
-    ResumeUpdateRequest,
-    create_resume,
-    update_resume,
-)
+from resume_editor.app.api.routes.resume import get_resume_for_user
 from resume_editor.app.api.routes.route_logic.resume_validation import (
     perform_pre_save_validation,
 )
+from resume_editor.app.core.auth import get_current_user
+from resume_editor.app.main import create_app
+from resume_editor.app.models.resume_model import Resume as DatabaseResume
+from resume_editor.app.models.user import User
 
 
-class TestResumeValidation:
-    """Test cases for Markdown validation in resume creation and update."""
+@pytest.fixture
+def app():
+    """Fixture to create a new app for each test."""
+    _app = create_app()
+    yield _app
+    _app.dependency_overrides.clear()
 
-    def test_perform_pre_save_validation_success(self):
-        """Test that pre-save validation passes with valid content."""
-        # Arrange
-        content = """# Personal
 
+@pytest.fixture
+def client(app):
+    """Fixture to create a test client for each test."""
+    with TestClient(app) as client:
+        yield client
+
+
+def test_perform_pre_save_validation_success():
+    """Test that pre-save validation passes with valid content."""
+    content = """# Personal
 ## Contact Information
-
-Name: John Doe
-
-# Education
-
-## Degrees
-
-### Degree
-
-School: University of Example
-
-# Experience
-
-## Roles
-
-### Role
-
-#### Basics
-Company: Tech Corp
-Title: Software Engineer"""
-
-        # Act & Assert
-        with patch(
-            "resume_editor.app.api.routes.route_logic.resume_validation.validate_resume_content",
-        ) as mock_validate:
-            mock_validate.return_value = None  # Success
-            # Should not raise an exception
-            perform_pre_save_validation(content)
-            mock_validate.assert_called_once_with(content)
-
-    def test_perform_pre_save_validation_failure(self):
-        """Test that pre-save validation raises HTTPException with invalid content."""
-        # Arrange
-        content = "Invalid content without proper sections"
-
-        # Act & Assert
-        with patch(
-            "resume_editor.app.api.routes.route_logic.resume_validation.validate_resume_content",
-        ) as mock_validate:
-            mock_validate.side_effect = HTTPException(
-                status_code=422,
-                detail="Invalid Markdown format",
-            )
-            with pytest.raises(HTTPException) as exc_info:
-                perform_pre_save_validation(content)
-
-        assert exc_info.value.status_code == 422
-        assert "Invalid Markdown format" in exc_info.value.detail
+Name: John Doe"""
+    with patch(
+        "resume_editor.app.api.routes.route_logic.resume_validation.validate_resume_content"
+    ) as mock_validate:
+        mock_validate.return_value = None
+        perform_pre_save_validation(content)
         mock_validate.assert_called_once_with(content)
 
-    @patch("resume_editor.app.api.routes.route_logic.resume_parsing.parse_resume")
-    @pytest.mark.asyncio
-    async def test_create_resume_with_invalid_markdown_raises_422(
-        self,
-        mock_parse_resume,
-    ):
-        """Test that creating a resume with invalid Markdown raises a 422 error."""
-        # Arrange
-        request = ResumeCreateRequest(
-            name="Test Resume",
-            content="Invalid markdown content",
-        )
-        mock_parse_resume.side_effect = Exception("Parsing failed")
 
-        mock_db = Mock()
-        mock_request = Mock()
-        mock_request.headers = {}
-        mock_current_user = Mock()
-        mock_current_user.id = 1
-
-        # Act & Assert
+def test_perform_pre_save_validation_failure():
+    """Test that pre-save validation raises HTTPException with invalid content."""
+    content = "Invalid content"
+    with patch(
+        "resume_editor.app.api.routes.route_logic.resume_validation.validate_resume_content"
+    ) as mock_validate:
+        mock_validate.side_effect = HTTPException(status_code=422, detail="Invalid")
         with pytest.raises(HTTPException) as exc_info:
-            await create_resume(request, mock_request, mock_db, mock_current_user)
-
+            perform_pre_save_validation(content)
         assert exc_info.value.status_code == 422
-        assert "Invalid Markdown format" in exc_info.value.detail
+        assert "Invalid" in exc_info.value.detail
 
-    @patch("resume_editor.app.api.routes.route_logic.resume_parsing.parse_resume")
-    @patch("resume_editor.app.api.routes.resume.DatabaseResume")
-    @pytest.mark.asyncio
-    async def test_create_resume_with_valid_markdown_succeeds(
-        self,
-        mock_db_resume,
-        mock_parse_resume,
-    ):
-        """Test that creating a resume with valid Markdown succeeds."""
-        # Arrange
-        request = ResumeCreateRequest(
-            name="Test Resume",
-            content="# Valid Markdown\n\nContent here",
-        )
-        mock_parse_resume.return_value = Mock()  # Successful parsing
 
-        mock_db = Mock()
-        mock_request = Mock()
-        mock_request.headers = {}
-        mock_current_user = Mock()
-        mock_current_user.id = 1
+@patch("resume_editor.app.api.routes.resume.validate_resume_content")
+def test_create_resume_with_invalid_markdown_raises_422(mock_validate, app, client):
+    """Test creating a resume with invalid Markdown raises a 422 error."""
+    mock_validate.side_effect = HTTPException(
+        status_code=422, detail="Invalid Markdown format"
+    )
+    mock_user = User(id=1, username="test", email="email@email.com", hashed_password="hp")
+    app.dependency_overrides[get_current_user] = lambda: mock_user
 
-        mock_resume = Mock()
-        mock_resume.id = 1
-        mock_resume.name = "Test Resume"
-        mock_db_resume.return_value = mock_resume
-        mock_db.add.return_value = None
-        mock_db.commit.return_value = None
-        mock_db.refresh.side_effect = lambda x: setattr(x, "id", 1) or setattr(
-            x,
-            "name",
-            "Test Resume",
-        )
-        mock_db.query.return_value.filter.return_value.all.return_value = [mock_resume]
+    response = client.post("/api/resumes", json={"name": "test", "content": "invalid"})
+    assert response.status_code == 422
+    assert "Invalid Markdown format" in response.json()["detail"]
 
-        # Act
-        response = await create_resume(
-            request,
-            mock_request,
-            mock_db,
-            mock_current_user,
-        )
 
-        # Assert
-        assert response.id == 1
-        assert response.name == "Test Resume"
-        mock_parse_resume.assert_called_once_with("# Valid Markdown\n\nContent here")
+@patch("resume_editor.app.api.routes.resume.create_resume_db")
+@patch("resume_editor.app.api.routes.resume.validate_resume_content")
+def test_create_resume_with_valid_markdown_succeeds(
+    mock_validate, mock_create_db, app, client
+):
+    """Test creating a resume with valid Markdown succeeds."""
+    mock_user = User(id=1, username="test", email="email@email.com", hashed_password="hp")
+    app.dependency_overrides[get_current_user] = lambda: mock_user
 
-    @patch("resume_editor.app.api.routes.route_logic.resume_parsing.parse_resume")
-    @pytest.mark.asyncio
-    async def test_update_resume_with_invalid_markdown_raises_422(
-        self,
-        mock_parse_resume,
-    ):
-        """Test that updating a resume with invalid Markdown raises a 422 error."""
-        # Arrange
-        resume_id = 1
-        request = ResumeUpdateRequest(content="Invalid markdown content")
-        mock_parse_resume.side_effect = Exception("Parsing failed")
+    mock_resume = DatabaseResume(
+        user_id=1, name="Test Resume", content="# Valid Markdown"
+    )
+    mock_resume.id = 1
+    mock_create_db.return_value = mock_resume
 
-        mock_db = Mock()
-        mock_request = Mock()
-        mock_request.headers = {}
-        mock_current_user = Mock()
-        mock_current_user.id = 1
+    response = client.post(
+        "/api/resumes", json={"name": "Test Resume", "content": "# Valid Markdown"}
+    )
 
-        mock_resume = Mock()
-        mock_db.query.return_value.filter.return_value.first.return_value = mock_resume
+    assert response.status_code == 200
+    assert response.json()["name"] == "Test Resume"
+    mock_validate.assert_called_once_with("# Valid Markdown")
 
-        # Act & Assert
-        with pytest.raises(HTTPException) as exc_info:
-            await update_resume(
-                resume_id,
-                request,
-                mock_request,
-                mock_db,
-                mock_current_user,
-                mock_resume,
-            )
 
-        assert exc_info.value.status_code == 422
-        assert "Invalid Markdown format" in exc_info.value.detail
+@patch("resume_editor.app.api.routes.resume.validate_resume_content")
+def test_update_resume_with_invalid_markdown_raises_422(mock_validate, app, client):
+    """Test updating a resume with invalid Markdown raises a 422 error."""
+    mock_validate.side_effect = HTTPException(
+        status_code=422, detail="Invalid Markdown format"
+    )
+    # Mock the dependency that provides the resume to the route
+    app.dependency_overrides[get_resume_for_user] = lambda: Mock()
+    mock_user = User(id=1, username="test", email="email@email.com", hashed_password="hp")
+    app.dependency_overrides[get_current_user] = lambda: mock_user
 
-    @patch("resume_editor.app.api.routes.route_logic.resume_parsing.parse_resume")
-    @pytest.mark.asyncio
-    async def test_update_resume_with_valid_markdown_succeeds(self, mock_parse_resume):
-        """Test that updating a resume with valid Markdown succeeds."""
-        # Arrange
-        content = """# Personal
+    response = client.put(
+        "/api/resumes/1", json={"name": "test", "content": "invalid"}
+    )
+    assert response.status_code == 422
+    assert "Invalid Markdown format" in response.json()["detail"]
 
-## Contact Information
 
-Name: John Doe
-Email: john@example.com
+@patch("resume_editor.app.api.routes.resume.update_resume_db")
+@patch("resume_editor.app.api.routes.resume.validate_resume_content")
+def test_update_resume_with_valid_markdown_succeeds(
+    mock_validate, mock_update_db, app, client
+):
+    """Test updating a resume with valid Markdown succeeds."""
+    mock_resume = DatabaseResume(user_id=1, name="Test", content="Valid")
+    mock_resume.id = 1
 
-# Education
+    app.dependency_overrides[get_resume_for_user] = lambda: mock_resume
+    mock_update_db.return_value = mock_resume
+    mock_user = User(id=1, username="test", email="email@email.com", hashed_password="hp")
+    app.dependency_overrides[get_current_user] = lambda: mock_user
 
-## Degrees
+    response = client.put("/api/resumes/1", json={"content": "Valid"})
 
-### Degree
-
-School: University of Example
-
-# Experience
-
-## Roles
-
-### Role
-
-#### Basics
-Company: Tech Corp
-Title: Software Engineer"""
-
-        resume_id = 1
-        request = ResumeUpdateRequest(content=content)
-        mock_parse_resume.return_value = Mock()  # Successful parsing
-
-        mock_db = Mock()
-        mock_request = Mock()
-        mock_request.headers = {}
-        mock_current_user = Mock()
-        mock_current_user.id = 1
-
-        mock_resume = Mock()
-        mock_resume.id = 1
-        mock_resume.name = "Test Resume"
-        mock_db.query.return_value.filter.return_value.first.return_value = mock_resume
-        mock_db.commit.return_value = None
-        mock_db.refresh.return_value = None
-        mock_db.query.return_value.filter.return_value.all.return_value = [mock_resume]
-
-        # Act
-        response = await update_resume(
-            resume_id,
-            request,
-            mock_request,
-            mock_db,
-            mock_current_user,
-            mock_resume,
-        )
-
-        # Assert
-        assert response.id == 1
-        assert response.name == "Test Resume"
-        mock_parse_resume.assert_called_once_with(content)
+    assert response.status_code == 200
+    mock_validate.assert_called_once_with("Valid")

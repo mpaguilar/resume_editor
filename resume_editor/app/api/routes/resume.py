@@ -187,17 +187,20 @@ async def parse_resume_endpoint(request: ParseRequest):
 
 @router.post("", response_model=ResumeResponse)
 async def create_resume(
-    request: ResumeCreateRequest,
     http_request: Request,
+    create_request: ResumeCreateRequest,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     """
     Save a new resume to the database, associating it with the current user.
 
+    This endpoint handles both JSON API calls and HTMX form submissions that
+    send JSON.
+
     Args:
-        request (ResumeCreateRequest): The request containing the resume name and Markdown content.
         http_request (Request): The HTTP request object.
+        create_request (ResumeCreateRequest): The data for the new resume, from JSON body.
         db (Session): The database session dependency.
         current_user (User): The current authenticated user.
 
@@ -215,85 +218,78 @@ async def create_resume(
         5. Adds the new resume to the database session.
         6. Commits the transaction to save the data.
         7. Refreshes the resume object to ensure it has the latest state, including the ID.
-        8. If the request is from HTMX, returns HTML to update the resume list.
+        8. If the request is from HTMX, returns an HTML partial of the new resume detail view.
         9. Otherwise, returns a ResumeResponse with the resume ID and name.
         10. Performs database access: Writes to the database via db.add and db.commit.
-        11. Performs network access: None.
 
     """
     # Validate Markdown content before saving
-    validate_resume_content(request.content)
+    validate_resume_content(create_request.content)
 
     resume = create_resume_db(
-        db,
+        db=db,
         user_id=current_user.id,
-        name=request.name,
-        content=request.content,
+        name=create_request.name,
+        content=create_request.content,
     )
 
     # Check if this is an HTMX request
     if "HX-Request" in http_request.headers:
-        # Return updated resume list
-        resumes = get_user_resumes(db, current_user.id)
-        html_content = _generate_resume_list_html(resumes, resume.id)
-        return HTMLResponse(content=html_content)
+        # For HTMX, return the detail view for the main content area
+        detail_html = _generate_resume_detail_html(resume)
+        return HTMLResponse(content=detail_html)
 
     return ResumeResponse(id=resume.id, name=resume.name)
 
 
 @router.put("/{resume_id}", response_model=ResumeResponse)
 async def update_resume(
-    resume_id: int,
-    request: ResumeUpdateRequest,
     http_request: Request,
+    update_data: ResumeUpdateRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
     resume: DatabaseResume = Depends(get_resume_for_user),
 ):
     """
     Update an existing resume's name and/or content for the current user.
 
+    This endpoint handles both JSON API calls and HTMX form submissions that
+    send JSON.
+
     Args:
-        resume_id (int): The unique identifier of the resume to update.
-        request (ResumeUpdateRequest): The request containing the updated resume name and/or content.
         http_request (Request): The HTTP request object.
+        update_data (ResumeUpdateRequest): The data for the update, from JSON body.
         db (Session): The database session dependency.
-        current_user (User): The current authenticated user.
+        resume (DatabaseResume): The resume object to update, from dependency.
 
     Returns:
-        ResumeResponse | HTMLResponse: The updated resume's ID and name, or HTML for HTMX.
+        ResumeResponse | HTMLResponse: JSON response for API call, or HTML for HTMX.
 
     Raises:
-        HTTPException: If the resume is not found, doesn't belong to the user, there's an error updating, or Markdown validation fails.
+        HTTPException: If validation fails or an error occurs during the update.
 
     Notes:
-        1. Queries the database for a resume with the given ID and user_id.
-        2. If no resume is found, raises a 404 error.
-        3. Validates the Markdown content using the resume parser if content is being updated.
-        4. If validation fails, raises a 422 error with parsing details.
-        5. Updates the resume's name and/or content if provided in the request.
-        6. Commits the transaction to save the changes.
-        7. Refreshes the resume object to ensure it has the latest state.
-        8. If the request is from HTMX, returns HTML to update the resume list.
-        9. Otherwise, returns a ResumeResponse with the resume ID and name.
-        10. Performs database access: Reads from and writes to the database via db.query, db.commit.
-        11. Performs network access: None.
+        1. Validates resume content if it is being updated.
+        2. Updates the resume's name and/or content.
+        3. For HTMX requests, returns an HTML partial of the updated resume detail view.
+        4. For regular API calls, returns a JSON response with the updated resume's ID and name.
+        5. Performs database reads and writes.
 
     """
-    # Validate Markdown content before updating if content is being changed
-    if request.content is not None:
-        validate_resume_content(request.content)
+    # Validate Markdown content only if it's being updated
+    if update_data.content is not None:
+        validate_resume_content(update_data.content)
 
-    resume = update_resume_db(db, resume, name=request.name, content=request.content)
+    updated_resume = update_resume_db(
+        db=db, resume=resume, name=update_data.name, content=update_data.content
+    )
 
     # Check if this is an HTMX request
     if "HX-Request" in http_request.headers:
-        # Return updated resume list
-        resumes = get_user_resumes(db, current_user.id)
-        html_content = _generate_resume_list_html(resumes, resume.id)
-        return HTMLResponse(content=html_content)
+        # For HTMX, return the detail view for the main content area
+        detail_html = _generate_resume_detail_html(updated_resume)
+        return HTMLResponse(content=detail_html)
 
-    return ResumeResponse(id=resume.id, name=resume.name)
+    return ResumeResponse(id=updated_resume.id, name=updated_resume.name)
 
 
 @router.delete("/{resume_id}")
@@ -417,7 +413,7 @@ def _generate_resume_detail_html(resume: DatabaseResume) -> str:
                     Export
                 </button>
                 <button 
-                    hx-get="/dashboard/create-resume-form" 
+                    hx-get="/dashboard/edit-resume-form/{resume.id}"
                     hx-target="#resume-content" 
                     hx-swap="innerHTML"
                     class="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-sm">

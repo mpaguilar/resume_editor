@@ -219,47 +219,26 @@ def test_update_resume_no_htmx(client_with_auth_and_resume, test_resume):
     assert response.json()["name"] == "Updated Name"
 
 
-@patch("resume_editor.app.api.routes.resume.get_user_resumes")
-def test_update_resume_htmx_with_remaining_resumes(
-    mock_get_user_resumes,
-    client_with_auth_and_resume,
-    test_user,
-    test_resume,
-):
-    """Test updating a resume with HTMX when other resumes remain."""
-    updated_resume = DatabaseResume(
-        user_id=test_user.id,
-        name="Updated Resume",
-        content=test_resume.content,
-    )
-    updated_resume.id = test_resume.id
-    other_resume = DatabaseResume(
-        user_id=test_user.id,
-        name="Another Resume",
-        content="...",
-    )
-    other_resume.id = 2
-    mock_get_user_resumes.return_value = [updated_resume, other_resume]
-
+def test_update_resume_htmx(client_with_auth_and_resume, test_resume):
+    """Test updating a resume with HTMX returns just the detail view."""
     response = client_with_auth_and_resume.put(
         f"/api/resumes/{test_resume.id}",
-        json={"name": "Updated Resume"},
+        json={"name": "Updated Resume Name"},
         headers={"HX-Request": "true"},
     )
     assert response.status_code == 200
-    assert "Updated Resume" in response.text
-    assert "Another Resume" in response.text
+    assert "Updated Resume Name" in response.text
 
-    import re
+    # Check for original name
+    assert "Test Resume" not in response.text
 
-    divs = re.findall(r'(<div class="resume-item.*?</div>)', response.text, re.DOTALL)
-    assert len(divs) == 2
-    selected_divs = [d for d in divs if "selected" in d]
-    unselected_divs = [d for d in divs if "selected" not in d]
-    assert len(selected_divs) == 1
-    assert len(unselected_divs) == 1
-    assert "Updated Resume" in selected_divs[0]
-    assert "Another Resume" in unselected_divs[0]
+    # Check that we only have the detail view, and not the resume list
+    # by looking for the list item class.
+    from bs4 import BeautifulSoup
+
+    soup = BeautifulSoup(response.text, "html.parser")
+    resume_list_item = soup.find("div", class_="resume-item")
+    assert resume_list_item is None
 
 
 def test_list_resumes_no_htmx(client_with_auth_and_resume, test_resume):
@@ -736,59 +715,61 @@ def test_get_resume(client_with_auth_and_resume, test_resume):
     assert test_resume.content in response.text
 
 
-@patch("resume_editor.app.api.routes.resume.get_user_resumes")
-def test_create_resume(
-    mock_get_user_resumes,
-    client_with_auth_no_resume,
-    test_user,
-    test_resume,
+@patch("resume_editor.app.api.routes.resume.create_resume_db")
+def test_create_resume_json(
+    mock_create_resume_db, client_with_auth_no_resume, test_user
 ):
-    """Test creating a resume with and without HTMX."""
-    app = client_with_auth_no_resume.app
-    db_mock = next(app.dependency_overrides[get_db]())
-
+    """Test creating a resume via JSON API returns a JSON response."""
     created_resume = DatabaseResume(
         user_id=test_user.id,
         name="New Resume",
         content=VALID_MINIMAL_RESUME_CONTENT,
     )
     created_resume.id = 2
+    mock_create_resume_db.return_value = created_resume
 
-    def mock_add(obj):
-        obj.id = created_resume.id
-
-    db_mock.add.side_effect = mock_add
-    db_mock.commit.return_value = None
-
-    def do_refresh(obj):
-        obj.id = created_resume.id
-        obj.name = created_resume.name
-        obj.content = created_resume.content
-        return None
-
-    db_mock.refresh.side_effect = do_refresh
-
-    # Test JSON response
     response = client_with_auth_no_resume.post(
-        "/api/resumes/",
+        "/api/resumes",
         json={"name": "New Resume", "content": VALID_MINIMAL_RESUME_CONTENT},
     )
+
     assert response.status_code == 200
     json_response = response.json()
     assert json_response["name"] == "New Resume"
     assert json_response["id"] == 2
+    mock_create_resume_db.assert_called_once()
+    call_args = mock_create_resume_db.call_args[1]
+    assert call_args["name"] == "New Resume"
+    assert call_args["content"] == VALID_MINIMAL_RESUME_CONTENT
 
-    # Test HTMX response
-    mock_get_user_resumes.return_value = [test_resume, created_resume]
+
+@patch("resume_editor.app.api.routes.resume.create_resume_db")
+def test_create_resume_htmx_response(
+    mock_create_resume_db, client_with_auth_no_resume, test_user
+):
+    """Test creating a resume via HTMX returns an HTML response."""
+    created_resume = DatabaseResume(
+        user_id=test_user.id,
+        name="New Resume",
+        content=VALID_MINIMAL_RESUME_CONTENT,
+    )
+    created_resume.id = 2
+    mock_create_resume_db.return_value = created_resume
+
     response = client_with_auth_no_resume.post(
-        "/api/resumes/",
+        "/api/resumes",
         json={"name": "New Resume", "content": VALID_MINIMAL_RESUME_CONTENT},
         headers={"HX-Request": "true"},
     )
     assert response.status_code == 200
+    assert "text/html" in response.headers["content-type"]
     assert "New Resume" in response.text
-    assert test_resume.name in response.text
-    mock_get_user_resumes.assert_called_once()
+    assert "Refine with AI" in response.text
+    from bs4 import BeautifulSoup
+
+    soup = BeautifulSoup(response.text, "html.parser")
+    resume_list_item = soup.find("div", class_="resume-item")
+    assert resume_list_item is None
 
 
 @patch("resume_editor.app.api.routes.resume.update_resume_db")
