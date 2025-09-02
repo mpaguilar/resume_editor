@@ -178,7 +178,7 @@ def create_app() -> FastAPI:
         """
         _msg = "Login page requested"
         log.debug(_msg)
-        return templates.TemplateResponse(request, name="login.html")
+        return templates.TemplateResponse(request, "login.html")
 
     @app.post("/login")
     async def login_for_access_token(
@@ -289,7 +289,7 @@ def create_app() -> FastAPI:
         return templates.TemplateResponse(
             request,
             "dashboard.html",
-            {"request": request, "current_user": current_user},
+            {"current_user": current_user},
         )
 
     @app.get("/settings", response_class=HTMLResponse)
@@ -320,12 +320,11 @@ def create_app() -> FastAPI:
         log.debug(_msg)
         user_settings = get_user_settings(db=db, user_id=current_user.id)
         context = {
-            "request": request,
             "current_user": current_user,
             "llm_endpoint": user_settings.llm_endpoint if user_settings else None,
             "api_key_is_set": bool(user_settings and user_settings.encrypted_api_key),
         }
-        return templates.TemplateResponse(request, "settings.html", context)
+        return templates.TemplateResponse(request, "settings.html", context=context)
 
     @app.post("/settings", response_class=HTMLResponse)
     async def update_settings(

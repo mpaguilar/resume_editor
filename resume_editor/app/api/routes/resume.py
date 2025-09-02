@@ -67,12 +67,10 @@ from resume_editor.app.api.routes.route_models import (
     RefineAction,
     RefineResponse,
     RefineTargetSection,
-    ResumeCreateRequest,
     ResumeDetailResponse,
     ResumeResponse,
-    ResumeUpdateRequest,
 )
-from resume_editor.app.core.auth import get_current_user
+from resume_editor.app.core.auth import get_current_user_from_cookie
 from resume_editor.app.core.security import decrypt_data
 from resume_editor.app.database.database import get_db
 from resume_editor.app.models.resume.certifications import Certification
@@ -89,7 +87,7 @@ router = APIRouter(prefix="/api/resumes", tags=["resumes"])
 async def get_resume_for_user(
     resume_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_from_cookie),
 ) -> DatabaseResume:
     """
     Dependency to get a specific resume for the current user.
@@ -188,21 +186,23 @@ async def parse_resume_endpoint(request: ParseRequest):
 @router.post("", response_model=ResumeResponse)
 async def create_resume(
     http_request: Request,
-    create_request: ResumeCreateRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_from_cookie),
+    name: str = Form(...),
+    content: str = Form(...),
 ):
     """
     Save a new resume to the database, associating it with the current user.
 
-    This endpoint handles both JSON API calls and HTMX form submissions that
-    send JSON.
+    This endpoint handles both JSON API calls and HTMX form submissions.
 
     Args:
         http_request (Request): The HTTP request object.
-        create_request (ResumeCreateRequest): The data for the new resume, from JSON body.
         db (Session): The database session dependency.
         current_user (User): The current authenticated user.
+        name (str): The resume name from form data.
+        content (str): The resume content from form data.
+
 
     Returns:
         ResumeResponse | HTMLResponse: The created resume's ID and name, or HTML for HTMX.
@@ -224,13 +224,13 @@ async def create_resume(
 
     """
     # Validate Markdown content before saving
-    validate_resume_content(create_request.content)
+    validate_resume_content(content)
 
     resume = create_resume_db(
         db=db,
         user_id=current_user.id,
-        name=create_request.name,
-        content=create_request.content,
+        name=name,
+        content=content,
     )
 
     # Check if this is an HTMX request
@@ -245,21 +245,23 @@ async def create_resume(
 @router.put("/{resume_id}", response_model=ResumeResponse)
 async def update_resume(
     http_request: Request,
-    update_data: ResumeUpdateRequest,
     db: Session = Depends(get_db),
     resume: DatabaseResume = Depends(get_resume_for_user),
+    name: str = Form(...),
+    content: str | None = Form(None),
 ):
     """
     Update an existing resume's name and/or content for the current user.
 
-    This endpoint handles both JSON API calls and HTMX form submissions that
-    send JSON.
+    This endpoint handles both JSON API calls and HTMX form submissions.
 
     Args:
         http_request (Request): The HTTP request object.
-        update_data (ResumeUpdateRequest): The data for the update, from JSON body.
         db (Session): The database session dependency.
         resume (DatabaseResume): The resume object to update, from dependency.
+        name (str): The resume name from form data.
+        content (str): The resume content from form data.
+
 
     Returns:
         ResumeResponse | HTMLResponse: JSON response for API call, or HTML for HTMX.
@@ -275,12 +277,14 @@ async def update_resume(
         5. Performs database reads and writes.
 
     """
-    # Validate Markdown content only if it's being updated
-    if update_data.content is not None:
-        validate_resume_content(update_data.content)
+    # Validate Markdown content only if it's a non-empty string
+    if content:
+        validate_resume_content(content)
 
+    # If content is an empty string, treat it as None to prevent wiping content.
+    content_to_update = content if content else None
     updated_resume = update_resume_db(
-        db=db, resume=resume, name=update_data.name, content=update_data.content
+        db=db, resume=resume, name=name, content=content_to_update
     )
 
     # Check if this is an HTMX request
@@ -296,7 +300,7 @@ async def update_resume(
 async def delete_resume(
     http_request: Request,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_from_cookie),
     resume: DatabaseResume = Depends(get_resume_for_user),
 ):
     """
@@ -342,7 +346,7 @@ async def delete_resume(
 async def list_resumes(
     request: Request,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_from_cookie),
 ):
     """
     List all resumes for the current user.
@@ -1551,7 +1555,7 @@ async def update_certifications_info_structured(
 async def refine_resume(
     http_request: Request,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_from_cookie),
     resume: DatabaseResume = Depends(get_resume_for_user),
     job_description: str = Form(...),
     target_section: RefineTargetSection = Form(...),
@@ -1650,7 +1654,7 @@ async def refine_resume(
 async def accept_refined_resume(
     resume: DatabaseResume = Depends(get_resume_for_user),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_from_cookie),
     refined_content: str = Form(...),
     target_section: RefineTargetSection = Form(...),
     action: RefineAction = Form(...),

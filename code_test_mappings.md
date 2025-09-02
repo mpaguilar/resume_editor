@@ -12,3 +12,4 @@ These are known mappings:
 
 - `resume_editor/app/api/routes/user.py` -> `resume_editor/tests/app/api/routes/test_user_route.py`
 - `resume_editor/app/main.py` -> `resume_editor/tests/app/web/test_main_web.py`
+- `resume_editor/app/api/routes/resume.py` -> `resume_editor/tests/app/api/routes/test_resume.py`

@@ -46,14 +46,15 @@ Pay attention to the `BasicBlockParse` class. It is a base class for many parsin
 
 ## Resume Management
 
-* Create new resumes via a web form.
+* Create new resumes via a web form; new resumes are pre-filled with valid placeholder content.
 * Save resumes to a PostgreSQL database with user-assigned names.
 * List, update, and delete resumes.
 * Download resumes in Markdown or DOCX formats.
 
 ## Editing Features
 
-* Edit all candidate information (contact details, education, experience, etc.)
+* Edit a resume's name and raw Markdown content
+* Edit structured candidate information (contact details, education, experience, etc.) through dedicated forms
 * Dedicated interfaces for editing individual jobs and projects
 * Per-item inclusion controls: Include, Not Relevant (summary only), Omit
 * Filter jobs for export using customizable date ranges

@@ -1,11 +1,12 @@
 import datetime
 from enum import Enum
-from unittest.mock import ANY, Mock, patch
+from unittest.mock import ANY, MagicMock, Mock, patch
 
 import pytest
 from cryptography.fernet import InvalidToken
-from fastapi import HTTPException
+from fastapi import FastAPI, HTTPException
 from fastapi.testclient import TestClient
+from sqlalchemy.orm import Session
 
 from resume_editor.app.api.routes.route_models import (
     CertificationsResponse,
@@ -15,7 +16,7 @@ from resume_editor.app.api.routes.route_models import (
     RefineAction,
     RefineTargetSection,
 )
-from resume_editor.app.core.auth import get_current_user
+from resume_editor.app.core.auth import get_current_user_from_cookie
 from resume_editor.app.core.config import get_settings
 from resume_editor.app.database.database import get_db
 from resume_editor.app.main import create_app
@@ -121,7 +122,7 @@ def client_with_auth_and_resume(app, client, test_user, test_resume):
         yield mock_db
 
     app.dependency_overrides[get_db] = get_mock_db_with_resume
-    app.dependency_overrides[get_current_user] = lambda: test_user
+    app.dependency_overrides[get_current_user_from_cookie] = lambda: test_user
     return client
 
 
@@ -140,7 +141,7 @@ def client_with_auth_no_resume(app, client, test_user):
         yield mock_db
 
     app.dependency_overrides[get_db] = get_mock_db_no_resume
-    app.dependency_overrides[get_current_user] = lambda: test_user
+    app.dependency_overrides[get_current_user_from_cookie] = lambda: test_user
     return client
 
 
@@ -161,7 +162,7 @@ def client_with_last_resume(app, client, test_user, test_resume):
         yield mock_db
 
     app.dependency_overrides[get_db] = get_mock_db_with_last_resume
-    app.dependency_overrides[get_current_user] = lambda: test_user
+    app.dependency_overrides[get_current_user_from_cookie] = lambda: test_user
     return client
 
 
@@ -213,17 +214,27 @@ def test_update_resume_no_htmx(client_with_auth_and_resume, test_resume):
     """Test updating a resume without HTMX returns JSON success message."""
     response = client_with_auth_and_resume.put(
         "/api/resumes/1",
-        json={"name": "Updated Name"},
+        data={"name": "Updated Name", "content": test_resume.content},
     )
     assert response.status_code == 200
     assert response.json()["name"] == "Updated Name"
+
+
+def test_update_resume_name_only_no_htmx(client_with_auth_and_resume, test_resume):
+    """Test updating only a resume's name without HTMX returns JSON."""
+    response = client_with_auth_and_resume.put(
+        "/api/resumes/1",
+        data={"name": "Updated Name Only", "content": None},
+    )
+    assert response.status_code == 200
+    assert response.json()["name"] == "Updated Name Only"
 
 
 def test_update_resume_htmx(client_with_auth_and_resume, test_resume):
     """Test updating a resume with HTMX returns just the detail view."""
     response = client_with_auth_and_resume.put(
         f"/api/resumes/{test_resume.id}",
-        json={"name": "Updated Resume Name"},
+        data={"name": "Updated Resume Name", "content": test_resume.content},
         headers={"HX-Request": "true"},
     )
     assert response.status_code == 200
@@ -730,7 +741,7 @@ def test_create_resume_json(
 
     response = client_with_auth_no_resume.post(
         "/api/resumes",
-        json={"name": "New Resume", "content": VALID_MINIMAL_RESUME_CONTENT},
+        data={"name": "New Resume", "content": VALID_MINIMAL_RESUME_CONTENT},
     )
 
     assert response.status_code == 200
@@ -758,7 +769,7 @@ def test_create_resume_htmx_response(
 
     response = client_with_auth_no_resume.post(
         "/api/resumes",
-        json={"name": "New Resume", "content": VALID_MINIMAL_RESUME_CONTENT},
+        data={"name": "New Resume", "content": VALID_MINIMAL_RESUME_CONTENT},
         headers={"HX-Request": "true"},
     )
     assert response.status_code == 200
@@ -2324,3 +2335,142 @@ def test_update_certifications_extraction_fails(
         "Failed to update certifications info: Bad certifications section"
         in response.json()["detail"]
     )
+
+
+# --- Tests for form-based submissions from test_resume_route ---
+
+
+def setup_dependency_overrides(
+    app: FastAPI, mock_db: MagicMock, mock_user: DBUser | None
+):
+    """Setup dependency overrides for the FastAPI app."""
+
+    def get_mock_db():
+        yield mock_db
+
+    app.dependency_overrides[get_db] = get_mock_db
+
+    if mock_user:
+
+        def get_mock_current_user():
+            return mock_user
+
+        app.dependency_overrides[get_current_user_from_cookie] = get_mock_current_user
+    else:
+
+        def raise_unauthorized():
+            from fastapi import HTTPException
+
+            raise HTTPException(status_code=401, detail="Not authenticated")
+
+        app.dependency_overrides[get_current_user_from_cookie] = raise_unauthorized
+
+
+def test_create_resume_from_form_submission(app, test_user):
+    """
+    Test creating a resume successfully from a form submission.
+    This simulates an HTMX request from the web dashboard.
+    """
+    # Arrange
+    mock_db = MagicMock(spec=Session)
+
+    setup_dependency_overrides(app, mock_db, test_user)
+
+    client = TestClient(app)
+
+    # Mock return value for create_resume_db
+    created_resume = DatabaseResume(
+        user_id=test_user.id,
+        name="Test Resume",
+        content=VALID_MINIMAL_RESUME_CONTENT,
+    )
+    created_resume.id = 1
+
+    with patch(
+        "resume_editor.app.api.routes.resume.create_resume_db",
+        return_value=created_resume,
+    ) as mock_create_resume_db:
+        # Act
+        response = client.post(
+            "/api/resumes",
+            data={
+                "name": "Test Resume",
+                "content": VALID_MINIMAL_RESUME_CONTENT,
+            },
+            headers={"HX-Request": "true"},
+        )
+
+        # Assert
+        assert response.status_code == 200, response.text
+        assert "Test Resume" in response.text
+
+        # Test that create_resume_db was called correctly
+        mock_create_resume_db.assert_called_once_with(
+            db=mock_db,
+            user_id=test_user.id,
+            name="Test Resume",
+            content=VALID_MINIMAL_RESUME_CONTENT,
+        )
+
+    # Clean up
+    app.dependency_overrides.clear()
+
+
+def test_update_resume_from_form_submission(app, test_user):
+    """
+    Test updating a resume successfully from a form submission.
+    This simulates an HTMX request from the web dashboard.
+    """
+    # Arrange
+    mock_db = MagicMock(spec=Session)
+
+    existing_resume = DatabaseResume(
+        user_id=test_user.id,
+        name="Old Name",
+        content=VALID_MINIMAL_RESUME_CONTENT,
+    )
+    existing_resume.id = 1
+
+    setup_dependency_overrides(app, mock_db, test_user)
+
+    # The get_resume_for_user dependency will be called, so we mock its result
+    # by patching the function it calls.
+    with patch(
+        "resume_editor.app.api.routes.resume.get_resume_by_id_and_user",
+        return_value=existing_resume,
+    ):
+        client = TestClient(app)
+
+        # Mock return value for update_resume_db
+        updated_resume = DatabaseResume(
+            user_id=test_user.id,
+            name="New Name",
+            content=VALID_MINIMAL_RESUME_CONTENT,
+        )
+        updated_resume.id = 1
+        with patch(
+            "resume_editor.app.api.routes.resume.update_resume_db",
+            return_value=updated_resume,
+        ) as mock_update_resume_db:
+            # Act
+            response = client.put(
+                "/api/resumes/1",
+                data={
+                    "name": "New Name",
+                    "content": VALID_MINIMAL_RESUME_CONTENT,
+                },
+                headers={"HX-Request": "true"},
+            )
+
+            # Assert
+            assert response.status_code == 200, response.text
+            assert "New Name" in response.text
+            mock_update_resume_db.assert_called_once_with(
+                db=mock_db,
+                resume=existing_resume,
+                name="New Name",
+                content=VALID_MINIMAL_RESUME_CONTENT,
+            )
+
+    # Clean up
+    app.dependency_overrides.clear()

@@ -40,7 +40,7 @@ async def get_setup_page(request: Request, db: Session = Depends(get_db)):
 
     _msg = "get_setup_page returning"
     log.debug(_msg)
-    return templates.TemplateResponse("pages/setup.html", {"request": request})
+    return templates.TemplateResponse(request, "pages/setup.html", {})
 
 
 @router.post("/setup")
@@ -80,8 +80,9 @@ async def handle_setup_form(
         _msg = "Passwords do not match."
         log.warning(_msg)
         return templates.TemplateResponse(
+            request,
             "pages/setup.html",
-            {"request": request, "error_message": "Passwords do not match."},
+            {"error_message": "Passwords do not match."},
             status_code=400,
         )
 

@@ -28,7 +28,7 @@ def api_authenticated_client():
         yield mock_db
 
     app.dependency_overrides[get_db] = get_mock_db
-    app.dependency_overrides[get_current_user] = get_mock_current_user
+    app.dependency_overrides[get_current_user_from_cookie] = get_mock_current_user
 
     with TestClient(app) as c:
         yield c, mock_db

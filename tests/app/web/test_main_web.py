@@ -265,7 +265,7 @@ def test_update_resume_htmx(mock_update_resume_db, mock_validate_content):
     def get_mock_db():
         yield mock_db
 
-    app.dependency_overrides[get_current_user] = get_mock_user
+    app.dependency_overrides[get_current_user_from_cookie] = get_mock_user
     app.dependency_overrides[get_db] = get_mock_db
 
     with patch(
@@ -274,7 +274,7 @@ def test_update_resume_htmx(mock_update_resume_db, mock_validate_content):
         mock_get_resume_by_id.return_value = original_resume
         response = client.put(
             "/api/resumes/1",
-            json={"name": "Updated Name", "content": "Updated Content"},
+            data={"name": "Updated Name", "content": "Updated Content"},
             headers={"HX-Request": "true"},
         )
 
@@ -336,12 +336,12 @@ def test_create_resume_htmx(mock_create_resume_db, mock_validate_content):
     def get_mock_db():
         yield mock_db
 
-    app.dependency_overrides[get_current_user] = get_mock_user
+    app.dependency_overrides[get_current_user_from_cookie] = get_mock_user
     app.dependency_overrides[get_db] = get_mock_db
 
     response = client.post(
         "/api/resumes",
-        json={"name": "New Resume", "content": "# Personal\n\nName: New Name"},
+        data={"name": "New Resume", "content": "# Personal\n\nName: New Name"},
         headers={"HX-Request": "true"},
     )
 

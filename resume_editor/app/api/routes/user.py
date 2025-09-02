@@ -350,13 +350,12 @@ def change_password(
         else:
             is_forced_change = current_user.attributes is not None and current_user.attributes.get("force_password_change", False)
             context = {
-                "request": request,
                 "user": current_user,
                 "error": error_detail,
                 "is_forced_change": is_forced_change,
             }
             return templates.TemplateResponse(
-                "pages/change_password.html", context, status_code=status_code
+                request, "pages/change_password.html", context, status_code=status_code
             )
 
     # Success

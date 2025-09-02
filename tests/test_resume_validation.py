@@ -8,7 +8,7 @@ from resume_editor.app.api.routes.resume import get_resume_for_user
 from resume_editor.app.api.routes.route_logic.resume_validation import (
     perform_pre_save_validation,
 )
-from resume_editor.app.core.auth import get_current_user
+from resume_editor.app.core.auth import get_current_user_from_cookie
 from resume_editor.app.main import create_app
 from resume_editor.app.models.resume_model import Resume as DatabaseResume
 from resume_editor.app.models.user import User
@@ -62,9 +62,13 @@ def test_create_resume_with_invalid_markdown_raises_422(mock_validate, app, clie
         status_code=422, detail="Invalid Markdown format"
     )
     mock_user = User(id=1, username="test", email="email@email.com", hashed_password="hp")
-    app.dependency_overrides[get_current_user] = lambda: mock_user
+    app.dependency_overrides[
+        get_current_user_from_cookie
+    ] = lambda: mock_user
 
-    response = client.post("/api/resumes", json={"name": "test", "content": "invalid"})
+    response = client.post(
+        "/api/resumes", data={"name": "test", "content": "invalid"}
+    )
     assert response.status_code == 422
     assert "Invalid Markdown format" in response.json()["detail"]
 
@@ -76,7 +80,9 @@ def test_create_resume_with_valid_markdown_succeeds(
 ):
     """Test creating a resume with valid Markdown succeeds."""
     mock_user = User(id=1, username="test", email="email@email.com", hashed_password="hp")
-    app.dependency_overrides[get_current_user] = lambda: mock_user
+    app.dependency_overrides[
+        get_current_user_from_cookie
+    ] = lambda: mock_user
 
     mock_resume = DatabaseResume(
         user_id=1, name="Test Resume", content="# Valid Markdown"
@@ -85,7 +91,8 @@ def test_create_resume_with_valid_markdown_succeeds(
     mock_create_db.return_value = mock_resume
 
     response = client.post(
-        "/api/resumes", json={"name": "Test Resume", "content": "# Valid Markdown"}
+        "/api/resumes",
+        data={"name": "Test Resume", "content": "# Valid Markdown"},
     )
 
     assert response.status_code == 200
@@ -102,10 +109,12 @@ def test_update_resume_with_invalid_markdown_raises_422(mock_validate, app, clie
     # Mock the dependency that provides the resume to the route
     app.dependency_overrides[get_resume_for_user] = lambda: Mock()
     mock_user = User(id=1, username="test", email="email@email.com", hashed_password="hp")
-    app.dependency_overrides[get_current_user] = lambda: mock_user
+    app.dependency_overrides[
+        get_current_user_from_cookie
+    ] = lambda: mock_user
 
     response = client.put(
-        "/api/resumes/1", json={"name": "test", "content": "invalid"}
+        "/api/resumes/1", data={"name": "test", "content": "invalid"}
     )
     assert response.status_code == 422
     assert "Invalid Markdown format" in response.json()["detail"]
@@ -123,9 +132,11 @@ def test_update_resume_with_valid_markdown_succeeds(
     app.dependency_overrides[get_resume_for_user] = lambda: mock_resume
     mock_update_db.return_value = mock_resume
     mock_user = User(id=1, username="test", email="email@email.com", hashed_password="hp")
-    app.dependency_overrides[get_current_user] = lambda: mock_user
+    app.dependency_overrides[
+        get_current_user_from_cookie
+    ] = lambda: mock_user
 
-    response = client.put("/api/resumes/1", json={"content": "Valid"})
+    response = client.put("/api/resumes/1", data={"name": "Test", "content": "Valid"})
 
     assert response.status_code == 200
     mock_validate.assert_called_once_with("Valid")

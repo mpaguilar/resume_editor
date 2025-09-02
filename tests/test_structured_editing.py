@@ -3,7 +3,7 @@ from unittest.mock import Mock
 import pytest
 from fastapi.testclient import TestClient
 
-from resume_editor.app.core.auth import get_current_user
+from resume_editor.app.core.auth import get_current_user_from_cookie
 from resume_editor.app.database.database import get_db
 from resume_editor.app.main import create_app
 from resume_editor.app.models.resume_model import Resume
@@ -111,7 +111,7 @@ def authenticated_client(mock_user, mock_resume):
         return mock_user
 
     app.dependency_overrides[get_db] = get_mock_db
-    app.dependency_overrides[get_current_user] = get_mock_current_user
+    app.dependency_overrides[get_current_user_from_cookie] = get_mock_current_user
 
     with TestClient(app) as c:
         yield c
