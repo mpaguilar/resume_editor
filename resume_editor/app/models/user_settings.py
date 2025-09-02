@@ -16,6 +16,7 @@ class UserSettings(Base):
         id (int): Primary key.
         user_id (int): Foreign key to the user.
         llm_endpoint (str | None): Custom LLM API endpoint URL.
+        llm_model_name (str | None): The user-specified LLM model name.
         encrypted_api_key (str | None): Encrypted API key for the LLM service.
         user (User): Relationship to the User model.
 
@@ -26,6 +27,7 @@ class UserSettings(Base):
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False, unique=True)
     llm_endpoint = Column(String, nullable=True)
+    llm_model_name = Column(String, nullable=True)
     encrypted_api_key = Column(String, nullable=True)
 
     user = relationship("User", back_populates="settings")
@@ -34,6 +36,7 @@ class UserSettings(Base):
         self,
         user_id: int,
         llm_endpoint: str | None = None,
+        llm_model_name: str | None = None,
         encrypted_api_key: str | None = None,
     ):
         """
@@ -42,6 +45,7 @@ class UserSettings(Base):
         Args:
             user_id (int): The ID of the user these settings belong to.
             llm_endpoint (str | None): Custom LLM API endpoint URL.
+            llm_model_name (str | None): The user-specified LLM model name.
             encrypted_api_key (str | None): Encrypted API key for the LLM service.
 
         Returns:
@@ -58,4 +62,5 @@ class UserSettings(Base):
 
         self.user_id = user_id
         self.llm_endpoint = llm_endpoint
+        self.llm_model_name = llm_model_name
         self.encrypted_api_key = encrypted_api_key
