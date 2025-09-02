@@ -17,6 +17,7 @@ Pay attention to the `BasicBlockParse` class. It is a base class for many parsin
 ## User Management
 
 * User registration, login (username/password), and logout.
+* User-friendly authentication flow that redirects unauthenticated users to the login page when accessing web pages.
 * An initial setup page for creating the first administrator account, enforced by middleware if no users exist.
 * Secure user password change functionality, including a mandatory password change workflow.
 * Secure storage of user settings, including encrypted API keys and LLM endpoints.

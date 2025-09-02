@@ -8,10 +8,29 @@
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-gray-100">
-    <div class="container mx-auto p-8 max-w-2xl">
-        <h1 class="text-3xl font-bold mb-6 text-gray-800">User Settings</h1>
+    <div class="container mx-auto p-8 max-w-4xl">
+        <header class="mb-8 flex justify-between items-center">
+            <div>
+                <h1 class="text-3xl font-bold text-gray-800">User Settings</h1>
+                <p class="text-gray-600">Manage your LLM configuration and password</p>
+            </div>
+            <div class="flex items-center space-x-4">
+                {% if current_user and current_user.roles|selectattr('name', 'equalto', 'admin')|list|length > 0 %}
+                <a href="/admin/users" class="text-sm font-medium text-gray-600 hover:text-blue-600">
+                    Admin
+                </a>
+                {% endif %}
+                <a href="/dashboard" class="text-sm font-medium text-gray-600 hover:text-blue-600">
+                    Dashboard
+                </a>
+                <a href="/logout" class="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-md text-sm font-medium">
+                    Logout
+                </a>
+            </div>
+        </header>
 
-        <div class="bg-white p-6 rounded-lg shadow-md">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div class="bg-white p-6 rounded-lg shadow-md">
             <h2 class="text-xl font-semibold mb-4 text-gray-700">LLM Configuration</h2>
 
             <div id="settings-notification" class="mb-4"></div>
@@ -54,7 +73,7 @@
             </form>
         </div>
 
-        <div class="bg-white p-6 rounded-lg shadow-md mt-8">
+        <div class="bg-white p-6 rounded-lg shadow-md">
             <h2 class="text-xl font-semibold mb-4 text-gray-700">Change Password</h2>
 
             <div id="password-notification" class="mb-4"></div>
@@ -98,6 +117,8 @@
                     </button>
                 </div>
             </form>
+        </div>
+        </div>
         </div>
     </div>
 </body>

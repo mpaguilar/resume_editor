@@ -299,13 +299,11 @@ def change_password(
 ):
     """Change the current user's password.
 
-    This endpoint handles both standard and forced password changes. For forced
-    changes, the current password is not required. It validates that the
-    new and confirmed passwords match.
+    This endpoint handles both standard and forced password changes. It also handles
+    requests from two different forms: the full-page form and the partial form
+    on the settings page.
 
-    It performs content negotiation based on the 'Accept' header.
-    - 'application/json': Returns JSON responses (for API clients).
-    - Other (e.g., 'text/html'): Returns HTML responses (for web UI).
+    It performs content negotiation based on the 'Accept' and 'HX-Target' headers.
 
     Args:
         request (Request): The request object.
@@ -316,73 +314,59 @@ def change_password(
         current_user (User): The authenticated user.
 
     Returns:
-        Response: Redirects to the dashboard on success, otherwise renders the
-                  change password page with an error message or returns a JSON error.
-
-    Notes:
-        1. Checks if new password and confirmation match.
-        2. Calls the business logic to change the password.
-        3. On success, redirects to the dashboard (handling HTMX requests).
-        4. On failure (e.g., password mismatch or incorrect current password),
-           it re-renders the change password page with an error message or returns JSON.
-
+        Response: A response appropriate for a request type (JSON, HTML snippet,
+                  full page render, or redirect).
     """
     _msg = "Changing password for current user"
     log.debug(_msg)
 
     is_json_request = "application/json" in request.headers.get("accept", "")
+    is_partial_htmx = request.headers.get("hx-target") == "password-notification"
 
+    error_detail = None
+    status_code = status.HTTP_400_BAD_REQUEST
     if new_password != confirm_new_password:
         error_detail = "New passwords do not match."
+    else:
+        try:
+            user_logic.change_password(
+                db=db,
+                user=current_user,
+                new_password=new_password,
+                current_password=current_password,
+            )
+        except HTTPException as e:
+            error_detail = e.detail
+            status_code = e.status_code
+
+    if error_detail:
         log.warning(error_detail)
         if is_json_request:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST, detail=error_detail,
+            raise HTTPException(status_code=status_code, detail=error_detail)
+
+        error_snippet = f'<div class="p-4 mb-4 text-sm text-red-800 rounded-lg bg-red-50" role="alert"><span class="font-medium">Error!</span> {error_detail}</div>'
+        if is_partial_htmx:
+            return HTMLResponse(content=error_snippet, status_code=status_code)
+        else:
+            is_forced_change = current_user.attributes is not None and current_user.attributes.get("force_password_change", False)
+            context = {
+                "request": request,
+                "user": current_user,
+                "error": error_detail,
+                "is_forced_change": is_forced_change,
+            }
+            return templates.TemplateResponse(
+                "pages/change_password.html", context, status_code=status_code
             )
-        is_forced_change = (
-            current_user.attributes is not None
-            and current_user.attributes.get("force_password_change", False)
-        )
-        context = {
-            "user": current_user,
-            "error": error_detail,
-            "is_forced_change": is_forced_change,
-        }
-        return templates.TemplateResponse(
-            request,
-            "pages/change_password.html",
-            context,
-            status_code=status.HTTP_400_BAD_REQUEST,
-        )
 
-    try:
-        user_logic.change_password(
-            db=db,
-            user=current_user,
-            new_password=new_password,
-            current_password=current_password,
-        )
-    except HTTPException as e:
-        if is_json_request:
-            raise e
-        is_forced_change = (
-            current_user.attributes is not None
-            and current_user.attributes.get("force_password_change", False)
-        )
-        context = {
-            "user": current_user,
-            "error": e.detail,
-            "is_forced_change": is_forced_change,
-        }
-        return templates.TemplateResponse(
-            request,
-            "pages/change_password.html",
-            context,
-            status_code=e.status_code,
-        )
-
+    # Success
     _msg = "Password updated successfully"
     log.debug(_msg)
+
+    if is_partial_htmx:
+        return HTMLResponse(
+            '<div class="p-4 mb-4 text-sm text-green-800 rounded-lg bg-green-50" role="alert"><span class="font-medium">Success!</span> Your password has been changed.</div>'
+        )
 
     redirect_url = "/dashboard"
     if "hx-request" in request.headers:
@@ -390,7 +374,9 @@ def change_password(
         response.headers["HX-Redirect"] = redirect_url
         return response
     else:
-        return RedirectResponse(url=redirect_url, status_code=status.HTTP_303_SEE_OTHER)
+        return RedirectResponse(
+            url=redirect_url, status_code=status.HTTP_303_SEE_OTHER
+        )
 
 
 @router.get(

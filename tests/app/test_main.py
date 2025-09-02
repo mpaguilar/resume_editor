@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 
 from resume_editor.app.core.auth import (
     get_current_user,
-    get_optional_current_user_from_cookie,
+    get_current_user_from_cookie,
 )
 from resume_editor.app.core.config import get_settings
 from resume_editor.app.database.database import get_db
@@ -58,7 +58,7 @@ def web_auth_client_and_db():
         yield mock_db
 
     app.dependency_overrides[get_db] = get_mock_db
-    app.dependency_overrides[get_optional_current_user_from_cookie] = get_mock_user
+    app.dependency_overrides[get_current_user_from_cookie] = get_mock_user
 
     with TestClient(app) as c:
         yield c, mock_db
@@ -136,7 +136,7 @@ def test_unauthenticated_dashboard_redirects(mock_get_session_local, mock_user_c
     response = client.get("/dashboard")
 
     assert response.status_code == 307
-    assert response.headers["location"] == "/login"
+    assert response.headers["location"] == "http://testserver/login"
     mock_user_count.assert_called_once()
     app.dependency_overrides.clear()
 
@@ -164,7 +164,7 @@ def test_post_settings_unauthenticated(mock_get_session_local, mock_user_count):
         data={"llm_endpoint": "some_endpoint", "api_key": "some_key"},
     )
     assert response.status_code == status.HTTP_307_TEMPORARY_REDIRECT
-    assert response.headers["location"] == "/login"
+    assert response.headers["location"] == "http://testserver/login"
     mock_user_count.assert_called_once()
     app.dependency_overrides.clear()
 
@@ -190,7 +190,7 @@ def test_settings_page_access_unauthenticated(mock_get_session_local, mock_user_
     response = client.get("/settings")
 
     assert response.status_code == 307
-    assert response.headers["location"] == "/login"
+    assert response.headers["location"] == "http://testserver/login"
     mock_user_count.assert_called_once()
     app.dependency_overrides.clear()
 
@@ -219,7 +219,7 @@ def test_dashboard_with_invalid_cookie_redirects(
     response = client.get("/dashboard")
 
     assert response.status_code == 307
-    assert response.headers["location"] == "/login"
+    assert response.headers["location"] == "http://testserver/login"
     mock_user_count.assert_called_once()
     app.dependency_overrides.clear()
 
@@ -643,7 +643,7 @@ def test_logout():
     response = client.get("/logout", follow_redirects=False)
 
     assert response.status_code == status.HTTP_307_TEMPORARY_REDIRECT
-    assert response.headers["location"] == "/login"
+    assert response.headers["location"] == "http://testserver/login"
     # When a cookie is deleted, its value is empty and Max-Age is 0.
     assert 'access_token="";' in response.headers["set-cookie"].replace(" ", "")
     assert "Max-Age=0" in response.headers["set-cookie"]
@@ -730,7 +730,7 @@ def test_change_password_form_success():
     )
     mock_user.id = 1
 
-    from resume_editor.app.main import get_db, get_optional_current_user_from_cookie
+    from resume_editor.app.main import get_db, get_current_user_from_cookie
 
     def get_mock_db():
         yield mock_db
@@ -739,7 +739,7 @@ def test_change_password_form_success():
         return mock_user
 
     app.dependency_overrides[get_db] = get_mock_db
-    app.dependency_overrides[get_optional_current_user_from_cookie] = get_mock_user
+    app.dependency_overrides[get_current_user_from_cookie] = get_mock_user
 
     with (
         patch(
@@ -776,13 +776,7 @@ def test_change_password_form_unauthenticated():
     app = create_app()
     client = TestClient(app, follow_redirects=False)
 
-    from resume_editor.app.main import get_optional_current_user_from_cookie
-
-    def get_mock_user_none():
-        return None
-
-    app.dependency_overrides[get_optional_current_user_from_cookie] = get_mock_user_none
-
+    # Do not mock auth dependency; let it handle the redirect
     response = client.post(
         "/change-password",
         data={
@@ -793,7 +787,7 @@ def test_change_password_form_unauthenticated():
     )
 
     assert response.status_code == 307
-    assert response.headers["location"] == "/login"
+    assert response.headers["location"] == "http://testserver/login"
     app.dependency_overrides.clear()
 
 
@@ -809,12 +803,12 @@ def test_change_password_form_passwords_do_not_match():
     )
     mock_user.id = 1
 
-    from resume_editor.app.main import get_optional_current_user_from_cookie
+    from resume_editor.app.main import get_current_user_from_cookie
 
     def get_mock_user():
         return mock_user
 
-    app.dependency_overrides[get_optional_current_user_from_cookie] = get_mock_user
+    app.dependency_overrides[get_current_user_from_cookie] = get_mock_user
 
     response = client.post(
         "/change-password",
@@ -844,7 +838,7 @@ def test_change_password_form_incorrect_current_password():
     )
     mock_user.id = 1
 
-    from resume_editor.app.main import get_db, get_optional_current_user_from_cookie
+    from resume_editor.app.main import get_db, get_current_user_from_cookie
 
     def get_mock_db():
         yield mock_db
@@ -853,7 +847,7 @@ def test_change_password_form_incorrect_current_password():
         return mock_user
 
     app.dependency_overrides[get_db] = get_mock_db
-    app.dependency_overrides[get_optional_current_user_from_cookie] = get_mock_user
+    app.dependency_overrides[get_current_user_from_cookie] = get_mock_user
 
     with patch(
         "resume_editor.app.main.verify_password",
@@ -912,22 +906,18 @@ def test_middleware_proceeds_when_users_exist():
         with patch(
             "resume_editor.app.main.user_crud.user_count", return_value=1
         ) as mock_user_count:
-            with patch(
-                "resume_editor.app.main.get_optional_current_user_from_cookie"
-            ) as mock_get_user:
-                mock_get_user.return_value = None  # Act as if not logged in
-                client = TestClient(app, raise_server_exceptions=False)
-                response = client.get(
-                    "/dashboard", follow_redirects=False
-                )  # /dashboard is not excluded
+            client = TestClient(app, raise_server_exceptions=False)
+            response = client.get(
+                "/dashboard", follow_redirects=False
+            )  # /dashboard is not excluded
 
-                # It should pass middleware, then dashboard logic will hit.
-                # dashboard redirects to /login if user is not authenticated.
-                assert response.status_code == 307
-                assert response.headers["location"] == "/login"
+            # It should pass middleware, then dashboard logic will hit.
+            # dashboard redirects to /login if user is not authenticated.
+            assert response.status_code == 307
+            assert response.headers["location"] == "http://testserver/login"
 
-                mock_user_count.assert_called_once_with(db=mock_session)
-                mock_session.close.assert_called_once()
+            mock_user_count.assert_called_once_with(db=mock_session)
+            mock_session.close.assert_called_once()
 
 
 @pytest.mark.parametrize(

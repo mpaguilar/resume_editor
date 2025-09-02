@@ -8,7 +8,7 @@ from fastapi.testclient import TestClient
 
 from resume_editor.app.core.auth import (
     get_db,
-    get_optional_current_user_from_cookie,
+    get_current_user_from_cookie,
 )
 from resume_editor.app.main import create_app
 from resume_editor.app.models.role import Role
@@ -34,7 +34,7 @@ def client(app):
 def setup_dependency_overrides(app, mock_db: MagicMock, mock_user: User | None):
     """Helper to set up dependency overrides for tests."""
     app.dependency_overrides[get_db] = lambda: mock_db
-    app.dependency_overrides[get_optional_current_user_from_cookie] = lambda: mock_user
+    app.dependency_overrides[get_current_user_from_cookie] = lambda: mock_user
 
 
 @patch("resume_editor.app.main.user_crud.user_count", return_value=1)
@@ -46,12 +46,38 @@ def test_admin_users_page_not_authenticated(
     mock_session = MagicMock()
     mock_get_session_local.return_value = lambda: mock_session
     mock_db_session = MagicMock()
-    setup_dependency_overrides(app, mock_db_session, None)
+    # We do not want to override the auth dependency, we want to test its failure.
+    # Just override the db dependency that it needs.
+    app.dependency_overrides[get_db] = lambda: mock_db_session
 
-    response = client.get("/admin/users", follow_redirects=False)
+    response = client.get("/admin/users/", follow_redirects=False)
 
     assert response.status_code == 307
-    assert response.headers["location"] == "/login"
+    assert response.headers["location"] == "http://testserver/login"
+    mock_user_count.assert_called_once()
+
+
+@patch("resume_editor.app.main.user_crud.user_count", return_value=1)
+@patch("resume_editor.app.main.get_session_local")
+def test_admin_users_page_not_authenticated_api(
+    mock_get_session_local, mock_user_count, client, app
+):
+    """Test that unauthenticated API access to /admin/users returns a 401 error."""
+    mock_session = MagicMock()
+    mock_get_session_local.return_value = lambda: mock_session
+    mock_db_session = MagicMock()
+    # We do not want to override the auth dependency, we want to test its failure.
+    # Just override the db dependency that it needs.
+    app.dependency_overrides[get_db] = lambda: mock_db_session
+
+    response = client.get(
+        "/admin/users/",
+        follow_redirects=False,
+        headers={"Accept": "application/json"},
+    )
+
+    assert response.status_code == status.HTTP_401_UNAUTHORIZED
+    assert response.json() == {"detail": "Could not validate credentials"}
     mock_user_count.assert_called_once()
 
 
@@ -73,7 +99,7 @@ def test_admin_users_page_as_non_admin(
 
     setup_dependency_overrides(app, mock_db_session, mock_user)
 
-    response = client.get("/admin/users", follow_redirects=False)
+    response = client.get("/admin/users/", follow_redirects=False)
     assert response.status_code == 403
     assert "The user does not have admin privileges" in response.text
     mock_user_count.assert_called_once()
@@ -130,7 +156,7 @@ def test_admin_users_page_as_admin(
 
     mock_get_users_admin.return_value = [mock_user_1, mock_user_2, mock_user_3]
 
-    response = client.get("/admin/users")
+    response = client.get("/admin/users/")
 
     assert response.status_code == 200
     mock_get_users_admin.assert_called_once_with(db=mock_db_session)
@@ -217,12 +243,14 @@ def test_admin_delete_user_web_redirects_if_not_logged_in(
     mock_session = MagicMock()
     mock_get_session_local.return_value = lambda: mock_session
     mock_db_session = MagicMock()
-    setup_dependency_overrides(app, mock_db_session, None)
+    # We do not want to override the auth dependency, we want to test its failure.
+    # Just override the db dependency that it needs.
+    app.dependency_overrides[get_db] = lambda: mock_db_session
 
     response = client.delete("/admin/users/1", follow_redirects=False)
 
     assert response.status_code == status.HTTP_307_TEMPORARY_REDIRECT
-    assert response.headers["location"] == "/login"
+    assert response.headers["location"] == "http://testserver/login"
     mock_user_count.assert_called_once()
 
 

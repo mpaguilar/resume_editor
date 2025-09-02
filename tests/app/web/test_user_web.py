@@ -47,7 +47,9 @@ def test_force_password_change_redirect(mock_decode, mock_settings, client, app)
     response = client.get("/dashboard", follow_redirects=False)
 
     assert response.status_code == 307
-    assert response.headers["Location"] == "/api/users/change-password"
+    assert (
+        response.headers["Location"] == "http://testserver/api/users/change-password"
+    )
 
 
 def test_get_change_password_page(client, app):
@@ -174,7 +176,21 @@ def test_force_password_change_redirect_htmx(mock_decode, mock_settings, client,
     response = client.get("/dashboard", headers={"HX-Request": "true"})
 
     assert response.status_code == 401
-    assert response.headers["HX-Redirect"] == "/api/users/change-password"
+    assert (
+        response.headers["HX-Redirect"] == "http://testserver/api/users/change-password"
+    )
+
+
+def test_dashboard_unauthenticated(client, app):
+    """Verify unauthenticated access to the dashboard redirects to the login page."""
+    app.dependency_overrides.clear()
+    mock_db_session = MagicMock()
+    app.dependency_overrides[get_db] = lambda: mock_db_session
+
+    response = client.get("/dashboard", follow_redirects=False)
+
+    assert response.status_code == 307
+    assert response.headers["location"] == "http://testserver/login"
 
 
 def test_post_change_password_failure_incorrect_current_no_mock(client, app):
@@ -409,24 +425,102 @@ def test_post_forced_change_with_incorrect_current_password_succeeds(client, app
 def test_get_change_password_page_unauthenticated(client, app):
     """Verify unauthenticated GET to change password page redirects to login."""
     app.dependency_overrides.clear()
+    mock_db_session = MagicMock()
+    app.dependency_overrides[get_db] = lambda: mock_db_session
 
-    # The dependency get_current_user_from_cookie will raise a 401
-    # when no cookie is present.
-    response = client.get(
+    # Test API request
+    api_response = client.get(
         "/api/users/change-password",
         follow_redirects=False,
+        headers={"Accept": "application/json"},
     )
-    assert response.status_code == 401
-    assert response.json()["detail"] == "Could not validate credentials"
+    assert api_response.status_code == 401
+    assert api_response.json()["detail"] == "Could not validate credentials"
+
+    # Test browser request
+    browser_response = client.get(
+        "/api/users/change-password",
+        follow_redirects=False,
+        headers={"Accept": "text/html"},
+    )
+    assert browser_response.status_code == 307
+    assert browser_response.headers["location"] == "http://testserver/login"
 
 
 def test_post_change_password_unauthenticated(client, app):
     """Verify unauthenticated POST to change password page redirects to login."""
     app.dependency_overrides.clear()
-    response = client.post(
+    mock_db_session = MagicMock()
+    app.dependency_overrides[get_db] = lambda: mock_db_session
+
+    # Test API request
+    api_response = client.post(
         "/api/users/change-password",
         data={"new_password": "new", "confirm_new_password": "new"},
         follow_redirects=False,
+        headers={"Accept": "application/json"},
     )
-    assert response.status_code == 401
-    assert response.json()["detail"] == "Could not validate credentials"
+    assert api_response.status_code == 401
+    assert api_response.json()["detail"] == "Could not validate credentials"
+
+    # Test browser request
+    browser_response = client.post(
+        "/api/users/change-password",
+        data={"new_password": "new", "confirm_new_password": "new"},
+        follow_redirects=False,
+        headers={"Accept": "text/html"},
+    )
+    assert browser_response.status_code == 307
+    assert browser_response.headers["location"] == "http://testserver/login"
+
+
+def test_get_settings_page_unauthenticated(client, app):
+    """Verify unauthenticated GET to settings page redirects to login."""
+    app.dependency_overrides.clear()
+    mock_db_session = MagicMock()
+    app.dependency_overrides[get_db] = lambda: mock_db_session
+
+    # Test browser request
+    browser_response = client.get(
+        "/settings",
+        follow_redirects=False,
+        headers={"Accept": "text/html"},
+    )
+    assert browser_response.status_code == 307
+    assert browser_response.headers["location"] == "http://testserver/login"
+
+    # Test API request
+    api_response = client.get(
+        "/settings",
+        follow_redirects=False,
+        headers={"Accept": "application/json"},
+    )
+    assert api_response.status_code == 401
+    assert api_response.json()["detail"] == "Could not validate credentials"
+
+
+def test_post_settings_unauthenticated(client, app):
+    """Verify unauthenticated POST to settings page redirects to login."""
+    app.dependency_overrides.clear()
+    mock_db_session = MagicMock()
+    app.dependency_overrides[get_db] = lambda: mock_db_session
+
+    # Test browser request
+    browser_response = client.post(
+        "/settings",
+        data={"llm_endpoint": "x", "api_key": "x"},
+        follow_redirects=False,
+        headers={"Accept": "text/html"},
+    )
+    assert browser_response.status_code == 307
+    assert browser_response.headers["location"] == "http://testserver/login"
+
+    # Test API request
+    api_response = client.post(
+        "/settings",
+        data={"llm_endpoint": "x", "api_key": "x"},
+        follow_redirects=False,
+        headers={"Accept": "application/json"},
+    )
+    assert api_response.status_code == 401
+    assert api_response.json()["detail"] == "Could not validate credentials"

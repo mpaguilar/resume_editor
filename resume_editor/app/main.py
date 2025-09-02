@@ -16,9 +16,7 @@ from resume_editor.app.api.routes.route_logic.settings_crud import (
 )
 from resume_editor.app.api.routes.route_logic import user_crud
 from resume_editor.app.api.routes.user import router as user_router
-from resume_editor.app.core.auth import (
-    get_optional_current_user_from_cookie,
-)
+from resume_editor.app.core.auth import get_current_user_from_cookie
 from resume_editor.app.core.config import Settings, get_settings
 from resume_editor.app.core.security import (
     authenticate_user,
@@ -162,7 +160,7 @@ def create_app() -> FastAPI:
         log.debug(_msg)
         return RedirectResponse(url="/dashboard")
 
-    @app.get("/login", response_class=HTMLResponse)
+    @app.get("/login", response_class=HTMLResponse, name="login_page")
     async def login_page(request: Request):
         """
         Serve the login page.
@@ -235,15 +233,18 @@ def create_app() -> FastAPI:
         return response
 
     @app.get("/logout")
-    async def logout():
+    async def logout(request: Request):
         """
         Handle user logout and clear the session cookie.
+
+        Args:
+            request (Request): The incoming HTTP request, used to generate the redirect URL.
 
         Returns:
             RedirectResponse: Redirects to the login page.
 
         Notes:
-            1. Create a redirect response to the login page.
+            1. Create a redirect response to the login page using the request context.
             2. Clear the `access_token` cookie.
             3. Return the response.
 
@@ -251,7 +252,7 @@ def create_app() -> FastAPI:
         _msg = "User logout"
         log.debug(_msg)
         response = RedirectResponse(
-            url="/login",
+            url=str(request.url_for("login_page")),
             status_code=status.HTTP_307_TEMPORARY_REDIRECT,
         )
         response.delete_cookie("access_token")
@@ -260,34 +261,27 @@ def create_app() -> FastAPI:
     @app.get("/dashboard", response_class=HTMLResponse)
     async def dashboard(
         request: Request,
-        current_user: User | None = Depends(get_optional_current_user_from_cookie),
+        current_user: User = Depends(get_current_user_from_cookie),
     ):
         """
         Serve the dashboard page.
 
         Args:
             request: The HTTP request object.
-            current_user: The authenticated user, if one exists.
+            current_user: The authenticated user.
 
         Returns:
-            TemplateResponse: The rendered dashboard template if the user is authenticated.
-            RedirectResponse: A redirect to the login page if the user is not authenticated.
+            TemplateResponse: The rendered dashboard template.
 
         Notes:
-            1. Depend on `get_optional_current_user_from_cookie` to get the current user.
-            2. If no user is returned (i.e., authentication fails), redirect to the `/login` page.
-            3. On success, render the `dashboard.html` template.
+            1. Depends on `get_current_user_from_cookie`. If the user is not
+               authenticated, a redirect to the login page is automatically handled
+               by the dependency.
+            2. On success, render the `dashboard.html` template.
 
         """
         _msg = "Dashboard page requested"
         log.debug(_msg)
-
-        if not current_user:
-            return RedirectResponse(
-                url="/login",
-                status_code=status.HTTP_307_TEMPORARY_REDIRECT,
-            )
-
         return templates.TemplateResponse(
             request,
             "dashboard.html",
@@ -297,7 +291,7 @@ def create_app() -> FastAPI:
     @app.get("/settings", response_class=HTMLResponse)
     async def settings_page(
         request: Request,
-        current_user: User | None = Depends(get_optional_current_user_from_cookie),
+        current_user: User = Depends(get_current_user_from_cookie),
         db: Session = Depends(get_db),
     ):
         """
@@ -305,30 +299,25 @@ def create_app() -> FastAPI:
 
         Args:
             request: The HTTP request object.
-            current_user: The authenticated user, if one exists.
+            current_user: The authenticated user.
             db (Session): The database session.
 
         Returns:
-            TemplateResponse: The rendered settings template if authenticated.
-            RedirectResponse: Redirect to login if not authenticated.
+            TemplateResponse: The rendered settings template.
 
         Notes:
-            1. Depend on `get_optional_current_user_from_cookie` to get the current user.
-            2. If no user is returned, redirect to the `/login` page.
-            3. Fetch user settings from the database.
-            4. On success, render the `settings.html` template with user settings.
+            1. Depends on `get_current_user_from_cookie` for authentication.
+               Unauthenticated users are automatically redirected to the login page.
+            2. Fetch user settings from the database.
+            3. On success, render the `settings.html` template with user settings.
 
         """
         _msg = "Settings page requested"
         log.debug(_msg)
-        if not current_user:
-            return RedirectResponse(
-                url="/login",
-                status_code=status.HTTP_307_TEMPORARY_REDIRECT,
-            )
-
         user_settings = get_user_settings(db=db, user_id=current_user.id)
         context = {
+            "request": request,
+            "current_user": current_user,
             "llm_endpoint": user_settings.llm_endpoint if user_settings else None,
             "api_key_is_set": bool(user_settings and user_settings.encrypted_api_key),
         }
@@ -340,7 +329,7 @@ def create_app() -> FastAPI:
         llm_endpoint: Annotated[str, Form()],
         api_key: Annotated[str, Form()],
         db: Session = Depends(get_db),
-        current_user: User | None = Depends(get_optional_current_user_from_cookie),
+        current_user: User = Depends(get_current_user_from_cookie),
     ):
         """
         Handle user settings update.
@@ -350,14 +339,13 @@ def create_app() -> FastAPI:
             llm_endpoint (str): The LLM endpoint from the form.
             api_key (str): The API key from the form.
             db (Session): The database session.
-            current_user: The authenticated user, if one exists.
+            current_user: The authenticated user.
 
         Returns:
             HTMLResponse: A success message snippet on success.
-            RedirectResponse: Redirects to login if user is not authenticated.
 
         Notes:
-            1. Redirect to login if user is not authenticated.
+            1. Depends on `get_current_user_from_cookie` for authentication.
             2. Construct a UserSettingsUpdateRequest object from form data.
             3. Call update_user_settings to persist changes.
             4. Return an HTML snippet with a success message.
@@ -365,12 +353,6 @@ def create_app() -> FastAPI:
         """
         _msg = "Settings update submitted"
         log.debug(_msg)
-
-        if not current_user:
-            return RedirectResponse(
-                url="/login",
-                status_code=status.HTTP_307_TEMPORARY_REDIRECT,
-            )
 
         settings_data = UserSettingsUpdateRequest(
             llm_endpoint=llm_endpoint,
@@ -394,7 +376,7 @@ def create_app() -> FastAPI:
         new_password: Annotated[str, Form()],
         confirm_new_password: Annotated[str, Form()],
         db: Session = Depends(get_db),
-        current_user: User | None = Depends(get_optional_current_user_from_cookie),
+        current_user: User = Depends(get_current_user_from_cookie),
     ):
         """
         Handle user password change from form.
@@ -405,14 +387,13 @@ def create_app() -> FastAPI:
             new_password (str): The new password from the form.
             confirm_new_password (str): The new password confirmation from the form.
             db (Session): The database session.
-            current_user: The authenticated user, if one exists.
+            current_user: The authenticated user.
 
         Returns:
             HTMLResponse: A success or error message snippet.
-            RedirectResponse: Redirects to login if user is not authenticated.
 
         Notes:
-            1. Redirect to login if user is not authenticated.
+            1. Depends on `get_current_user_from_cookie` for authentication.
             2. Check if new password and confirmation match. If not, return an error.
             3. Verify current password. If incorrect, return an error.
             4. Hash new password and update user record.
@@ -421,12 +402,6 @@ def create_app() -> FastAPI:
         """
         _msg = "Password change form submitted"
         log.debug(_msg)
-
-        if not current_user:
-            return RedirectResponse(
-                url="/login",
-                status_code=status.HTTP_307_TEMPORARY_REDIRECT,
-            )
 
         if new_password != confirm_new_password:
             return HTMLResponse(

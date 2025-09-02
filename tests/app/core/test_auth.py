@@ -2,6 +2,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 from fastapi import Depends, FastAPI, HTTPException, Request, status
+from fastapi.responses import RedirectResponse
 from fastapi.testclient import TestClient
 from jose import JWTError
 from sqlalchemy.orm import Session
@@ -202,12 +203,22 @@ def test_get_current_user_from_cookie_no_token(mock_request):
     mock_db = MagicMock(spec=Session)
     mock_request.cookies.get.return_value = None
 
+    # Test browser request
+    mock_request.headers = {"Accept": "text/html"}
+    mock_request.url_for.return_value = "http://testserver/login"
     with pytest.raises(HTTPException) as exc_info:
         get_current_user_from_cookie(request=mock_request, db=mock_db)
+    assert exc_info.value.status_code == status.HTTP_307_TEMPORARY_REDIRECT
+    assert exc_info.value.headers["Location"] == "http://testserver/login"
 
+    # Test API request
+    mock_request.headers = {"Accept": "application/json"}
+    with pytest.raises(HTTPException) as exc_info:
+        get_current_user_from_cookie(request=mock_request, db=mock_db)
     assert exc_info.value.status_code == status.HTTP_401_UNAUTHORIZED
     assert exc_info.value.detail == "Could not validate credentials"
-    mock_request.cookies.get.assert_called_once_with("access_token")
+
+    assert mock_request.cookies.get.call_count == 2
 
 
 @patch("resume_editor.app.core.auth.get_settings")
@@ -225,9 +236,18 @@ def test_get_current_user_from_cookie_jwt_error(
     mock_db = MagicMock(spec=Session)
     mock_request.cookies.get.return_value = "invalid-token"
 
+    # Test browser request
+    mock_request.headers = {"Accept": "text/html"}
+    mock_request.url_for.return_value = "http://testserver/login"
     with pytest.raises(HTTPException) as exc_info:
         get_current_user_from_cookie(request=mock_request, db=mock_db)
+    assert exc_info.value.status_code == status.HTTP_307_TEMPORARY_REDIRECT
+    assert exc_info.value.headers["Location"] == "http://testserver/login"
 
+    # Test API request
+    mock_request.headers = {"Accept": "application/json"}
+    with pytest.raises(HTTPException) as exc_info:
+        get_current_user_from_cookie(request=mock_request, db=mock_db)
     assert exc_info.value.status_code == status.HTTP_401_UNAUTHORIZED
     assert exc_info.value.detail == "Could not validate credentials"
 
@@ -248,6 +268,16 @@ def test_get_current_user_from_cookie_no_username(
     mock_jwt_decode.return_value = {"id": 1}  # No 'sub' key
     mock_request.cookies.get.return_value = "token-no-sub"
 
+    # Test browser request
+    mock_request.headers = {"Accept": "text/html"}
+    mock_request.url_for.return_value = "http://testserver/login"
+    with pytest.raises(HTTPException) as exc_info:
+        get_current_user_from_cookie(request=mock_request, db=mock_db)
+    assert exc_info.value.status_code == status.HTTP_307_TEMPORARY_REDIRECT
+    assert exc_info.value.headers["Location"] == "http://testserver/login"
+
+    # Test API request
+    mock_request.headers = {"Accept": "application/json"}
     with pytest.raises(HTTPException) as exc_info:
         get_current_user_from_cookie(request=mock_request, db=mock_db)
 
@@ -272,9 +302,18 @@ def test_get_current_user_from_cookie_user_not_found(
     mock_jwt_decode.return_value = {"sub": "nonexistent"}
     mock_request.cookies.get.return_value = "token-for-nonexistent-user"
 
+    # Test browser request
+    mock_request.headers = {"Accept": "text/html"}
+    mock_request.url_for.return_value = "http://testserver/login"
     with pytest.raises(HTTPException) as exc_info:
         get_current_user_from_cookie(request=mock_request, db=mock_db)
+    assert exc_info.value.status_code == status.HTTP_307_TEMPORARY_REDIRECT
+    assert exc_info.value.headers["Location"] == "http://testserver/login"
 
+    # Test API request
+    mock_request.headers = {"Accept": "application/json"}
+    with pytest.raises(HTTPException) as exc_info:
+        get_current_user_from_cookie(request=mock_request, db=mock_db)
     assert exc_info.value.status_code == status.HTTP_401_UNAUTHORIZED
     assert exc_info.value.detail == "Could not validate credentials"
 
@@ -306,11 +345,14 @@ def test_get_current_user_from_cookie_force_change_redirect(
     # Ensure hx-request is not in headers for this test
     mock_request.headers = {}
 
+    mock_request.url_for.return_value = "http://testserver/api/users/change-password"
     with pytest.raises(HTTPException) as exc_info:
         get_current_user_from_cookie(request=mock_request, db=mock_db)
 
     assert exc_info.value.status_code == status.HTTP_307_TEMPORARY_REDIRECT
-    assert exc_info.value.headers["Location"] == "/api/users/change-password"
+    assert (
+        exc_info.value.headers["Location"] == "http://testserver/api/users/change-password"
+    )
 
 
 @patch("resume_editor.app.core.auth.get_settings")
@@ -339,11 +381,15 @@ def test_get_current_user_from_cookie_force_change_htmx_redirect(
     mock_request.url.path = "/dashboard"
     mock_request.headers = {"hx-request": "true"}
 
+    mock_request.url_for.return_value = "http://testserver/api/users/change-password"
     with pytest.raises(HTTPException) as exc_info:
         get_current_user_from_cookie(request=mock_request, db=mock_db)
 
     assert exc_info.value.status_code == status.HTTP_401_UNAUTHORIZED
-    assert exc_info.value.headers["HX-Redirect"] == "/api/users/change-password"
+    assert (
+        exc_info.value.headers["HX-Redirect"]
+        == "http://testserver/api/users/change-password"
+    )
 
 
 @pytest.mark.parametrize(

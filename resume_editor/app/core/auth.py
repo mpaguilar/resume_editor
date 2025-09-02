@@ -2,6 +2,7 @@ import logging
 from typing import Annotated
 
 from fastapi import Depends, HTTPException, Request, status
+from fastapi.responses import RedirectResponse
 from jose import JWTError, jwt
 from sqlalchemy.orm import Session
 
@@ -84,38 +85,31 @@ def get_current_user_from_cookie(
     """
     Retrieve the authenticated user from the JWT token in the request cookie.
 
+    For browser-based requests that fail authentication, this function will
+    raise an HTTPException that results in a redirect to the login page.
+    For API requests, it will raise a 401 HTTPException.
+
     Args:
-        request: The request object, used to access cookies.
-            Type: Request
-            Purpose: Provides access to the HTTP request, including cookies.
+        request: The request object, used to access cookies and headers.
         db: Database session dependency.
-            Type: Session
-            Purpose: Provides a connection to the database to retrieve the user record.
 
     Returns:
-        User: The authenticated User object corresponding to the token's subject (username).
-            Type: User
-            Purpose: Returns the user object if authentication is successful.
+        User: The authenticated User object if the token is valid.
 
     Raises:
-        HTTPException: Raised when the token is missing, invalid, or the user is not found.
-            Status Code: 401 UNAUTHORIZED
-            Detail: "Could not validate credentials"
+        HTTPException: Raised for API requests when the token is missing, invalid, or the user is not found.
+            Also raised to redirect users to the login page or to the change password page.
 
     Notes:
-        1. Initialize an HTTP 401 exception with a generic error message.
-        2. Retrieve the JWT token from the request cookies using the key "access_token".
-        3. If the token is not present in the cookies, raise the credentials exception.
-        4. Decode the JWT token using the secret key and algorithm to extract the subject (username).
-        5. If the subject (username) is missing from the token payload, raise the credentials exception.
-        6. If the JWT token is invalid or malformed, catch the JWTError and raise the credentials exception.
-        7. Query the database using the retrieved username to find the corresponding User record.
-        8. If the user is not found in the database, raise the credentials exception.
-        9. Check if the user's attributes indicate a forced password change.
-        10. If the user is required to change their password and the current path is not one of the allowed paths (change password, logout, or static assets), redirect to the change password endpoint.
-        11. For HTMX requests, send a 401 with a special header to trigger a client-side redirect.
-        12. For regular requests, send a 307 Temporary Redirect to the change password endpoint.
-        13. Return the User object if all checks pass.
+        1.  Determine if the request is from a browser by checking the 'Accept' header.
+        2.  Attempt to get the 'access_token' from cookies. On failure, redirect
+            browser requests to '/login' or raise 401 for API requests.
+        3.  Decode the JWT. On failure, redirect or raise 401.
+        4.  Verify the username from the JWT payload. On failure, redirect or raise 401.
+        5.  Retrieve the user from the database. On failure, redirect or raise 401.
+        6.  If the user is successfully authenticated, check for a forced password change.
+            If required, redirect the user to the change password page.
+        7.  Return the authenticated User object if all checks pass.
 
     Database Access:
         - Queries the User table to retrieve a user record by username.
@@ -126,10 +120,25 @@ def get_current_user_from_cookie(
         detail="Could not validate credentials",
         headers={},
     )
-    token = request.cookies.get("access_token")
 
-    if not token:
+    # Check if request prefers HTML over JSON. If the client does not explicitly ask for
+    # JSON, we assume it's a browser and can handle a redirect.
+    accept_header = request.headers.get("Accept", "")
+    prefers_html = "application/json" not in accept_header
+
+    def handle_auth_failure():
+        if prefers_html:
+            login_url = request.url_for("login_page")
+            raise HTTPException(
+                status_code=status.HTTP_307_TEMPORARY_REDIRECT,
+                headers={"Location": str(login_url)},
+                detail="Not authenticated, redirecting to login.",
+            )
         raise credentials_exception
+
+    token = request.cookies.get("access_token")
+    if not token:
+        handle_auth_failure()
 
     try:
         payload = jwt.decode(
@@ -139,13 +148,13 @@ def get_current_user_from_cookie(
         )
         username: str = payload.get("sub")
         if username is None:
-            raise credentials_exception
+            handle_auth_failure()
     except JWTError:
-        raise credentials_exception
+        handle_auth_failure()
 
     user = db.query(User).filter(User.username == username).first()
     if user is None:
-        raise credentials_exception
+        handle_auth_failure()
 
     if user.attributes and user.attributes.get("force_password_change"):
         path = request.url.path
@@ -157,19 +166,20 @@ def get_current_user_from_cookie(
         if not any(path.startswith(p) for p in allowed_paths) and not path.startswith(
             "/static",
         ):
-            redirect_url = "/api/users/change-password"
+            redirect_url = request.url_for("change_password_page")
             # For HTMX requests, we can't send a normal redirect.
             # Instead, we send a special header to trigger a client-side redirect.
             # For regular requests, we send a 307 Temporary Redirect.
             if "hx-request" in request.headers:
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED,
-                    headers={"HX-Redirect": redirect_url},
+                    headers={"HX-Redirect": str(redirect_url)},
                     detail="Password change required",
                 )
             raise HTTPException(
                 status_code=status.HTTP_307_TEMPORARY_REDIRECT,
-                headers={"Location": redirect_url},
+                headers={"Location": str(redirect_url)},
+                detail="Password change required",
             )
 
     return user
@@ -197,8 +207,11 @@ def get_optional_current_user_from_cookie(
 
     Notes:
         1. Attempt to retrieve the authenticated user using `get_current_user_from_cookie`.
-        2. If an HTTPException is raised (e.g., invalid or missing token), catch it and return None.
-        3. Return the User object if authentication succeeds.
+        2. If `get_current_user_from_cookie` raises an HTTPException for a forced password change,
+           this function propagates that exception.
+        3. For any other HTTPException (e.g., login redirect for browsers, 401 for APIs),
+           this function returns `None` as the user is not authenticated.
+        4. If authentication is successful, the User object is returned.
 
     Database Access:
         - Queries the User table to retrieve a user record by username.
@@ -207,13 +220,13 @@ def get_optional_current_user_from_cookie(
         return get_current_user_from_cookie(request=request, db=db)
     except HTTPException as e:
         # A redirect for a forced password change is not an authentication failure,
-        # so it should be propagated.
-        if e.status_code == status.HTTP_307_TEMPORARY_REDIRECT or (
-            e.headers and e.headers.get("HX-Redirect")
-        ):
+        # so it should be propagated. This is identified by the detail message.
+        if e.detail == "Password change required":
             raise e
-        # For any other HTTPException (like missing token, which results in a 401),
-        # return None as this indicates an unauthenticated user.
+
+        # For any other HTTPException (like missing token or invalid token,
+        # which results in a 307 redirect to login for browsers or a 401 for API),
+        # we return None as this dependency is for an *optional* user.
         return None
 
 

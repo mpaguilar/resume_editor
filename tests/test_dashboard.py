@@ -3,10 +3,7 @@ from unittest.mock import Mock
 import pytest
 from fastapi.testclient import TestClient
 
-from resume_editor.app.core.auth import (
-    get_current_user,
-    get_optional_current_user_from_cookie,
-)
+from resume_editor.app.core.auth import get_current_user, get_current_user_from_cookie
 from resume_editor.app.database.database import get_db
 from resume_editor.app.main import create_app
 from resume_editor.app.models.user import User
@@ -50,7 +47,7 @@ def web_authenticated_client():
     def get_mock_user():
         return mock_user
 
-    app.dependency_overrides[get_optional_current_user_from_cookie] = get_mock_user
+    app.dependency_overrides[get_current_user_from_cookie] = get_mock_user
 
     with TestClient(app) as c:
         yield c, None  # Yield None for db mock as it's not needed for these routes
