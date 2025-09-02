@@ -177,4 +177,4 @@ def test_something():
 There are several cases where test files may not be named exactly the same as the python file. For example, the tests for `app/api/routes/user.py` are in `tests/app/api/routes/test_user_route.py`, not in `tests/app/api/routes/test_user.py`. This is to prevent a naming collision which causes errors during test collection. 
 
 * Known mappings are found in `code_test_mappings.md`. 
-* Update `code_test_mappings.md` as new mappings are discovered or created.
+* ALWAYS Update `code_test_mappings.md` as new mappings are discovered or created.
