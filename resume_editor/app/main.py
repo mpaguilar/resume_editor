@@ -461,7 +461,7 @@ def create_app() -> FastAPI:
                         rows="20"
                         required
                         class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm"
-                        placeholder="# John Doe&#10;&#10;## Contact Information&#10;- Email: john.doe@example.com&#10;- Phone: (555) 123-4567&#10;&#10;## Experience&#10;### Software Engineer&#10;Company Name | Jan 2020 - Present&#10;- Developed web applications using Python and JavaScript&#10;- Collaborated with cross-functional teams"></textarea>
+                        placeholder="# Personal&#10;## Contact Information&#10;&#10;Name: Jane Doe&#10;# Education&#10;## Degrees&#10;### Degree&#10;&#10;School: State University&#10;# Certifications&#10;## Certification&#10;&#10;Name: Certified Professional&#10;# Experience&#10;## Roles&#10;### Role&#10;#### Basics&#10;&#10;Company: A Company, LLC&#10;&#10;Title: Engineer&#10;&#10;Start date: 01/2020&#10;## Projects&#10;### Project&#10;#### Overview&#10;&#10;Title: A Project&#10;#### Description&#10;&#10;A description of the project."></textarea>
                 </div>
                 <div class="flex space-x-3">
                     <button 
