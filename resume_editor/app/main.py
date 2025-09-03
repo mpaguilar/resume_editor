@@ -227,7 +227,7 @@ def create_app() -> FastAPI:
         )
         response = RedirectResponse(
             url="/dashboard",
-            status_code=status.HTTP_307_TEMPORARY_REDIRECT,
+            status_code=status.HTTP_303_SEE_OTHER,
         )
         response.set_cookie(
             key="access_token",

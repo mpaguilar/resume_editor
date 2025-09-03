@@ -55,10 +55,11 @@ def update_user_settings(
         1. Attempts to retrieve existing settings for the given user_id using get_user_settings.
         2. If no settings are found, creates a new UserSettings object with the provided user_id and adds it to the session.
         3. Updates the llm_endpoint field if settings_data.llm_endpoint is provided and not None.
-        4. If settings_data.api_key is provided and not empty, encrypts the API key using encrypt_data and stores it in encrypted_api_key; otherwise, sets encrypted_api_key to None.
-        5. Commits the transaction to the database.
-        6. Refreshes the session to ensure the returned object has the latest data from the database.
-        7. This function performs a database read and possibly a write operation.
+        4. Updates the llm_model_name field if settings_data.llm_model_name is provided and not None.
+        5. If settings_data.api_key is provided and not empty, encrypts the API key using encrypt_data and stores it in encrypted_api_key; otherwise, sets encrypted_api_key to None.
+        6. Commits the transaction to the database.
+        7. Refreshes the session to ensure the returned object has the latest data from the database.
+        8. This function performs a database read and possibly a write operation.
 
     """
     _msg = f"Updating settings for user_id: {user_id}"
@@ -76,6 +77,12 @@ def update_user_settings(
             settings.llm_endpoint = settings_data.llm_endpoint
         else:
             settings.llm_endpoint = None
+
+    if hasattr(settings_data, "llm_model_name") and settings_data.llm_model_name is not None:
+        if settings_data.llm_model_name:
+            settings.llm_model_name = settings_data.llm_model_name
+        else:
+            settings.llm_model_name = None
 
     if settings_data.api_key is not None:
         if settings_data.api_key:

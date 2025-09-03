@@ -3224,13 +3224,11 @@ Notes:
 
 Change the current user's password.
 
-This endpoint handles both standard and forced password changes. For forced
-changes, the current password is not required. It validates that the
-new and confirmed passwords match.
+This endpoint handles both standard and forced password changes. It also handles
+requests from two different forms: the full-page form and the partial form
+on the settings page.
 
-It performs content negotiation based on the 'Accept' header.
-- 'application/json': Returns JSON responses (for API clients).
-- Other (e.g., 'text/html'): Returns HTML responses (for web UI).
+It performs content negotiation based on the 'Accept' and 'HX-Target' headers.
 
 Args:
     request (Request): The request object.
@@ -3241,15 +3239,8 @@ Args:
     current_user (User): The authenticated user.
 
 Returns:
-    Response: Redirects to the dashboard on success, otherwise renders the
-              change password page with an error message or returns a JSON error.
-
-Notes:
-    1. Checks if new password and confirmation match.
-    2. Calls the business logic to change the password.
-    3. On success, redirects to the dashboard (handling HTMX requests).
-    4. On failure (e.g., password mismatch or incorrect current password),
-       it re-renders the change password page with an error message or returns JSON.
+    Response: A response appropriate for a request type (JSON, HTML snippet,
+              full page render, or redirect).
 
 ---
 
@@ -3398,7 +3389,7 @@ Notes:
 
 ---
 
-## function: `admin_delete_user(user_id: int, db: Session) -> UnknownType`
+## function: `admin_delete_user(user_id: int, db: Session, admin_user: User) -> UnknownType`
 
 Admin endpoint to delete a user.
 
@@ -3892,6 +3883,38 @@ Notes:
     4. Commits the transaction to persist the user to the database.
     5. Re-fetches the user to ensure relationships are eagerly loaded, preventing N+1 query issues.
     6. This function performs a database write operation.
+
+---
+
+## function: `create_initial_admin(db: Session, username: str, password: str) -> User`
+
+Create the initial administrator account.
+
+This function creates the first user and assigns them the 'admin' role. It
+is intended to be used only during initial application setup when no users
+exist in the database.
+
+Args:
+    db (Session): The database session.
+    username (str): The username for the new admin user.
+    password (str): The password for the new admin user.
+
+Returns:
+    User: The created admin user object.
+
+Raises:
+    RuntimeError: If the 'admin' role is not found in the database.
+
+Notes:
+    1. Hashes the provided password.
+    2. Creates a placeholder email address.
+    3. Creates a new User instance.
+    4. Queries for the 'admin' role. Raises RuntimeError if not found.
+    5. Appends the 'admin' role to the new user's roles.
+    6. Adds the user to the database session.
+    7. Commits the transaction.
+    8. Re-fetches the user to load relationships.
+    9. This function performs database read and write operations.
 
 ---
 
@@ -4683,38 +4706,31 @@ Database Access:
 
 Retrieve the authenticated user from the JWT token in the request cookie.
 
+For browser-based requests that fail authentication, this function will
+raise an HTTPException that results in a redirect to the login page.
+For API requests, it will raise a 401 HTTPException.
+
 Args:
-    request: The request object, used to access cookies.
-        Type: Request
-        Purpose: Provides access to the HTTP request, including cookies.
+    request: The request object, used to access cookies and headers.
     db: Database session dependency.
-        Type: Session
-        Purpose: Provides a connection to the database to retrieve the user record.
 
 Returns:
-    User: The authenticated User object corresponding to the token's subject (username).
-        Type: User
-        Purpose: Returns the user object if authentication is successful.
+    User: The authenticated User object if the token is valid.
 
 Raises:
-    HTTPException: Raised when the token is missing, invalid, or the user is not found.
-        Status Code: 401 UNAUTHORIZED
-        Detail: "Could not validate credentials"
+    HTTPException: Raised for API requests when the token is missing, invalid, or the user is not found.
+        Also raised to redirect users to the login page or to the change password page.
 
 Notes:
-    1. Initialize an HTTP 401 exception with a generic error message.
-    2. Retrieve the JWT token from the request cookies using the key "access_token".
-    3. If the token is not present in the cookies, raise the credentials exception.
-    4. Decode the JWT token using the secret key and algorithm to extract the subject (username).
-    5. If the subject (username) is missing from the token payload, raise the credentials exception.
-    6. If the JWT token is invalid or malformed, catch the JWTError and raise the credentials exception.
-    7. Query the database using the retrieved username to find the corresponding User record.
-    8. If the user is not found in the database, raise the credentials exception.
-    9. Check if the user's attributes indicate a forced password change.
-    10. If the user is required to change their password and the current path is not one of the allowed paths (change password, logout, or static assets), redirect to the change password endpoint.
-    11. For HTMX requests, send a 401 with a special header to trigger a client-side redirect.
-    12. For regular requests, send a 307 Temporary Redirect to the change password endpoint.
-    13. Return the User object if all checks pass.
+    1.  Determine if the request is from a browser by checking the 'Accept' header.
+    2.  Attempt to get the 'access_token' from cookies. On failure, redirect
+        browser requests to '/login' or raise 401 for API requests.
+    3.  Decode the JWT. On failure, redirect or raise 401.
+    4.  Verify the username from the JWT payload. On failure, redirect or raise 401.
+    5.  Retrieve the user from the database. On failure, redirect or raise 401.
+    6.  If the user is successfully authenticated, check for a forced password change.
+        If required, redirect the user to the change password page.
+    7.  Return the authenticated User object if all checks pass.
 
 Database Access:
     - Queries the User table to retrieve a user record by username.
@@ -4740,8 +4756,11 @@ Returns:
 
 Notes:
     1. Attempt to retrieve the authenticated user using `get_current_user_from_cookie`.
-    2. If an HTTPException is raised (e.g., invalid or missing token), catch it and return None.
-    3. Return the User object if authentication succeeds.
+    2. If `get_current_user_from_cookie` raises an HTTPException for a forced password change,
+       this function propagates that exception.
+    3. For any other HTTPException (e.g., login redirect for browsers, 401 for APIs),
+       this function returns `None` as the user is not authenticated.
+    4. If authentication is successful, the User object is returned.
 
 Database Access:
     - Queries the User table to retrieve a user record by username.
@@ -5054,17 +5073,19 @@ Attributes:
     id (int): Primary key.
     user_id (int): Foreign key to the user.
     llm_endpoint (str | None): Custom LLM API endpoint URL.
+    llm_model_name (str | None): The user-specified LLM model name.
     encrypted_api_key (str | None): Encrypted API key for the LLM service.
     user (User): Relationship to the User model.
 
 ---
-## method: `UserSettings.__init__(self: UnknownType, user_id: int, llm_endpoint: str | None, encrypted_api_key: str | None) -> UnknownType`
+## method: `UserSettings.__init__(self: UnknownType, user_id: int, llm_endpoint: str | None, llm_model_name: str | None, encrypted_api_key: str | None) -> UnknownType`
 
 Initialize a UserSettings instance.
 
 Args:
     user_id (int): The ID of the user these settings belong to.
     llm_endpoint (str | None): Custom LLM API endpoint URL.
+    llm_model_name (str | None): The user-specified LLM model name.
     encrypted_api_key (str | None): Encrypted API key for the LLM service.
 
 Returns:
@@ -6154,6 +6175,73 @@ Notes:
 
 ===
 # File: `admin_forms.py`
+
+
+===
+
+===
+# File: `setup.py`
+
+
+===
+
+===
+# File: `user_crud.py`
+
+## function: `user_count(db: Session) -> int`
+
+Counts the total number of users in the database.
+
+Args:
+    db (Session): The database session.
+
+Returns:
+    int: The total number of users.
+
+Notes:
+    1. Queries the User model to get a count of all records.
+    2. Returns the count as an integer.
+    3. This function performs a database read operation.
+
+---
+
+
+===
+
+===
+# File: `test_user_settings.py`
+
+## function: `test_user_settings_initialization() -> UnknownType`
+
+Test UserSettings initialization.
+
+Args:
+    None
+
+Returns:
+    None
+
+Notes:
+    1. Create a UserSettings instance with all parameters.
+    2. Assert that all attributes are set correctly.
+
+---
+
+## function: `test_user_settings_initialization_with_defaults() -> UnknownType`
+
+Test UserSettings initialization with default values.
+
+Args:
+    None
+
+Returns:
+    None
+
+Notes:
+    1. Create a UserSettings instance with only required parameters.
+    2. Assert that attributes with defaults are None.
+
+---
 
 
 ===

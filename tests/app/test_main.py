@@ -579,7 +579,7 @@ def test_login_success():
             follow_redirects=False,
         )
 
-        assert response.status_code == status.HTTP_307_TEMPORARY_REDIRECT
+        assert response.status_code == status.HTTP_303_SEE_OTHER
         assert response.headers["location"] == "/dashboard"
         assert "access_token=fake-token" in response.headers["set-cookie"]
         assert "HttpOnly" in response.headers["set-cookie"]
