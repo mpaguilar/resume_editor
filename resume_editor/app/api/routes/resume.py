@@ -1591,6 +1591,7 @@ async def refine_resume(
         settings = get_user_settings(db, current_user.id)
 
         llm_endpoint = settings.llm_endpoint if settings else None
+        llm_model_name = settings.llm_model_name if settings else None
         api_key = None
         if settings and settings.encrypted_api_key:
             api_key = decrypt_data(settings.encrypted_api_key)
@@ -1601,6 +1602,7 @@ async def refine_resume(
             target_section=target_section.value,
             llm_endpoint=llm_endpoint,
             api_key=api_key,
+            llm_model_name=llm_model_name,
         )
 
         if "HX-Request" in http_request.headers:

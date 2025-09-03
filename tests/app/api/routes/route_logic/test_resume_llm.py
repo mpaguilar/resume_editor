@@ -90,11 +90,65 @@ def test_refine_resume_section_with_llm_empty_section(mock_get_section):
         "personal",
         "http://fake.llm",
         "key",
+        llm_model_name=None,
     )
     assert result == ""
     mock_get_section.assert_called_once_with("resume", "personal")
 
 
+@pytest.mark.parametrize(
+    "llm_model_name, expected_model",
+    [
+        ("custom-model", "custom-model"),
+        (None, "gpt-4o"),
+        ("", "gpt-4o"),
+    ],
+)
+@patch("resume_editor.app.api.routes.route_logic.resume_llm.ChatOpenAI")
+@patch("resume_editor.app.api.routes.route_logic.resume_llm.PromptTemplate")
+@patch("resume_editor.app.api.routes.route_logic.resume_llm.PydanticOutputParser")
+@patch("resume_editor.app.api.routes.route_logic.resume_llm._get_section_content")
+def test_refine_resume_section_model_name(
+    mock_get_section,
+    mock_parser_class,
+    mock_prompt_class,
+    mock_llm_class,
+    llm_model_name,
+    expected_model,
+):
+    """Test LLM refinement with different model names."""
+    mock_get_section.return_value = "Some content"
+    mock_prompt_instance = mock_prompt_class.return_value
+
+    # Mock the chain of |.
+    chain_mock = Mock()
+    mock_prompt_instance.__or__.return_value.__or__.return_value = chain_mock
+
+    refined_section_obj = RefinedSection(refined_markdown="refined content")
+    chain_mock.invoke.return_value = refined_section_obj
+
+    result = refine_resume_section_with_llm(
+        "resume",
+        "job desc",
+        "personal",
+        "http://fake.llm",
+        "key",
+        llm_model_name=llm_model_name,
+    )
+
+    assert result == "refined content"
+    mock_llm_class.assert_called_with(
+        model=expected_model,
+        temperature=0.7,
+        openai_api_base="http://fake.llm",
+        api_key="key",
+    )
+    chain_mock.invoke.assert_called_once_with(
+        {"job_description": "job desc", "resume_section": "Some content"},
+    )
+
+
+@patch("resume_editor.app.api.routes.route_logic.resume_llm.parse_json_markdown")
 @patch("resume_editor.app.api.routes.route_logic.resume_llm.ChatOpenAI")
 @patch("resume_editor.app.api.routes.route_logic.resume_llm.PromptTemplate")
 @patch("resume_editor.app.api.routes.route_logic.resume_llm.PydanticOutputParser")
@@ -104,6 +158,7 @@ def test_refine_resume_section_pydantic_object(
     mock_parser_class,
     mock_prompt_class,
     mock_llm_class,
+    mock_parse_json,
 ):
     """Test LLM refinement when the chain returns a Pydantic object."""
     mock_get_section.return_value = "Some content"
@@ -122,18 +177,14 @@ def test_refine_resume_section_pydantic_object(
         "personal",
         "http://fake.llm",
         "key",
+        llm_model_name=None,
     )
 
     assert result == "refined content"
-    mock_llm_class.assert_called_with(
-        model="gpt-4o",
-        temperature=0.7,
-        openai_api_base="http://fake.llm",
-        api_key="key",
-    )
     chain_mock.invoke.assert_called_once_with(
         {"job_description": "job desc", "resume_section": "Some content"},
     )
+    mock_parse_json.assert_not_called()
 
 
 @patch("resume_editor.app.api.routes.route_logic.resume_llm.parse_json_markdown")
@@ -166,6 +217,7 @@ def test_refine_resume_section_string_return(
         "personal",
         "http://fake.llm",
         "key",
+        llm_model_name=None,
     )
 
     assert result == "refined content from string"

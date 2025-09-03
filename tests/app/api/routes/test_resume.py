@@ -1221,6 +1221,7 @@ def test_refine_resume_success_with_key(
         user_id=test_user.id,
         llm_endpoint="http://llm.test",
         encrypted_api_key="key",
+        llm_model_name="test-model",
     )
     mock_get_user_settings.return_value = mock_settings
     mock_decrypt_data.return_value = "decrypted_key"
@@ -1243,6 +1244,7 @@ def test_refine_resume_success_with_key(
         target_section="experience",
         llm_endpoint="http://llm.test",
         api_key="decrypted_key",
+        llm_model_name="test-model",
     )
 
 
@@ -1278,6 +1280,7 @@ def test_refine_resume_no_settings(
         target_section="experience",
         llm_endpoint=None,
         api_key=None,
+        llm_model_name=None,
     )
 
 
@@ -1291,7 +1294,11 @@ def test_refine_resume_no_api_key(
 ):
     """Test resume refinement when user settings exist but have no API key."""
     # Arrange
-    mock_settings = UserSettings(user_id=test_user.id, llm_endpoint="http://llm.test")
+    mock_settings = UserSettings(
+        user_id=test_user.id,
+        llm_endpoint="http://llm.test",
+        llm_model_name="test-model",
+    )
     mock_settings.encrypted_api_key = None
     mock_get_user_settings.return_value = mock_settings
     mock_refine_llm.return_value = "refined"
@@ -1311,6 +1318,7 @@ def test_refine_resume_no_api_key(
         target_section="experience",
         llm_endpoint="http://llm.test",
         api_key=None,
+        llm_model_name="test-model",
     )
 
 
@@ -1353,6 +1361,7 @@ def test_refine_resume_decryption_failure(
         user_id=test_user.id,
         llm_endpoint="http://llm.test",
         encrypted_api_key="key",
+        llm_model_name="test-model",
     )
     mock_get_user_settings.return_value = mock_settings
     mock_decrypt_data.side_effect = InvalidToken
