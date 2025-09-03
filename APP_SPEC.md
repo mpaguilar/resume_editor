@@ -20,7 +20,7 @@ Pay attention to the `BasicBlockParse` class. It is a base class for many parsin
 * User-friendly authentication flow that redirects unauthenticated users to the login page when accessing web pages.
 * An initial setup page for creating the first administrator account, enforced by middleware if no users exist.
 * Secure user password change functionality, including a mandatory password change workflow.
-* Secure storage of user settings, including encrypted API keys and LLM endpoints.
+* Secure storage of user settings, including LLM configurations (endpoints, model names) and encrypted API keys.
 * Role-based access control with two roles: `user` and `admin`.
 * Tracking of last login time for each user.
 * Flexible user attribute system to support features like forcing a password change on next login.
@@ -71,7 +71,7 @@ Pay attention to the `BasicBlockParse` class. It is a base class for many parsin
 * Refine resume content using LLMs
 * Compare job descriptions against resumes for targeted refinement
 * Save and download LLM-refined versions
-* Configure custom OpenAI-compatible API endpoints
+* Configure custom OpenAI-compatible API endpoints and model names
 
 # Technical Requirements
 
