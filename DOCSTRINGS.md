@@ -3730,7 +3730,7 @@ Notes:
 
 ---
 
-## function: `refine_resume_section_with_llm(resume_content: str, job_description: str, target_section: str, llm_endpoint: str | None, api_key: str | None) -> str`
+## function: `refine_resume_section_with_llm(resume_content: str, job_description: str, target_section: str, llm_endpoint: str | None, api_key: str | None, llm_model_name: str | None) -> str`
 
 Uses an LLM to refine a specific section of a resume based on a job description.
 
@@ -3740,6 +3740,7 @@ Args:
     target_section (str): The section of the resume to refine (e.g., "experience").
     llm_endpoint (str | None): The custom LLM endpoint URL.
     api_key (str | None): The user's decrypted LLM API key.
+    llm_model_name (str | None): The user-specified LLM model name.
 
 Returns:
     str: The refined Markdown content for the target section. Returns an empty string if the target section is empty.
@@ -3749,12 +3750,13 @@ Notes:
     2. If the extracted content is empty, return an empty string.
     3. Set up a PydanticOutputParser for structured output based on the RefinedSection model.
     4. Create a PromptTemplate with instructions for the LLM, including format instructions.
-    5. Initialize the ChatOpenAI client with the specified model, temperature, API base, and API key.
-    6. Create a chain combining the prompt, LLM, and parser.
-    7. Invoke the chain with the job description and resume section content.
-    8. Parse the LLM's JSON-Markdown output using parse_json_markdown if the result is a string.
-    9. Validate the parsed JSON against the RefinedSection model.
-    10. Return the refined_markdown field from the validated result.
+    5. Determine the model name, using the provided `llm_model_name` or falling back to a default.
+    6. Initialize the ChatOpenAI client with the determined model name, temperature, API base, and API key.
+    7. Create a chain combining the prompt, LLM, and parser.
+    8. Invoke the chain with the job description and resume section content.
+    9. Parse the LLM's JSON-Markdown output using `parse_json_markdown` if the result is a string.
+    10. Validate the parsed JSON against the `RefinedSection` model.
+    11. Return the `refined_markdown` field from the validated result.
 
 Network access:
     - This function makes a network request to the LLM endpoint specified by llm_endpoint.
@@ -3801,10 +3803,11 @@ Notes:
     1. Attempts to retrieve existing settings for the given user_id using get_user_settings.
     2. If no settings are found, creates a new UserSettings object with the provided user_id and adds it to the session.
     3. Updates the llm_endpoint field if settings_data.llm_endpoint is provided and not None.
-    4. If settings_data.api_key is provided and not empty, encrypts the API key using encrypt_data and stores it in encrypted_api_key; otherwise, sets encrypted_api_key to None.
-    5. Commits the transaction to the database.
-    6. Refreshes the session to ensure the returned object has the latest data from the database.
-    7. This function performs a database read and possibly a write operation.
+    4. Updates the llm_model_name field if settings_data.llm_model_name is provided and not None.
+    5. If settings_data.api_key is provided and not empty, encrypts the API key using encrypt_data and stores it in encrypted_api_key; otherwise, sets encrypted_api_key to None.
+    6. Commits the transaction to the database.
+    7. Refreshes the session to ensure the returned object has the latest data from the database.
+    8. This function performs a database read and possibly a write operation.
 
 ---
 
