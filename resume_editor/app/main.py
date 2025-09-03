@@ -322,6 +322,7 @@ def create_app() -> FastAPI:
         context = {
             "current_user": current_user,
             "llm_endpoint": user_settings.llm_endpoint if user_settings else None,
+            "llm_model_name": user_settings.llm_model_name if user_settings else None,
             "api_key_is_set": bool(user_settings and user_settings.encrypted_api_key),
         }
         return templates.TemplateResponse(request, "settings.html", context=context)
@@ -330,6 +331,7 @@ def create_app() -> FastAPI:
     async def update_settings(
         request: Request,
         llm_endpoint: Annotated[str, Form()],
+        llm_model_name: Annotated[str, Form()],
         api_key: Annotated[str, Form()],
         db: Session = Depends(get_db),
         current_user: User = Depends(get_current_user_from_cookie),
@@ -359,6 +361,7 @@ def create_app() -> FastAPI:
 
         settings_data = UserSettingsUpdateRequest(
             llm_endpoint=llm_endpoint,
+            llm_model_name=llm_model_name,
             api_key=api_key,
         )
 

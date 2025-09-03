@@ -13,6 +13,8 @@ from resume_editor.app.main import create_app
 from resume_editor.app.models.resume_model import Resume as DatabaseResume
 from resume_editor.app.models.role import Role
 from resume_editor.app.models.user import User
+from resume_editor.app.models.user_settings import UserSettings
+from resume_editor.app.schemas.user import UserSettingsUpdateRequest
 
 log = logging.getLogger(__name__)
 
@@ -300,6 +302,131 @@ def test_update_resume_htmx(mock_update_resume_db, mock_validate_content):
     # Check for OOB content (list view)
     oob_div = soup.find("div", {"id": "resume-list", "hx-swap-oob": "innerHTML"})
     assert oob_div is None
+
+    app.dependency_overrides.clear()
+
+
+def test_settings_page_displays_model_name():
+    """
+    GIVEN an authenticated user
+    WHEN they visit the settings page
+    THEN the LLM model name field is displayed and populated correctly.
+    """
+    app = create_app()
+    client = TestClient(app)
+    mock_user = User(id=1, username="testuser", email="test@test.com", hashed_password="hashed")
+
+    def get_mock_user():
+        return mock_user
+
+    app.dependency_overrides[get_current_user_from_cookie] = get_mock_user
+
+    # Scenario 1: User has settings with a model name
+    mock_settings_with_name = UserSettings(user_id=1, llm_model_name="test-model")
+    mock_db_with_name = MagicMock()
+    mock_db_with_name.query.return_value.filter.return_value.first.return_value = (
+        mock_settings_with_name
+    )
+
+    def get_mock_db_with_name():
+        yield mock_db_with_name
+
+    app.dependency_overrides[get_db] = get_mock_db_with_name
+
+    response = client.get("/settings")
+    assert response.status_code == 200
+    soup = BeautifulSoup(response.content, "html.parser")
+    model_name_input = soup.find("input", {"name": "llm_model_name"})
+    assert model_name_input is not None
+    assert model_name_input["value"] == "test-model"
+
+    # Scenario 2: User has settings but no model name
+    mock_settings_no_name = UserSettings(user_id=1, llm_model_name=None)
+    mock_db_no_name = MagicMock()
+    mock_db_no_name.query.return_value.filter.return_value.first.return_value = (
+        mock_settings_no_name
+    )
+
+    def get_mock_db_no_name():
+        yield mock_db_no_name
+
+    app.dependency_overrides[get_db] = get_mock_db_no_name
+
+    response = client.get("/settings")
+    assert response.status_code == 200
+    soup = BeautifulSoup(response.content, "html.parser")
+    model_name_input = soup.find("input", {"name": "llm_model_name"})
+    assert model_name_input is not None
+    assert model_name_input.get("value") == ""
+
+    # Scenario 3: User has no settings object
+    mock_db_no_settings = MagicMock()
+    mock_db_no_settings.query.return_value.filter.return_value.first.return_value = None
+
+    def get_mock_db_no_settings():
+        yield mock_db_no_settings
+
+    app.dependency_overrides[get_db] = get_mock_db_no_settings
+
+    response = client.get("/settings")
+    assert response.status_code == 200
+    soup = BeautifulSoup(response.content, "html.parser")
+    model_name_input = soup.find("input", {"name": "llm_model_name"})
+    assert model_name_input is not None
+    assert model_name_input.get("value") == ""
+
+    app.dependency_overrides.clear()
+
+
+@patch("resume_editor.app.main.update_user_settings")
+def test_update_settings_form_submission(mock_update_user_settings):
+    """
+    GIVEN an authenticated user
+    WHEN they submit the settings form with the new model name field
+    THEN the update_user_settings crud function is called with the correct data.
+    """
+    app = create_app()
+    client = TestClient(app)
+    app.dependency_overrides.clear()
+
+    mock_user = User(
+        id=1, username="testuser", email="test@test.com", hashed_password="hashed"
+    )
+
+    def get_mock_user():
+        return mock_user
+
+    mock_db = MagicMock()
+
+    def get_mock_db():
+        yield mock_db
+
+    app.dependency_overrides[get_current_user_from_cookie] = get_mock_user
+    app.dependency_overrides[get_db] = get_mock_db
+
+    form_data = {
+        "llm_endpoint": "http://new-endpoint.com",
+        "llm_model_name": "new-model",
+        "api_key": "new_key",
+    }
+
+    response = client.post("/settings", data=form_data)
+
+    assert response.status_code == 200
+    mock_update_user_settings.assert_called_once()
+
+    # Check the arguments passed to the mocked function
+    args, kwargs = mock_update_user_settings.call_args
+    assert kwargs["db"] == mock_db
+    assert kwargs["user_id"] == mock_user.id
+
+    settings_data = kwargs["settings_data"]
+    assert isinstance(settings_data, UserSettingsUpdateRequest)
+    assert settings_data.llm_endpoint == "http://new-endpoint.com"
+    assert settings_data.llm_model_name == "new-model"
+    assert settings_data.api_key == "new_key"
+
+    assert "Your settings have been updated" in response.text
 
     app.dependency_overrides.clear()
 

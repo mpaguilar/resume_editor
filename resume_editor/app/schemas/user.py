@@ -285,10 +285,12 @@ class UserSettingsUpdateRequest(BaseModel):
 
     Args:
         llm_endpoint (str | None): Custom LLM endpoint URL.
+        llm_model_name (str | None): The user-specified LLM model name.
         api_key (str | None): Plaintext API key for the LLM service.
 
     Attributes:
         llm_endpoint (str | None): Custom LLM endpoint URL.
+        llm_model_name (str | None): The user-specified LLM model name.
         api_key (str | None): Plaintext API key for the LLM service.
 
     Notes:
@@ -299,6 +301,7 @@ class UserSettingsUpdateRequest(BaseModel):
     """
 
     llm_endpoint: str | None = None
+    llm_model_name: str | None = None
     api_key: str | None = None
 
 

@@ -161,7 +161,11 @@ def test_post_settings_unauthenticated(mock_get_session_local, mock_user_count):
 
     response = client.post(
         "/settings",
-        data={"llm_endpoint": "some_endpoint", "api_key": "some_key"},
+        data={
+            "llm_endpoint": "some_endpoint",
+            "llm_model_name": "some-model",
+            "api_key": "some_key",
+        },
     )
     assert response.status_code == status.HTTP_307_TEMPORARY_REDIRECT
     assert response.headers["location"] == "http://testserver/login"
@@ -324,7 +328,11 @@ def test_post_settings_authenticated(
     # Test with new values
     response = client.post(
         "/settings",
-        data={"llm_endpoint": "http://new.com", "api_key": "new_key"},
+        data={
+            "llm_endpoint": "http://new.com",
+            "llm_model_name": "new-model",
+            "api_key": "new_key",
+        },
     )
 
     assert response.status_code == 200
@@ -337,6 +345,7 @@ def test_post_settings_authenticated(
     settings_data = kwargs["settings_data"]
     assert isinstance(settings_data, UserSettingsUpdateRequest)
     assert settings_data.llm_endpoint == "http://new.com"
+    assert settings_data.llm_model_name == "new-model"
     assert settings_data.api_key == "new_key"
     mock_user_count.assert_called_once()
 
@@ -355,7 +364,9 @@ def test_post_settings_empty_values(
     mock_get_session_local.return_value = lambda: mock_session
     client, mock_db = web_auth_client_and_db
 
-    response = client.post("/settings", data={"llm_endpoint": "", "api_key": ""})
+    response = client.post(
+        "/settings", data={"llm_endpoint": "", "llm_model_name": "", "api_key": ""}
+    )
 
     assert response.status_code == 200
     assert "Your settings have been updated." in response.text
@@ -366,6 +377,7 @@ def test_post_settings_empty_values(
     settings_data = kwargs["settings_data"]
     assert isinstance(settings_data, UserSettingsUpdateRequest)
     assert settings_data.llm_endpoint == ""
+    assert settings_data.llm_model_name == ""
     assert settings_data.api_key == ""
     mock_user_count.assert_called_once()
 
