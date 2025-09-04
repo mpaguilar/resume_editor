@@ -41,7 +41,7 @@ Pay attention to the `BasicBlockParse` class. It is a base class for many parsin
 * View resume details, including a rendered view of the Markdown.
 * Create new resumes from a form.
 * Edit all sections of a resume (personal, education, experience, etc.) through dedicated forms.
-* Initiate actions like AI refinement and export from the dashboard.
+* Initiate actions like AI refinement and export from the dashboard, with real-time progress updates and error notifications for AI tasks.
 * A dedicated settings page for managing LLM configurations and changing passwords.
 
 ## Resume Management
@@ -71,6 +71,7 @@ Pay attention to the `BasicBlockParse` class. It is a base class for many parsin
 * Refine resume content using LLMs.
 * Analyze job descriptions with an LLM to extract key skills and qualifications.
 * Multi-pass refinement of the "Experience" section, where each role is individually refined against the job analysis.
+* Real-time progress feedback using Server-Sent Events (SSE) during refinement, with graceful error handling.
 * Save and download LLM-refined versions.
 * Configure custom OpenAI-compatible API endpoints and model names.
 
@@ -80,7 +81,7 @@ Pay attention to the `BasicBlockParse` class. It is a base class for many parsin
 
 * Single FastAPI application with API routes
 * Middleware for initial application setup.
-* HTMX for dynamic frontend interactions
+* HTMX for dynamic frontend interactions, with Server-Sent Events (SSE) for real-time updates.
 * Tailwind CSS for styling
 * PostgreSQL for data storage with Alembic migrations
 
