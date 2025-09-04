@@ -68,10 +68,11 @@ Pay attention to the `BasicBlockParse` class. It is a base class for many parsin
 
 ## LLM Integration
 
-* Refine resume content using LLMs
-* Compare job descriptions against resumes for targeted refinement
-* Save and download LLM-refined versions
-* Configure custom OpenAI-compatible API endpoints and model names
+* Refine resume content using LLMs.
+* Analyze job descriptions with an LLM to extract key skills and qualifications.
+* Multi-pass refinement of the "Experience" section, where each role is individually refined against the job analysis.
+* Save and download LLM-refined versions.
+* Configure custom OpenAI-compatible API endpoints and model names.
 
 # Technical Requirements
 
