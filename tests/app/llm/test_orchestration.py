@@ -1,4 +1,5 @@
 import logging
+from datetime import datetime
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -7,11 +8,19 @@ import json
 from resume_editor.app.llm.orchestration import (
     _get_section_content,
     analyze_job_description,
+    refine_experience_section,
     refine_resume_section_with_llm,
     refine_role,
 )
+from resume_editor.app.api.routes.route_models import (
+    CertificationsResponse,
+    EducationResponse,
+    ExperienceResponse,
+    PersonalInfoResponse,
+)
 from resume_editor.app.llm.models import JobAnalysis, RefinedSection
 from resume_editor.app.models.resume.experience import (
+    Project,
     Role,
     RoleBasics,
     RoleResponsibilities,
@@ -645,7 +654,7 @@ def create_mock_role() -> Role:
         basics=RoleBasics(
             company="Old Company",
             title="Old Title",
-            start_date="2020-01-01T00:00:00",
+            start_date=datetime(2020, 1, 1),
         ),
         summary=RoleSummary(text="Old summary."),
         responsibilities=RoleResponsibilities(text="* Do old things."),
@@ -849,3 +858,120 @@ def test_refine_role_llm_initialization(
     )
     mock_chat_openai = mock_chain_invocations_for_role_refine["chat_openai"]
     mock_chat_openai.assert_called_once_with(**expected_call_args)
+
+
+@patch("resume_editor.app.llm.orchestration.reconstruct_resume_markdown")
+@patch("resume_editor.app.llm.orchestration.refine_role")
+@patch("resume_editor.app.llm.orchestration.analyze_job_description")
+@patch("resume_editor.app.llm.orchestration.extract_experience_info")
+@patch("resume_editor.app.llm.orchestration.extract_certifications_info")
+@patch("resume_editor.app.llm.orchestration.extract_education_info")
+@patch("resume_editor.app.llm.orchestration.extract_personal_info")
+def test_refine_experience_section(
+    mock_extract_personal,
+    mock_extract_education,
+    mock_extract_certifications,
+    mock_extract_experience,
+    mock_analyze_job,
+    mock_refine_role,
+    mock_reconstruct,
+):
+    """Test that the orchestrator calls all steps and reconstructs the resume correctly."""
+    # Arrange
+    # 1. Mock inputs
+    resume_content = "full resume markdown"
+    job_description = "the best job ever"
+    llm_endpoint = "http://fake.llm"
+    api_key = "fake_key"
+    llm_model_name = "fake-model"
+
+    # 2. Mock return values for extractors
+    mock_personal_info = PersonalInfoResponse(name="Test Person")
+    mock_education_info = EducationResponse(degrees=[])
+    mock_certifications_info = CertificationsResponse(certifications=[])
+
+    original_role1 = create_mock_role()
+    original_role1.basics.company = "Company 1"
+    original_role2 = create_mock_role()
+    original_role2.basics.company = "Company 2"
+    mock_projects = [MagicMock(spec=Project)]  # Safely mock projects
+
+    mock_experience_info = ExperienceResponse(
+        roles=[original_role1, original_role2], projects=mock_projects
+    )
+
+    mock_extract_personal.return_value = mock_personal_info
+    mock_extract_education.return_value = mock_education_info
+    mock_extract_certifications.return_value = mock_certifications_info
+    mock_extract_experience.return_value = mock_experience_info
+
+    # 3. Mock return value for job analyzer
+    mock_job_analysis = create_mock_job_analysis()
+    mock_analyze_job.return_value = mock_job_analysis
+
+    # 4. Mock return values for refiner
+    refined_role1 = create_mock_role()
+    refined_role1.summary.text = "Refined summary 1"
+    refined_role2 = create_mock_role()
+    refined_role2.summary.text = "Refined summary 2"
+    mock_refine_role.side_effect = [refined_role1, refined_role2]
+
+    # 5. Mock return value for reconstructor
+    final_markdown = "final reconstructed markdown"
+    mock_reconstruct.return_value = final_markdown
+
+    # Act
+    result = refine_experience_section(
+        resume_content=resume_content,
+        job_description=job_description,
+        llm_endpoint=llm_endpoint,
+        api_key=api_key,
+        llm_model_name=llm_model_name,
+    )
+
+    # Assert
+    # 1. Check extractors were called
+    mock_extract_personal.assert_called_once_with(resume_content)
+    mock_extract_education.assert_called_once_with(resume_content)
+    mock_extract_certifications.assert_called_once_with(resume_content)
+    mock_extract_experience.assert_called_once_with(resume_content)
+
+    # 2. Check job analyzer was called
+    mock_analyze_job.assert_called_once_with(
+        job_description=job_description,
+        llm_endpoint=llm_endpoint,
+        api_key=api_key,
+        llm_model_name=llm_model_name,
+    )
+
+    # 3. Check role refiner was called for each role
+    assert mock_refine_role.call_count == 2
+    mock_refine_role.assert_any_call(
+        role=original_role1,
+        job_analysis=mock_job_analysis,
+        llm_endpoint=llm_endpoint,
+        api_key=api_key,
+        llm_model_name=llm_model_name,
+    )
+    mock_refine_role.assert_any_call(
+        role=original_role2,
+        job_analysis=mock_job_analysis,
+        llm_endpoint=llm_endpoint,
+        api_key=api_key,
+        llm_model_name=llm_model_name,
+    )
+
+    # 4. Check reconstructor was called with correct data
+    mock_reconstruct.assert_called_once()
+    reconstruct_kwargs = mock_reconstruct.call_args.kwargs
+    assert reconstruct_kwargs["personal_info"] == mock_personal_info
+    assert reconstruct_kwargs["education"] == mock_education_info
+    assert reconstruct_kwargs["certifications"] == mock_certifications_info
+
+    refined_experience_arg = reconstruct_kwargs["experience"]
+    assert isinstance(refined_experience_arg, ExperienceResponse)
+    assert refined_experience_arg.roles == [refined_role1, refined_role2]
+    assert refined_experience_arg.projects == mock_projects
+
+    # 5. Check final result
+    assert result == final_markdown

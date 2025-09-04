@@ -6,6 +6,9 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.utils.json import parse_json_markdown
 from langchain_openai import ChatOpenAI
 
+from resume_editor.app.api.routes.route_logic.resume_reconstruction import (
+    reconstruct_resume_markdown,
+)
 from resume_editor.app.api.routes.route_logic.resume_serialization import (
     extract_certifications_info,
     extract_education_info,
@@ -15,6 +18,12 @@ from resume_editor.app.api.routes.route_logic.resume_serialization import (
     serialize_education_to_markdown,
     serialize_experience_to_markdown,
     serialize_personal_info_to_markdown,
+)
+from resume_editor.app.api.routes.route_models import (
+    CertificationsResponse,
+    EducationResponse,
+    ExperienceResponse,
+    PersonalInfoResponse,
 )
 from resume_editor.app.llm.models import JobAnalysis, RefinedSection
 from resume_editor.app.llm.prompts import (
@@ -381,3 +390,79 @@ def refine_role(
     _msg = "refine_role returning"
     log.debug(_msg)
     return refined_role
+
+
+def refine_experience_section(
+    resume_content: str,
+    job_description: str,
+    llm_endpoint: str | None,
+    api_key: str | None,
+    llm_model_name: str | None,
+) -> str:
+    """Orchestrates the multi-pass refinement of the experience section.
+
+    Args:
+        resume_content (str): The full resume content in Markdown.
+        job_description (str): The job description to align the resume with.
+        llm_endpoint (str | None): The custom LLM endpoint URL.
+        api_key (str | None): The user's decrypted LLM API key.
+        llm_model_name (str | None): The user-specified LLM model name.
+
+    Returns:
+        str: The complete, updated resume Markdown.
+
+    Notes:
+        1. Parse the full resume into structured data for all sections.
+        2. Call `analyze_job_description` to get a structured analysis of the job.
+        3. Iterate through each role from the parsed experience section.
+        4. For each role, call `refine_role` with the role and job analysis to get a refined role.
+        5. Collect the refined roles.
+        6. Create a new `ExperienceResponse` object containing the refined roles and original projects.
+        7. Call `reconstruct_resume_markdown` with the original parsed sections and the new refined experience section.
+        8. Return the complete, updated resume Markdown.
+    """
+    _msg = "refine_experience_section starting"
+    log.debug(_msg)
+
+    # 1. Parse all sections of the resume
+    personal_info = extract_personal_info(resume_content)
+    education_info = extract_education_info(resume_content)
+    certifications_info = extract_certifications_info(resume_content)
+    experience_info = extract_experience_info(resume_content)
+
+    # 2. Analyze the job description
+    job_analysis = analyze_job_description(
+        job_description=job_description,
+        llm_endpoint=llm_endpoint,
+        api_key=api_key,
+        llm_model_name=llm_model_name,
+    )
+
+    # 3. Refine each role
+    refined_roles: list[Role] = []
+    for role in experience_info.roles:
+        refined_role = refine_role(
+            role=role,
+            job_analysis=job_analysis,
+            llm_endpoint=llm_endpoint,
+            api_key=api_key,
+            llm_model_name=llm_model_name,
+        )
+        refined_roles.append(refined_role)
+
+    # 4. Create new experience response with refined roles
+    refined_experience = ExperienceResponse(
+        roles=refined_roles, projects=experience_info.projects
+    )
+
+    # 5. Reconstruct the full resume
+    updated_resume_content = reconstruct_resume_markdown(
+        personal_info=personal_info,
+        education=education_info,
+        certifications=certifications_info,
+        experience=refined_experience,
+    )
+
+    _msg = "refine_experience_section returning"
+    log.debug(_msg)
+    return updated_resume_content

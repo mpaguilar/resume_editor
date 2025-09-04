@@ -6372,6 +6372,32 @@ Network access:
 
 ---
 
+## function: `refine_experience_section(resume_content: str, job_description: str, llm_endpoint: str | None, api_key: str | None, llm_model_name: str | None) -> str`
+
+Orchestrates the multi-pass refinement of the experience section.
+
+Args:
+    resume_content (str): The full resume content in Markdown.
+    job_description (str): The job description to align the resume with.
+    llm_endpoint (str | None): The custom LLM endpoint URL.
+    api_key (str | None): The user's decrypted LLM API key.
+    llm_model_name (str | None): The user-specified LLM model name.
+
+Returns:
+    str: The complete, updated resume Markdown.
+
+Notes:
+    1. Parse the full resume into structured data for all sections.
+    2. Call `analyze_job_description` to get a structured analysis of the job.
+    3. Iterate through each role from the parsed experience section.
+    4. For each role, call `refine_role` with the role and job analysis to get a refined role.
+    5. Collect the refined roles.
+    6. Create a new `ExperienceResponse` object containing the refined roles and original projects.
+    7. Call `reconstruct_resume_markdown` with the original parsed sections and the new refined experience section.
+    8. Return the complete, updated resume Markdown.
+
+---
+
 
 ===
 
