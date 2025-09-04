@@ -1,5 +1,6 @@
 import json
 import logging
+from typing import AsyncGenerator
 
 from langchain_core.output_parsers import PydanticOutputParser, StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
@@ -86,7 +87,7 @@ def _get_section_content(resume_content: str, section_name: str) -> str:
     return serializer(extracted_data)
 
 
-def analyze_job_description(
+async def analyze_job_description(
     job_description: str,
     llm_endpoint: str | None,
     api_key: str | None,
@@ -109,7 +110,7 @@ def analyze_job_description(
         3. Determine the model name, using the provided `llm_model_name` or falling back to a default.
         4. Initialize the ChatOpenAI client.
         5. Create a chain combining the prompt, LLM, and parser.
-        6. Invoke the chain with the job description.
+        6. Asynchronously invoke the chain with the job description.
         7. Return the `JobAnalysis` object.
 
     Network access:
@@ -154,7 +155,7 @@ def analyze_job_description(
     # Use StrOutputParser to get the raw string, then manually parse
     chain = prompt | llm | StrOutputParser()
     try:
-        response_str = chain.invoke({"job_description": job_description})
+        response_str = await chain.ainvoke({"job_description": job_description})
 
         parsed_json = parse_json_markdown(response_str)
         analysis = JobAnalysis.model_validate(parsed_json)
@@ -294,7 +295,7 @@ def refine_resume_section_with_llm(
     return refined_section.refined_markdown
 
 
-def refine_role(
+async def refine_role(
     role: Role,
     job_analysis: JobAnalysis,
     llm_endpoint: str | None,
@@ -323,7 +324,7 @@ def refine_role(
         4. Determine the model name, using the provided `llm_model_name` or falling back to a default.
         5. Initialize the ChatOpenAI client.
         6. Create a chain combining the prompt, LLM, and a string output parser.
-        7. Invoke the chain with the serialized JSON data.
+        7. Asynchronously invoke the chain with the serialized JSON data.
         8. Parse the LLM's string response to extract the JSON.
         9. Validate the extracted JSON against the Role model.
         10. Return the validated Role object.
@@ -371,7 +372,7 @@ def refine_role(
     job_analysis_json = job_analysis.model_dump_json(indent=2)
 
     try:
-        response_str = chain.invoke(
+        response_str = await chain.ainvoke(
             {
                 "job_analysis_json": job_analysis_json,
                 "role_json": role_json,
@@ -392,14 +393,15 @@ def refine_role(
     return refined_role
 
 
-def refine_experience_section(
+async def refine_experience_section(
     resume_content: str,
     job_description: str,
     llm_endpoint: str | None,
     api_key: str | None,
     llm_model_name: str | None,
-) -> str:
-    """Orchestrates the multi-pass refinement of the experience section.
+) -> AsyncGenerator[dict[str, str], None]:
+    """
+    Orchestrates the multi-pass refinement of the experience section as an async generator.
 
     Args:
         resume_content (str): The full resume content in Markdown.
@@ -408,30 +410,37 @@ def refine_experience_section(
         api_key (str | None): The user's decrypted LLM API key.
         llm_model_name (str | None): The user-specified LLM model name.
 
-    Returns:
-        str: The complete, updated resume Markdown.
+    Yields:
+        dict: A dictionary containing the status of the refinement process.
+              The final yielded object contains the complete refined Markdown.
 
     Notes:
-        1. Parse the full resume into structured data for all sections.
-        2. Call `analyze_job_description` to get a structured analysis of the job.
-        3. Iterate through each role from the parsed experience section.
-        4. For each role, call `refine_role` with the role and job analysis to get a refined role.
-        5. Collect the refined roles.
-        6. Create a new `ExperienceResponse` object containing the refined roles and original projects.
-        7. Call `reconstruct_resume_markdown` with the original parsed sections and the new refined experience section.
-        8. Return the complete, updated resume Markdown.
+        1. Yields status "Parsing resume...".
+        2. Parses the full resume into structured data for all sections.
+        3. Yields status "Analyzing job description...".
+        4. Calls `analyze_job_description` to get a structured analysis of the job.
+        5. Iterates through each role, yielding status "Refining role X of Y...".
+        6. For each role, calls `refine_role` to get a refined role.
+        7. Collects the refined roles.
+        8. Creates a new `ExperienceResponse` with the refined roles.
+        9. Yields status "Reconstructing resume...".
+        10. Calls `reconstruct_resume_markdown` to create the final content.
+        11. Yields a final dictionary with status "done" and the resume content.
+
     """
     _msg = "refine_experience_section starting"
     log.debug(_msg)
 
     # 1. Parse all sections of the resume
+    yield {"status": "Parsing resume..."}
     personal_info = extract_personal_info(resume_content)
     education_info = extract_education_info(resume_content)
     certifications_info = extract_certifications_info(resume_content)
     experience_info = extract_experience_info(resume_content)
 
     # 2. Analyze the job description
-    job_analysis = analyze_job_description(
+    yield {"status": "Analyzing job description..."}
+    job_analysis = await analyze_job_description(
         job_description=job_description,
         llm_endpoint=llm_endpoint,
         api_key=api_key,
@@ -440,8 +449,12 @@ def refine_experience_section(
 
     # 3. Refine each role
     refined_roles: list[Role] = []
-    for role in experience_info.roles:
-        refined_role = refine_role(
+    total_roles = len(experience_info.roles)
+    for i, role in enumerate(experience_info.roles, 1):
+        _msg = f"Refining role {i} of {total_roles}"
+        log.debug(_msg)
+        yield {"status": _msg}
+        refined_role = await refine_role(
             role=role,
             job_analysis=job_analysis,
             llm_endpoint=llm_endpoint,
@@ -456,6 +469,7 @@ def refine_experience_section(
     )
 
     # 5. Reconstruct the full resume
+    yield {"status": "Reconstructing resume..."}
     updated_resume_content = reconstruct_resume_markdown(
         personal_info=personal_info,
         education=education_info,
@@ -463,6 +477,6 @@ def refine_experience_section(
         experience=refined_experience,
     )
 
-    _msg = "refine_experience_section returning"
+    _msg = "refine_experience_section finished, yielding final content"
     log.debug(_msg)
-    return updated_resume_content
+    yield {"status": "done", "content": updated_resume_content}

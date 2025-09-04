@@ -6,6 +6,7 @@ import pytest
 from cryptography.fernet import InvalidToken
 from fastapi import FastAPI, HTTPException
 from fastapi.testclient import TestClient
+from openai import AuthenticationError
 from sqlalchemy.orm import Session
 
 from resume_editor.app.api.routes.route_models import (
@@ -1242,7 +1243,7 @@ def test_refine_resume_success_with_key(
     # Act
     response = client_with_auth_and_resume.post(
         "/api/resumes/1/refine",
-        data={"job_description": "job", "target_section": "experience"},
+        data={"job_description": "job", "target_section": "personal"},
     )
 
     # Assert
@@ -1253,7 +1254,7 @@ def test_refine_resume_success_with_key(
     mock_refine_llm.assert_called_once_with(
         resume_content=VALID_MINIMAL_RESUME_CONTENT,
         job_description="job",
-        target_section="experience",
+        target_section="personal",
         llm_endpoint="http://llm.test",
         api_key="decrypted_key",
         llm_model_name="test-model",
@@ -1279,7 +1280,7 @@ def test_refine_resume_no_settings(
     # Act
     response = client_with_auth_and_resume.post(
         "/api/resumes/1/refine",
-        data={"job_description": "job", "target_section": "experience"},
+        data={"job_description": "job", "target_section": "personal"},
     )
 
     # Assert
@@ -1289,7 +1290,7 @@ def test_refine_resume_no_settings(
     mock_refine_llm.assert_called_once_with(
         resume_content=VALID_MINIMAL_RESUME_CONTENT,
         job_description="job",
-        target_section="experience",
+        target_section="personal",
         llm_endpoint=None,
         api_key=None,
         llm_model_name=None,
@@ -1318,7 +1319,7 @@ def test_refine_resume_no_api_key(
     # Act
     response = client_with_auth_and_resume.post(
         "/api/resumes/1/refine",
-        data={"job_description": "job", "target_section": "experience"},
+        data={"job_description": "job", "target_section": "personal"},
     )
 
     # Assert
@@ -1327,7 +1328,7 @@ def test_refine_resume_no_api_key(
     mock_refine_llm.assert_called_once_with(
         resume_content=VALID_MINIMAL_RESUME_CONTENT,
         job_description="job",
-        target_section="experience",
+        target_section="personal",
         llm_endpoint="http://llm.test",
         api_key=None,
         llm_model_name="test-model",
@@ -1349,7 +1350,7 @@ def test_refine_resume_llm_failure(
     # Act
     response = client_with_auth_and_resume.post(
         "/api/resumes/1/refine",
-        data={"job_description": "job", "target_section": "experience"},
+        data={"job_description": "job", "target_section": "personal"},
     )
 
     # Assert
@@ -1371,7 +1372,7 @@ def test_refine_resume_llm_failure_htmx(
     # Act
     response = client_with_auth_and_resume.post(
         "/api/resumes/1/refine",
-        data={"job_description": "job", "target_section": "experience"},
+        data={"job_description": "job", "target_section": "personal"},
         headers={"HX-Request": "true"},
     )
 
@@ -1393,8 +1394,6 @@ def test_refine_resume_llm_auth_failure(
 ):
     """Test resume refinement when the LLM call fails with an auth error."""
     # Arrange
-    from openai import AuthenticationError
-
     mock_refine_llm.side_effect = AuthenticationError(
         message="Invalid API key",
         response=Mock(),
@@ -1404,7 +1403,7 @@ def test_refine_resume_llm_auth_failure(
     # Act
     response = client_with_auth_and_resume.post(
         "/api/resumes/1/refine",
-        data={"job_description": "job", "target_section": "experience"},
+        data={"job_description": "job", "target_section": "personal"},
     )
 
     # Assert
@@ -1423,8 +1422,6 @@ def test_refine_resume_llm_auth_failure_htmx(
 ):
     """Test resume refinement HTMX request when LLM auth fails."""
     # Arrange
-    from openai import AuthenticationError
-
     mock_refine_llm.side_effect = AuthenticationError(
         message="auth failed", response=Mock(), body=None
     )
@@ -1432,7 +1429,7 @@ def test_refine_resume_llm_auth_failure_htmx(
     # Act
     response = client_with_auth_and_resume.post(
         "/api/resumes/1/refine",
-        data={"job_description": "job", "target_section": "experience"},
+        data={"job_description": "job", "target_section": "personal"},
         headers={"HX-Request": "true"},
     )
 
@@ -1445,6 +1442,7 @@ def test_refine_resume_llm_auth_failure_htmx(
     )
 
 
+@pytest.mark.parametrize("target_section", ["personal", "experience"])
 @patch("resume_editor.app.api.routes.resume.refine_resume_section_with_llm")
 @patch("resume_editor.app.api.routes.resume.decrypt_data")
 @patch("resume_editor.app.api.routes.resume.get_user_settings")
@@ -1452,6 +1450,7 @@ def test_refine_resume_decryption_failure(
     mock_get_user_settings,
     mock_decrypt_data,
     mock_refine_llm,
+    target_section,
     client_with_auth_and_resume,
     test_user,
 ):
@@ -1469,7 +1468,7 @@ def test_refine_resume_decryption_failure(
     # Act
     response = client_with_auth_and_resume.post(
         "/api/resumes/1/refine",
-        data={"job_description": "job", "target_section": "experience"},
+        data={"job_description": "job", "target_section": target_section},
     )
 
     # Assert
@@ -1482,11 +1481,13 @@ def test_refine_resume_decryption_failure(
     mock_refine_llm.assert_not_called()
 
 
+@pytest.mark.parametrize("target_section", ["personal", "experience"])
 @patch("resume_editor.app.api.routes.resume.decrypt_data")
 @patch("resume_editor.app.api.routes.resume.get_user_settings")
 def test_refine_resume_decryption_failure_htmx(
     mock_get_user_settings,
     mock_decrypt_data,
+    target_section,
     client_with_auth_and_resume,
     test_user,
 ):
@@ -1499,7 +1500,7 @@ def test_refine_resume_decryption_failure_htmx(
     # Act
     response = client_with_auth_and_resume.post(
         "/api/resumes/1/refine",
-        data={"job_description": "job", "target_section": "experience"},
+        data={"job_description": "job", "target_section": target_section},
         headers={"HX-Request": "true"},
     )
 
@@ -1536,7 +1537,7 @@ def test_refine_resume_htmx_response(
     # Act
     response = client_with_auth_and_resume.post(
         "/api/resumes/1/refine",
-        data={"job_description": "job", "target_section": "experience"},
+        data={"job_description": "job", "target_section": "personal"},
         headers={"HX-Request": "true"},
     )
 
@@ -1564,7 +1565,7 @@ def test_refine_resume_no_htmx_response(
     # Act
     response = client_with_auth_and_resume.post(
         "/api/resumes/1/refine",
-        data={"job_description": "job", "target_section": "experience"},
+        data={"job_description": "job", "target_section": "personal"},
     )
 
     # Assert
@@ -2552,6 +2553,158 @@ def test_create_resume_from_form_submission(app, test_user):
     app.dependency_overrides.clear()
 
 
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "user_settings, expected_api_key, expected_endpoint, expected_model_name",
+    [
+        (
+            UserSettings(
+                user_id=1,
+                llm_endpoint="http://llm.test",
+                encrypted_api_key="key",
+                llm_model_name="test-model",
+            ),
+            "decrypted_key",
+            "http://llm.test",
+            "test-model",
+        ),
+        (
+            UserSettings(
+                user_id=1, llm_endpoint="http://llm.test", llm_model_name="test-model"
+            ),
+            None,
+            "http://llm.test",
+            "test-model",
+        ),
+        (None, None, None, None),
+    ],
+    ids=["with_full_settings", "with_settings_no_key", "no_settings"],
+)
+@patch("resume_editor.app.api.routes.resume.refine_experience_section")
+@patch("resume_editor.app.api.routes.resume.decrypt_data")
+@patch("resume_editor.app.api.routes.resume.get_user_settings")
+async def test_refine_experience_with_sse_happy_path(
+    mock_get_user_settings,
+    mock_decrypt_data,
+    mock_refine_experience,
+    user_settings,
+    expected_api_key,
+    expected_endpoint,
+    expected_model_name,
+    client_with_auth_and_resume,
+):
+    """Test successful SSE refinement for experience section under various settings."""
+    import json
+
+    mock_get_user_settings.return_value = user_settings
+    if expected_api_key:
+        mock_decrypt_data.return_value = expected_api_key
+
+    # Mock the async generator
+    async def mock_async_generator():
+        yield {"status": "starting"}
+        yield {"status": "done", "content": "refined"}
+
+    mock_refine_experience.return_value = mock_async_generator()
+
+    # Act
+    with client_with_auth_and_resume.stream(
+        "POST",
+        "/api/resumes/1/refine",
+        data={"job_description": "job", "target_section": "experience"},
+    ) as response:
+        assert response.status_code == 200
+        assert "text/event-stream" in response.headers["content-type"]
+
+        events = []
+        for line in response.iter_lines():
+            if line.startswith("data:"):
+                event_data = json.loads(line[len("data:") :])
+                events.append(event_data)
+
+    # Assert
+    assert events == [
+        {"status": "starting"},
+        {"status": "done", "content": "refined"},
+    ]
+
+    mock_refine_experience.assert_called_once_with(
+        resume_content=VALID_MINIMAL_RESUME_CONTENT,
+        job_description="job",
+        llm_endpoint=expected_endpoint,
+        api_key=expected_api_key,
+        llm_model_name=expected_model_name,
+    )
+
+
+@pytest.mark.asyncio
+@patch("resume_editor.app.api.routes.resume.refine_experience_section")
+@patch("resume_editor.app.api.routes.resume.get_user_settings")
+async def test_refine_experience_with_sse_error(
+    mock_get_user_settings,
+    mock_refine_experience,
+    client_with_auth_and_resume,
+):
+    """Test SSE stream handles errors from orchestrator."""
+    import json
+
+    mock_get_user_settings.return_value = None
+    mock_refine_experience.side_effect = Exception("Orchestrator failed")
+
+    # Act
+    with client_with_auth_and_resume.stream(
+        "POST",
+        "/api/resumes/1/refine",
+        data={"job_description": "job", "target_section": "experience"},
+    ) as response:
+        assert response.status_code == 200
+        events = []
+        for line in response.iter_lines():
+            if line.startswith("data:"):
+                event_data = json.loads(line[len("data:") :])
+                events.append(event_data)
+
+    # Assert
+    assert len(events) == 1
+    assert events[0]["status"] == "error"
+    assert "Orchestrator failed" in events[0]["message"]
+
+
+@pytest.mark.asyncio
+@patch("resume_editor.app.api.routes.resume.refine_experience_section")
+@patch("resume_editor.app.api.routes.resume.get_user_settings")
+async def test_refine_experience_with_sse_auth_error(
+    mock_get_user_settings,
+    mock_refine_experience,
+    client_with_auth_and_resume,
+):
+    """Test SSE stream handles AuthenticationError from orchestrator."""
+    import json
+
+    mock_get_user_settings.return_value = None
+    mock_refine_experience.side_effect = AuthenticationError(
+        message="Invalid SSE key", response=Mock(), body=None
+    )
+
+    # Act
+    with client_with_auth_and_resume.stream(
+        "POST",
+        "/api/resumes/1/refine",
+        data={"job_description": "job", "target_section": "experience"},
+    ) as response:
+        assert response.status_code == 200
+        events = []
+        for line in response.iter_lines():
+            if line.startswith("data:"):
+                event_data = json.loads(line[len("data:") :])
+                events.append(event_data)
+
+    # Assert
+    assert len(events) == 1
+    assert events[0]["status"] == "error"
+    assert "LLM authentication failed" in events[0]["message"]
+
+
 @patch("resume_editor.app.api.routes.resume.refine_resume_section_with_llm")
 @patch("resume_editor.app.api.routes.resume.get_user_settings", return_value=None)
 def test_refine_resume_json_decode_error_htmx(
@@ -2568,7 +2721,7 @@ def test_refine_resume_json_decode_error_htmx(
     # Act
     response = client_with_auth_and_resume.post(
         "/api/resumes/1/refine",
-        data={"job_description": "job", "target_section": "experience"},
+        data={"job_description": "job", "target_section": "personal"},
         headers={"HX-Request": "true"},
     )
 
@@ -2597,7 +2750,7 @@ def test_refine_resume_json_decode_error_non_htmx(
     # Act
     response = client_with_auth_and_resume.post(
         "/api/resumes/1/refine",
-        data={"job_description": "job", "target_section": "experience"},
+        data={"job_description": "job", "target_section": "personal"},
     )
 
     # Assert

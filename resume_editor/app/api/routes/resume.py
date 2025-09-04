@@ -1,7 +1,9 @@
 import html
 import io
+import json
 import logging
 from datetime import date, datetime
+from typing import AsyncGenerator
 
 from cryptography.fernet import InvalidToken
 from docx import Document
@@ -31,6 +33,7 @@ from resume_editor.app.api.routes.route_logic.resume_filtering import (
     filter_experience_by_date,
 )
 from resume_editor.app.llm.orchestration import (
+    refine_experience_section,
     refine_resume_section_with_llm,
 )
 from resume_editor.app.api.routes.route_logic.resume_parsing import (
@@ -1552,7 +1555,7 @@ async def update_certifications_info_structured(
         raise HTTPException(status_code=422, detail=_msg)
 
 
-@router.post("/{resume_id}/refine", response_model=RefineResponse)
+@router.post("/{resume_id}/refine")
 async def refine_resume(
     http_request: Request,
     db: Session = Depends(get_db),
@@ -1564,6 +1567,10 @@ async def refine_resume(
     """
     Refine a resume section using an LLM to align with a job description.
 
+    For the 'experience' section, this endpoint returns a Server-Sent Events (SSE)
+    stream with real-time progress updates. For all other sections, it returns
+    a standard JSON or HTML response.
+
     Args:
         http_request (Request): The HTTP request object to check for HTMX headers.
         db (Session): The database session dependency.
@@ -1573,30 +1580,66 @@ async def refine_resume(
         target_section (RefineTargetSection): The section of the resume to refine.
 
     Returns:
-        RefineResponse | HTMLResponse: The LLM's refined content as Markdown, or an HTML partial for HTMX.
-
-    Notes:
-        1. Fetches the user's settings, including the custom LLM endpoint and encrypted API key.
-        2. Decrypts the API key if it exists.
-        3. Delegates to the `refine_resume_section_with_llm` function to perform the refinement.
-        4. If the request is from HTMX, returns an HTML partial with the suggestion and action buttons.
-        5. Otherwise, returns the refined content in a `RefineResponse`.
-        6. This function performs database reads to get user settings.
-        7. This function performs network access to call the LLM.
+        StreamingResponse | RefineResponse | HTMLResponse: The response type
+            depends on the target_section and request headers.
 
     """
     _msg = f"Refining resume {resume.id} for section {target_section.value}"
     log.debug(_msg)
 
-    try:
-        settings = get_user_settings(db, current_user.id)
-
-        llm_endpoint = settings.llm_endpoint if settings else None
-        llm_model_name = settings.llm_model_name if settings else None
-        api_key = None
-        if settings and settings.encrypted_api_key:
+    settings = get_user_settings(db, current_user.id)
+    llm_endpoint = settings.llm_endpoint if settings else None
+    llm_model_name = settings.llm_model_name if settings else None
+    api_key = None
+    if settings and settings.encrypted_api_key:
+        try:
             api_key = decrypt_data(settings.encrypted_api_key)
+        except InvalidToken:
+            detail = "Invalid API key. Please update your settings."
+            _msg = f"API key decryption failed for user {current_user.id}"
+            log.warning(_msg)
+            if "HX-Request" in http_request.headers:
+                return HTMLResponse(
+                    f'<div role="alert" class="text-red-500 p-2">{detail}</div>',
+                    status_code=200,
+                )
+            raise HTTPException(status_code=400, detail=detail)
 
+    if target_section == RefineTargetSection.EXPERIENCE:
+
+        async def sse_generator() -> AsyncGenerator[str, None]:
+            """Async generator for streaming SSE updates."""
+            log.debug("Starting SSE stream for experience refinement.")
+            try:
+                # refine_experience_section is an async generator
+                async for status_update in refine_experience_section(
+                    resume_content=resume.content,
+                    job_description=job_description,
+                    llm_endpoint=llm_endpoint,
+                    api_key=api_key,
+                    llm_model_name=llm_model_name,
+                ):
+                    yield f"data: {json.dumps(status_update)}\n\n"
+            except AuthenticationError as e:
+                detail = (
+                    "LLM authentication failed. Please check your API key in settings."
+                )
+                _msg = f"LLM authentication failed for user {current_user.id}: {e!s}"
+                log.warning(_msg)
+                error_event = {"status": "error", "message": detail}
+                yield f"data: {json.dumps(error_event)}\n\n"
+            except Exception as e:
+                log.exception(
+                    "Error during experience refinement SSE stream for resume %d",
+                    resume.id,
+                )
+                error_event = {"status": "error", "message": str(e)}
+                yield f"data: {json.dumps(error_event)}\n\n"
+
+        return StreamingResponse(sse_generator(), media_type="text/event-stream")
+
+    # Handle other sections as before
+    try:
         refined_content = refine_resume_section_with_llm(
             resume_content=resume.content,
             job_description=job_description,
@@ -1612,9 +1655,9 @@ async def refine_resume(
             <div id="refine-result" class="mt-4 p-4 border rounded-lg bg-gray-50">
                 <h4 class="font-semibold text-lg mb-2">AI Refinement Suggestion</h4>
                 <p class="text-sm text-gray-600 mb-2">Review the suggestion for the '{target_section_val}' section.</p>
-                <form 
+                <form
                     hx-post="/api/resumes/{resume.id}/refine/accept"
-                    hx-target="#left-sidebar-content" 
+                    hx-target="#left-sidebar-content"
                     hx-swap="innerHTML">
                     <input type="hidden" name="target_section" value="{target_section_val}">
                     <textarea name="refined_content" class="w-full h-48 p-2 border rounded font-mono text-sm">{html.escape(refined_content)}</textarea>
@@ -1650,16 +1693,6 @@ async def refine_resume(
                 status_code=200,
             )
         raise HTTPException(status_code=401, detail=detail)
-    except InvalidToken:
-        detail = "Invalid API key. Please update your settings."
-        _msg = f"API key decryption failed for user {current_user.id}"
-        log.warning(_msg)
-        if "HX-Request" in http_request.headers:
-            return HTMLResponse(
-                f'<div role="alert" class="text-red-500 p-2">{detail}</div>',
-                status_code=200,
-            )
-        raise HTTPException(status_code=400, detail=detail)
     except ValueError as e:
         detail = str(e)
         _msg = f"LLM refinement failed for resume {resume.id} with ValueError: {detail}"

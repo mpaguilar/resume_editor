@@ -6280,33 +6280,6 @@ Notes:
 
 ---
 
-## function: `analyze_job_description(job_description: str, llm_endpoint: str | None, api_key: str | None, llm_model_name: str | None) -> JobAnalysis`
-
-Uses an LLM to analyze a job description and extract key information.
-
-Args:
-    job_description (str): The job description to analyze.
-    llm_endpoint (str | None): The custom LLM endpoint URL.
-    api_key (str | None): The user's decrypted LLM API key.
-    llm_model_name (str | None): The user-specified LLM model name.
-
-Returns:
-    JobAnalysis: A pydantic object containing the structured analysis of the job description.
-
-Notes:
-    1. Set up a PydanticOutputParser for structured output based on the JobAnalysis model.
-    2. Create a PromptTemplate with instructions for the LLM.
-    3. Determine the model name, using the provided `llm_model_name` or falling back to a default.
-    4. Initialize the ChatOpenAI client.
-    5. Create a chain combining the prompt, LLM, and parser.
-    6. Invoke the chain with the job description.
-    7. Return the `JobAnalysis` object.
-
-Network access:
-    - This function makes a network request to the LLM endpoint specified by llm_endpoint.
-
----
-
 ## function: `refine_resume_section_with_llm(resume_content: str, job_description: str, target_section: str, llm_endpoint: str | None, api_key: str | None, llm_model_name: str | None) -> str`
 
 Uses an LLM to refine a specific section of a resume based on a job description.
@@ -6335,66 +6308,6 @@ Notes:
 
 Network access:
     - This function makes a network request to the LLM endpoint specified by llm_endpoint.
-
----
-
-## function: `refine_role(role: Role, job_analysis: JobAnalysis, llm_endpoint: str | None, api_key: str | None, llm_model_name: str | None) -> Role`
-
-Uses an LLM to refine a single resume Role based on a job analysis.
-
-Args:
-    role (Role): The structured Role object to refine.
-    job_analysis (JobAnalysis): The structured job analysis to align with.
-    llm_endpoint (str | None): The custom LLM endpoint URL.
-    api_key (str | None): The user's decrypted LLM API key.
-    llm_model_name (str | None): The user-specified LLM model name.
-
-Returns:
-    Role: The refined and validated Role object.
-
-Raises:
-    ValueError: If the LLM response is not valid JSON or fails Pydantic validation.
-
-Notes:
-    1. Set up a PydanticOutputParser for structured output based on the Role model.
-    2. Serialize the input role and job_analysis objects to JSON strings.
-    3. Create a PromptTemplate with instructions for the LLM.
-    4. Determine the model name, using the provided `llm_model_name` or falling back to a default.
-    5. Initialize the ChatOpenAI client.
-    6. Create a chain combining the prompt, LLM, and a string output parser.
-    7. Invoke the chain with the serialized JSON data.
-    8. Parse the LLM's string response to extract the JSON.
-    9. Validate the extracted JSON against the Role model.
-    10. Return the validated Role object.
-
-Network access:
-    - This function makes a network request to the LLM endpoint.
-
----
-
-## function: `refine_experience_section(resume_content: str, job_description: str, llm_endpoint: str | None, api_key: str | None, llm_model_name: str | None) -> str`
-
-Orchestrates the multi-pass refinement of the experience section.
-
-Args:
-    resume_content (str): The full resume content in Markdown.
-    job_description (str): The job description to align the resume with.
-    llm_endpoint (str | None): The custom LLM endpoint URL.
-    api_key (str | None): The user's decrypted LLM API key.
-    llm_model_name (str | None): The user-specified LLM model name.
-
-Returns:
-    str: The complete, updated resume Markdown.
-
-Notes:
-    1. Parse the full resume into structured data for all sections.
-    2. Call `analyze_job_description` to get a structured analysis of the job.
-    3. Iterate through each role from the parsed experience section.
-    4. For each role, call `refine_role` with the role and job analysis to get a refined role.
-    5. Collect the refined roles.
-    6. Create a new `ExperienceResponse` object containing the refined roles and original projects.
-    7. Call `reconstruct_resume_markdown` with the original parsed sections and the new refined experience section.
-    8. Return the complete, updated resume Markdown.
 
 ---
 
