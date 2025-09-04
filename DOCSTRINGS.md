@@ -3751,12 +3751,10 @@ Notes:
     3. Set up a PydanticOutputParser for structured output based on the RefinedSection model.
     4. Create a PromptTemplate with instructions for the LLM, including format instructions.
     5. Determine the model name, using the provided `llm_model_name` or falling back to a default.
-    6. Initialize the ChatOpenAI client with the determined model name, temperature, API base, and API key.
+    6. Initialize the ChatOpenAI client. If a custom `llm_endpoint` is set without an `api_key`, a dummy API key is provided to satisfy the OpenAI client library.
     7. Create a chain combining the prompt, LLM, and parser.
-    8. Invoke the chain with the job description and resume section content.
-    9. Parse the LLM's JSON-Markdown output using `parse_json_markdown` if the result is a string.
-    10. Validate the parsed JSON against the `RefinedSection` model.
-    11. Return the `refined_markdown` field from the validated result.
+    8. Invoke the chain with the job description and resume section content to get a `RefinedSection` object.
+    9. Return the `refined_markdown` field from the result.
 
 Network access:
     - This function makes a network request to the LLM endpoint specified by llm_endpoint.
