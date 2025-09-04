@@ -921,6 +921,10 @@
       [
         "_generate_resume_detail_html(resume: DatabaseResume) -> str",
         "Generate the HTML for the resume detail view.\n\nArgs:\n    resume (DatabaseResume): The resume object to generate HTML for.\n\nReturns:\n    str: HTML string for the resume detail view.\n\nNotes:\n    1. Creates HTML for the resume detail section with a header, content area, and footer.\n    2. Includes buttons for refining with AI, exporting, and editing.\n    3. Creates modal dialogs for export and refine actions with appropriate event handlers.\n    4. Returns the complete HTML string."
+      ],
+      [
+        "_create_refine_result_html(resume_id: int, target_section_val: str, refined_content: str) -> str",
+        "Creates the HTML for the refinement result container."
       ]
     ],
     "classes": {}

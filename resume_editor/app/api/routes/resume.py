@@ -433,20 +433,23 @@ def _generate_resume_detail_html(resume: DatabaseResume) -> str:
         <!-- Refine Form Container (hidden by default) -->
         <div id="refine-form-container-{resume.id}" class="hidden my-4 p-4 border rounded-lg bg-gray-50">
             <form id="refine-form-{resume.id}"
+                  hx-ext="sse"
                   hx-post="/api/resumes/{resume.id}/refine"
                   hx-target="#refine-result-container"
                   hx-swap="innerHTML"
-                  hx-indicator="#refine-spinner-{resume.id}"
-                  hx-on::after-request="this.closest('form').reset(); document.getElementById('refine-form-container-{resume.id}').classList.add('hidden')">
-                
+                  hx-indicator="#refine-progress-{resume.id}"
+                  hx-on--htmx--sse-message="handleSseMessage(event, {resume.id})"
+                  hx-on--htmx--after-request="handleAfterRequest(event)">
+
                 <h3 class="text-lg leading-6 font-medium text-gray-900 mb-4">Refine Resume with Job Description</h3>
-                
+
                 <label for="job_description" class="block text-sm font-medium text-gray-700">Job Description</label>
                 <textarea name="job_description" class="mt-1 w-full h-40 p-2 border border-gray-300 rounded" placeholder="Paste job description here..." required></textarea>
-                
+
                 <div class="mt-4">
                   <label for="target_section" class="block text-sm font-medium text-gray-700">Section to Refine</label>
-                  <select name="target_section" id="target_section" class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md">
+                  <select name="target_section" id="target_section_{resume.id}" class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md"
+                          onchange="handleSectionChange(this)">
                       <option value="full">Full Resume</option>
                       <option value="personal">Personal</option>
                       <option value="education">Education</option>
@@ -456,7 +459,7 @@ def _generate_resume_detail_html(resume: DatabaseResume) -> str:
                 </div>
 
                 <div class="mt-6 flex justify-end">
-                    <button type="button" 
+                    <button type="button"
                             onclick="document.getElementById('refine-form-container-{resume.id}').classList.add('hidden')"
                             class="bg-gray-200 text-gray-800 px-4 py-2 rounded text-sm mr-2 hover:bg-gray-300">
                         Cancel
@@ -467,14 +470,8 @@ def _generate_resume_detail_html(resume: DatabaseResume) -> str:
                 </div>
             </form>
         </div>
-
-        <div id="refine-spinner-{resume.id}" class="htmx-indicator mt-4 flex items-center space-x-2">
-            <svg class="animate-spin h-5 w-5 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-            </svg>
-            <span>Refining with AI...</span>
-        </div>
+        
+        <div id="refine-progress-{resume.id}" class="htmx-indicator mt-4 p-2 border rounded-md bg-gray-100"></div>
         <div id="refine-result-container" class="mt-4"></div>
         <div class="flex-grow">
             <textarea 
@@ -560,6 +557,50 @@ def _generate_resume_detail_html(resume: DatabaseResume) -> str:
         
         window.location.href = url;
         document.getElementById(`export-modal-${{resumeId}}`).classList.add('hidden');
+    }}
+
+    function handleSectionChange(select) {{
+        const form = select.closest('form');
+        if (select.value === 'experience') {{
+            form.setAttribute('hx-swap', 'none');
+        }} else {{
+            form.setAttribute('hx-swap', 'innerHTML');
+        }}
+    }}
+
+    function handleSseMessage(event, resumeId) {{
+        const form = document.getElementById(`refine-form-${{resumeId}}`);
+        const targetSectionSelect = form.querySelector(`[name='target_section']`);
+        if (targetSectionSelect.value !== 'experience') return;
+
+        const progressDiv = document.getElementById(`refine-progress-${{resumeId}}`);
+        const resultContainer = document.getElementById('refine-result-container');
+        const msg = JSON.parse(event.detail.data);
+
+        if (msg.status === 'done') {{
+            resultContainer.innerHTML = msg.content;
+            htmx.process(resultContainer);
+            progressDiv.innerHTML = '';
+            progressDiv.classList.add('htmx-indicator');
+            form.reset();
+            document.getElementById(`refine-form-container-${{resumeId}}`).classList.add('hidden');
+        }} else if (msg.status === 'error') {{
+            progressDiv.innerHTML = `<div role='alert' class='text-red-500 p-2'>${{msg.message}}</div>`;
+        }} else {{
+            progressDiv.innerHTML = `<p class='text-blue-600'>${{msg.message || msg.status}}</p>`;
+        }}
+    }}
+
+    function handleAfterRequest(event) {{
+        const form = event.target;
+        const targetSectionSelect = form.querySelector(`[name='target_section']`);
+        if (targetSectionSelect.value === 'experience') {{
+            // SSE stream handles its own success/error display.
+            // When stream closes, we don't want to clear results.
+             return;
+        }}
+        form.reset();
+        document.getElementById(`refine-form-container-${{event.target.id.split('-')[2]}}`).classList.add('hidden');
     }}
     </script>
     """
@@ -1555,6 +1596,41 @@ async def update_certifications_info_structured(
         raise HTTPException(status_code=422, detail=_msg)
 
 
+def _create_refine_result_html(
+    resume_id: int, target_section_val: str, refined_content: str
+) -> str:
+    """Creates the HTML for the refinement result container."""
+    return f"""
+    <div id="refine-result" class="mt-4 p-4 border rounded-lg bg-gray-50">
+        <h4 class="font-semibold text-lg mb-2">AI Refinement Suggestion</h4>
+        <p class="text-sm text-gray-600 mb-2">Review the suggestion for the '{target_section_val}' section.</p>
+        <form
+            hx-post="/api/resumes/{resume_id}/refine/accept"
+            hx-target="#left-sidebar-content"
+            hx-swap="innerHTML">
+            <input type="hidden" name="target_section" value="{target_section_val}">
+            <textarea name="refined_content" class="w-full h-48 p-2 border rounded font-mono text-sm">{html.escape(refined_content)}</textarea>
+            <div class="mt-4 flex items-center justify-between">
+                <div>
+                    <button type="submit" name="action" value="overwrite" class="bg-green-500 text-white px-3 py-1 rounded text-sm hover:bg-green-600">
+                        Accept & Overwrite
+                    </button>
+                    <button type="button" onclick="this.closest('#refine-result').remove()" class="bg-gray-500 text-white px-3 py-1 rounded text-sm hover:bg-gray-600 ml-2">
+                        Reject
+                    </button>
+                </div>
+                <div class="flex items-center">
+                    <input type="text" name="new_resume_name" placeholder="Name for new resume" class="border rounded px-2 py-1 text-sm">
+                    <button type="submit" name="action" value="save_as_new" class="bg-blue-500 text-white px-3 py-1 rounded text-sm hover:bg-blue-600 ml-2">
+                        Save as New
+                    </button>
+                </div>
+            </div>
+        </form>
+    </div>
+    """
+
+
 @router.post("/{resume_id}/refine")
 async def refine_resume(
     http_request: Request,
@@ -1619,7 +1695,15 @@ async def refine_resume(
                     api_key=api_key,
                     llm_model_name=llm_model_name,
                 ):
-                    yield f"data: {json.dumps(status_update)}\n\n"
+                    if status_update.get("status") == "done":
+                        refined_content = status_update.get("content", "")
+                        html_content = _create_refine_result_html(
+                            resume.id, "experience", refined_content
+                        )
+                        final_event = {"status": "done", "content": html_content}
+                        yield f"data: {json.dumps(final_event)}\n\n"
+                    else:
+                        yield f"data: {json.dumps(status_update)}\n\n"
             except AuthenticationError as e:
                 detail = (
                     "LLM authentication failed. Please check your API key in settings."
@@ -1650,36 +1734,9 @@ async def refine_resume(
         )
 
         if "HX-Request" in http_request.headers:
-            target_section_val = target_section.value
-            html_content = f"""
-            <div id="refine-result" class="mt-4 p-4 border rounded-lg bg-gray-50">
-                <h4 class="font-semibold text-lg mb-2">AI Refinement Suggestion</h4>
-                <p class="text-sm text-gray-600 mb-2">Review the suggestion for the '{target_section_val}' section.</p>
-                <form
-                    hx-post="/api/resumes/{resume.id}/refine/accept"
-                    hx-target="#left-sidebar-content"
-                    hx-swap="innerHTML">
-                    <input type="hidden" name="target_section" value="{target_section_val}">
-                    <textarea name="refined_content" class="w-full h-48 p-2 border rounded font-mono text-sm">{html.escape(refined_content)}</textarea>
-                    <div class="mt-4 flex items-center justify-between">
-                        <div>
-                            <button type="submit" name="action" value="overwrite" class="bg-green-500 text-white px-3 py-1 rounded text-sm hover:bg-green-600">
-                                Accept & Overwrite
-                            </button>
-                            <button type="button" onclick="this.closest('#refine-result').remove()" class="bg-gray-500 text-white px-3 py-1 rounded text-sm hover:bg-gray-600 ml-2">
-                                Reject
-                            </button>
-                        </div>
-                        <div class="flex items-center">
-                            <input type="text" name="new_resume_name" placeholder="Name for new resume" class="border rounded px-2 py-1 text-sm">
-                            <button type="submit" name="action" value="save_as_new" class="bg-blue-500 text-white px-3 py-1 rounded text-sm hover:bg-blue-600 ml-2">
-                                Save as New
-                            </button>
-                        </div>
-                    </div>
-                </form>
-            </div>
-            """
+            html_content = _create_refine_result_html(
+                resume.id, target_section.value, refined_content
+            )
             return HTMLResponse(content=html_content)
 
         return RefineResponse(refined_content=refined_content)

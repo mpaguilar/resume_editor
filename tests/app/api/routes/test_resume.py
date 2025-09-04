@@ -732,11 +732,11 @@ def test_get_resume(client_with_auth_and_resume, test_resume):
     soup = BeautifulSoup(response.text, "html.parser")
     refine_form = soup.find("form", id=f"refine-form-{test_resume.id}")
     assert refine_form is not None
-    assert refine_form.get("hx-indicator") == f"#refine-spinner-{test_resume.id}"
-    spinner_div = soup.find("div", id=f"refine-spinner-{test_resume.id}")
-    assert spinner_div is not None
-    assert "htmx-indicator" in spinner_div.get("class", [])
-    assert "hidden" not in spinner_div.get("class", [])
+    assert refine_form.get("hx-indicator") == f"#refine-progress-{test_resume.id}"
+    progress_div = soup.find("div", id=f"refine-progress-{test_resume.id}")
+    assert progress_div is not None
+    assert "htmx-indicator" in progress_div.get("class", [])
+    assert progress_div.text == ""
 
 
 @patch("resume_editor.app.api.routes.resume.create_resume_db")
@@ -2602,7 +2602,8 @@ async def test_refine_experience_with_sse_happy_path(
 
     # Mock the async generator
     async def mock_async_generator():
-        yield {"status": "starting"}
+        yield {"status": "starting", "message": "Analyzing..."}
+        yield {"status": "in_progress", "message": "Refining step 1..."}
         yield {"status": "done", "content": "refined"}
 
     mock_refine_experience.return_value = mock_async_generator()
@@ -2623,10 +2624,11 @@ async def test_refine_experience_with_sse_happy_path(
                 events.append(event_data)
 
     # Assert
-    assert events == [
-        {"status": "starting"},
-        {"status": "done", "content": "refined"},
-    ]
+    assert events[0] == {"status": "starting", "message": "Analyzing..."}
+    assert events[1] == {"status": "in_progress", "message": "Refining step 1..."}
+    assert events[2]["status"] == "done"
+    assert "AI Refinement Suggestion" in events[2]["content"]
+    assert "refined" in events[2]["content"]
 
     mock_refine_experience.assert_called_once_with(
         resume_content=VALID_MINIMAL_RESUME_CONTENT,

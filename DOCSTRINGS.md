@@ -3055,6 +3055,12 @@ Notes:
 
 ---
 
+## function: `_create_refine_result_html(resume_id: int, target_section_val: str, refined_content: str) -> str`
+
+Creates the HTML for the refinement result container.
+
+---
+
 
 ===
 
