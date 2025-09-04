@@ -1,7 +1,9 @@
 import logging
 
-from langchain_core.output_parsers import PydanticOutputParser
-from langchain_core.prompts import PromptTemplate
+from langchain_core.output_parsers import PydanticOutputParser, StrOutputParser
+import json
+
+from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.utils.json import parse_json_markdown
 from langchain_openai import ChatOpenAI
 
@@ -95,12 +97,10 @@ def refine_resume_section_with_llm(
         3. Set up a PydanticOutputParser for structured output based on the RefinedSection model.
         4. Create a PromptTemplate with instructions for the LLM, including format instructions.
         5. Determine the model name, using the provided `llm_model_name` or falling back to a default.
-        6. Initialize the ChatOpenAI client with the determined model name, temperature, API base, and API key.
+        6. Initialize the ChatOpenAI client. If a custom `llm_endpoint` is set without an `api_key`, a dummy API key is provided to satisfy the OpenAI client library.
         7. Create a chain combining the prompt, LLM, and parser.
-        8. Invoke the chain with the job description and resume section content.
-        9. Parse the LLM's JSON-Markdown output using `parse_json_markdown` if the result is a string.
-        10. Validate the parsed JSON against the `RefinedSection` model.
-        11. Return the `refined_markdown` field from the validated result.
+        8. Invoke the chain with the job description and resume section content to get a `RefinedSection` object.
+        9. Return the `refined_markdown` field from the result.
 
     Network access:
         - This function makes a network request to the LLM endpoint specified by llm_endpoint.
@@ -117,46 +117,120 @@ def refine_resume_section_with_llm(
 
     parser = PydanticOutputParser(pydantic_object=RefinedSection)
 
-    prompt = PromptTemplate(
-        template="""As an expert resume writer, refine the following resume section to better align with the provided job description.
-        Your goal is to highlight the most relevant skills and experiences.
-        Do not invent new facts. Rephrase and restructure the existing content to be more impactful.
-        Return the result as a Markdown-formatted JSON object that follows the schema.
+    goal_statement = "Rephrase and restructure the existing content from the `Resume Section to Refine` to be more impactful and relevant to the `Job Description`, while following all rules."
+
+    processing_guidelines = ""
+    if target_section == "experience":
+        processing_guidelines = """**Processing Guidelines:**
+
+        Your goal is to make the resume as relevant as possible to the `Job Description` by refining its content. For each `### Role`:
+
+        1.  **Rewrite Summaries:** Rewrite the `#### Summary` to focus on accomplishments and experiences that directly match the requirements in the `Job Description`.
+
+        2.  **Update Responsibilities and Skills (Crucial):**
+            - **Align Responsibilities:** Rewrite `#### Responsibilities` bullet points to use keywords and phrasing from the `Job Description`.
+            - **Add Responsibility for Relevant Skills:** If a skill from the original `#### Skills` section is relevant to the `Job Description`, add a new bullet point to `#### Responsibilities` describing its use. For example: `* Used Splunk for monitoring and alerting.`
+            - **Synchronize Skills:** After rewriting `#### Responsibilities`, review it. For **every** skill, technology, or method mentioned in the `Responsibilities` bullet points, ensure it is listed in the `#### Skills` section. The `Skills` section must be a superset of the skills mentioned in `Responsibilities`.
+            - **Keep All Relevant Skills:** The `#### Skills` section should also include any other skills from the original resume that are relevant to the `Job Description`, even if they aren't used in a bullet point.
+
+        3.  **Handle Non-Relevant Roles:** If a `### Role` has no experience or skills relevant to the `Job Description`, replace the content of its `#### Summary` and `#### Responsibilities` sections. The `#### Responsibilities` section should contain only a single bullet point: `* Duties not relevant to this job application.` The `#### Summary` should be empty. This is important to preserve the candidate's employment history."""
+
+    system_template = """As an expert resume writer, your task is to refine the following resume section to better align with the provided job description.
+
+        **Crucial Rules:**
+        1.  **Stick to the Facts:** You MUST NOT invent, embellish, or add any information that is not present in the original "Resume Section to Refine". Do not use superlatives or grandiose claims. All refined content must be directly traceable to the original text.
+        2.  **Strictly Adhere to Format:** Your response MUST strictly follow the provided Markdown resume specification. Pay close attention to header levels (`#`, `##`, `###`, `####`), key-value pairs (`Key: Value`), and list formats.
+        3.  **Skills Section Formatting:** The `Skills` section under a `Role` or `Project` MUST be a bulleted list. Each skill must be a separate line starting with `* `.
+
+        **Goal:**
+        {goal}
+
+        {processing_guidelines}
+
+        **Output Format:**
+        Your response MUST be a single JSON object enclosed in ```json ... ```. The JSON object must conform to the following schema.
 
         {format_instructions}
 
-        Job Description:
+        ---
+        MARKDOWN RESUME SPECIFICATION EXAMPLE:
+        # Personal
+        ## Contact Information
+        Name: Jane Doe
+
+        # Experience
+        ## Roles
+        ### Role
+        #### Basics
+        Company: A Company, LLC
+        Title: Engineer
+        Start date: 01/2020
+        #### Skills
+        * Skill one
+        * Skill two
+        ---
+    """
+
+    human_template = """Job Description:
         {job_description}
 
         Resume Section to Refine:
         ---
         {resume_section}
         ---
-        """,
-        input_variables=["job_description", "resume_section"],
-        partial_variables={"format_instructions": parser.get_format_instructions()},
+        Now, output the JSON object:
+    """
+
+    prompt = ChatPromptTemplate.from_messages(
+        [
+            ("system", system_template),
+            ("human", human_template),
+        ]
+    ).partial(
+        goal=goal_statement,
+        processing_guidelines=processing_guidelines,
+        format_instructions=parser.get_format_instructions(),
     )
 
     model_name = llm_model_name if llm_model_name else "gpt-4o"
-    llm = ChatOpenAI(
-        model=model_name,
-        temperature=0.7,
-        openai_api_base=llm_endpoint,
-        api_key=api_key,
-    )
 
-    chain = prompt | llm | parser
+    llm_params = {
+        "model": model_name,
+        "temperature": 0.7,
+    }
+    if llm_endpoint:
+        llm_params["openai_api_base"] = llm_endpoint
+        if "openrouter.ai" in llm_endpoint:
+            llm_params["default_headers"] = {
+                "HTTP-Referer": "http://localhost:8000/",
+                "X-Title": "Resume Editor",
+            }
 
-    result = chain.invoke(
-        {"job_description": job_description, "resume_section": section_content},
-    )
+    if api_key:
+        llm_params["api_key"] = api_key
+    elif llm_endpoint and "openrouter.ai" not in llm_endpoint:
+        # For non-OpenRouter custom endpoints (e.g. local LLMs), provide a
+        # dummy key if none is given to satisfy the client library.
+        llm_params["api_key"] = "not-needed"
 
-    # Note: langchain can return JSON in a markdown block, which needs parsing.
-    # The Pydantic parser should handle this, but being explicit is safer.
-    if isinstance(result, str):
-        parsed_json = parse_json_markdown(result)
+    llm = ChatOpenAI(**llm_params)
+
+    # Use StrOutputParser to get the raw string, then manually parse
+    chain = prompt | llm | StrOutputParser()
+
+    try:
+        response_str = chain.invoke(
+            {"job_description": job_description, "resume_section": section_content},
+        )
+
+        parsed_json = parse_json_markdown(response_str)
         refined_section = RefinedSection.model_validate(parsed_json)
-    else:
-        refined_section = result
+
+    except (json.JSONDecodeError, ValueError) as e:
+        _msg = f"Failed to parse LLM response as JSON: {e!s}"
+        log.exception(_msg)
+        raise ValueError(
+            "The AI service returned an unexpected response. Please try again."
+        ) from e
 
     return refined_section.refined_markdown

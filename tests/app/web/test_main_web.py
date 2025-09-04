@@ -295,7 +295,7 @@ def test_update_resume_htmx(mock_update_resume_db, mock_validate_content):
     assert h2
     assert "Updated Name" in h2.text
 
-    textarea = soup.find("textarea")
+    textarea = soup.select_one("textarea[readonly]")
     assert textarea
     assert "Updated Content" in textarea.text
 

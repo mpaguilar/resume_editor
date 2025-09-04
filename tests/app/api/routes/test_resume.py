@@ -725,6 +725,18 @@ def test_get_resume(client_with_auth_and_resume, test_resume):
     assert test_resume.name in response.text
     assert test_resume.content in response.text
 
+    # Check for spinner and indicator
+    from bs4 import BeautifulSoup
+
+    soup = BeautifulSoup(response.text, "html.parser")
+    refine_form = soup.find("form", id=f"refine-form-{test_resume.id}")
+    assert refine_form is not None
+    assert refine_form.get("hx-indicator") == f"#refine-spinner-{test_resume.id}"
+    spinner_div = soup.find("div", id=f"refine-spinner-{test_resume.id}")
+    assert spinner_div is not None
+    assert "htmx-indicator" in spinner_div.get("class", [])
+    assert "hidden" not in spinner_div.get("class", [])
+
 
 @patch("resume_editor.app.api.routes.resume.create_resume_db")
 def test_create_resume_json(
@@ -1346,6 +1358,94 @@ def test_refine_resume_llm_failure(
 
 
 @patch("resume_editor.app.api.routes.resume.refine_resume_section_with_llm")
+@patch("resume_editor.app.api.routes.resume.get_user_settings", return_value=None)
+def test_refine_resume_llm_failure_htmx(
+    mock_get_user_settings,
+    mock_refine_llm,
+    client_with_auth_and_resume,
+):
+    """Test resume refinement HTMX request when the LLM call fails."""
+    # Arrange
+    mock_refine_llm.side_effect = Exception("LLM call failed")
+
+    # Act
+    response = client_with_auth_and_resume.post(
+        "/api/resumes/1/refine",
+        data={"job_description": "job", "target_section": "experience"},
+        headers={"HX-Request": "true"},
+    )
+
+    # Assert
+    assert response.status_code == 200
+    assert "text/html" in response.headers["content-type"]
+    assert "An unexpected error occurred during refinement" in response.text
+    assert "LLM call failed" in response.text
+
+
+
+
+@patch("resume_editor.app.api.routes.resume.refine_resume_section_with_llm")
+@patch("resume_editor.app.api.routes.resume.get_user_settings", return_value=None)
+def test_refine_resume_llm_auth_failure(
+    mock_get_user_settings,
+    mock_refine_llm,
+    client_with_auth_and_resume,
+):
+    """Test resume refinement when the LLM call fails with an auth error."""
+    # Arrange
+    from openai import AuthenticationError
+
+    mock_refine_llm.side_effect = AuthenticationError(
+        message="Invalid API key",
+        response=Mock(),
+        body=None,
+    )
+
+    # Act
+    response = client_with_auth_and_resume.post(
+        "/api/resumes/1/refine",
+        data={"job_description": "job", "target_section": "experience"},
+    )
+
+    # Assert
+    assert response.status_code == 401
+    assert response.json() == {
+        "detail": "LLM authentication failed. Please check your API key in settings.",
+    }
+
+
+@patch("resume_editor.app.api.routes.resume.refine_resume_section_with_llm")
+@patch("resume_editor.app.api.routes.resume.get_user_settings", return_value=None)
+def test_refine_resume_llm_auth_failure_htmx(
+    mock_get_user_settings,
+    mock_refine_llm,
+    client_with_auth_and_resume,
+):
+    """Test resume refinement HTMX request when LLM auth fails."""
+    # Arrange
+    from openai import AuthenticationError
+
+    mock_refine_llm.side_effect = AuthenticationError(
+        message="auth failed", response=Mock(), body=None
+    )
+
+    # Act
+    response = client_with_auth_and_resume.post(
+        "/api/resumes/1/refine",
+        data={"job_description": "job", "target_section": "experience"},
+        headers={"HX-Request": "true"},
+    )
+
+    # Assert
+    assert response.status_code == 200
+    assert "text/html" in response.headers["content-type"]
+    assert (
+        "LLM authentication failed. Please check your API key in settings."
+        in response.text
+    )
+
+
+@patch("resume_editor.app.api.routes.resume.refine_resume_section_with_llm")
 @patch("resume_editor.app.api.routes.resume.decrypt_data")
 @patch("resume_editor.app.api.routes.resume.get_user_settings")
 def test_refine_resume_decryption_failure(
@@ -1380,6 +1480,33 @@ def test_refine_resume_decryption_failure(
     mock_get_user_settings.assert_called_once()
     mock_decrypt_data.assert_called_once_with("key")
     mock_refine_llm.assert_not_called()
+
+
+@patch("resume_editor.app.api.routes.resume.decrypt_data")
+@patch("resume_editor.app.api.routes.resume.get_user_settings")
+def test_refine_resume_decryption_failure_htmx(
+    mock_get_user_settings,
+    mock_decrypt_data,
+    client_with_auth_and_resume,
+    test_user,
+):
+    """Test resume refinement HTMX request when API key decryption fails."""
+    # Arrange
+    mock_settings = UserSettings(user_id=test_user.id, encrypted_api_key="key")
+    mock_get_user_settings.return_value = mock_settings
+    mock_decrypt_data.side_effect = InvalidToken
+
+    # Act
+    response = client_with_auth_and_resume.post(
+        "/api/resumes/1/refine",
+        data={"job_description": "job", "target_section": "experience"},
+        headers={"HX-Request": "true"},
+    )
+
+    # Assert
+    assert response.status_code == 200
+    assert "text/html" in response.headers["content-type"]
+    assert "Invalid API key. Please update your settings." in response.text
 
 
 def test_refine_resume_invalid_section(client_with_auth_and_resume, test_resume):
@@ -2423,6 +2550,59 @@ def test_create_resume_from_form_submission(app, test_user):
 
     # Clean up
     app.dependency_overrides.clear()
+
+
+@patch("resume_editor.app.api.routes.resume.refine_resume_section_with_llm")
+@patch("resume_editor.app.api.routes.resume.get_user_settings", return_value=None)
+def test_refine_resume_json_decode_error_htmx(
+    mock_get_user_settings,
+    mock_refine_llm,
+    client_with_auth_and_resume,
+):
+    """Test resume refinement HTMX request when the LLM call fails with a ValueError."""
+    # Arrange
+    mock_refine_llm.side_effect = ValueError(
+        "The AI service returned an unexpected response. Please try again."
+    )
+
+    # Act
+    response = client_with_auth_and_resume.post(
+        "/api/resumes/1/refine",
+        data={"job_description": "job", "target_section": "experience"},
+        headers={"HX-Request": "true"},
+    )
+
+    # Assert
+    assert response.status_code == 200
+    assert "text/html" in response.headers["content-type"]
+    assert "Refinement failed:" in response.text
+    assert (
+        "The AI service returned an unexpected response. Please try again."
+        in response.text
+    )
+
+
+@patch("resume_editor.app.api.routes.resume.refine_resume_section_with_llm")
+@patch("resume_editor.app.api.routes.resume.get_user_settings", return_value=None)
+def test_refine_resume_json_decode_error_non_htmx(
+    mock_get_user_settings,
+    mock_refine_llm,
+    client_with_auth_and_resume,
+):
+    """Test resume refinement non-HTMX request when the LLM call fails with a ValueError."""
+    # Arrange
+    error_message = "The AI service returned an unexpected response. Please try again."
+    mock_refine_llm.side_effect = ValueError(error_message)
+
+    # Act
+    response = client_with_auth_and_resume.post(
+        "/api/resumes/1/refine",
+        data={"job_description": "job", "target_section": "experience"},
+    )
+
+    # Assert
+    assert response.status_code == 400
+    assert response.json() == {"detail": error_message}
 
 
 def test_update_resume_from_form_submission(app, test_user):

@@ -6,6 +6,7 @@ from datetime import date, datetime
 from cryptography.fernet import InvalidToken
 from docx import Document
 from fastapi import APIRouter, Depends, Form, HTTPException, Request, Response
+from openai import AuthenticationError
 from fastapi.responses import HTMLResponse, StreamingResponse
 from resume_writer.main import ats_render, basic_render, plain_render
 from resume_writer.resume_render.render_settings import ResumeRenderSettings
@@ -406,7 +407,7 @@ def _generate_resume_detail_html(resume: DatabaseResume) -> str:
             <div class="flex space-x-2">
                 <button
                     type="button"
-                    onclick="document.getElementById('refine-modal-{resume.id}').classList.remove('hidden')"
+                    onclick="document.getElementById('refine-form-container-{resume.id}').classList.toggle('hidden')"
                     class="bg-purple-500 hover:bg-purple-600 text-white px-3 py-1 rounded text-sm">
                     Refine with AI
                 </button>
@@ -425,6 +426,53 @@ def _generate_resume_detail_html(resume: DatabaseResume) -> str:
                 </button>
             </div>
         </div>
+
+        <!-- Refine Form Container (hidden by default) -->
+        <div id="refine-form-container-{resume.id}" class="hidden my-4 p-4 border rounded-lg bg-gray-50">
+            <form id="refine-form-{resume.id}"
+                  hx-post="/api/resumes/{resume.id}/refine"
+                  hx-target="#refine-result-container"
+                  hx-swap="innerHTML"
+                  hx-indicator="#refine-spinner-{resume.id}"
+                  hx-on::after-request="this.closest('form').reset(); document.getElementById('refine-form-container-{resume.id}').classList.add('hidden')">
+                
+                <h3 class="text-lg leading-6 font-medium text-gray-900 mb-4">Refine Resume with Job Description</h3>
+                
+                <label for="job_description" class="block text-sm font-medium text-gray-700">Job Description</label>
+                <textarea name="job_description" class="mt-1 w-full h-40 p-2 border border-gray-300 rounded" placeholder="Paste job description here..." required></textarea>
+                
+                <div class="mt-4">
+                  <label for="target_section" class="block text-sm font-medium text-gray-700">Section to Refine</label>
+                  <select name="target_section" id="target_section" class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md">
+                      <option value="full">Full Resume</option>
+                      <option value="personal">Personal</option>
+                      <option value="education">Education</option>
+                      <option value="experience">Experience</option>
+                      <option value="certifications">Certifications</option>
+                  </select>
+                </div>
+
+                <div class="mt-6 flex justify-end">
+                    <button type="button" 
+                            onclick="document.getElementById('refine-form-container-{resume.id}').classList.add('hidden')"
+                            class="bg-gray-200 text-gray-800 px-4 py-2 rounded text-sm mr-2 hover:bg-gray-300">
+                        Cancel
+                    </button>
+                    <button type="submit" class="bg-blue-500 text-white px-4 py-2 rounded text-sm hover:bg-blue-600">
+                        Refine
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <div id="refine-spinner-{resume.id}" class="htmx-indicator mt-4 flex items-center space-x-2">
+            <svg class="animate-spin h-5 w-5 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            <span>Refining with AI...</span>
+        </div>
+        <div id="refine-result-container" class="mt-4"></div>
         <div class="flex-grow">
             <textarea 
                 readonly
@@ -434,7 +482,6 @@ def _generate_resume_detail_html(resume: DatabaseResume) -> str:
         <div class="mt-4 text-sm text-gray-500">
             <p>Resume ID: {resume.id}</p>
         </div>
-        <div id="refine-result-container" class="mt-4"></div>
     </div>
 
     <!-- Export Modal -->
@@ -512,52 +559,6 @@ def _generate_resume_detail_html(resume: DatabaseResume) -> str:
         document.getElementById(`export-modal-${{resumeId}}`).classList.add('hidden');
     }}
     </script>
-
-    <!-- Refine Modal -->
-    <div id="refine-modal-{resume.id}" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full hidden z-50">
-        <div class="relative top-20 mx-auto p-5 border w-1/2 shadow-lg rounded-md bg-white">
-            <div class="mt-3">
-                <h3 class="text-lg leading-6 font-medium text-gray-900 text-center">Refine Resume with Job Description</h3>
-                <div class="mt-2 px-7 py-3">
-                    <form id="refine-form-{resume.id}"
-                          hx-post="/api/resumes/{resume.id}/refine"
-                          hx-target="#refine-result-container"
-                          hx-swap="innerHTML"
-                          onsubmit="document.getElementById('refine-modal-{resume.id}').classList.add('hidden')">
-                        
-                        <label for="job_description" class="block text-sm font-medium text-gray-700">Job Description</label>
-                        <textarea name="job_description" class="mt-1 w-full h-40 p-2 border border-gray-300 rounded" placeholder="Paste job description here..." required></textarea>
-                        
-                        <div class="mt-4">
-                          <label for="target_section" class="block text-sm font-medium text-gray-700">Section to Refine</label>
-                          <select name="target_section" id="target_section" class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md">
-                              <option value="full">Full Resume</option>
-                              <option value="personal">Personal</option>
-                              <option value="education">Education</option>
-                              <option value="experience">Experience</option>
-                              <option value="certifications">Certifications</option>
-                          </select>
-                        </div>
-
-                        <div class="mt-6">
-                            <button type="submit" class="w-full px-4 py-2 bg-blue-500 text-white text-base font-medium rounded-md shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500">
-                                Refine
-                            </button>
-                        </div>
-                    </form>
-                </div>
-                
-                <div class="px-7 pb-3">
-                    <button
-                        type="button"
-                        onclick="document.getElementById('refine-modal-{resume.id}').classList.add('hidden')"
-                        class="w-full px-4 py-2 bg-gray-200 text-gray-800 text-base font-medium rounded-md shadow-sm hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-300">
-                        Cancel
-                    </button>
-                </div>
-            </div>
-        </div>
-    </div>
     """
 
 
@@ -1639,16 +1640,45 @@ async def refine_resume(
             return HTMLResponse(content=html_content)
 
         return RefineResponse(refined_content=refined_content)
+    except AuthenticationError as e:
+        detail = "LLM authentication failed. Please check your API key in settings."
+        _msg = f"LLM authentication failed for user {current_user.id}: {e!s}"
+        log.warning(_msg)
+        if "HX-Request" in http_request.headers:
+            return HTMLResponse(
+                f'<div role="alert" class="text-red-500 p-2">{detail}</div>',
+                status_code=200,
+            )
+        raise HTTPException(status_code=401, detail=detail)
     except InvalidToken:
+        detail = "Invalid API key. Please update your settings."
         _msg = f"API key decryption failed for user {current_user.id}"
         log.warning(_msg)
-        raise HTTPException(
-            status_code=400,
-            detail="Invalid API key. Please update your settings.",
-        )
+        if "HX-Request" in http_request.headers:
+            return HTMLResponse(
+                f'<div role="alert" class="text-red-500 p-2">{detail}</div>',
+                status_code=200,
+            )
+        raise HTTPException(status_code=400, detail=detail)
+    except ValueError as e:
+        detail = str(e)
+        _msg = f"LLM refinement failed for resume {resume.id} with ValueError: {detail}"
+        log.warning(_msg)
+        if "HX-Request" in http_request.headers:
+            return HTMLResponse(
+                f'<div role="alert" class="text-red-500 p-2">Refinement failed: {detail}</div>',
+                status_code=200,
+            )
+        raise HTTPException(status_code=400, detail=detail)
     except Exception as e:
+        detail = f"An unexpected error occurred during refinement: {e!s}"
         _msg = f"LLM refinement failed for resume {resume.id}: {e!s}"
         log.exception(_msg)
+        if "HX-Request" in http_request.headers:
+            return HTMLResponse(
+                f'<div role="alert" class="text-red-500 p-2">{detail}</div>',
+                status_code=200,
+            )
         raise HTTPException(status_code=500, detail=f"LLM refinement failed: {e!s}")
 
 

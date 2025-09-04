@@ -1,4 +1,5 @@
-from unittest.mock import Mock, patch
+import logging
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -96,132 +97,259 @@ def test_refine_resume_section_with_llm_empty_section(mock_get_section):
     mock_get_section.assert_called_once_with("resume", "personal")
 
 
+@pytest.fixture
+def mock_get_section_content():
+    """Fixture to mock _get_section_content."""
+    with patch(
+        "resume_editor.app.api.routes.route_logic.resume_llm._get_section_content"
+    ) as mock:
+        mock.return_value = "some resume section"
+        yield mock
+
+
+@pytest.fixture
+def mock_chain_invocations():
+    """
+    Fixture to mock the entire LangChain chain invocation process.
+    It patches the key components and mocks the `|` operator to
+    ensure the final `chain.invoke` call returns a valid object.
+    """
+    with patch(
+        "resume_editor.app.api.routes.route_logic.resume_llm.ChatOpenAI"
+    ) as mock_chat_openai_class, patch(
+        "resume_editor.app.api.routes.route_logic.resume_llm.ChatPromptTemplate"
+    ) as mock_prompt_template_class, patch(
+        "resume_editor.app.api.routes.route_logic.resume_llm.PydanticOutputParser"
+    ), patch(
+        "resume_editor.app.api.routes.route_logic.resume_llm.StrOutputParser"
+    ):
+        mock_prompt_from_messages = MagicMock()
+        mock_prompt_template_class.from_messages.return_value = (
+            mock_prompt_from_messages
+        )
+
+        mock_prompt_partial = MagicMock()
+        mock_prompt_from_messages.partial.return_value = mock_prompt_partial
+
+        # Mock the `|` operator chaining
+        prompt_llm_chain = MagicMock()
+        mock_prompt_partial.__or__.return_value = prompt_llm_chain
+
+        final_chain = MagicMock()
+        prompt_llm_chain.__or__.return_value = final_chain
+
+        # The final invoke should return a string, not a RefinedSection object
+        final_chain.invoke.return_value = (
+            '```json\n{"refined_markdown": "refined content"}\n```'
+        )
+
+        yield {
+            "chat_openai": mock_chat_openai_class,
+            "final_chain": final_chain,
+            "prompt_template": mock_prompt_template_class,
+            "prompt_from_messages": mock_prompt_from_messages,
+        }
+
+
 @pytest.mark.parametrize(
-    "llm_model_name, expected_model",
+    "llm_endpoint, api_key, llm_model_name, expected_call_args",
     [
-        ("custom-model", "custom-model"),
-        (None, "gpt-4o"),
-        ("", "gpt-4o"),
+        # Case 1: Endpoint, API key, and model name provided
+        (
+            "http://fake.llm",
+            "key",
+            "custom-model",
+            {
+                "model": "custom-model",
+                "temperature": 0.7,
+                "openai_api_base": "http://fake.llm",
+                "api_key": "key",
+            },
+        ),
+        # Case 2: Endpoint and model name, but no API key (should use dummy key)
+        (
+            "http://fake.llm",
+            None,
+            "custom-model",
+            {
+                "model": "custom-model",
+                "temperature": 0.7,
+                "openai_api_base": "http://fake.llm",
+                "api_key": "not-needed",
+            },
+        ),
+        # Case 3: API key and model name, but no endpoint
+        (
+            None,
+            "key",
+            "custom-model",
+            {"model": "custom-model", "temperature": 0.7, "api_key": "key"},
+        ),
+        # Case 4: No endpoint, no API key (relies on env var)
+        (
+            None,
+            None,
+            "custom-model",
+            {"model": "custom-model", "temperature": 0.7},
+        ),
+        # Case 5: Fallback to default model name when None is provided
+        (
+            "http://fake.llm",
+            "key",
+            None,
+            {
+                "model": "gpt-4o",
+                "temperature": 0.7,
+                "openai_api_base": "http://fake.llm",
+                "api_key": "key",
+            },
+        ),
+        # Case 6: Fallback to default model name when empty string is provided
+        (
+            "http://fake.llm",
+            "key",
+            "",
+            {
+                "model": "gpt-4o",
+                "temperature": 0.7,
+                "openai_api_base": "http://fake.llm",
+                "api_key": "key",
+            },
+        ),
+        # Case 7: OpenRouter endpoint with API key
+        (
+            "https://openrouter.ai/api/v1",
+            "or-key",
+            "openrouter/model",
+            {
+                "model": "openrouter/model",
+                "temperature": 0.7,
+                "openai_api_base": "https://openrouter.ai/api/v1",
+                "api_key": "or-key",
+                "default_headers": {
+                    "HTTP-Referer": "http://localhost:8000/",
+                    "X-Title": "Resume Editor",
+                },
+            },
+        ),
     ],
 )
-@patch("resume_editor.app.api.routes.route_logic.resume_llm.ChatOpenAI")
-@patch("resume_editor.app.api.routes.route_logic.resume_llm.PromptTemplate")
-@patch("resume_editor.app.api.routes.route_logic.resume_llm.PydanticOutputParser")
-@patch("resume_editor.app.api.routes.route_logic.resume_llm._get_section_content")
-def test_refine_resume_section_model_name(
-    mock_get_section,
-    mock_parser_class,
-    mock_prompt_class,
-    mock_llm_class,
+def test_refine_resume_section_llm_initialization(
+    mock_chain_invocations,
+    mock_get_section_content,
+    llm_endpoint,
+    api_key,
     llm_model_name,
-    expected_model,
+    expected_call_args,
 ):
-    """Test LLM refinement with different model names."""
-    mock_get_section.return_value = "Some content"
-    mock_prompt_instance = mock_prompt_class.return_value
-
-    # Mock the chain of |.
-    chain_mock = Mock()
-    mock_prompt_instance.__or__.return_value.__or__.return_value = chain_mock
-
-    refined_section_obj = RefinedSection(refined_markdown="refined content")
-    chain_mock.invoke.return_value = refined_section_obj
-
+    """
+    Test that ChatOpenAI is initialized with the correct parameters under various conditions.
+    """
     result = refine_resume_section_with_llm(
-        "resume",
-        "job desc",
-        "personal",
-        "http://fake.llm",
-        "key",
+        resume_content="resume",
+        job_description="job desc",
+        target_section="experience",
+        llm_endpoint=llm_endpoint,
+        api_key=api_key,
         llm_model_name=llm_model_name,
     )
-
+    mock_chat_openai = mock_chain_invocations["chat_openai"]
+    mock_chat_openai.assert_called_once_with(**expected_call_args)
     assert result == "refined content"
-    mock_llm_class.assert_called_with(
-        model=expected_model,
-        temperature=0.7,
-        openai_api_base="http://fake.llm",
-        api_key="key",
-    )
-    chain_mock.invoke.assert_called_once_with(
-        {"job_description": "job desc", "resume_section": "Some content"},
-    )
+    mock_get_section_content.assert_called_once_with("resume", "experience")
 
 
-@patch("resume_editor.app.api.routes.route_logic.resume_llm.parse_json_markdown")
-@patch("resume_editor.app.api.routes.route_logic.resume_llm.ChatOpenAI")
-@patch("resume_editor.app.api.routes.route_logic.resume_llm.PromptTemplate")
-@patch("resume_editor.app.api.routes.route_logic.resume_llm.PydanticOutputParser")
-@patch("resume_editor.app.api.routes.route_logic.resume_llm._get_section_content")
-def test_refine_resume_section_pydantic_object(
-    mock_get_section,
-    mock_parser_class,
-    mock_prompt_class,
-    mock_llm_class,
-    mock_parse_json,
+def test_refine_resume_section_llm_json_decode_error(
+    mock_chain_invocations, mock_get_section_content
 ):
-    """Test LLM refinement when the chain returns a Pydantic object."""
-    mock_get_section.return_value = "Some content"
-    mock_prompt_instance = mock_prompt_class.return_value
+    """
+    Test that a JSONDecodeError from the LLM call is handled gracefully.
+    """
+    import json
 
-    # Mock the chain of |.
-    chain_mock = Mock()
-    mock_prompt_instance.__or__.return_value.__or__.return_value = chain_mock
+    # Arrange: Get the final chain mock from the fixture
+    final_chain = mock_chain_invocations["final_chain"]
+    final_chain.invoke.side_effect = json.JSONDecodeError(
+        "Expecting value",
+        "some invalid json",
+        0,
+    )
 
-    refined_section_obj = RefinedSection(refined_markdown="refined content")
-    chain_mock.invoke.return_value = refined_section_obj
+    # Act & Assert
+    with pytest.raises(
+        ValueError,
+        match="The AI service returned an unexpected response. Please try again.",
+    ):
+        refine_resume_section_with_llm(
+            resume_content="resume",
+            job_description="job desc",
+            target_section="experience",
+            llm_endpoint=None,
+            api_key=None,
+            llm_model_name=None,
+        )
 
-    result = refine_resume_section_with_llm(
-        "resume",
-        "job desc",
-        "personal",
-        "http://fake.llm",
-        "key",
+
+@pytest.mark.parametrize(
+    "target_section, expect_guidelines",
+    [
+        ("experience", True),
+        ("personal", False),
+        ("education", False),
+        ("certifications", False),
+        ("full", False),
+    ],
+)
+def test_refine_resume_prompt_content(
+    target_section,
+    expect_guidelines,
+    mock_chain_invocations,
+    mock_get_section_content,
+):
+    """
+    Test that the prompt is constructed correctly based on the target section.
+    """
+    # Act
+    refine_resume_section_with_llm(
+        resume_content="resume",
+        job_description="job desc",
+        target_section=target_section,
+        llm_endpoint=None,
+        api_key=None,
         llm_model_name=None,
     )
 
-    assert result == "refined content"
-    chain_mock.invoke.assert_called_once_with(
-        {"job_description": "job desc", "resume_section": "Some content"},
-    )
-    mock_parse_json.assert_not_called()
+    # Assert
+    mock_prompt_template = mock_chain_invocations["prompt_template"]
+    mock_prompt_from_messages = mock_chain_invocations["prompt_from_messages"]
 
+    # Check that from_messages was called with system and human templates
+    mock_prompt_template.from_messages.assert_called_once()
+    messages = mock_prompt_template.from_messages.call_args.args[0]
+    assert messages[0][0] == "system"
+    assert messages[1][0] == "human"
 
-@patch("resume_editor.app.api.routes.route_logic.resume_llm.parse_json_markdown")
-@patch("resume_editor.app.api.routes.route_logic.resume_llm.ChatOpenAI")
-@patch("resume_editor.app.api.routes.route_logic.resume_llm.PromptTemplate")
-@patch("resume_editor.app.api.routes.route_logic.resume_llm.PydanticOutputParser")
-@patch("resume_editor.app.api.routes.route_logic.resume_llm._get_section_content")
-def test_refine_resume_section_string_return(
-    mock_get_section,
-    mock_parser_class,
-    mock_prompt_class,
-    mock_llm_class,
-    mock_parse_json,
-):
-    """Test LLM refinement when the chain returns a string to be parsed."""
-    mock_get_section.return_value = "Some content"
-    mock_prompt_instance = mock_prompt_class.return_value
+    system_template = messages[0][1]
+    human_template = messages[1][1]
 
-    chain_mock = Mock()
-    mock_prompt_instance.__or__.return_value.__or__.return_value = chain_mock
+    # Check that crucial rules and spec are always in the system template
+    assert "MARKDOWN RESUME SPECIFICATION EXAMPLE" in system_template
+    assert "Stick to the Facts" in system_template
 
-    chain_mock.invoke.return_value = (
-        '```json\n{"refined_markdown": "refined content from string"}\n```'
-    )
-    mock_parse_json.return_value = {"refined_markdown": "refined content from string"}
+    # Check that placeholders are in the templates
+    assert "{goal}" in system_template
+    assert "{processing_guidelines}" in system_template
+    assert "{job_description}" in human_template
+    assert "{resume_section}" in human_template
 
-    result = refine_resume_section_with_llm(
-        "resume",
-        "job desc",
-        "personal",
-        "http://fake.llm",
-        "key",
-        llm_model_name=None,
-    )
+    # Check the content passed to partial()
+    mock_prompt_from_messages.partial.assert_called_once()
+    partial_kwargs = mock_prompt_from_messages.partial.call_args.kwargs
+    assert "Rephrase and restructure" in partial_kwargs["goal"]
 
-    assert result == "refined content from string"
-    mock_parse_json.assert_called_once_with(
-        '```json\n{"refined_markdown": "refined content from string"}\n```',
-    )
-    chain_mock.invoke.assert_called_once()
+    if expect_guidelines:
+        assert "**Processing Guidelines:**" in partial_kwargs["processing_guidelines"]
+        assert "For each `### Role`" in partial_kwargs["processing_guidelines"]
+    else:
+        assert partial_kwargs["processing_guidelines"] == ""
+
