@@ -30,7 +30,7 @@ from resume_editor.app.api.routes.route_logic.resume_crud import (
 from resume_editor.app.api.routes.route_logic.resume_filtering import (
     filter_experience_by_date,
 )
-from resume_editor.app.api.routes.route_logic.resume_llm import (
+from resume_editor.app.llm.orchestration import (
     refine_resume_section_with_llm,
 )
 from resume_editor.app.api.routes.route_logic.resume_parsing import (

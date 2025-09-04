@@ -1,8 +1,7 @@
+import json
 import logging
 
 from langchain_core.output_parsers import PydanticOutputParser, StrOutputParser
-import json
-
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.utils.json import parse_json_markdown
 from langchain_openai import ChatOpenAI
@@ -17,7 +16,7 @@ from resume_editor.app.api.routes.route_logic.resume_serialization import (
     serialize_experience_to_markdown,
     serialize_personal_info_to_markdown,
 )
-from resume_editor.app.schemas.llm import RefinedSection
+from resume_editor.app.llm.models import RefinedSection
 
 log = logging.getLogger(__name__)
 

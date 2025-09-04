@@ -3,11 +3,11 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from resume_editor.app.api.routes.route_logic.resume_llm import (
+from resume_editor.app.llm.orchestration import (
     _get_section_content,
     refine_resume_section_with_llm,
 )
-from resume_editor.app.schemas.llm import RefinedSection
+from resume_editor.app.llm.models import RefinedSection
 
 FULL_RESUME = """# Personal
 name: Test Person
@@ -56,10 +56,10 @@ def test_get_section_content(section_name, extractor, serializer, expected_outpu
     """Test that _get_section_content correctly calls extract and serialize for each section."""
     with (
         patch(
-            f"resume_editor.app.api.routes.route_logic.resume_llm.{extractor}",
+            f"resume_editor.app.llm.orchestration.{extractor}",
         ) as mock_extract,
         patch(
-            f"resume_editor.app.api.routes.route_logic.resume_llm.{serializer}",
+            f"resume_editor.app.llm.orchestration.{serializer}",
             return_value=expected_output,
         ) as mock_serialize,
     ):
@@ -81,7 +81,7 @@ def test_get_section_content_invalid():
         _get_section_content(FULL_RESUME, "invalid")
 
 
-@patch("resume_editor.app.api.routes.route_logic.resume_llm._get_section_content")
+@patch("resume_editor.app.llm.orchestration._get_section_content")
 def test_refine_resume_section_with_llm_empty_section(mock_get_section):
     """Test that the LLM is not called for an empty resume section."""
     mock_get_section.return_value = "  "
@@ -101,7 +101,7 @@ def test_refine_resume_section_with_llm_empty_section(mock_get_section):
 def mock_get_section_content():
     """Fixture to mock _get_section_content."""
     with patch(
-        "resume_editor.app.api.routes.route_logic.resume_llm._get_section_content"
+        "resume_editor.app.llm.orchestration._get_section_content"
     ) as mock:
         mock.return_value = "some resume section"
         yield mock
@@ -115,13 +115,13 @@ def mock_chain_invocations():
     ensure the final `chain.invoke` call returns a valid object.
     """
     with patch(
-        "resume_editor.app.api.routes.route_logic.resume_llm.ChatOpenAI"
+        "resume_editor.app.llm.orchestration.ChatOpenAI"
     ) as mock_chat_openai_class, patch(
-        "resume_editor.app.api.routes.route_logic.resume_llm.ChatPromptTemplate"
+        "resume_editor.app.llm.orchestration.ChatPromptTemplate"
     ) as mock_prompt_template_class, patch(
-        "resume_editor.app.api.routes.route_logic.resume_llm.PydanticOutputParser"
+        "resume_editor.app.llm.orchestration.PydanticOutputParser"
     ), patch(
-        "resume_editor.app.api.routes.route_logic.resume_llm.StrOutputParser"
+        "resume_editor.app.llm.orchestration.StrOutputParser"
     ):
         mock_prompt_from_messages = MagicMock()
         mock_prompt_template_class.from_messages.return_value = (
@@ -290,6 +290,57 @@ def test_refine_resume_section_llm_json_decode_error(
         )
 
 
+def test_refine_resume_section_llm_validation_error(
+    mock_chain_invocations, mock_get_section_content
+):
+    """
+    Test that a Pydantic validation error from the LLM call is handled gracefully.
+    """
+    # Arrange: mock chain to return valid JSON but with wrong schema
+    final_chain = mock_chain_invocations["final_chain"]
+    final_chain.invoke.return_value = '```json\n{"wrong_field": "wrong_value"}\n```'
+
+    # Act & Assert
+    with pytest.raises(
+        ValueError,
+        match="The AI service returned an unexpected response. Please try again.",
+    ):
+        refine_resume_section_with_llm(
+            resume_content="resume",
+            job_description="job desc",
+            target_section="experience",
+            llm_endpoint=None,
+            api_key=None,
+            llm_model_name=None,
+        )
+
+
+def test_refine_resume_section_llm_authentication_error(
+    mock_chain_invocations, mock_get_section_content
+):
+    """
+    Test that an AuthenticationError from the LLM call is propagated.
+    """
+    from openai import AuthenticationError
+
+    # Arrange
+    final_chain = mock_chain_invocations["final_chain"]
+    final_chain.invoke.side_effect = AuthenticationError(
+        message="Invalid API key", response=MagicMock(), body=None
+    )
+
+    # Act & Assert
+    with pytest.raises(AuthenticationError):
+        refine_resume_section_with_llm(
+            resume_content="resume",
+            job_description="job desc",
+            target_section="experience",
+            llm_endpoint=None,
+            api_key=None,
+            llm_model_name=None,
+        )
+
+
 @pytest.mark.parametrize(
     "target_section, expect_guidelines",
     [
@@ -352,4 +403,3 @@ def test_refine_resume_prompt_content(
         assert "For each `### Role`" in partial_kwargs["processing_guidelines"]
     else:
         assert partial_kwargs["processing_guidelines"] == ""
-

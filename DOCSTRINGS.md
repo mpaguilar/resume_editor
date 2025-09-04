@@ -6247,3 +6247,76 @@ Notes:
 
 ===
 
+===
+# File: `__init__.py`
+
+
+===
+
+===
+# File: `orchestration.py`
+
+## function: `_get_section_content(resume_content: str, section_name: str) -> str`
+
+Extracts the Markdown content for a specific section of the resume.
+
+Args:
+    resume_content (str): The full resume content in Markdown.
+    section_name (str): The name of the section to extract ("personal", "education", "experience", "certifications", or "full").
+
+Returns:
+    str: The Markdown content of the specified section. Returns the full content if "full" is specified.
+
+Raises:
+    ValueError: If the section_name is not one of the valid options.
+
+Notes:
+    1. If section_name is "full", return the entire resume_content.
+    2. Otherwise, map the section_name to a tuple of extractor and serializer functions.
+    3. Validate that section_name is in the valid set of keys.
+    4. Extract the data using the extractor function.
+    5. Serialize the extracted data using the serializer function.
+    6. Return the serialized result.
+
+---
+
+## function: `refine_resume_section_with_llm(resume_content: str, job_description: str, target_section: str, llm_endpoint: str | None, api_key: str | None, llm_model_name: str | None) -> str`
+
+Uses an LLM to refine a specific section of a resume based on a job description.
+
+Args:
+    resume_content (str): The full Markdown content of the resume.
+    job_description (str): The job description to align the resume with.
+    target_section (str): The section of the resume to refine (e.g., "experience").
+    llm_endpoint (str | None): The custom LLM endpoint URL.
+    api_key (str | None): The user's decrypted LLM API key.
+    llm_model_name (str | None): The user-specified LLM model name.
+
+Returns:
+    str: The refined Markdown content for the target section. Returns an empty string if the target section is empty.
+
+Notes:
+    1. Extract the target section content from the resume using _get_section_content.
+    2. If the extracted content is empty, return an empty string.
+    3. Set up a PydanticOutputParser for structured output based on the RefinedSection model.
+    4. Create a PromptTemplate with instructions for the LLM, including format instructions.
+    5. Determine the model name, using the provided `llm_model_name` or falling back to a default.
+    6. Initialize the ChatOpenAI client. If a custom `llm_endpoint` is set without an `api_key`, a dummy API key is provided to satisfy the OpenAI client library.
+    7. Create a chain combining the prompt, LLM, and parser.
+    8. Invoke the chain with the job description and resume section content to get a `RefinedSection` object.
+    9. Return the `refined_markdown` field from the result.
+
+Network access:
+    - This function makes a network request to the LLM endpoint specified by llm_endpoint.
+
+---
+
+
+===
+
+===
+# File: `models.py`
+
+
+===
+
