@@ -22,7 +22,10 @@ from resume_editor.app.llm.prompts import (
     JOB_ANALYSIS_SYSTEM_PROMPT,
     RESUME_REFINE_HUMAN_PROMPT,
     RESUME_REFINE_SYSTEM_PROMPT,
+    ROLE_REFINE_HUMAN_PROMPT,
+    ROLE_REFINE_SYSTEM_PROMPT,
 )
+from resume_editor.app.models.resume.experience import Role
 
 log = logging.getLogger(__name__)
 
@@ -280,3 +283,101 @@ def refine_resume_section_with_llm(
     _msg = "refine_resume_section_with_llm returning"
     log.debug(_msg)
     return refined_section.refined_markdown
+
+
+def refine_role(
+    role: Role,
+    job_analysis: JobAnalysis,
+    llm_endpoint: str | None,
+    api_key: str | None,
+    llm_model_name: str | None,
+) -> Role:
+    """Uses an LLM to refine a single resume Role based on a job analysis.
+
+    Args:
+        role (Role): The structured Role object to refine.
+        job_analysis (JobAnalysis): The structured job analysis to align with.
+        llm_endpoint (str | None): The custom LLM endpoint URL.
+        api_key (str | None): The user's decrypted LLM API key.
+        llm_model_name (str | None): The user-specified LLM model name.
+
+    Returns:
+        Role: The refined and validated Role object.
+
+    Raises:
+        ValueError: If the LLM response is not valid JSON or fails Pydantic validation.
+
+    Notes:
+        1. Set up a PydanticOutputParser for structured output based on the Role model.
+        2. Serialize the input role and job_analysis objects to JSON strings.
+        3. Create a PromptTemplate with instructions for the LLM.
+        4. Determine the model name, using the provided `llm_model_name` or falling back to a default.
+        5. Initialize the ChatOpenAI client.
+        6. Create a chain combining the prompt, LLM, and a string output parser.
+        7. Invoke the chain with the serialized JSON data.
+        8. Parse the LLM's string response to extract the JSON.
+        9. Validate the extracted JSON against the Role model.
+        10. Return the validated Role object.
+
+    Network access:
+        - This function makes a network request to the LLM endpoint.
+    """
+    _msg = "refine_role starting"
+    log.debug(_msg)
+
+    parser = PydanticOutputParser(pydantic_object=Role)
+
+    prompt = ChatPromptTemplate.from_messages(
+        [
+            ("system", ROLE_REFINE_SYSTEM_PROMPT),
+            ("human", ROLE_REFINE_HUMAN_PROMPT),
+        ]
+    ).partial(format_instructions=parser.get_format_instructions())
+
+    model_name = llm_model_name if llm_model_name else "gpt-4o"
+
+    llm_params = {
+        "model": model_name,
+        "temperature": 0.7,
+    }
+    if llm_endpoint:
+        llm_params["openai_api_base"] = llm_endpoint
+        if "openrouter.ai" in llm_endpoint:
+            llm_params["default_headers"] = {
+                "HTTP-Referer": "http://localhost:8000/",
+                "X-Title": "Resume Editor",
+            }
+
+    if api_key:
+        llm_params["api_key"] = api_key
+    elif llm_endpoint and "openrouter.ai" not in llm_endpoint:
+        llm_params["api_key"] = "not-needed"
+
+    llm = ChatOpenAI(**llm_params)
+
+    chain = prompt | llm | StrOutputParser()
+
+    # Serialize the Pydantic objects to JSON strings
+    role_json = role.model_dump_json(indent=2)
+    job_analysis_json = job_analysis.model_dump_json(indent=2)
+
+    try:
+        response_str = chain.invoke(
+            {
+                "job_analysis_json": job_analysis_json,
+                "role_json": role_json,
+            },
+        )
+        parsed_json = parse_json_markdown(response_str)
+        refined_role = Role.model_validate(parsed_json)
+
+    except (json.JSONDecodeError, ValueError) as e:
+        _msg = f"Failed to parse LLM response for role refinement: {e!s}"
+        log.exception(_msg)
+        raise ValueError(
+            "The AI service returned an unexpected response. Please try again."
+        ) from e
+
+    _msg = "refine_role returning"
+    log.debug(_msg)
+    return refined_role

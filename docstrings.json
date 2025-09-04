@@ -1871,8 +1871,16 @@
         "Extracts the Markdown content for a specific section of the resume.\n\nArgs:\n    resume_content (str): The full resume content in Markdown.\n    section_name (str): The name of the section to extract (\"personal\", \"education\", \"experience\", \"certifications\", or \"full\").\n\nReturns:\n    str: The Markdown content of the specified section. Returns the full content if \"full\" is specified.\n\nRaises:\n    ValueError: If the section_name is not one of the valid options.\n\nNotes:\n    1. If section_name is \"full\", return the entire resume_content.\n    2. Otherwise, map the section_name to a tuple of extractor and serializer functions.\n    3. Validate that section_name is in the valid set of keys.\n    4. Extract the data using the extractor function.\n    5. Serialize the extracted data using the serializer function.\n    6. Return the serialized result."
       ],
       [
+        "analyze_job_description(job_description: str, llm_endpoint: str | None, api_key: str | None, llm_model_name: str | None) -> JobAnalysis",
+        "Uses an LLM to analyze a job description and extract key information.\n\nArgs:\n    job_description (str): The job description to analyze.\n    llm_endpoint (str | None): The custom LLM endpoint URL.\n    api_key (str | None): The user's decrypted LLM API key.\n    llm_model_name (str | None): The user-specified LLM model name.\n\nReturns:\n    JobAnalysis: A pydantic object containing the structured analysis of the job description.\n\nNotes:\n    1. Set up a PydanticOutputParser for structured output based on the JobAnalysis model.\n    2. Create a PromptTemplate with instructions for the LLM.\n    3. Determine the model name, using the provided `llm_model_name` or falling back to a default.\n    4. Initialize the ChatOpenAI client.\n    5. Create a chain combining the prompt, LLM, and parser.\n    6. Invoke the chain with the job description.\n    7. Return the `JobAnalysis` object.\n\nNetwork access:\n    - This function makes a network request to the LLM endpoint specified by llm_endpoint."
+      ],
+      [
         "refine_resume_section_with_llm(resume_content: str, job_description: str, target_section: str, llm_endpoint: str | None, api_key: str | None, llm_model_name: str | None) -> str",
         "Uses an LLM to refine a specific section of a resume based on a job description.\n\nArgs:\n    resume_content (str): The full Markdown content of the resume.\n    job_description (str): The job description to align the resume with.\n    target_section (str): The section of the resume to refine (e.g., \"experience\").\n    llm_endpoint (str | None): The custom LLM endpoint URL.\n    api_key (str | None): The user's decrypted LLM API key.\n    llm_model_name (str | None): The user-specified LLM model name.\n\nReturns:\n    str: The refined Markdown content for the target section. Returns an empty string if the target section is empty.\n\nNotes:\n    1. Extract the target section content from the resume using _get_section_content.\n    2. If the extracted content is empty, return an empty string.\n    3. Set up a PydanticOutputParser for structured output based on the RefinedSection model.\n    4. Create a PromptTemplate with instructions for the LLM, including format instructions.\n    5. Determine the model name, using the provided `llm_model_name` or falling back to a default.\n    6. Initialize the ChatOpenAI client. If a custom `llm_endpoint` is set without an `api_key`, a dummy API key is provided to satisfy the OpenAI client library.\n    7. Create a chain combining the prompt, LLM, and parser.\n    8. Invoke the chain with the job description and resume section content to get a `RefinedSection` object.\n    9. Return the `refined_markdown` field from the result.\n\nNetwork access:\n    - This function makes a network request to the LLM endpoint specified by llm_endpoint."
+      ],
+      [
+        "refine_role(role: Role, job_analysis: JobAnalysis, llm_endpoint: str | None, api_key: str | None, llm_model_name: str | None) -> Role",
+        "Uses an LLM to refine a single resume Role based on a job analysis.\n\nArgs:\n    role (Role): The structured Role object to refine.\n    job_analysis (JobAnalysis): The structured job analysis to align with.\n    llm_endpoint (str | None): The custom LLM endpoint URL.\n    api_key (str | None): The user's decrypted LLM API key.\n    llm_model_name (str | None): The user-specified LLM model name.\n\nReturns:\n    Role: The refined and validated Role object.\n\nRaises:\n    ValueError: If the LLM response is not valid JSON or fails Pydantic validation.\n\nNotes:\n    1. Set up a PydanticOutputParser for structured output based on the Role model.\n    2. Serialize the input role and job_analysis objects to JSON strings.\n    3. Create a PromptTemplate with instructions for the LLM.\n    4. Determine the model name, using the provided `llm_model_name` or falling back to a default.\n    5. Initialize the ChatOpenAI client.\n    6. Create a chain combining the prompt, LLM, and a string output parser.\n    7. Invoke the chain with the serialized JSON data.\n    8. Parse the LLM's string response to extract the JSON.\n    9. Validate the extracted JSON against the Role model.\n    10. Return the validated Role object.\n\nNetwork access:\n    - This function makes a network request to the LLM endpoint."
       ]
     ],
     "classes": {}
@@ -1880,6 +1888,12 @@
   "resume_editor/app/llm/models.py": {
     "filepath": "resume_editor/app/llm/models.py",
     "filename": "models.py",
+    "functions": [],
+    "classes": {}
+  },
+  "resume_editor/app/llm/prompts.py": {
+    "filepath": "resume_editor/app/llm/prompts.py",
+    "filename": "prompts.py",
     "functions": [],
     "classes": {}
   }

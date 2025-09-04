@@ -3,12 +3,21 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+import json
 from resume_editor.app.llm.orchestration import (
     _get_section_content,
     analyze_job_description,
     refine_resume_section_with_llm,
+    refine_role,
 )
 from resume_editor.app.llm.models import JobAnalysis, RefinedSection
+from resume_editor.app.models.resume.experience import (
+    Role,
+    RoleBasics,
+    RoleResponsibilities,
+    RoleSkills,
+    RoleSummary,
+)
 
 FULL_RESUME = """# Personal
 name: Test Person
@@ -628,3 +637,215 @@ def test_refine_resume_prompt_content(
         assert "For each `### Role`" in partial_kwargs["processing_guidelines"]
     else:
         assert partial_kwargs["processing_guidelines"] == ""
+
+
+def create_mock_role() -> Role:
+    """Helper to create a mock Role object for testing."""
+    return Role(
+        basics=RoleBasics(
+            company="Old Company",
+            title="Old Title",
+            start_date="2020-01-01T00:00:00",
+        ),
+        summary=RoleSummary(text="Old summary."),
+        responsibilities=RoleResponsibilities(text="* Do old things."),
+        skills=RoleSkills(skills=["Old Skill"]),
+    )
+
+
+def create_mock_job_analysis() -> JobAnalysis:
+    """Helper to create a mock JobAnalysis object for testing."""
+    return JobAnalysis(
+        key_skills=["New Skill"],
+        responsibilities=["Do new things."],
+        themes=["Teamwork"],
+    )
+
+
+@pytest.fixture
+def mock_chain_invocations_for_role_refine():
+    """
+    Fixture to mock the LangChain chain invocation for role refinement.
+    """
+    with patch(
+        "resume_editor.app.llm.orchestration.ChatOpenAI"
+    ) as mock_chat_openai_class, patch(
+        "resume_editor.app.llm.orchestration.ChatPromptTemplate"
+    ) as mock_prompt_template_class, patch(
+        "resume_editor.app.llm.orchestration.PydanticOutputParser"
+    ), patch(
+        "resume_editor.app.llm.orchestration.StrOutputParser"
+    ):
+        mock_prompt_from_messages = MagicMock()
+        mock_prompt_template_class.from_messages.return_value = (
+            mock_prompt_from_messages
+        )
+
+        mock_prompt_partial = MagicMock()
+        mock_prompt_from_messages.partial.return_value = mock_prompt_partial
+
+        prompt_llm_chain = MagicMock()
+        mock_prompt_partial.__or__.return_value = prompt_llm_chain
+
+        final_chain = MagicMock()
+        prompt_llm_chain.__or__.return_value = final_chain
+
+        # The final invoke should return a JSON string representing a refined Role
+        refined_role_dict = {
+            "basics": {
+                "company": "Old Company",
+                "start_date": "2020-01-01T00:00:00",
+                "end_date": None,
+                "title": "Old Title",
+                "reason_for_change": None,
+                "location": None,
+                "job_category": None,
+                "employment_type": None,
+                "agency_name": None,
+                "inclusion_status": "Include",
+            },
+            "summary": {"text": "Refined summary."},
+            "responsibilities": {"text": "* Do refined things."},
+            "skills": {"skills": ["Refined Skill"]},
+        }
+
+        final_chain.invoke.return_value = (
+            f"```json\n{json.dumps(refined_role_dict)}\n```"
+        )
+
+        yield {
+            "chat_openai": mock_chat_openai_class,
+            "final_chain": final_chain,
+            "prompt_template": mock_prompt_template_class,
+            "prompt_from_messages": mock_prompt_from_messages,
+        }
+
+
+def test_refine_role_success(mock_chain_invocations_for_role_refine):
+    """Test the successful refinement of a Role object."""
+    mock_role = create_mock_role()
+    mock_job_analysis = create_mock_job_analysis()
+
+    result = refine_role(
+        role=mock_role,
+        job_analysis=mock_job_analysis,
+        llm_endpoint=None,
+        api_key=None,
+        llm_model_name=None,
+    )
+
+    assert isinstance(result, Role)
+    assert result.summary.text == "Refined summary."
+    assert result.responsibilities.text == "* Do refined things."
+    assert result.skills.skills == ["Refined Skill"]
+
+    # Check that the input objects were correctly serialized and passed to the chain
+    final_chain = mock_chain_invocations_for_role_refine["final_chain"]
+    final_chain.invoke.assert_called_once()
+    invoke_args = final_chain.invoke.call_args.args[0]
+
+    assert invoke_args["role_json"] == mock_role.model_dump_json(indent=2)
+    assert (
+        invoke_args["job_analysis_json"]
+        == mock_job_analysis.model_dump_json(indent=2)
+    )
+
+
+def test_refine_role_json_error(mock_chain_invocations_for_role_refine):
+    """Test that refine_role handles JSON decoding errors."""
+    final_chain = mock_chain_invocations_for_role_refine["final_chain"]
+    final_chain.invoke.return_value = "```json\n{ not valid json }\n```"
+
+    with pytest.raises(ValueError, match="unexpected response"):
+        refine_role(
+            role=create_mock_role(),
+            job_analysis=create_mock_job_analysis(),
+            llm_endpoint=None,
+            api_key=None,
+            llm_model_name=None,
+        )
+
+
+def test_refine_role_validation_error(mock_chain_invocations_for_role_refine):
+    """Test that refine_role handles Pydantic validation errors."""
+    final_chain = mock_chain_invocations_for_role_refine["final_chain"]
+    # Return valid JSON but with missing required fields within the "basics" object.
+    final_chain.invoke.return_value = '```json\n{"basics": {"company": "foo"}}\n```'
+
+    with pytest.raises(ValueError, match="unexpected response"):
+        refine_role(
+            role=create_mock_role(),
+            job_analysis=create_mock_job_analysis(),
+            llm_endpoint=None,
+            api_key=None,
+            llm_model_name=None,
+        )
+
+
+@pytest.mark.parametrize(
+    "llm_endpoint, api_key, llm_model_name, expected_call_args",
+    [
+        (
+            "http://fake.llm",
+            "key",
+            "custom-model",
+            {
+                "model": "custom-model",
+                "temperature": 0.7,
+                "openai_api_base": "http://fake.llm",
+                "api_key": "key",
+            },
+        ),
+        (
+            "http://fake.llm",
+            None,
+            "custom-model",
+            {
+                "model": "custom-model",
+                "temperature": 0.7,
+                "openai_api_base": "http://fake.llm",
+                "api_key": "not-needed",
+            },
+        ),
+        (
+            None,
+            None,
+            "",
+            {"model": "gpt-4o", "temperature": 0.7},
+        ),
+        (
+            "https://openrouter.ai/api/v1",
+            "or-key",
+            "openrouter/model",
+            {
+                "model": "openrouter/model",
+                "temperature": 0.7,
+                "openai_api_base": "https://openrouter.ai/api/v1",
+                "api_key": "or-key",
+                "default_headers": {
+                    "HTTP-Referer": "http://localhost:8000/",
+                    "X-Title": "Resume Editor",
+                },
+            },
+        ),
+    ],
+)
+def test_refine_role_llm_initialization(
+    mock_chain_invocations_for_role_refine,
+    llm_endpoint,
+    api_key,
+    llm_model_name,
+    expected_call_args,
+):
+    """
+    Test that ChatOpenAI is initialized with the correct parameters for role refinement.
+    """
+    refine_role(
+        role=create_mock_role(),
+        job_analysis=create_mock_job_analysis(),
+        llm_endpoint=llm_endpoint,
+        api_key=api_key,
+        llm_model_name=llm_model_name,
+    )
+    mock_chat_openai = mock_chain_invocations_for_role_refine["chat_openai"]
+    mock_chat_openai.assert_called_once_with(**expected_call_args)
