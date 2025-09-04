@@ -16,7 +16,13 @@ from resume_editor.app.api.routes.route_logic.resume_serialization import (
     serialize_experience_to_markdown,
     serialize_personal_info_to_markdown,
 )
-from resume_editor.app.llm.models import RefinedSection
+from resume_editor.app.llm.models import JobAnalysis, RefinedSection
+from resume_editor.app.llm.prompts import (
+    JOB_ANALYSIS_HUMAN_PROMPT,
+    JOB_ANALYSIS_SYSTEM_PROMPT,
+    RESUME_REFINE_HUMAN_PROMPT,
+    RESUME_REFINE_SYSTEM_PROMPT,
+)
 
 log = logging.getLogger(__name__)
 
@@ -66,6 +72,91 @@ def _get_section_content(resume_content: str, section_name: str) -> str:
     extractor, serializer = section_map[section_name]
     extracted_data = extractor(resume_content)
     return serializer(extracted_data)
+
+
+def analyze_job_description(
+    job_description: str,
+    llm_endpoint: str | None,
+    api_key: str | None,
+    llm_model_name: str | None,
+) -> JobAnalysis:
+    """Uses an LLM to analyze a job description and extract key information.
+
+    Args:
+        job_description (str): The job description to analyze.
+        llm_endpoint (str | None): The custom LLM endpoint URL.
+        api_key (str | None): The user's decrypted LLM API key.
+        llm_model_name (str | None): The user-specified LLM model name.
+
+    Returns:
+        JobAnalysis: A pydantic object containing the structured analysis of the job description.
+
+    Notes:
+        1. Set up a PydanticOutputParser for structured output based on the JobAnalysis model.
+        2. Create a PromptTemplate with instructions for the LLM.
+        3. Determine the model name, using the provided `llm_model_name` or falling back to a default.
+        4. Initialize the ChatOpenAI client.
+        5. Create a chain combining the prompt, LLM, and parser.
+        6. Invoke the chain with the job description.
+        7. Return the `JobAnalysis` object.
+
+    Network access:
+        - This function makes a network request to the LLM endpoint specified by llm_endpoint.
+    """
+    _msg = "analyze_job_description starting"
+    log.debug(_msg)
+
+    if not job_description.strip():
+        raise ValueError("Job description cannot be empty.")
+
+    parser = PydanticOutputParser(pydantic_object=JobAnalysis)
+
+    prompt = ChatPromptTemplate.from_messages(
+        [
+            ("system", JOB_ANALYSIS_SYSTEM_PROMPT),
+            ("human", JOB_ANALYSIS_HUMAN_PROMPT),
+        ]
+    ).partial(format_instructions=parser.get_format_instructions())
+
+    model_name = llm_model_name if llm_model_name else "gpt-4o"
+
+    llm_params = {
+        "model": model_name,
+        "temperature": 0.0,
+    }
+    if llm_endpoint:
+        llm_params["openai_api_base"] = llm_endpoint
+        if "openrouter.ai" in llm_endpoint:
+            llm_params["default_headers"] = {
+                "HTTP-Referer": "http://localhost:8000/",
+                "X-Title": "Resume Editor",
+            }
+
+    if api_key:
+        llm_params["api_key"] = api_key
+    elif llm_endpoint and "openrouter.ai" not in llm_endpoint:
+        llm_params["api_key"] = "not-needed"
+
+    llm = ChatOpenAI(**llm_params)
+
+    # Use StrOutputParser to get the raw string, then manually parse
+    chain = prompt | llm | StrOutputParser()
+    try:
+        response_str = chain.invoke({"job_description": job_description})
+
+        parsed_json = parse_json_markdown(response_str)
+        analysis = JobAnalysis.model_validate(parsed_json)
+
+    except (json.JSONDecodeError, ValueError) as e:
+        _msg = f"Failed to parse LLM response as JSON: {e!s}"
+        log.exception(_msg)
+        raise ValueError(
+            "The AI service returned an unexpected response. Please try again."
+        ) from e
+
+    _msg = "analyze_job_description returning"
+    log.debug(_msg)
+    return analysis
 
 
 def refine_resume_section_with_llm(
@@ -134,56 +225,10 @@ def refine_resume_section_with_llm(
 
         3.  **Handle Non-Relevant Roles:** If a `### Role` has no experience or skills relevant to the `Job Description`, replace the content of its `#### Summary` and `#### Responsibilities` sections. The `#### Responsibilities` section should contain only a single bullet point: `* Duties not relevant to this job application.` The `#### Summary` should be empty. This is important to preserve the candidate's employment history."""
 
-    system_template = """As an expert resume writer, your task is to refine the following resume section to better align with the provided job description.
-
-        **Crucial Rules:**
-        1.  **Stick to the Facts:** You MUST NOT invent, embellish, or add any information that is not present in the original "Resume Section to Refine". Do not use superlatives or grandiose claims. All refined content must be directly traceable to the original text.
-        2.  **Strictly Adhere to Format:** Your response MUST strictly follow the provided Markdown resume specification. Pay close attention to header levels (`#`, `##`, `###`, `####`), key-value pairs (`Key: Value`), and list formats.
-        3.  **Skills Section Formatting:** The `Skills` section under a `Role` or `Project` MUST be a bulleted list. Each skill must be a separate line starting with `* `.
-
-        **Goal:**
-        {goal}
-
-        {processing_guidelines}
-
-        **Output Format:**
-        Your response MUST be a single JSON object enclosed in ```json ... ```. The JSON object must conform to the following schema.
-
-        {format_instructions}
-
-        ---
-        MARKDOWN RESUME SPECIFICATION EXAMPLE:
-        # Personal
-        ## Contact Information
-        Name: Jane Doe
-
-        # Experience
-        ## Roles
-        ### Role
-        #### Basics
-        Company: A Company, LLC
-        Title: Engineer
-        Start date: 01/2020
-        #### Skills
-        * Skill one
-        * Skill two
-        ---
-    """
-
-    human_template = """Job Description:
-        {job_description}
-
-        Resume Section to Refine:
-        ---
-        {resume_section}
-        ---
-        Now, output the JSON object:
-    """
-
     prompt = ChatPromptTemplate.from_messages(
         [
-            ("system", system_template),
-            ("human", human_template),
+            ("system", RESUME_REFINE_SYSTEM_PROMPT),
+            ("human", RESUME_REFINE_HUMAN_PROMPT),
         ]
     ).partial(
         goal=goal_statement,
@@ -232,4 +277,6 @@ def refine_resume_section_with_llm(
             "The AI service returned an unexpected response. Please try again."
         ) from e
 
+    _msg = "refine_resume_section_with_llm returning"
+    log.debug(_msg)
     return refined_section.refined_markdown

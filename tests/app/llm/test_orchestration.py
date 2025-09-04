@@ -5,9 +5,10 @@ import pytest
 
 from resume_editor.app.llm.orchestration import (
     _get_section_content,
+    analyze_job_description,
     refine_resume_section_with_llm,
 )
-from resume_editor.app.llm.models import RefinedSection
+from resume_editor.app.llm.models import JobAnalysis, RefinedSection
 
 FULL_RESUME = """# Personal
 name: Test Person
@@ -81,6 +82,17 @@ def test_get_section_content_invalid():
         _get_section_content(FULL_RESUME, "invalid")
 
 
+def test_analyze_job_description_empty_input():
+    """Test that analyze_job_description raises ValueError for empty input."""
+    with pytest.raises(ValueError, match="Job description cannot be empty."):
+        analyze_job_description(
+            job_description=" ",
+            llm_endpoint=None,
+            api_key=None,
+            llm_model_name=None,
+        )
+
+
 @patch("resume_editor.app.llm.orchestration._get_section_content")
 def test_refine_resume_section_with_llm_empty_section(mock_get_section):
     """Test that the LLM is not called for an empty resume section."""
@@ -95,6 +107,219 @@ def test_refine_resume_section_with_llm_empty_section(mock_get_section):
     )
     assert result == ""
     mock_get_section.assert_called_once_with("resume", "personal")
+
+
+@pytest.fixture
+def mock_chain_invocations_for_analysis():
+    """
+    Fixture to mock the LangChain chain invocation for job analysis.
+    """
+    with patch(
+        "resume_editor.app.llm.orchestration.ChatOpenAI"
+    ) as mock_chat_openai_class, patch(
+        "resume_editor.app.llm.orchestration.ChatPromptTemplate"
+    ) as mock_prompt_template_class, patch(
+        "resume_editor.app.llm.orchestration.PydanticOutputParser"
+    ), patch(
+        "resume_editor.app.llm.orchestration.StrOutputParser"
+    ):
+        mock_prompt_from_messages = MagicMock()
+        mock_prompt_template_class.from_messages.return_value = (
+            mock_prompt_from_messages
+        )
+
+        mock_prompt_partial = MagicMock()
+        mock_prompt_from_messages.partial.return_value = mock_prompt_partial
+
+        # Mock the `|` operator chaining
+        prompt_llm_chain = MagicMock()
+        mock_prompt_partial.__or__.return_value = prompt_llm_chain
+
+        final_chain = MagicMock()
+        prompt_llm_chain.__or__.return_value = final_chain
+
+        # The final invoke should return a string, not a JobAnalysis object
+        final_chain.invoke.return_value = '```json\n{"key_skills": ["python", "fastapi"], "responsibilities": ["developing cool stuff"], "themes": ["agile"]}\n```'
+
+        yield {
+            "chat_openai": mock_chat_openai_class,
+            "final_chain": final_chain,
+            "prompt_template": mock_prompt_template_class,
+            "prompt_from_messages": mock_prompt_from_messages,
+        }
+
+
+def test_analyze_job_description(mock_chain_invocations_for_analysis):
+    """Test that analyze_job_description returns a valid JobAnalysis object."""
+    result = analyze_job_description(
+        job_description="some job description",
+        llm_endpoint=None,
+        api_key=None,
+        llm_model_name=None,
+    )
+    assert isinstance(result, JobAnalysis)
+    assert result.key_skills == ["python", "fastapi"]
+    assert result.responsibilities == ["developing cool stuff"]
+    assert result.themes == ["agile"]
+
+
+@pytest.mark.parametrize(
+    "llm_endpoint, api_key, llm_model_name, expected_call_args",
+    [
+        (
+            "http://fake.llm",
+            "key",
+            "custom-model",
+            {
+                "model": "custom-model",
+                "temperature": 0.0,
+                "openai_api_base": "http://fake.llm",
+                "api_key": "key",
+            },
+        ),
+        (
+            "http://fake.llm",
+            None,
+            "custom-model",
+            {
+                "model": "custom-model",
+                "temperature": 0.0,
+                "openai_api_base": "http://fake.llm",
+                "api_key": "not-needed",
+            },
+        ),
+        (
+            None,
+            "key",
+            "custom-model",
+            {"model": "custom-model", "temperature": 0.0, "api_key": "key"},
+        ),
+        (None, None, "custom-model", {"model": "custom-model", "temperature": 0.0}),
+        (
+            "http://fake.llm",
+            "key",
+            None,
+            {
+                "model": "gpt-4o",
+                "temperature": 0.0,
+                "openai_api_base": "http://fake.llm",
+                "api_key": "key",
+            },
+        ),
+        (
+            "http://fake.llm",
+            "key",
+            "",
+            {
+                "model": "gpt-4o",
+                "temperature": 0.0,
+                "openai_api_base": "http://fake.llm",
+                "api_key": "key",
+            },
+        ),
+        (
+            "https://openrouter.ai/api/v1",
+            "or-key",
+            "openrouter/model",
+            {
+                "model": "openrouter/model",
+                "temperature": 0.0,
+                "openai_api_base": "https://openrouter.ai/api/v1",
+                "api_key": "or-key",
+                "default_headers": {
+                    "HTTP-Referer": "http://localhost:8000/",
+                    "X-Title": "Resume Editor",
+                },
+            },
+        ),
+    ],
+)
+def test_analyze_job_description_llm_initialization(
+    mock_chain_invocations_for_analysis,
+    llm_endpoint,
+    api_key,
+    llm_model_name,
+    expected_call_args,
+):
+    """
+    Test that ChatOpenAI is initialized with the correct parameters for analysis.
+    """
+    analyze_job_description(
+        job_description="some job description",
+        llm_endpoint=llm_endpoint,
+        api_key=api_key,
+        llm_model_name=llm_model_name,
+    )
+    mock_chat_openai = mock_chain_invocations_for_analysis["chat_openai"]
+    mock_chat_openai.assert_called_once_with(**expected_call_args)
+
+
+def test_analyze_job_description_json_decode_error(
+    mock_chain_invocations_for_analysis,
+):
+    """
+    Test that a JSONDecodeError from the LLM call is handled gracefully in analysis.
+    """
+    import json
+
+    final_chain = mock_chain_invocations_for_analysis["final_chain"]
+    final_chain.invoke.side_effect = json.JSONDecodeError(
+        "Expecting value", "invalid json", 0
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="The AI service returned an unexpected response. Please try again.",
+    ):
+        analyze_job_description(
+            job_description="job desc",
+            llm_endpoint=None,
+            api_key=None,
+            llm_model_name=None,
+        )
+
+
+def test_analyze_job_description_validation_error(
+    mock_chain_invocations_for_analysis,
+):
+    """
+    Test that a Pydantic validation error is handled gracefully in analysis.
+    """
+    final_chain = mock_chain_invocations_for_analysis["final_chain"]
+    final_chain.invoke.return_value = '```json\n{"wrong_field": "wrong_value"}\n```'
+
+    with pytest.raises(
+        ValueError,
+        match="The AI service returned an unexpected response. Please try again.",
+    ):
+        analyze_job_description(
+            job_description="job desc",
+            llm_endpoint=None,
+            api_key=None,
+            llm_model_name=None,
+        )
+
+
+def test_analyze_job_description_authentication_error(
+    mock_chain_invocations_for_analysis,
+):
+    """
+    Test that an AuthenticationError from the LLM call is propagated during analysis.
+    """
+    from openai import AuthenticationError
+
+    final_chain = mock_chain_invocations_for_analysis["final_chain"]
+    final_chain.invoke.side_effect = AuthenticationError(
+        message="Invalid API key", response=MagicMock(), body=None
+    )
+
+    with pytest.raises(AuthenticationError):
+        analyze_job_description(
+            job_description="job desc",
+            llm_endpoint=None,
+            api_key=None,
+            llm_model_name=None,
+        )
 
 
 @pytest.fixture
