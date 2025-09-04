@@ -581,11 +581,15 @@ def _generate_resume_detail_html(resume: DatabaseResume) -> str:
             resultContainer.innerHTML = msg.content;
             htmx.process(resultContainer);
             progressDiv.innerHTML = '';
-            progressDiv.classList.add('htmx-indicator');
             form.reset();
             document.getElementById(`refine-form-container-${{resumeId}}`).classList.add('hidden');
+            event.target.sse.close();
         }} else if (msg.status === 'error') {{
-            progressDiv.innerHTML = `<div role='alert' class='text-red-500 p-2'>${{msg.message}}</div>`;
+            resultContainer.innerHTML = `<div role='alert' class='text-red-500 p-2'>${{msg.message || 'An error occurred during refinement.'}}</div>`;
+            progressDiv.innerHTML = '';
+            form.reset();
+            document.getElementById(`refine-form-container-${{resumeId}}`).classList.add('hidden');
+            event.target.sse.close();
         }} else {{
             progressDiv.innerHTML = `<p class='text-blue-600'>${{msg.message || msg.status}}</p>`;
         }}
@@ -1686,39 +1690,23 @@ async def refine_resume(
         async def sse_generator() -> AsyncGenerator[str, None]:
             """Async generator for streaming SSE updates."""
             log.debug("Starting SSE stream for experience refinement.")
-            try:
-                # refine_experience_section is an async generator
-                async for status_update in refine_experience_section(
-                    resume_content=resume.content,
-                    job_description=job_description,
-                    llm_endpoint=llm_endpoint,
-                    api_key=api_key,
-                    llm_model_name=llm_model_name,
-                ):
-                    if status_update.get("status") == "done":
-                        refined_content = status_update.get("content", "")
-                        html_content = _create_refine_result_html(
-                            resume.id, "experience", refined_content
-                        )
-                        final_event = {"status": "done", "content": html_content}
-                        yield f"data: {json.dumps(final_event)}\n\n"
-                    else:
-                        yield f"data: {json.dumps(status_update)}\n\n"
-            except AuthenticationError as e:
-                detail = (
-                    "LLM authentication failed. Please check your API key in settings."
-                )
-                _msg = f"LLM authentication failed for user {current_user.id}: {e!s}"
-                log.warning(_msg)
-                error_event = {"status": "error", "message": detail}
-                yield f"data: {json.dumps(error_event)}\n\n"
-            except Exception as e:
-                log.exception(
-                    "Error during experience refinement SSE stream for resume %d",
-                    resume.id,
-                )
-                error_event = {"status": "error", "message": str(e)}
-                yield f"data: {json.dumps(error_event)}\n\n"
+            # refine_experience_section is an async generator that handles its own errors
+            async for status_update in refine_experience_section(
+                resume_content=resume.content,
+                job_description=job_description,
+                llm_endpoint=llm_endpoint,
+                api_key=api_key,
+                llm_model_name=llm_model_name,
+            ):
+                if status_update.get("status") == "done":
+                    refined_content = status_update.get("content", "")
+                    html_content = _create_refine_result_html(
+                        resume.id, "experience", refined_content
+                    )
+                    final_event = {"status": "done", "content": html_content}
+                    yield f"data: {json.dumps(final_event)}\n\n"
+                else:
+                    yield f"data: {json.dumps(status_update)}\n\n"
 
         return StreamingResponse(sse_generator(), media_type="text/event-stream")
 

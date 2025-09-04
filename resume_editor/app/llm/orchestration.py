@@ -6,6 +6,7 @@ from langchain_core.output_parsers import PydanticOutputParser, StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.utils.json import parse_json_markdown
 from langchain_openai import ChatOpenAI
+from openai import AuthenticationError
 
 from resume_editor.app.api.routes.route_logic.resume_reconstruction import (
     reconstruct_resume_markdown,
@@ -431,52 +432,62 @@ async def refine_experience_section(
     _msg = "refine_experience_section starting"
     log.debug(_msg)
 
-    # 1. Parse all sections of the resume
-    yield {"status": "Parsing resume..."}
-    personal_info = extract_personal_info(resume_content)
-    education_info = extract_education_info(resume_content)
-    certifications_info = extract_certifications_info(resume_content)
-    experience_info = extract_experience_info(resume_content)
+    try:
+        # 1. Parse all sections of the resume
+        yield {"status": "Parsing resume..."}
+        personal_info = extract_personal_info(resume_content)
+        education_info = extract_education_info(resume_content)
+        certifications_info = extract_certifications_info(resume_content)
+        experience_info = extract_experience_info(resume_content)
 
-    # 2. Analyze the job description
-    yield {"status": "Analyzing job description..."}
-    job_analysis = await analyze_job_description(
-        job_description=job_description,
-        llm_endpoint=llm_endpoint,
-        api_key=api_key,
-        llm_model_name=llm_model_name,
-    )
-
-    # 3. Refine each role
-    refined_roles: list[Role] = []
-    total_roles = len(experience_info.roles)
-    for i, role in enumerate(experience_info.roles, 1):
-        _msg = f"Refining role {i} of {total_roles}"
-        log.debug(_msg)
-        yield {"status": _msg}
-        refined_role = await refine_role(
-            role=role,
-            job_analysis=job_analysis,
+        # 2. Analyze the job description
+        yield {"status": "Analyzing job description..."}
+        job_analysis = await analyze_job_description(
+            job_description=job_description,
             llm_endpoint=llm_endpoint,
             api_key=api_key,
             llm_model_name=llm_model_name,
         )
-        refined_roles.append(refined_role)
 
-    # 4. Create new experience response with refined roles
-    refined_experience = ExperienceResponse(
-        roles=refined_roles, projects=experience_info.projects
-    )
+        # 3. Refine each role
+        refined_roles: list[Role] = []
+        total_roles = len(experience_info.roles)
+        for i, role in enumerate(experience_info.roles, 1):
+            _msg = f"Refining role {i} of {total_roles}"
+            log.debug(_msg)
+            yield {"status": _msg}
+            refined_role = await refine_role(
+                role=role,
+                job_analysis=job_analysis,
+                llm_endpoint=llm_endpoint,
+                api_key=api_key,
+                llm_model_name=llm_model_name,
+            )
+            refined_roles.append(refined_role)
 
-    # 5. Reconstruct the full resume
-    yield {"status": "Reconstructing resume..."}
-    updated_resume_content = reconstruct_resume_markdown(
-        personal_info=personal_info,
-        education=education_info,
-        certifications=certifications_info,
-        experience=refined_experience,
-    )
+        # 4. Create new experience response with refined roles
+        refined_experience = ExperienceResponse(
+            roles=refined_roles, projects=experience_info.projects
+        )
 
-    _msg = "refine_experience_section finished, yielding final content"
-    log.debug(_msg)
-    yield {"status": "done", "content": updated_resume_content}
+        # 5. Reconstruct the full resume
+        yield {"status": "Reconstructing resume..."}
+        updated_resume_content = reconstruct_resume_markdown(
+            personal_info=personal_info,
+            education=education_info,
+            certifications=certifications_info,
+            experience=refined_experience,
+        )
+
+        _msg = "refine_experience_section finished, yielding final content"
+        log.debug(_msg)
+        yield {"status": "done", "content": updated_resume_content}
+    except AuthenticationError as e:
+        detail = "LLM authentication failed. Please check your API key in settings."
+        _msg = f"LLM authentication error during experience refinement: {e!s}"
+        log.warning(_msg)
+        yield {"status": "error", "message": detail}
+    except Exception as e:
+        _msg = f"An unexpected error occurred during experience refinement: {e!s}"
+        log.exception(_msg)
+        yield {"status": "error", "message": str(e)}

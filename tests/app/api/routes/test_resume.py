@@ -2647,11 +2647,16 @@ async def test_refine_experience_with_sse_error(
     mock_refine_experience,
     client_with_auth_and_resume,
 ):
-    """Test SSE stream handles errors from orchestrator."""
+    """Test SSE stream handles errors yielded by the orchestrator."""
     import json
 
     mock_get_user_settings.return_value = None
-    mock_refine_experience.side_effect = Exception("Orchestrator failed")
+
+    # Mock the async generator to yield error
+    async def mock_error_generator():
+        yield {"status": "error", "message": "Orchestrator failed"}
+
+    mock_refine_experience.return_value = mock_error_generator()
 
     # Act
     with client_with_auth_and_resume.stream(
@@ -2680,13 +2685,19 @@ async def test_refine_experience_with_sse_auth_error(
     mock_refine_experience,
     client_with_auth_and_resume,
 ):
-    """Test SSE stream handles AuthenticationError from orchestrator."""
+    """Test SSE stream handles AuthenticationError yielded by the orchestrator."""
     import json
 
     mock_get_user_settings.return_value = None
-    mock_refine_experience.side_effect = AuthenticationError(
-        message="Invalid SSE key", response=Mock(), body=None
-    )
+
+    # Mock the async generator to yield auth error
+    async def mock_auth_error_generator():
+        yield {
+            "status": "error",
+            "message": "LLM authentication failed. Please check your API key in settings.",
+        }
+
+    mock_refine_experience.return_value = mock_auth_error_generator()
 
     # Act
     with client_with_auth_and_resume.stream(

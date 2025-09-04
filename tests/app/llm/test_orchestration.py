@@ -3,6 +3,7 @@ from datetime import datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from openai import AuthenticationError
 
 import json
 from resume_editor.app.llm.orchestration import (
@@ -1005,3 +1006,95 @@ async def test_refine_experience_section(
     mock_reconstruct.assert_called_once()
     reconstruct_kwargs = mock_reconstruct.call_args.kwargs
     assert reconstruct_kwargs["experience"].roles == [refined_role1, refined_role2]
+
+
+@pytest.mark.asyncio
+@patch("resume_editor.app.llm.orchestration.extract_personal_info")
+@patch("resume_editor.app.llm.orchestration.extract_education_info")
+@patch("resume_editor.app.llm.orchestration.extract_certifications_info")
+@patch("resume_editor.app.llm.orchestration.extract_experience_info")
+@patch("resume_editor.app.llm.orchestration.analyze_job_description")
+async def test_refine_experience_section_job_analysis_fails(
+    mock_analyze_job,
+    mock_extract_experience,
+    mock_extract_certifications,
+    mock_extract_education,
+    mock_extract_personal,
+):
+    """Test orchestrator yields error if job analysis fails."""
+    mock_analyze_job.side_effect = ValueError("Job analysis failed")
+
+    events = []
+    async for event in refine_experience_section("resume", "job", None, None, None):
+        events.append(event)
+
+    assert len(events) == 3  # Parsing, Analyzing, Error
+    assert events[0] == {"status": "Parsing resume..."}
+    assert events[1] == {"status": "Analyzing job description..."}
+    assert events[2] == {"status": "error", "message": "Job analysis failed"}
+
+
+@pytest.mark.asyncio
+@patch("resume_editor.app.llm.orchestration.extract_personal_info")
+@patch("resume_editor.app.llm.orchestration.extract_education_info")
+@patch("resume_editor.app.llm.orchestration.extract_certifications_info")
+@patch("resume_editor.app.llm.orchestration.extract_experience_info")
+@patch("resume_editor.app.llm.orchestration.analyze_job_description")
+async def test_refine_experience_section_auth_error_on_analysis(
+    mock_analyze_job,
+    mock_extract_experience,
+    mock_extract_certifications,
+    mock_extract_education,
+    mock_extract_personal,
+):
+    """Test orchestrator yields auth error if job analysis fails auth."""
+    mock_analyze_job.side_effect = AuthenticationError(
+        message="auth error", response=MagicMock(), body=None
+    )
+
+    events = []
+    async for event in refine_experience_section("resume", "job", None, None, None):
+        events.append(event)
+
+    expected_message = "LLM authentication failed. Please check your API key in settings."
+    assert events[-1] == {"status": "error", "message": expected_message}
+
+
+@pytest.mark.asyncio
+@patch("resume_editor.app.llm.orchestration.reconstruct_resume_markdown")
+@patch("resume_editor.app.llm.orchestration.refine_role")
+@patch("resume_editor.app.llm.orchestration.analyze_job_description")
+@patch("resume_editor.app.llm.orchestration.extract_experience_info")
+@patch("resume_editor.app.llm.orchestration.extract_certifications_info")
+@patch("resume_editor.app.llm.orchestration.extract_education_info")
+@patch("resume_editor.app.llm.orchestration.extract_personal_info")
+async def test_refine_experience_section_role_refinement_fails(
+    mock_extract_personal,
+    mock_extract_education,
+    mock_extract_certifications,
+    mock_extract_experience,
+    mock_analyze_job,
+    mock_refine_role,
+    mock_reconstruct,
+):
+    """Test that the orchestrator yields an error if role refinement fails."""
+    # Arrange: Let the first role refinement fail
+    mock_refine_role.side_effect = ValueError("Role refinement failed")
+
+    original_role1 = create_mock_role()
+    mock_experience_info = ExperienceResponse(roles=[original_role1], projects=[])
+    mock_extract_experience.return_value = mock_experience_info
+    mock_analyze_job.return_value = create_mock_job_analysis()
+
+    # Act
+    events = []
+    async for event in refine_experience_section("resume", "job", None, None, None):
+        events.append(event)
+
+    # Assert
+    assert len(events) == 4  # Parse, Analyze, Refine Role 1, Error
+    assert events[-1] == {"status": "error", "message": "Role refinement failed"}
+    assert any(e == {"status": "Refining role 1 of 1"} for e in events)
+    mock_analyze_job.assert_awaited_once()
+    mock_refine_role.assert_awaited_once()
+    mock_reconstruct.assert_not_called()
