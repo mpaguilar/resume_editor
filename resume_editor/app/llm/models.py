@@ -21,23 +21,12 @@ class RefinedSection(BaseModel):
 
 
 class JobAnalysis(BaseModel):
-    """
-    Pydantic model for structured output from analyzing a job description.
+    """A structured analysis of a job description, extracting key information."""
 
-    Attributes:
-        key_skills (list[str]): Key skills, technologies, and qualifications.
-        responsibilities (list[str]): Key responsibilities and duties.
-        themes (list[str]): High-level themes or cultural aspects.
-    """
-
-    key_skills: list[str] = Field(
-        ...,
-        description="A list of key skills, technologies, and qualifications mentioned in the job description.",
+    required_skills: list[str] = Field(
+        ..., description="A list of required skills from the job description."
     )
-    responsibilities: list[str] = Field(
-        ..., description="A list of key responsibilities and duties."
+    nice_to_have_skills: list[str] = Field(
+        ..., description="A list of nice-to-have skills from the job description."
     )
-    themes: list[str] = Field(
-        ...,
-        description='A list of high-level themes or cultural aspects mentioned (e.g., "fast-paced environment", "strong collaboration").',
-    )
+    job_title: str = Field(..., description="The job title from the job description.")

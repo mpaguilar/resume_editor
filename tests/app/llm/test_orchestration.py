@@ -8,6 +8,7 @@ from openai import AuthenticationError
 import json
 from resume_editor.app.llm.orchestration import (
     _get_section_content,
+    _refine_experience_section,
     analyze_job_description,
     refine_experience_section,
     refine_resume_section_with_llm,
@@ -160,7 +161,7 @@ def mock_chain_invocations_for_analysis():
 
         # The final ainvoke should return a string, not a JobAnalysis object
         final_chain.ainvoke = AsyncMock(
-            return_value='```json\n{"key_skills": ["python", "fastapi"], "responsibilities": ["developing cool stuff"], "themes": ["agile"]}\n```'
+            return_value='```json\n{"required_skills": ["python", "fastapi"], "nice_to_have_skills": ["docker"], "job_title": "Software Engineer"}\n```'
         )
 
         yield {
@@ -181,9 +182,9 @@ async def test_analyze_job_description(mock_chain_invocations_for_analysis):
         llm_model_name=None,
     )
     assert isinstance(result, JobAnalysis)
-    assert result.key_skills == ["python", "fastapi"]
-    assert result.responsibilities == ["developing cool stuff"]
-    assert result.themes == ["agile"]
+    assert result.required_skills == ["python", "fastapi"]
+    assert result.nice_to_have_skills == ["docker"]
+    assert result.job_title == "Software Engineer"
 
 
 @pytest.mark.parametrize(
@@ -500,7 +501,7 @@ def test_refine_resume_section_llm_initialization(
     result = refine_resume_section_with_llm(
         resume_content="resume",
         job_description="job desc",
-        target_section="experience",
+        target_section="personal",
         llm_endpoint=llm_endpoint,
         api_key=api_key,
         llm_model_name=llm_model_name,
@@ -508,7 +509,7 @@ def test_refine_resume_section_llm_initialization(
     mock_chat_openai = mock_chain_invocations["chat_openai"]
     mock_chat_openai.assert_called_once_with(**expected_call_args)
     assert result == "refined content"
-    mock_get_section_content.assert_called_once_with("resume", "experience")
+    mock_get_section_content.assert_called_once_with("resume", "personal")
 
 
 def test_refine_resume_section_llm_json_decode_error(
@@ -535,7 +536,7 @@ def test_refine_resume_section_llm_json_decode_error(
         refine_resume_section_with_llm(
             resume_content="resume",
             job_description="job desc",
-            target_section="experience",
+            target_section="personal",
             llm_endpoint=None,
             api_key=None,
             llm_model_name=None,
@@ -560,7 +561,7 @@ def test_refine_resume_section_llm_validation_error(
         refine_resume_section_with_llm(
             resume_content="resume",
             job_description="job desc",
-            target_section="experience",
+            target_section="personal",
             llm_endpoint=None,
             api_key=None,
             llm_model_name=None,
@@ -586,7 +587,7 @@ def test_refine_resume_section_llm_authentication_error(
         refine_resume_section_with_llm(
             resume_content="resume",
             job_description="job desc",
-            target_section="experience",
+            target_section="personal",
             llm_endpoint=None,
             api_key=None,
             llm_model_name=None,
@@ -596,7 +597,6 @@ def test_refine_resume_section_llm_authentication_error(
 @pytest.mark.parametrize(
     "target_section, expect_guidelines",
     [
-        ("experience", True),
         ("personal", False),
         ("education", False),
         ("certifications", False),
@@ -657,6 +657,24 @@ def test_refine_resume_prompt_content(
         assert partial_kwargs["processing_guidelines"] == ""
 
 
+def test_refine_resume_section_experience_raises_error():
+    """
+    Test that refine_resume_section_with_llm raises an error for 'experience' section.
+    """
+    with pytest.raises(
+        ValueError,
+        match="Experience section refinement must be called via the async 'refine_experience_section' method.",
+    ):
+        refine_resume_section_with_llm(
+            resume_content="resume",
+            job_description="job desc",
+            target_section="experience",
+            llm_endpoint=None,
+            api_key=None,
+            llm_model_name=None,
+        )
+
+
 def create_mock_role() -> Role:
     """Helper to create a mock Role object for testing."""
     return Role(
@@ -674,9 +692,9 @@ def create_mock_role() -> Role:
 def create_mock_job_analysis() -> JobAnalysis:
     """Helper to create a mock JobAnalysis object for testing."""
     return JobAnalysis(
-        key_skills=["New Skill"],
-        responsibilities=["Do new things."],
-        themes=["Teamwork"],
+        required_skills=["python", "fastapi"],
+        nice_to_have_skills=["docker"],
+        job_title="Software Engineer",
     )
 
 
@@ -898,6 +916,33 @@ async def test_refine_role_llm_initialization(
 
 
 @pytest.mark.asyncio
+@patch("resume_editor.app.llm.orchestration._refine_experience_section")
+async def test_refine_experience_section_wrapper_success(mock_private_refiner):
+    """Test that the public refine_experience_section wrapper correctly calls and yields from the private generator."""
+    # Arrange
+    async def mock_generator():
+        yield {"status": "one"}
+        yield {"status": "two"}
+
+    mock_private_refiner.return_value = mock_generator()
+
+    # Act
+    events = []
+    async for event in refine_experience_section("r", "j", None, None, None):
+        events.append(event)
+
+    # Assert
+    mock_private_refiner.assert_called_once_with(
+        resume_content="r",
+        job_description="j",
+        llm_endpoint=None,
+        api_key=None,
+        llm_model_name=None,
+    )
+    assert events == [{"status": "one"}, {"status": "two"}]
+
+
+@pytest.mark.asyncio
 @patch("resume_editor.app.llm.orchestration.reconstruct_resume_markdown")
 @patch("resume_editor.app.llm.orchestration.refine_role")
 @patch("resume_editor.app.llm.orchestration.analyze_job_description")
@@ -905,7 +950,7 @@ async def test_refine_role_llm_initialization(
 @patch("resume_editor.app.llm.orchestration.extract_certifications_info")
 @patch("resume_editor.app.llm.orchestration.extract_education_info")
 @patch("resume_editor.app.llm.orchestration.extract_personal_info")
-async def test_refine_experience_section(
+async def test__refine_experience_section(
     mock_extract_personal,
     mock_extract_education,
     mock_extract_certifications,
@@ -960,7 +1005,7 @@ async def test_refine_experience_section(
 
     # Act
     events = []
-    async for event in refine_experience_section(
+    async for event in _refine_experience_section(
         resume_content=resume_content,
         job_description=job_description,
         llm_endpoint=llm_endpoint,
@@ -1009,29 +1054,64 @@ async def test_refine_experience_section(
 
 
 @pytest.mark.asyncio
-@patch("resume_editor.app.llm.orchestration.extract_personal_info")
-@patch("resume_editor.app.llm.orchestration.extract_education_info")
-@patch("resume_editor.app.llm.orchestration.extract_certifications_info")
-@patch("resume_editor.app.llm.orchestration.extract_experience_info")
+@patch("resume_editor.app.llm.orchestration.reconstruct_resume_markdown")
+@patch("resume_editor.app.llm.orchestration.refine_role")
 @patch("resume_editor.app.llm.orchestration.analyze_job_description")
-async def test_refine_experience_section_job_analysis_fails(
-    mock_analyze_job,
-    mock_extract_experience,
-    mock_extract_certifications,
-    mock_extract_education,
+@patch("resume_editor.app.llm.orchestration.extract_experience_info")
+@patch("resume_editor.app.llm.orchestration.extract_certifications_info")
+@patch("resume_editor.app.llm.orchestration.extract_education_info")
+@patch("resume_editor.app.llm.orchestration.extract_personal_info")
+async def test__refine_experience_section_no_roles(
     mock_extract_personal,
+    mock_extract_education,
+    mock_extract_certifications,
+    mock_extract_experience,
+    mock_analyze_job,
+    mock_refine_role,
+    mock_reconstruct,
 ):
-    """Test orchestrator yields error if job analysis fails."""
-    mock_analyze_job.side_effect = ValueError("Job analysis failed")
+    """Test that the orchestrator handles resumes with no roles in the experience section."""
+    # Arrange
+    mock_extract_personal.return_value = PersonalInfoResponse(name="Test Person")
+    mock_extract_education.return_value = EducationResponse(degrees=[])
+    mock_extract_certifications.return_value = CertificationsResponse(
+        certifications=[]
+    )
+    mock_projects = [MagicMock(spec=Project)]
+    mock_experience_info = ExperienceResponse(roles=[], projects=mock_projects)
+    mock_extract_experience.return_value = mock_experience_info
 
+    mock_job_analysis = create_mock_job_analysis()
+    mock_analyze_job.return_value = mock_job_analysis
+    mock_reconstruct.return_value = "reconstructed content with no roles"
+
+    # Act
     events = []
-    async for event in refine_experience_section("resume", "job", None, None, None):
+    async for event in _refine_experience_section(
+        resume_content="some content",
+        job_description="some job",
+        llm_endpoint=None,
+        api_key=None,
+        llm_model_name=None,
+    ):
         events.append(event)
 
-    assert len(events) == 3  # Parsing, Analyzing, Error
-    assert events[0] == {"status": "Parsing resume..."}
-    assert events[1] == {"status": "Analyzing job description..."}
-    assert events[2] == {"status": "error", "message": "Job analysis failed"}
+    # Assert
+    # 1. Check yielded events
+    assert events == [
+        {"status": "Parsing resume..."},
+        {"status": "Analyzing job description..."},
+        {"status": "Reconstructing resume..."},
+        {"status": "done", "content": "reconstructed content with no roles"},
+    ]
+
+    # 2. Check mocks were called
+    mock_analyze_job.assert_awaited_once()
+    mock_refine_role.assert_not_called()
+    mock_reconstruct.assert_called_once()
+    reconstruct_kwargs = mock_reconstruct.call_args.kwargs
+    assert reconstruct_kwargs["experience"].roles == []
+    assert reconstruct_kwargs["experience"].projects == mock_projects
 
 
 @pytest.mark.asyncio
@@ -1040,24 +1120,33 @@ async def test_refine_experience_section_job_analysis_fails(
 @patch("resume_editor.app.llm.orchestration.extract_certifications_info")
 @patch("resume_editor.app.llm.orchestration.extract_experience_info")
 @patch("resume_editor.app.llm.orchestration.analyze_job_description")
-async def test_refine_experience_section_auth_error_on_analysis(
+async def test__refine_experience_section_job_analysis_fails(
     mock_analyze_job,
     mock_extract_experience,
     mock_extract_certifications,
     mock_extract_education,
     mock_extract_personal,
 ):
-    """Test orchestrator yields auth error if job analysis fails auth."""
-    mock_analyze_job.side_effect = AuthenticationError(
-        message="auth error", response=MagicMock(), body=None
-    )
+    """Test private orchestrator raises error if job analysis fails."""
+    # Arrange
+    mock_extract_personal.return_value = MagicMock()
+    mock_extract_education.return_value = MagicMock()
+    mock_extract_certifications.return_value = MagicMock()
+    mock_extract_experience.return_value = MagicMock()
+    mock_analyze_job.side_effect = ValueError("Job analysis failed")
 
+    # Act & Assert
     events = []
-    async for event in refine_experience_section("resume", "job", None, None, None):
-        events.append(event)
+    with pytest.raises(ValueError, match="Job analysis failed"):
+        async for event in _refine_experience_section(
+            "resume", "job", None, None, None
+        ):
+            events.append(event)
 
-    expected_message = "LLM authentication failed. Please check your API key in settings."
-    assert events[-1] == {"status": "error", "message": expected_message}
+    assert events == [
+        {"status": "Parsing resume..."},
+        {"status": "Analyzing job description..."},
+    ]
 
 
 @pytest.mark.asyncio
@@ -1068,7 +1157,7 @@ async def test_refine_experience_section_auth_error_on_analysis(
 @patch("resume_editor.app.llm.orchestration.extract_certifications_info")
 @patch("resume_editor.app.llm.orchestration.extract_education_info")
 @patch("resume_editor.app.llm.orchestration.extract_personal_info")
-async def test_refine_experience_section_role_refinement_fails(
+async def test__refine_experience_section_role_refinement_fails(
     mock_extract_personal,
     mock_extract_education,
     mock_extract_certifications,
@@ -1077,8 +1166,11 @@ async def test_refine_experience_section_role_refinement_fails(
     mock_refine_role,
     mock_reconstruct,
 ):
-    """Test that the orchestrator yields an error if role refinement fails."""
+    """Test that the private orchestrator raises an error if role refinement fails."""
     # Arrange: Let the first role refinement fail
+    mock_extract_personal.return_value = MagicMock()
+    mock_extract_education.return_value = MagicMock()
+    mock_extract_certifications.return_value = MagicMock()
     mock_refine_role.side_effect = ValueError("Role refinement failed")
 
     original_role1 = create_mock_role()
@@ -1086,15 +1178,77 @@ async def test_refine_experience_section_role_refinement_fails(
     mock_extract_experience.return_value = mock_experience_info
     mock_analyze_job.return_value = create_mock_job_analysis()
 
-    # Act
+    # Act & Assert
     events = []
-    async for event in refine_experience_section("resume", "job", None, None, None):
-        events.append(event)
+    with pytest.raises(ValueError, match="Role refinement failed"):
+        async for event in _refine_experience_section(
+            "resume", "job", None, None, None
+        ):
+            events.append(event)
 
     # Assert
-    assert len(events) == 4  # Parse, Analyze, Refine Role 1, Error
-    assert events[-1] == {"status": "error", "message": "Role refinement failed"}
-    assert any(e == {"status": "Refining role 1 of 1"} for e in events)
+    assert events == [
+        {"status": "Parsing resume..."},
+        {"status": "Analyzing job description..."},
+        {"status": "Refining role 1 of 1"},
+    ]
     mock_analyze_job.assert_awaited_once()
     mock_refine_role.assert_awaited_once()
     mock_reconstruct.assert_not_called()
+
+
+@pytest.mark.asyncio
+@patch("resume_editor.app.llm.orchestration.log")
+@patch("resume_editor.app.llm.orchestration._refine_experience_section")
+async def test_refine_experience_section_wrapper_general_exception(
+    mock_private_refiner, mock_log
+):
+    """Test that the public wrapper handles a general exception from the private generator."""
+    # Arrange
+    async def mock_generator_with_error():
+        yield {"status": "one"}
+        raise Exception("A wild error appeared!")
+
+    mock_private_refiner.return_value = mock_generator_with_error()
+
+    # Act
+    events = []
+    async for event in refine_experience_section("r", "j", None, None, None):
+        events.append(event)
+
+    # Assert
+    assert len(events) == 2
+    assert events[0] == {"status": "one"}
+    assert events[1] == {"status": "error", "message": "A wild error appeared!"}
+    mock_log.exception.assert_called_once()
+    assert "An unexpected error occurred" in mock_log.exception.call_args.args[0]
+
+
+@pytest.mark.asyncio
+@patch("resume_editor.app.llm.orchestration.log")
+@patch("resume_editor.app.llm.orchestration._refine_experience_section")
+async def test_refine_experience_section_wrapper_authentication_error(
+    mock_private_refiner, mock_log
+):
+    """Test that the public wrapper handles an AuthenticationError from the private generator."""
+    # Arrange
+    async def mock_generator_with_auth_error():
+        yield {"status": "one"}
+        raise AuthenticationError("Invalid key", response=MagicMock(), body=None)
+
+    mock_private_refiner.return_value = mock_generator_with_auth_error()
+
+    # Act
+    events = []
+    async for event in refine_experience_section("r", "j", None, None, None):
+        events.append(event)
+
+    # Assert
+    assert len(events) == 2
+    assert events[0] == {"status": "one"}
+    assert events[1] == {
+        "status": "error",
+        "message": "LLM authentication failed. Please check your API key in settings.",
+    }
+    mock_log.warning.assert_called_once()
+    assert "LLM authentication error" in mock_log.warning.call_args.args[0]

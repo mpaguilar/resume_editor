@@ -438,7 +438,6 @@ def _generate_resume_detail_html(resume: DatabaseResume) -> str:
                   hx-target="#refine-result-container"
                   hx-swap="innerHTML"
                   hx-indicator="#refine-progress-{resume.id}"
-                  hx-on--htmx--sse-message="handleSseMessage(event, {resume.id})"
                   hx-on--htmx--after-request="handleAfterRequest(event)">
 
                 <h3 class="text-lg leading-6 font-medium text-gray-900 mb-4">Refine Resume with Job Description</h3>
@@ -448,8 +447,7 @@ def _generate_resume_detail_html(resume: DatabaseResume) -> str:
 
                 <div class="mt-4">
                   <label for="target_section" class="block text-sm font-medium text-gray-700">Section to Refine</label>
-                  <select name="target_section" id="target_section_{resume.id}" class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md"
-                          onchange="handleSectionChange(this)">
+                  <select name="target_section" id="target_section_{resume.id}" class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md">
                       <option value="full">Full Resume</option>
                       <option value="personal">Personal</option>
                       <option value="education">Education</option>
@@ -1647,9 +1645,7 @@ async def refine_resume(
     """
     Refine a resume section using an LLM to align with a job description.
 
-    For the 'experience' section, this endpoint returns a Server-Sent Events (SSE)
-    stream with real-time progress updates. For all other sections, it returns
-    a standard JSON or HTML response.
+    This endpoint handles both JSON API calls and HTMX form submissions.
 
     Args:
         http_request (Request): The HTTP request object to check for HTMX headers.
@@ -1660,8 +1656,8 @@ async def refine_resume(
         target_section (RefineTargetSection): The section of the resume to refine.
 
     Returns:
-        StreamingResponse | RefineResponse | HTMLResponse: The response type
-            depends on the target_section and request headers.
+        RefineResponse | HTMLResponse: The response type
+            depends on the request headers.
 
     """
     _msg = f"Refining resume {resume.id} for section {target_section.value}"
@@ -1685,49 +1681,45 @@ async def refine_resume(
                 )
             raise HTTPException(status_code=400, detail=detail)
 
-    if target_section == RefineTargetSection.EXPERIENCE:
+    try:
+        if target_section == RefineTargetSection.EXPERIENCE:
+            # Handle experience refinement with SSE
+            async def sse_generator():
+                async for event in refine_experience_section(
+                    resume_content=resume.content,
+                    job_description=job_description,
+                    llm_endpoint=llm_endpoint,
+                    api_key=api_key,
+                    llm_model_name=llm_model_name,
+                ):
+                    if event["status"] == "done":
+                        event["content"] = _create_refine_result_html(
+                            resume.id, "experience", event["content"]
+                        )
+                    yield f"data: {json.dumps(event)}\n\n"
 
-        async def sse_generator() -> AsyncGenerator[str, None]:
-            """Async generator for streaming SSE updates."""
-            log.debug("Starting SSE stream for experience refinement.")
-            # refine_experience_section is an async generator that handles its own errors
-            async for status_update in refine_experience_section(
+            return StreamingResponse(
+                sse_generator(),
+                media_type="text/event-stream",
+            )
+        else:
+            # Handle other sections synchronously
+            refined_content = refine_resume_section_with_llm(
                 resume_content=resume.content,
                 job_description=job_description,
+                target_section=target_section.value,
                 llm_endpoint=llm_endpoint,
                 api_key=api_key,
                 llm_model_name=llm_model_name,
-            ):
-                if status_update.get("status") == "done":
-                    refined_content = status_update.get("content", "")
-                    html_content = _create_refine_result_html(
-                        resume.id, "experience", refined_content
-                    )
-                    final_event = {"status": "done", "content": html_content}
-                    yield f"data: {json.dumps(final_event)}\n\n"
-                else:
-                    yield f"data: {json.dumps(status_update)}\n\n"
-
-        return StreamingResponse(sse_generator(), media_type="text/event-stream")
-
-    # Handle other sections as before
-    try:
-        refined_content = refine_resume_section_with_llm(
-            resume_content=resume.content,
-            job_description=job_description,
-            target_section=target_section.value,
-            llm_endpoint=llm_endpoint,
-            api_key=api_key,
-            llm_model_name=llm_model_name,
-        )
-
-        if "HX-Request" in http_request.headers:
-            html_content = _create_refine_result_html(
-                resume.id, target_section.value, refined_content
             )
-            return HTMLResponse(content=html_content)
 
-        return RefineResponse(refined_content=refined_content)
+            if "HX-Request" in http_request.headers:
+                html_content = _create_refine_result_html(
+                    resume.id, target_section.value, refined_content
+                )
+                return HTMLResponse(content=html_content)
+
+            return RefineResponse(refined_content=refined_content)
     except AuthenticationError as e:
         detail = "LLM authentication failed. Please check your API key in settings."
         _msg = f"LLM authentication failed for user {current_user.id}: {e!s}"

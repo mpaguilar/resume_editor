@@ -6302,26 +6302,19 @@ Returns:
     str: The refined Markdown content for the target section. Returns an empty string if the target section is empty.
 
 Notes:
-    1. Extract the target section content from the resume using _get_section_content.
-    2. If the extracted content is empty, return an empty string.
-    3. Set up a PydanticOutputParser for structured output based on the RefinedSection model.
-    4. Create a PromptTemplate with instructions for the LLM, including format instructions.
-    5. Determine the model name, using the provided `llm_model_name` or falling back to a default.
-    6. Initialize the ChatOpenAI client. If a custom `llm_endpoint` is set without an `api_key`, a dummy API key is provided to satisfy the OpenAI client library.
-    7. Create a chain combining the prompt, LLM, and parser.
-    8. Invoke the chain with the job description and resume section content to get a `RefinedSection` object.
-    9. Return the `refined_markdown` field from the result.
+    1. For the 'experience' section, it uses a multi-pass approach:
+       a. Parses the full resume into structured data.
+       b. Analyzes the job description to extract key details.
+       c. Refines each job role individually based on the analysis.
+       d. Reconstructs the full resume with the refined experience section.
+    2. For all other sections, it performs a single-pass refinement on the section content.
+    3. Initializes the ChatOpenAI client, providing a dummy API key for custom endpoints if none is set.
+    4. Invokes the appropriate LLM chain and returns the refined content.
 
 Network access:
-    - This function makes a network request to the LLM endpoint specified by llm_endpoint.
+    - This function makes network requests to the LLM endpoint specified by llm_endpoint.
 
 ---
-
-
-===
-
-===
-# File: `resume_editor/app/llm/models.py`
 
 
 ===
