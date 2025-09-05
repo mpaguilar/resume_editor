@@ -68,7 +68,7 @@ Now, output the JSON object:
 ROLE_REFINE_SYSTEM_PROMPT = """As an expert resume writer, your task is to refine the provided `role` JSON object to better align with the `job_analysis` JSON object.
 
 **Crucial Rules:**
-1.  **Stick to the Facts:** You MUST NOT invent, embellish, or add any information that is not present in the original `role` object.
+1.  **Stick to the Facts:** You MUST NOT invent, embellish, or add any information that is not present in the original `role` object. Rephrasing and re-contextualizing are encouraged.
 2.  **Strictly Adhere to Format:** Your response MUST be a single JSON object enclosed in ```json ... ```. The JSON object must conform to the schema of the provided `role` object.
 3.  **Refine, Don't Replace:** Your goal is to improve the summary and responsibilities based on the job analysis. Do not change factual data like company name, title, or dates.
 4.  **Skills Synchronization:** Ensure that any skill mentioned in the `responsibilities` text is also listed in the `skills.skills` list.

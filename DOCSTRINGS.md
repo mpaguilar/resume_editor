@@ -1,13 +1,13 @@
 # Docstrings Reference
 
 ===
-# File: `__init__.py`
+# File: `./resume_editor/app/__init__.py`
 
 
 ===
 
 ===
-# File: `main.py`
+# File: `./resume_editor/app/main.py`
 
 ## function: `create_app() -> FastAPI`
 
@@ -59,7 +59,7 @@ Entry point for running the application directly.
 ===
 
 ===
-# File: `__init__.py`
+# File: `./resume_editor/app/api/__init__.py`
 
 ## function: `get_app() -> FastAPI`
 
@@ -94,7 +94,7 @@ Notes:
 ===
 
 ===
-# File: `resume.py`
+# File: `./resume_editor/app/api/routes/resume.py`
 
 ## function: `_generate_resume_list_html(resumes: list[DatabaseResume], selected_resume_id: int | None) -> str`
 
@@ -137,7 +137,7 @@ Notes:
 ===
 
 ===
-# File: `user.py`
+# File: `./resume_editor/app/api/routes/user.py`
 
 ## function: `get_user_by_username(db: Session, username: str) -> User | None`
 
@@ -320,13 +320,13 @@ Notes:
 ===
 
 ===
-# File: `route_models.py`
+# File: `./resume_editor/app/api/routes/route_models.py`
 
 
 ===
 
 ===
-# File: `admin.py`
+# File: `./resume_editor/app/api/routes/admin.py`
 
 ## function: `admin_create_user(user_data: AdminUserCreate, db: Session) -> UnknownType`
 
@@ -499,7 +499,7 @@ Notes:
 ===
 
 ===
-# File: `resume_crud.py`
+# File: `./resume_editor/app/api/routes/route_logic/resume_crud.py`
 
 ## function: `get_resume_by_id_and_user(db: Session, resume_id: int, user_id: int) -> DatabaseResume`
 
@@ -610,7 +610,7 @@ Notes:
 ===
 
 ===
-# File: `resume_validation.py`
+# File: `./resume_editor/app/api/routes/route_logic/resume_validation.py`
 
 ## function: `perform_pre_save_validation(markdown_content: str, original_content: str | None) -> None`
 
@@ -639,7 +639,7 @@ Notes:
 ===
 
 ===
-# File: `resume_filtering.py`
+# File: `./resume_editor/app/api/routes/route_logic/resume_filtering.py`
 
 ## function: `_get_date_from_optional_datetime(dt: datetime | None) -> date | None`
 
@@ -704,7 +704,7 @@ Notes:
 ===
 
 ===
-# File: `resume_llm.py`
+# File: `./resume_editor/app/api/routes/route_logic/resume_llm.py`
 
 ## function: `_get_section_content(resume_content: str, section_name: str) -> str`
 
@@ -765,7 +765,7 @@ Network access:
 ===
 
 ===
-# File: `settings_crud.py`
+# File: `./resume_editor/app/api/routes/route_logic/settings_crud.py`
 
 ## function: `get_user_settings(db: Session, user_id: int) -> UserSettings | None`
 
@@ -812,7 +812,7 @@ Notes:
 ===
 
 ===
-# File: `resume_reconstruction.py`
+# File: `./resume_editor/app/api/routes/route_logic/resume_reconstruction.py`
 
 ## function: `reconstruct_resume_markdown(personal_info: PersonalInfoResponse | None, education: EducationResponse | None, certifications: CertificationsResponse | None, experience: ExperienceResponse | None) -> str`
 
@@ -863,7 +863,7 @@ Notes:
 ===
 
 ===
-# File: `admin_crud.py`
+# File: `./resume_editor/app/api/routes/route_logic/admin_crud.py`
 
 ## function: `create_user_admin(db: Session, user_data: AdminUserCreate) -> User`
 
@@ -1043,7 +1043,7 @@ Notes:
 ===
 
 ===
-# File: `resume_parsing.py`
+# File: `./resume_editor/app/api/routes/route_logic/resume_parsing.py`
 
 ## function: `parse_resume_to_writer_object(markdown_content: str) -> WriterResume`
 
@@ -1152,7 +1152,7 @@ Notes:
 ===
 
 ===
-# File: `resume_serialization.py`
+# File: `./resume_editor/app/api/routes/route_logic/resume_serialization.py`
 
 ## function: `extract_personal_info(resume_content: str) -> PersonalInfoResponse`
 
@@ -1420,19 +1420,19 @@ Notes:
 ===
 
 ===
-# File: `__init__.py`
+# File: `./resume_editor/app/utils/__init__.py`
 
 
 ===
 
 ===
-# File: `__init__.py`
+# File: `./resume_editor/app/core/__init__.py`
 
 
 ===
 
 ===
-# File: `config.py`
+# File: `./resume_editor/app/core/config.py`
 
 ## function: `get_settings() -> Settings`
 
@@ -1506,7 +1506,7 @@ Notes:
 ===
 
 ===
-# File: `security.py`
+# File: `./resume_editor/app/core/security.py`
 
 ## function: `create_access_token(data: dict, settings: Settings, expires_delta: timedelta | None, impersonator: str | None) -> str`
 
@@ -1618,7 +1618,7 @@ Notes:
 ===
 
 ===
-# File: `auth.py`
+# File: `./resume_editor/app/core/auth.py`
 
 ## function: `get_current_user(token: Annotated[str, Depends(oauth2_scheme)], db: Session) -> User`
 
@@ -1686,13 +1686,13 @@ Notes:
 ===
 
 ===
-# File: `__init__.py`
+# File: `./resume_editor/app/database/__init__.py`
 
 
 ===
 
 ===
-# File: `database.py`
+# File: `./resume_editor/app/database/database.py`
 
 ## function: `get_engine() -> UnknownType`
 
@@ -1750,13 +1750,13 @@ Notes:
 ===
 
 ===
-# File: `__init__.py`
+# File: `./resume_editor/app/models/__init__.py`
 
 
 ===
 
 ===
-# File: `user.py`
+# File: `./resume_editor/app/models/user.py`
 
 ## `User` class
 
@@ -1886,7 +1886,7 @@ Notes:
 ===
 
 ===
-# File: `user_settings.py`
+# File: `./resume_editor/app/models/user_settings.py`
 
 ## `UserSettings` class
 
@@ -1922,7 +1922,7 @@ Notes:
 ===
 
 ===
-# File: `resume_model.py`
+# File: `./resume_editor/app/models/resume_model.py`
 
 ## `Resume` class
 
@@ -1968,19 +1968,19 @@ Notes:
 ===
 
 ===
-# File: `role.py`
+# File: `./resume_editor/app/models/role.py`
 
 
 ===
 
 ===
-# File: `resume.py`
+# File: `./resume_editor/app/models/resume/resume.py`
 
 
 ===
 
 ===
-# File: `education.py`
+# File: `./resume_editor/app/models/resume/education.py`
 
 ## `Degree` class
 
@@ -2133,7 +2133,7 @@ Notes:
 ===
 
 ===
-# File: `certifications.py`
+# File: `./resume_editor/app/models/resume/certifications.py`
 
 ## `Certification` class
 
@@ -2290,7 +2290,7 @@ Notes:
 ===
 
 ===
-# File: `personal.py`
+# File: `./resume_editor/app/models/resume/personal.py`
 
 ## `ContactInfo` class
 
@@ -2569,13 +2569,13 @@ Notes:
 ===
 
 ===
-# File: `__init__.py`
+# File: `./resume_editor/app/models/resume/__init__.py`
 
 
 ===
 
 ===
-# File: `experience.py`
+# File: `./resume_editor/app/models/resume/experience.py`
 
 ## `RoleSkills` class
 
@@ -2905,31 +2905,31 @@ Returns:
 ===
 
 ===
-# File: `user.py`
+# File: `./resume_editor/app/schemas/user.py`
 
 
 ===
 
 ===
-# File: `__init__.py`
+# File: `./resume_editor/app/schemas/__init__.py`
 
 
 ===
 
 ===
-# File: `llm.py`
+# File: `./resume_editor/app/schemas/llm.py`
 
 
 ===
 
 ===
-# File: `__init__.py`
+# File: `resume_editor/app/__init__.py`
 
 
 ===
 
 ===
-# File: `main.py`
+# File: `resume_editor/app/main.py`
 
 ## function: `create_app() -> FastAPI`
 
@@ -2981,7 +2981,7 @@ Entry point for running the application directly.
 ===
 
 ===
-# File: `__init__.py`
+# File: `resume_editor/app/api/__init__.py`
 
 ## function: `get_app() -> FastAPI`
 
@@ -3016,7 +3016,7 @@ Notes:
 ===
 
 ===
-# File: `resume.py`
+# File: `resume_editor/app/api/routes/resume.py`
 
 ## function: `_generate_resume_list_html(resumes: list[DatabaseResume], selected_resume_id: int | None) -> str`
 
@@ -3065,7 +3065,7 @@ Creates the HTML for the refinement result container.
 ===
 
 ===
-# File: `user.py`
+# File: `resume_editor/app/api/routes/user.py`
 
 ## function: `get_user_by_username(db: Session, username: str) -> User | None`
 
@@ -3302,13 +3302,13 @@ Notes:
 ===
 
 ===
-# File: `route_models.py`
+# File: `resume_editor/app/api/routes/route_models.py`
 
 
 ===
 
 ===
-# File: `admin.py`
+# File: `resume_editor/app/api/routes/admin.py`
 
 ## function: `admin_create_user(user_data: AdminUserCreate, db: Session) -> UnknownType`
 
@@ -3505,7 +3505,7 @@ Notes:
 ===
 
 ===
-# File: `resume_crud.py`
+# File: `resume_editor/app/api/routes/route_logic/resume_crud.py`
 
 ## function: `get_resume_by_id_and_user(db: Session, resume_id: int, user_id: int) -> DatabaseResume`
 
@@ -3616,7 +3616,7 @@ Notes:
 ===
 
 ===
-# File: `resume_validation.py`
+# File: `resume_editor/app/api/routes/route_logic/resume_validation.py`
 
 ## function: `perform_pre_save_validation(markdown_content: str, original_content: str | None) -> None`
 
@@ -3645,7 +3645,7 @@ Notes:
 ===
 
 ===
-# File: `resume_filtering.py`
+# File: `resume_editor/app/api/routes/route_logic/resume_filtering.py`
 
 ## function: `_get_date_from_optional_datetime(dt: datetime | None) -> date | None`
 
@@ -3710,7 +3710,7 @@ Notes:
 ===
 
 ===
-# File: `resume_llm.py`
+# File: `resume_editor/app/api/routes/route_logic/resume_llm.py`
 
 ## function: `_get_section_content(resume_content: str, section_name: str) -> str`
 
@@ -3771,7 +3771,7 @@ Network access:
 ===
 
 ===
-# File: `settings_crud.py`
+# File: `resume_editor/app/api/routes/route_logic/settings_crud.py`
 
 ## function: `get_user_settings(db: Session, user_id: int) -> UserSettings | None`
 
@@ -3819,7 +3819,7 @@ Notes:
 ===
 
 ===
-# File: `resume_reconstruction.py`
+# File: `resume_editor/app/api/routes/route_logic/resume_reconstruction.py`
 
 ## function: `reconstruct_resume_markdown(personal_info: PersonalInfoResponse | None, education: EducationResponse | None, certifications: CertificationsResponse | None, experience: ExperienceResponse | None) -> str`
 
@@ -3870,7 +3870,7 @@ Notes:
 ===
 
 ===
-# File: `admin_crud.py`
+# File: `resume_editor/app/api/routes/route_logic/admin_crud.py`
 
 ## function: `create_user_admin(db: Session, user_data: AdminUserCreate) -> User`
 
@@ -4083,7 +4083,7 @@ Notes:
 ===
 
 ===
-# File: `resume_parsing.py`
+# File: `resume_editor/app/api/routes/route_logic/resume_parsing.py`
 
 ## function: `parse_resume_to_writer_object(markdown_content: str) -> WriterResume`
 
@@ -4192,7 +4192,7 @@ Notes:
 ===
 
 ===
-# File: `resume_serialization.py`
+# File: `resume_editor/app/api/routes/route_logic/resume_serialization.py`
 
 ## function: `extract_personal_info(resume_content: str) -> PersonalInfoResponse`
 
@@ -4460,31 +4460,31 @@ Notes:
 ===
 
 ===
-# File: `__init__.py`
+# File: `resume_editor/app/utils/__init__.py`
 
 
 ===
 
 ===
-# File: `__init__.py`
+# File: `resume_editor/app/web/__init__.py`
 
 
 ===
 
 ===
-# File: `admin.py`
+# File: `resume_editor/app/web/admin.py`
 
 
 ===
 
 ===
-# File: `__init__.py`
+# File: `resume_editor/app/core/__init__.py`
 
 
 ===
 
 ===
-# File: `config.py`
+# File: `resume_editor/app/core/config.py`
 
 ## function: `get_settings() -> Settings`
 
@@ -4558,7 +4558,7 @@ Notes:
 ===
 
 ===
-# File: `security.py`
+# File: `resume_editor/app/core/security.py`
 
 ## function: `create_access_token(data: dict, settings: Settings, expires_delta: timedelta | None, impersonator: str | None) -> str`
 
@@ -4670,7 +4670,7 @@ Notes:
 ===
 
 ===
-# File: `auth.py`
+# File: `resume_editor/app/core/auth.py`
 
 ## function: `get_current_user(token: Annotated[str, Depends(oauth2_scheme)], db: Session) -> User`
 
@@ -4867,13 +4867,13 @@ Notes:
 ===
 
 ===
-# File: `__init__.py`
+# File: `resume_editor/app/database/__init__.py`
 
 
 ===
 
 ===
-# File: `database.py`
+# File: `resume_editor/app/database/database.py`
 
 ## function: `get_engine() -> UnknownType`
 
@@ -4931,13 +4931,13 @@ Notes:
 ===
 
 ===
-# File: `__init__.py`
+# File: `resume_editor/app/models/__init__.py`
 
 
 ===
 
 ===
-# File: `user.py`
+# File: `resume_editor/app/models/user.py`
 
 ## `User` class
 
@@ -5070,7 +5070,7 @@ Notes:
 ===
 
 ===
-# File: `user_settings.py`
+# File: `resume_editor/app/models/user_settings.py`
 
 ## `UserSettings` class
 
@@ -5108,7 +5108,7 @@ Notes:
 ===
 
 ===
-# File: `resume_model.py`
+# File: `resume_editor/app/models/resume_model.py`
 
 ## `Resume` class
 
@@ -5154,19 +5154,19 @@ Notes:
 ===
 
 ===
-# File: `role.py`
+# File: `resume_editor/app/models/role.py`
 
 
 ===
 
 ===
-# File: `resume.py`
+# File: `resume_editor/app/models/resume/resume.py`
 
 
 ===
 
 ===
-# File: `education.py`
+# File: `resume_editor/app/models/resume/education.py`
 
 ## `Degree` class
 
@@ -5319,7 +5319,7 @@ Notes:
 ===
 
 ===
-# File: `certifications.py`
+# File: `resume_editor/app/models/resume/certifications.py`
 
 ## `Certification` class
 
@@ -5476,7 +5476,7 @@ Notes:
 ===
 
 ===
-# File: `personal.py`
+# File: `resume_editor/app/models/resume/personal.py`
 
 ## `ContactInfo` class
 
@@ -5755,13 +5755,13 @@ Notes:
 ===
 
 ===
-# File: `__init__.py`
+# File: `resume_editor/app/models/resume/__init__.py`
 
 
 ===
 
 ===
-# File: `experience.py`
+# File: `resume_editor/app/models/resume/experience.py`
 
 ## `RoleSkills` class
 
@@ -6091,7 +6091,7 @@ Returns:
 ===
 
 ===
-# File: `user.py`
+# File: `resume_editor/app/schemas/user.py`
 
 ## `AdminUserResponse` class
 
@@ -6133,19 +6133,19 @@ Checks if the user must change their password.
 ===
 
 ===
-# File: `__init__.py`
+# File: `resume_editor/app/schemas/__init__.py`
 
 
 ===
 
 ===
-# File: `llm.py`
+# File: `resume_editor/app/schemas/llm.py`
 
 
 ===
 
 ===
-# File: `user.py`
+# File: `resume_editor/app/api/routes/route_logic/user.py`
 
 ## function: `change_password(db: Session, user: User, new_password: str, current_password: str | None) -> UnknownType`
 
@@ -6181,19 +6181,19 @@ Notes:
 ===
 
 ===
-# File: `admin_forms.py`
+# File: `resume_editor/app/web/admin_forms.py`
 
 
 ===
 
 ===
-# File: `setup.py`
+# File: `resume_editor/app/api/routes/pages/setup.py`
 
 
 ===
 
 ===
-# File: `user_crud.py`
+# File: `resume_editor/app/api/routes/route_logic/user_crud.py`
 
 ## function: `user_count(db: Session) -> int`
 
@@ -6216,7 +6216,7 @@ Notes:
 ===
 
 ===
-# File: `test_user_settings.py`
+# File: `resume_editor/tests/app/models/test_user_settings.py`
 
 ## function: `test_user_settings_initialization() -> UnknownType`
 
@@ -6254,13 +6254,13 @@ Notes:
 ===
 
 ===
-# File: `__init__.py`
+# File: `resume_editor/app/llm/__init__.py`
 
 
 ===
 
 ===
-# File: `orchestration.py`
+# File: `resume_editor/app/llm/orchestration.py`
 
 ## function: `_get_section_content(resume_content: str, section_name: str) -> str`
 
@@ -6321,13 +6321,13 @@ Network access:
 ===
 
 ===
-# File: `models.py`
+# File: `resume_editor/app/llm/models.py`
 
 
 ===
 
 ===
-# File: `prompts.py`
+# File: `resume_editor/app/llm/prompts.py`
 
 
 ===

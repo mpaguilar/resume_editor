@@ -252,7 +252,7 @@ class ResumeResponse(BaseModel):
             output_file.write("# Docstrings Reference\n\n")
 
             for filepath, data in docstrings.items():
-                output_file.write(f"===\n# File: `{data['filename']}`\n\n")
+                output_file.write(f"===\n# File: `{filepath}`\n\n")
 
                 # Write functions
                 for signature, docstring in data["functions"]:
