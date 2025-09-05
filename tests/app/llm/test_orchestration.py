@@ -9,6 +9,7 @@ import json
 from resume_editor.app.llm.orchestration import (
     _get_section_content,
     _refine_experience_section,
+    _refine_generic_section,
     analyze_job_description,
     refine_experience_section,
     refine_resume_section_with_llm,
@@ -42,6 +43,88 @@ company: Test Company
 # Certifications
 name: Test Cert
 """
+
+
+LLM_INIT_PARAMS = [
+    # Case 1: Endpoint, API key, and model name provided
+    (
+        "http://fake.llm",
+        "key",
+        "custom-model",
+        {
+            "model": "custom-model",
+            "temperature": 0.7,
+            "openai_api_base": "http://fake.llm",
+            "api_key": "key",
+        },
+    ),
+    # Case 2: Endpoint and model name, but no API key (should use dummy key)
+    (
+        "http://fake.llm",
+        None,
+        "custom-model",
+        {
+            "model": "custom-model",
+            "temperature": 0.7,
+            "openai_api_base": "http://fake.llm",
+            "api_key": "not-needed",
+        },
+    ),
+    # Case 3: API key and model name, but no endpoint
+    (
+        None,
+        "key",
+        "custom-model",
+        {"model": "custom-model", "temperature": 0.7, "api_key": "key"},
+    ),
+    # Case 4: No endpoint, no API key (relies on env var)
+    (
+        None,
+        None,
+        "custom-model",
+        {"model": "custom-model", "temperature": 0.7},
+    ),
+    # Case 5: Fallback to default model name when None is provided
+    (
+        "http://fake.llm",
+        "key",
+        None,
+        {
+            "model": "gpt-4o",
+            "temperature": 0.7,
+            "openai_api_base": "http://fake.llm",
+            "api_key": "key",
+        },
+    ),
+    # Case 6: Fallback to default model name when empty string is provided
+    (
+        "http://fake.llm",
+        "key",
+        "",
+        {
+            "model": "gpt-4o",
+            "temperature": 0.7,
+            "openai_api_base": "http://fake.llm",
+            "api_key": "key",
+        },
+    ),
+    # Case 7: OpenRouter endpoint with API key
+    (
+        "https://openrouter.ai/api/v1",
+        "or-key",
+        "openrouter/model",
+        {
+            "model": "openrouter/model",
+            "temperature": 0.7,
+            "openai_api_base": "https://openrouter.ai/api/v1",
+            "api_key": "or-key",
+            "default_headers": {
+                "HTTP-Referer": "http://localhost:8000/",
+                "X-Title": "Resume Editor",
+            },
+        },
+    ),
+]
 
 
 @pytest.mark.parametrize(
@@ -115,19 +198,18 @@ async def test_analyze_job_description_empty_input():
 
 
 @patch("resume_editor.app.llm.orchestration._get_section_content")
-def test_refine_resume_section_with_llm_empty_section(mock_get_section):
+def test_refine_generic_section_empty_section(mock_get_section):
     """Test that the LLM is not called for an empty resume section."""
     mock_get_section.return_value = "  "
-    result = refine_resume_section_with_llm(
-        "resume",
-        "job desc",
-        "personal",
-        "http://fake.llm",
-        "key",
-        llm_model_name=None,
+    # We pass a mock LLM because the function being tested doesn't create one.
+    mock_llm = MagicMock()
+    result = _refine_generic_section(
+        "resume", "job desc", "personal", llm=mock_llm
     )
     assert result == ""
     mock_get_section.assert_called_once_with("resume", "personal")
+    # The LLM's chain should not be invoked.
+    mock_llm.invoke.assert_not_called()
 
 
 @pytest.fixture
@@ -187,77 +269,28 @@ async def test_analyze_job_description(mock_chain_invocations_for_analysis):
     assert result.job_title == "Software Engineer"
 
 
-@pytest.mark.parametrize(
-    "llm_endpoint, api_key, llm_model_name, expected_call_args",
-    [
-        (
-            "http://fake.llm",
-            "key",
-            "custom-model",
-            {
-                "model": "custom-model",
-                "temperature": 0.0,
-                "openai_api_base": "http://fake.llm",
-                "api_key": "key",
-            },
-        ),
-        (
-            "http://fake.llm",
-            None,
-            "custom-model",
-            {
-                "model": "custom-model",
-                "temperature": 0.0,
-                "openai_api_base": "http://fake.llm",
-                "api_key": "not-needed",
-            },
-        ),
-        (
-            None,
-            "key",
-            "custom-model",
-            {"model": "custom-model", "temperature": 0.0, "api_key": "key"},
-        ),
-        (None, None, "custom-model", {"model": "custom-model", "temperature": 0.0}),
-        (
-            "http://fake.llm",
-            "key",
-            None,
-            {
-                "model": "gpt-4o",
-                "temperature": 0.0,
-                "openai_api_base": "http://fake.llm",
-                "api_key": "key",
-            },
-        ),
-        (
-            "http://fake.llm",
-            "key",
-            "",
-            {
-                "model": "gpt-4o",
-                "temperature": 0.0,
-                "openai_api_base": "http://fake.llm",
-                "api_key": "key",
-            },
-        ),
-        (
-            "https://openrouter.ai/api/v1",
-            "or-key",
-            "openrouter/model",
-            {
-                "model": "openrouter/model",
-                "temperature": 0.0,
-                "openai_api_base": "https://openrouter.ai/api/v1",
-                "api_key": "or-key",
-                "default_headers": {
-                    "HTTP-Referer": "http://localhost:8000/",
-                    "X-Title": "Resume Editor",
-                },
-            },
-        ),
-    ],
-)
+def test_refine_resume_section_with_llm_dispatcher():
+    """Test that the refine_resume_section_with_llm dispatcher calls the correct helper."""
+    with patch(
+        "resume_editor.app.llm.orchestration._refine_generic_section"
+    ) as mock_refine_generic, patch(
+        "resume_editor.app.llm.orchestration.ChatOpenAI"
+    ) as mock_chat_openai_class:
+        mock_refine_generic.return_value = "refined content from helper"
+        result = refine_resume_section_with_llm(
+            resume_content="resume",
+            job_description="job desc",
+            target_section="personal",
+            llm_endpoint=None,
+            api_key=None,
+            llm_model_name=None,
+        )
+        assert result == "refined content from helper"
+        mock_chat_openai_class.assert_called_once()
+        mock_refine_generic.assert_called_once()
+
+
+@pytest.mark.parametrize("llm_endpoint, api_key, llm_model_name, expected_call_args", LLM_INIT_PARAMS)
 @pytest.mark.asyncio
 async def test_analyze_job_description_llm_initialization(
     mock_chain_invocations_for_analysis,
@@ -350,6 +383,45 @@ async def test_analyze_job_description_authentication_error(
         )
 
 
+@pytest.mark.asyncio
+async def test_analyze_job_description_prompt_content(
+    mock_chain_invocations_for_analysis,
+):
+    """Test that the prompt for analyze_job_description is constructed correctly."""
+    # Act
+    await analyze_job_description(
+        job_description="A job description",
+        llm_endpoint=None,
+        api_key=None,
+        llm_model_name=None,
+    )
+
+    # Assert
+    mock_prompt_template = mock_chain_invocations_for_analysis["prompt_template"]
+    mock_prompt_from_messages = mock_chain_invocations_for_analysis[
+        "prompt_from_messages"
+    ]
+
+    # Check that from_messages was called with system and human templates
+    mock_prompt_template.from_messages.assert_called_once()
+    messages = mock_prompt_template.from_messages.call_args.args[0]
+    assert messages[0][0] == "system"
+    assert messages[1][0] == "human"
+
+    system_template = messages[0][1]
+    human_template = messages[1][1]
+
+    # Check that crucial rules and spec are always in the system template
+    assert "As a professional resume writer and career coach" in system_template
+    assert "{format_instructions}" in system_template
+    assert "{job_description}" in human_template
+
+    # Check the content passed to partial()
+    mock_prompt_from_messages.partial.assert_called_once()
+    partial_kwargs = mock_prompt_from_messages.partial.call_args.kwargs
+    assert "format_instructions" in partial_kwargs
+
+
 @pytest.fixture
 def mock_get_section_content():
     """Fixture to mock _get_section_content."""
@@ -404,193 +476,117 @@ def mock_chain_invocations():
         }
 
 
-@pytest.mark.parametrize(
-    "llm_endpoint, api_key, llm_model_name, expected_call_args",
-    [
-        # Case 1: Endpoint, API key, and model name provided
-        (
-            "http://fake.llm",
-            "key",
-            "custom-model",
-            {
-                "model": "custom-model",
-                "temperature": 0.7,
-                "openai_api_base": "http://fake.llm",
-                "api_key": "key",
-            },
-        ),
-        # Case 2: Endpoint and model name, but no API key (should use dummy key)
-        (
-            "http://fake.llm",
-            None,
-            "custom-model",
-            {
-                "model": "custom-model",
-                "temperature": 0.7,
-                "openai_api_base": "http://fake.llm",
-                "api_key": "not-needed",
-            },
-        ),
-        # Case 3: API key and model name, but no endpoint
-        (
-            None,
-            "key",
-            "custom-model",
-            {"model": "custom-model", "temperature": 0.7, "api_key": "key"},
-        ),
-        # Case 4: No endpoint, no API key (relies on env var)
-        (
-            None,
-            None,
-            "custom-model",
-            {"model": "custom-model", "temperature": 0.7},
-        ),
-        # Case 5: Fallback to default model name when None is provided
-        (
-            "http://fake.llm",
-            "key",
-            None,
-            {
-                "model": "gpt-4o",
-                "temperature": 0.7,
-                "openai_api_base": "http://fake.llm",
-                "api_key": "key",
-            },
-        ),
-        # Case 6: Fallback to default model name when empty string is provided
-        (
-            "http://fake.llm",
-            "key",
-            "",
-            {
-                "model": "gpt-4o",
-                "temperature": 0.7,
-                "openai_api_base": "http://fake.llm",
-                "api_key": "key",
-            },
-        ),
-        # Case 7: OpenRouter endpoint with API key
-        (
-            "https://openrouter.ai/api/v1",
-            "or-key",
-            "openrouter/model",
-            {
-                "model": "openrouter/model",
-                "temperature": 0.7,
-                "openai_api_base": "https://openrouter.ai/api/v1",
-                "api_key": "or-key",
-                "default_headers": {
-                    "HTTP-Referer": "http://localhost:8000/",
-                    "X-Title": "Resume Editor",
-                },
-            },
-        ),
-    ],
-)
-def test_refine_resume_section_llm_initialization(
-    mock_chain_invocations,
-    mock_get_section_content,
+@pytest.mark.parametrize("llm_endpoint, api_key, llm_model_name, expected_call_args", LLM_INIT_PARAMS)
+def test_refine_resume_section_with_llm_initialization(
     llm_endpoint,
     api_key,
     llm_model_name,
     expected_call_args,
 ):
     """
-    Test that ChatOpenAI is initialized with the correct parameters under various conditions.
+    Test that ChatOpenAI is initialized with the correct parameters under various conditions
+    and that the helper function is called.
     """
-    result = refine_resume_section_with_llm(
-        resume_content="resume",
-        job_description="job desc",
-        target_section="personal",
-        llm_endpoint=llm_endpoint,
-        api_key=api_key,
-        llm_model_name=llm_model_name,
-    )
-    mock_chat_openai = mock_chain_invocations["chat_openai"]
-    mock_chat_openai.assert_called_once_with(**expected_call_args)
-    assert result == "refined content"
-    mock_get_section_content.assert_called_once_with("resume", "personal")
+    with patch(
+        "resume_editor.app.llm.orchestration._refine_generic_section"
+    ) as mock_refine_helper, patch(
+        "resume_editor.app.llm.orchestration.ChatOpenAI"
+    ) as mock_chat_openai_class:
+        # Mock the LLM object that will be created
+        mock_llm_instance = MagicMock()
+        mock_chat_openai_class.return_value = mock_llm_instance
+
+        refine_resume_section_with_llm(
+            resume_content="resume",
+            job_description="job desc",
+            target_section="personal",
+            llm_endpoint=llm_endpoint,
+            api_key=api_key,
+            llm_model_name=llm_model_name,
+        )
+
+        # Assert ChatOpenAI was initialized correctly
+        mock_chat_openai_class.assert_called_once_with(**expected_call_args)
+
+        # Assert helper was called with the created LLM instance
+        mock_refine_helper.assert_called_once_with(
+            resume_content="resume",
+            job_description="job desc",
+            target_section="personal",
+            llm=mock_llm_instance,
+        )
 
 
-def test_refine_resume_section_llm_json_decode_error(
+def test_refine_generic_section_json_decode_error(
     mock_chain_invocations, mock_get_section_content
 ):
     """
-    Test that a JSONDecodeError from the LLM call is handled gracefully.
+    Test that _refine_generic_section handles a JSONDecodeError from the LLM call gracefully.
     """
-    import json
-
-    # Arrange: Get the final chain mock from the fixture
+    # Arrange
     final_chain = mock_chain_invocations["final_chain"]
     final_chain.invoke.side_effect = json.JSONDecodeError(
-        "Expecting value",
-        "some invalid json",
-        0,
+        "Expecting value", "some invalid json", 0
     )
+    mock_llm = mock_chain_invocations["chat_openai"].return_value
 
     # Act & Assert
     with pytest.raises(
         ValueError,
         match="The AI service returned an unexpected response. Please try again.",
     ):
-        refine_resume_section_with_llm(
+        _refine_generic_section(
             resume_content="resume",
             job_description="job desc",
             target_section="personal",
-            llm_endpoint=None,
-            api_key=None,
-            llm_model_name=None,
+            llm=mock_llm,
         )
 
 
-def test_refine_resume_section_llm_validation_error(
+def test_refine_generic_section_validation_error(
     mock_chain_invocations, mock_get_section_content
 ):
     """
-    Test that a Pydantic validation error from the LLM call is handled gracefully.
+    Test that _refine_generic_section handles a Pydantic validation error gracefully.
     """
-    # Arrange: mock chain to return valid JSON but with wrong schema
+    # Arrange
     final_chain = mock_chain_invocations["final_chain"]
     final_chain.invoke.return_value = '```json\n{"wrong_field": "wrong_value"}\n```'
+    mock_llm = mock_chain_invocations["chat_openai"].return_value
 
     # Act & Assert
     with pytest.raises(
         ValueError,
         match="The AI service returned an unexpected response. Please try again.",
     ):
-        refine_resume_section_with_llm(
+        _refine_generic_section(
             resume_content="resume",
             job_description="job desc",
             target_section="personal",
-            llm_endpoint=None,
-            api_key=None,
-            llm_model_name=None,
+            llm=mock_llm,
         )
 
 
-def test_refine_resume_section_llm_authentication_error(
+def test_refine_generic_section_authentication_error(
     mock_chain_invocations, mock_get_section_content
 ):
     """
-    Test that an AuthenticationError from the LLM call is propagated.
+    Test that _refine_generic_section propagates an AuthenticationError from the LLM call.
     """
-    from openai import AuthenticationError
-
     # Arrange
     final_chain = mock_chain_invocations["final_chain"]
     final_chain.invoke.side_effect = AuthenticationError(
         message="Invalid API key", response=MagicMock(), body=None
     )
+    mock_llm = mock_chain_invocations["chat_openai"].return_value
 
     # Act & Assert
     with pytest.raises(AuthenticationError):
-        refine_resume_section_with_llm(
+        _refine_generic_section(
             resume_content="resume",
             job_description="job desc",
             target_section="personal",
-            llm_endpoint=None,
-            api_key=None,
-            llm_model_name=None,
+            llm=mock_llm,
         )
 
 
@@ -603,23 +599,24 @@ def test_refine_resume_section_llm_authentication_error(
         ("full", False),
     ],
 )
-def test_refine_resume_prompt_content(
+def test_refine_generic_section_prompt_content(
     target_section,
     expect_guidelines,
     mock_chain_invocations,
     mock_get_section_content,
 ):
     """
-    Test that the prompt is constructed correctly based on the target section.
+    Test that the prompt for _refine_generic_section is constructed correctly.
     """
+    # Arrange
+    mock_llm = mock_chain_invocations["chat_openai"].return_value
+
     # Act
-    refine_resume_section_with_llm(
+    _refine_generic_section(
         resume_content="resume",
         job_description="job desc",
         target_section=target_section,
-        llm_endpoint=None,
-        api_key=None,
-        llm_model_name=None,
+        llm=mock_llm,
     )
 
     # Assert
@@ -657,7 +654,7 @@ def test_refine_resume_prompt_content(
         assert partial_kwargs["processing_guidelines"] == ""
 
 
-def test_refine_resume_section_experience_raises_error():
+def test_refine_resume_section_with_llm_experience_raises_error():
     """
     Test that refine_resume_section_with_llm raises an error for 'experience' section.
     """
@@ -845,54 +842,7 @@ async def test_refine_role_authentication_error(
         )
 
 
-@pytest.mark.parametrize(
-    "llm_endpoint, api_key, llm_model_name, expected_call_args",
-    [
-        (
-            "http://fake.llm",
-            "key",
-            "custom-model",
-            {
-                "model": "custom-model",
-                "temperature": 0.7,
-                "openai_api_base": "http://fake.llm",
-                "api_key": "key",
-            },
-        ),
-        (
-            "http://fake.llm",
-            None,
-            "custom-model",
-            {
-                "model": "custom-model",
-                "temperature": 0.7,
-                "openai_api_base": "http://fake.llm",
-                "api_key": "not-needed",
-            },
-        ),
-        (
-            None,
-            None,
-            "",
-            {"model": "gpt-4o", "temperature": 0.7},
-        ),
-        (
-            "https://openrouter.ai/api/v1",
-            "or-key",
-            "openrouter/model",
-            {
-                "model": "openrouter/model",
-                "temperature": 0.7,
-                "openai_api_base": "https://openrouter.ai/api/v1",
-                "api_key": "or-key",
-                "default_headers": {
-                    "HTTP-Referer": "http://localhost:8000/",
-                    "X-Title": "Resume Editor",
-                },
-            },
-        ),
-    ],
-)
+@pytest.mark.parametrize("llm_endpoint, api_key, llm_model_name, expected_call_args", LLM_INIT_PARAMS)
 @pytest.mark.asyncio
 async def test_refine_role_llm_initialization(
     mock_chain_invocations_for_role_refine,
@@ -913,6 +863,50 @@ async def test_refine_role_llm_initialization(
     )
     mock_chat_openai = mock_chain_invocations_for_role_refine["chat_openai"]
     mock_chat_openai.assert_called_once_with(**expected_call_args)
+
+
+@pytest.mark.asyncio
+async def test_refine_role_prompt_content(mock_chain_invocations_for_role_refine):
+    """Test that the prompt for refine_role is constructed correctly."""
+    # Act
+    await refine_role(
+        role=create_mock_role(),
+        job_analysis=create_mock_job_analysis(),
+        llm_endpoint=None,
+        api_key=None,
+        llm_model_name=None,
+    )
+
+    # Assert
+    mock_prompt_template = mock_chain_invocations_for_role_refine["prompt_template"]
+    mock_prompt_from_messages = mock_chain_invocations_for_role_refine[
+        "prompt_from_messages"
+    ]
+
+    # Check that from_messages was called with system and human templates
+    mock_prompt_template.from_messages.assert_called_once()
+    messages = mock_prompt_template.from_messages.call_args.args[0]
+    assert messages[0][0] == "system"
+    assert messages[1][0] == "human"
+
+    system_template = messages[0][1]
+    human_template = messages[1][1]
+
+    # Check that crucial rules and spec are always in the system template
+    assert "As an expert resume writer" in system_template
+    assert (
+        "your task is to refine the provided `role` JSON object" in system_template
+    )
+    assert "{format_instructions}" in system_template
+    assert "Role to Refine:" in human_template
+    assert "Job Analysis (for context):" in human_template
+    assert "{role_json}" in human_template
+    assert "{job_analysis_json}" in human_template
+
+    # Check the content passed to partial()
+    mock_prompt_from_messages.partial.assert_called_once()
+    partial_kwargs = mock_prompt_from_messages.partial.call_args.kwargs
+    assert "format_instructions" in partial_kwargs
 
 
 @pytest.mark.asyncio

@@ -136,7 +136,7 @@ async def analyze_job_description(
 
     llm_params = {
         "model": model_name,
-        "temperature": 0.0,
+        "temperature": 0.7,
     }
     if llm_endpoint:
         llm_params["openai_api_base"] = llm_endpoint
@@ -173,52 +173,13 @@ async def analyze_job_description(
     return analysis
 
 
-def refine_resume_section_with_llm(
+def _refine_generic_section(
     resume_content: str,
     job_description: str,
     target_section: str,
-    llm_endpoint: str | None,
-    api_key: str | None,
-    llm_model_name: str | None,
+    llm: ChatOpenAI,
 ) -> str:
-    """
-    Uses an LLM to refine a specific section of a resume based on a job description.
-
-    Args:
-        resume_content (str): The full Markdown content of the resume.
-        job_description (str): The job description to align the resume with.
-        target_section (str): The section of the resume to refine (e.g., "experience").
-        llm_endpoint (str | None): The custom LLM endpoint URL.
-        api_key (str | None): The user's decrypted LLM API key.
-        llm_model_name (str | None): The user-specified LLM model name.
-
-    Returns:
-        str: The refined Markdown content for the target section. Returns an empty string if the target section is empty.
-
-    Notes:
-        1. For the 'experience' section, it uses a multi-pass approach:
-           a. Parses the full resume into structured data.
-           b. Analyzes the job description to extract key details.
-           c. Refines each job role individually based on the analysis.
-           d. Reconstructs the full resume with the refined experience section.
-        2. For all other sections, it performs a single-pass refinement on the section content.
-        3. Initializes the ChatOpenAI client, providing a dummy API key for custom endpoints if none is set.
-        4. Invokes the appropriate LLM chain and returns the refined content.
-
-    Network access:
-        - This function makes network requests to the LLM endpoint specified by llm_endpoint.
-
-    """
-    _msg = f"refine_resume_section_with_llm starting for section '{target_section}'"
-    log.debug(_msg)
-
-    if target_section == "experience":
-        # This section is handled by the async `refine_experience_section` generator
-        # and should not be called with this synchronous function.
-        raise ValueError(
-            "Experience section refinement must be called via the async 'refine_experience_section' method."
-        )
-
+    """Uses a generic LLM chain to refine a non-experience section of the resume."""
     section_content = _get_section_content(resume_content, target_section)
     if not section_content.strip():
         _msg = f"Section '{target_section}' is empty, returning as-is."
@@ -242,29 +203,6 @@ def refine_resume_section_with_llm(
         format_instructions=parser.get_format_instructions(),
     )
 
-    model_name = llm_model_name if llm_model_name else "gpt-4o"
-
-    llm_params = {
-        "model": model_name,
-        "temperature": 0.7,
-    }
-    if llm_endpoint:
-        llm_params["openai_api_base"] = llm_endpoint
-        if "openrouter.ai" in llm_endpoint:
-            llm_params["default_headers"] = {
-                "HTTP-Referer": "http://localhost:8000/",
-                "X-Title": "Resume Editor",
-            }
-
-    if api_key:
-        llm_params["api_key"] = api_key
-    elif llm_endpoint and "openrouter.ai" not in llm_endpoint:
-        # For non-OpenRouter custom endpoints (e.g. local LLMs), provide a
-        # dummy key if none is given to satisfy the client library.
-        llm_params["api_key"] = "not-needed"
-
-    llm = ChatOpenAI(**llm_params)
-
     # Use StrOutputParser to get the raw string, then manually parse
     chain = prompt | llm | StrOutputParser()
 
@@ -283,9 +221,85 @@ def refine_resume_section_with_llm(
             "The AI service returned an unexpected response. Please try again."
         ) from e
 
-    _msg = "refine_resume_section_with_llm returning"
-    log.debug(_msg)
     return refined_section.refined_markdown
+
+
+def refine_resume_section_with_llm(
+    resume_content: str,
+    job_description: str,
+    target_section: str,
+    llm_endpoint: str | None,
+    api_key: str | None,
+    llm_model_name: str | None,
+) -> str:
+    """
+    Uses an LLM to refine a specific non-experience section of a resume based on a job description.
+
+    This function acts as a dispatcher. For 'experience' section, it raises an error,
+    directing the caller to use the appropriate async generator. For all other sections,
+    it delegates to a generic helper function to perform a single-pass refinement.
+
+    Args:
+        resume_content (str): The full Markdown content of the resume.
+        job_description (str): The job description to align the resume with.
+        target_section (str): The section of the resume to refine (e.g., "personal").
+        llm_endpoint (str | None): The custom LLM endpoint URL.
+        api_key (str | None): The user's decrypted LLM API key.
+        llm_model_name (str | None): The user-specified LLM model name.
+
+    Returns:
+        str: The refined Markdown content for the target section. Returns an empty string if the target section is empty.
+
+    Raises:
+        ValueError: If `target_section` is 'experience'.
+
+    Network access:
+        - This function makes network requests to the LLM endpoint specified by llm_endpoint.
+
+    """
+    _msg = f"refine_resume_section_with_llm starting for section '{target_section}'"
+    log.debug(_msg)
+
+    if target_section == "experience":
+        # This section is handled by the async `refine_experience_section` generator
+        # and should not be called with this synchronous function.
+        raise ValueError(
+            "Experience section refinement must be called via the async 'refine_experience_section' method."
+        )
+    else:
+        model_name = llm_model_name if llm_model_name else "gpt-4o"
+
+        llm_params = {
+            "model": model_name,
+            "temperature": 0.7,
+        }
+        if llm_endpoint:
+            llm_params["openai_api_base"] = llm_endpoint
+            if "openrouter.ai" in llm_endpoint:
+                llm_params["default_headers"] = {
+                    "HTTP-Referer": "http://localhost:8000/",
+                    "X-Title": "Resume Editor",
+                }
+
+        if api_key:
+            llm_params["api_key"] = api_key
+        elif llm_endpoint and "openrouter.ai" not in llm_endpoint:
+            # For non-OpenRouter custom endpoints (e.g. local LLMs), provide a
+            # dummy key if none is given to satisfy the client library.
+            llm_params["api_key"] = "not-needed"
+
+        llm = ChatOpenAI(**llm_params)
+
+        refined_content = _refine_generic_section(
+            resume_content=resume_content,
+            job_description=job_description,
+            target_section=target_section,
+            llm=llm,
+        )
+
+        _msg = "refine_resume_section_with_llm returning"
+        log.debug(_msg)
+        return refined_content
 
 
 async def refine_role(

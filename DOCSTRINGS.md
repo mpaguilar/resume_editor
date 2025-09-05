@@ -6286,14 +6286,24 @@ Notes:
 
 ---
 
+## function: `_refine_generic_section(resume_content: str, job_description: str, target_section: str, llm: ChatOpenAI) -> str`
+
+Uses a generic LLM chain to refine a non-experience section of the resume.
+
+---
+
 ## function: `refine_resume_section_with_llm(resume_content: str, job_description: str, target_section: str, llm_endpoint: str | None, api_key: str | None, llm_model_name: str | None) -> str`
 
-Uses an LLM to refine a specific section of a resume based on a job description.
+Uses an LLM to refine a specific non-experience section of a resume based on a job description.
+
+This function acts as a dispatcher. For 'experience' section, it raises an error,
+directing the caller to use the appropriate async generator. For all other sections,
+it delegates to a generic helper function to perform a single-pass refinement.
 
 Args:
     resume_content (str): The full Markdown content of the resume.
     job_description (str): The job description to align the resume with.
-    target_section (str): The section of the resume to refine (e.g., "experience").
+    target_section (str): The section of the resume to refine (e.g., "personal").
     llm_endpoint (str | None): The custom LLM endpoint URL.
     api_key (str | None): The user's decrypted LLM API key.
     llm_model_name (str | None): The user-specified LLM model name.
@@ -6301,15 +6311,8 @@ Args:
 Returns:
     str: The refined Markdown content for the target section. Returns an empty string if the target section is empty.
 
-Notes:
-    1. For the 'experience' section, it uses a multi-pass approach:
-       a. Parses the full resume into structured data.
-       b. Analyzes the job description to extract key details.
-       c. Refines each job role individually based on the analysis.
-       d. Reconstructs the full resume with the refined experience section.
-    2. For all other sections, it performs a single-pass refinement on the section content.
-    3. Initializes the ChatOpenAI client, providing a dummy API key for custom endpoints if none is set.
-    4. Invokes the appropriate LLM chain and returns the refined content.
+Raises:
+    ValueError: If `target_section` is 'experience'.
 
 Network access:
     - This function makes network requests to the LLM endpoint specified by llm_endpoint.
