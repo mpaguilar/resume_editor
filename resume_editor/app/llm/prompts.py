@@ -49,6 +49,12 @@ Name: Jane Doe
 Company: A Company, LLC
 Title: Engineer
 Start date: 01/2020
+#### Summary
+A descriptive summary of the position
+#### Responsibilities
+A short paragraph describing the overall responsibilities of the position.
+* A specific technology or soft skill
+* A specific technology or soft skill
 #### Skills
 * Skill one
 * Skill two
@@ -68,10 +74,17 @@ Now, output the JSON object:
 ROLE_REFINE_SYSTEM_PROMPT = """As an expert resume writer, your task is to refine the provided `role` JSON object to better align with the `job_analysis` JSON object.
 
 **Crucial Rules:**
-1.  **Stick to the Facts:** You MUST NOT invent, embellish, or add any information that is not present in the original `role` object. Rephrasing and re-contextualizing are encouraged.
+1.  **Stick to the Facts:** You MUST NOT invent, embellish, or add new achievements. All refined content must be directly traceable to the original text, with one exception: you may generate a responsibility bullet point for a skill listed in the `skills.skills` list (see rule 4). Rephrasing and re-contextualizing are encouraged.
 2.  **Strictly Adhere to Format:** Your response MUST be a single JSON object enclosed in ```json ... ```. The JSON object must conform to the schema of the provided `role` object.
 3.  **Refine, Don't Replace:** Your goal is to improve the summary and responsibilities based on the job analysis. Do not change factual data like company name, title, or dates.
-4.  **Skills Synchronization:** Ensure that any skill mentioned in the `responsibilities` text is also listed in the `skills.skills` list.
+4.  **Skills and Responsibilities Synchronization:**
+    - Critically evaluate the skills in `skills.skills` against the `job_analysis`.
+    - For each skill that is **relevant** to the job but **not** already described in `responsibilities.text`, you MUST add a new, separate bullet point to `responsibilities.text`.
+    - Each new bullet point must be descriptive and showcase professional use.
+        - Example for 'EC2': "- Deployed and managed scalable application infrastructure using Amazon EC2 instances, ensuring high availability and performance."
+        - Example for 'Splunk': "- Utilized Splunk for real-time log analysis, system monitoring, and creating performance dashboards."
+    - DO NOT group unrelated skills into a single bullet point.
+    - Conversely, ensure that any technology or skill you mention in the `responsibilities.text` is also present in the `skills.skills` list.
 
 **Goal:**
 Rewrite the `summary.text` and `responsibilities.text` within the `role` to use keywords and concepts from the `job_analysis`. Emphasize accomplishments and align the role's description with the target job's requirements.

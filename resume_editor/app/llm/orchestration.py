@@ -2,6 +2,7 @@ import json
 import logging
 from typing import AsyncGenerator
 
+from fastapi import Request
 from langchain_core.output_parsers import PydanticOutputParser, StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.utils.json import parse_json_markdown
@@ -401,6 +402,7 @@ async def refine_role(
 
 
 async def _refine_experience_section(
+    request: Request,
     resume_content: str,
     job_description: str,
     llm_endpoint: str | None,
@@ -408,7 +410,7 @@ async def _refine_experience_section(
     llm_model_name: str | None,
 ) -> AsyncGenerator[dict[str, str], None]:
     # 1. Parse all sections of the resume
-    yield {"status": "Parsing resume..."}
+    yield {"status": "in_progress", "message": "Parsing resume..."}
     log.debug("Parsing resume...")
     personal_info = extract_personal_info(resume_content)
     education_info = extract_education_info(resume_content)
@@ -416,7 +418,7 @@ async def _refine_experience_section(
     experience_info = extract_experience_info(resume_content)
 
     # 2. Analyze the job description
-    yield {"status": "Analyzing job description..."}
+    yield {"status": "in_progress", "message": "Analyzing job description..."}
     log.debug("Analyzing job description...")
     job_analysis = await analyze_job_description(
         job_description=job_description,
@@ -427,11 +429,17 @@ async def _refine_experience_section(
 
     # 3. Refine each role
     refined_roles: list[Role] = []
+    client_disconnected = False
     if experience_info.roles:
         total_roles = len(experience_info.roles)
         for i, role in enumerate(experience_info.roles, 1):
+            if await request.is_disconnected():
+                _msg = "Client disconnected during experience refinement."
+                log.warning(_msg)
+                client_disconnected = True
+                break
             status_msg = f"Refining role {i} of {total_roles}"
-            yield {"status": status_msg}
+            yield {"status": "in_progress", "message": status_msg}
             log.debug(status_msg)
             refined_role = await refine_role(
                 role=role,
@@ -442,13 +450,16 @@ async def _refine_experience_section(
             )
             refined_roles.append(refined_role)
 
+    if client_disconnected:
+        return
+
     # 4. Create new experience response with refined roles and original projects
     refined_experience = ExperienceResponse(
         roles=refined_roles, projects=experience_info.projects
     )
 
     # 5. Reconstruct the full resume
-    yield {"status": "Reconstructing resume..."}
+    yield {"status": "in_progress", "message": "Reconstructing resume..."}
     log.debug("Reconstructing resume...")
     updated_resume_content = reconstruct_resume_markdown(
         personal_info=personal_info,
@@ -461,6 +472,7 @@ async def _refine_experience_section(
 
 
 async def refine_experience_section(
+    request: Request,
     resume_content: str,
     job_description: str,
     llm_endpoint: str | None,
@@ -497,6 +509,7 @@ async def refine_experience_section(
     """
     try:
         async for event in _refine_experience_section(
+            request=request,
             resume_content=resume_content,
             job_description=job_description,
             llm_endpoint=llm_endpoint,

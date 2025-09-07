@@ -4,7 +4,7 @@ from unittest.mock import ANY, MagicMock, Mock, patch
 
 import pytest
 from cryptography.fernet import InvalidToken
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.testclient import TestClient
 from openai import AuthenticationError
 from sqlalchemy.orm import Session
@@ -211,17 +211,10 @@ def test_delete_resume_no_htmx(client_with_auth_and_resume):
     assert response.json() == {"message": "Resume deleted successfully"}
 
 
-def test_update_resume_no_htmx(client_with_auth_and_resume, test_resume):
-    """Test updating a resume without HTMX returns JSON success message."""
-    response = client_with_auth_and_resume.put(
-        "/api/resumes/1",
-        data={"name": "Updated Name", "content": test_resume.content},
-    )
-    assert response.status_code == 200
-    assert response.json()["name"] == "Updated Name"
-
-
-def test_update_resume_name_only_no_htmx(client_with_auth_and_resume, test_resume):
+@patch("resume_editor.app.api.routes.resume.validate_resume_content")
+def test_update_resume_name_only_no_htmx(
+    mock_validate, client_with_auth_and_resume, test_resume
+):
     """Test updating only a resume's name without HTMX returns JSON."""
     response = client_with_auth_and_resume.put(
         "/api/resumes/1",
@@ -229,10 +222,13 @@ def test_update_resume_name_only_no_htmx(client_with_auth_and_resume, test_resum
     )
     assert response.status_code == 200
     assert response.json()["name"] == "Updated Name Only"
+    mock_validate.assert_not_called()
 
 
-def test_update_resume_htmx(client_with_auth_and_resume, test_resume):
+@patch("resume_editor.app.api.routes.resume.validate_resume_content")
+def test_update_resume_htmx(mock_validate, client_with_auth_and_resume, test_resume):
     """Test updating a resume with HTMX returns just the detail view."""
+    mock_validate.return_value = None
     response = client_with_auth_and_resume.put(
         f"/api/resumes/{test_resume.id}",
         data={"name": "Updated Resume Name", "content": test_resume.content},
@@ -251,6 +247,9 @@ def test_update_resume_htmx(client_with_auth_and_resume, test_resume):
     soup = BeautifulSoup(response.text, "html.parser")
     resume_list_item = soup.find("div", class_="resume-item")
     assert resume_list_item is None
+    mock_validate.assert_called_once_with(test_resume.content)
+
+
 
 
 def test_list_resumes_no_htmx(client_with_auth_and_resume, test_resume):
@@ -733,17 +732,23 @@ def test_get_resume(client_with_auth_and_resume, test_resume):
     refine_form = soup.find("form", id=f"refine-form-{test_resume.id}")
     assert refine_form is not None
     assert refine_form.get("hx-indicator") == f"#refine-progress-{test_resume.id}"
+    hx_on_value = refine_form.get("hx-on")
+    assert "sse:message: handleSseMessage" in hx_on_value
+    assert "htmx:afterRequest: handleAfterRequest" in hx_on_value
+
     progress_div = soup.find("div", id=f"refine-progress-{test_resume.id}")
     assert progress_div is not None
     assert "htmx-indicator" in progress_div.get("class", [])
     assert progress_div.text == ""
 
 
+@patch("resume_editor.app.api.routes.resume.validate_resume_content")
 @patch("resume_editor.app.api.routes.resume.create_resume_db")
 def test_create_resume_json(
-    mock_create_resume_db, client_with_auth_no_resume, test_user
+    mock_create_resume_db, mock_validate, client_with_auth_no_resume, test_user
 ):
     """Test creating a resume via JSON API returns a JSON response."""
+    mock_validate.return_value = None
     created_resume = DatabaseResume(
         user_id=test_user.id,
         name="New Resume",
@@ -761,17 +766,20 @@ def test_create_resume_json(
     json_response = response.json()
     assert json_response["name"] == "New Resume"
     assert json_response["id"] == 2
+    mock_validate.assert_called_once_with(VALID_MINIMAL_RESUME_CONTENT)
     mock_create_resume_db.assert_called_once()
     call_args = mock_create_resume_db.call_args[1]
     assert call_args["name"] == "New Resume"
     assert call_args["content"] == VALID_MINIMAL_RESUME_CONTENT
 
 
+@patch("resume_editor.app.api.routes.resume.validate_resume_content")
 @patch("resume_editor.app.api.routes.resume.create_resume_db")
 def test_create_resume_htmx_response(
-    mock_create_resume_db, client_with_auth_no_resume, test_user
+    mock_create_resume_db, mock_validate, client_with_auth_no_resume, test_user
 ):
     """Test creating a resume via HTMX returns an HTML response."""
+    mock_validate.return_value = None
     created_resume = DatabaseResume(
         user_id=test_user.id,
         name="New Resume",
@@ -789,11 +797,27 @@ def test_create_resume_htmx_response(
     assert "text/html" in response.headers["content-type"]
     assert "New Resume" in response.text
     assert "Refine with AI" in response.text
+    mock_validate.assert_called_once_with(VALID_MINIMAL_RESUME_CONTENT)
     from bs4 import BeautifulSoup
 
     soup = BeautifulSoup(response.text, "html.parser")
     resume_list_item = soup.find("div", class_="resume-item")
     assert resume_list_item is None
+
+
+@patch("resume_editor.app.api.routes.resume.validate_resume_content")
+def test_update_resume_no_htmx(
+    mock_validate, client_with_auth_and_resume, test_resume
+):
+    """Test updating a resume without HTMX returns JSON success message."""
+    mock_validate.return_value = None
+    response = client_with_auth_and_resume.put(
+        "/api/resumes/1",
+        data={"name": "Updated Name", "content": test_resume.content},
+    )
+    assert response.status_code == 200
+    assert response.json()["name"] == "Updated Name"
+    mock_validate.assert_called_once_with(test_resume.content)
 
 
 @patch("resume_editor.app.api.routes.resume.update_resume_db")
@@ -1574,8 +1598,7 @@ def test_refine_resume_no_htmx_response(
     assert response.json() == {"refined_content": "## Refined Experience"}
 
 
-@patch("resume_editor.app.api.routes.resume.get_user_resumes")
-@patch("resume_editor.app.api.routes.resume.create_resume_db")
+@patch("resume_editor.app.api.routes.resume._generate_resume_detail_html")
 @patch("resume_editor.app.api.routes.resume.update_resume_db")
 @patch("resume_editor.app.api.routes.resume.perform_pre_save_validation")
 @patch("resume_editor.app.api.routes.resume.build_complete_resume_from_sections")
@@ -1591,8 +1614,7 @@ def test_accept_refined_resume_overwrite_personal(
     mock_build_sections,
     mock_pre_save,
     mock_update_db,
-    mock_create_db,
-    mock_get_resumes,
+    mock_gen_detail_html,
     client_with_auth_and_resume,
     test_resume,
 ):
@@ -1601,7 +1623,8 @@ def test_accept_refined_resume_overwrite_personal(
     refined_content = "# Personal\nname: Refined"
     mock_extract_personal.return_value = PersonalInfoResponse(name="Refined")
     mock_build_sections.return_value = "reconstructed content"
-    mock_get_resumes.return_value = [test_resume]
+    mock_gen_detail_html.return_value = "<html>Detail View</html>"
+    mock_update_db.return_value = test_resume
 
     # Act
     response = client_with_auth_and_resume.post(
@@ -1609,12 +1632,12 @@ def test_accept_refined_resume_overwrite_personal(
         data={
             "refined_content": refined_content,
             "target_section": RefineTargetSection.PERSONAL.value,
-            "action": RefineAction.OVERWRITE.value,
         },
     )
 
     # Assert
     assert response.status_code == 200
+    assert response.text == "<html>Detail View</html>"
     mock_extract_personal.assert_called_once_with(refined_content)
     mock_extract_education.assert_called_once_with(test_resume.content)
     mock_extract_experience.assert_called_once_with(test_resume.content)
@@ -1624,11 +1647,10 @@ def test_accept_refined_resume_overwrite_personal(
     mock_pre_save.assert_called_once_with("reconstructed content", test_resume.content)
     mock_update_db.assert_called_once()
     assert mock_update_db.call_args.kwargs["content"] == "reconstructed content"
-    mock_create_db.assert_not_called()
+    mock_gen_detail_html.assert_called_once_with(test_resume)
 
 
-@patch("resume_editor.app.api.routes.resume.get_user_resumes")
-@patch("resume_editor.app.api.routes.resume.create_resume_db")
+@patch("resume_editor.app.api.routes.resume._generate_resume_detail_html")
 @patch("resume_editor.app.api.routes.resume.update_resume_db")
 @patch("resume_editor.app.api.routes.resume.perform_pre_save_validation")
 @patch("resume_editor.app.api.routes.resume.build_complete_resume_from_sections")
@@ -1644,28 +1666,31 @@ def test_accept_refined_resume_overwrite_education(
     mock_build_sections,
     mock_pre_save,
     mock_update_db,
-    mock_create_db,
-    mock_get_resumes,
+    mock_gen_detail_html,
     client_with_auth_and_resume,
     test_resume,
 ):
     """Test accepting an 'education' refinement and overwriting the resume."""
     refined_content = "# Education\n..."
     mock_extract_education.return_value = EducationResponse(degrees=[])
-    client_with_auth_and_resume.post(
+    mock_gen_detail_html.return_value = "<html>Detail View</html>"
+    mock_update_db.return_value = test_resume
+
+    response = client_with_auth_and_resume.post(
         f"/api/resumes/{test_resume.id}/refine/accept",
         data={
             "refined_content": refined_content,
             "target_section": RefineTargetSection.EDUCATION.value,
-            "action": RefineAction.OVERWRITE.value,
         },
     )
+    assert response.status_code == 200
+    assert response.text == "<html>Detail View</html>"
     mock_extract_education.assert_called_once_with(refined_content)
     mock_extract_personal.assert_called_once_with(test_resume.content)
+    mock_gen_detail_html.assert_called_once_with(test_resume)
 
 
-@patch("resume_editor.app.api.routes.resume.get_user_resumes")
-@patch("resume_editor.app.api.routes.resume.create_resume_db")
+@patch("resume_editor.app.api.routes.resume._generate_resume_detail_html")
 @patch("resume_editor.app.api.routes.resume.update_resume_db")
 @patch("resume_editor.app.api.routes.resume.perform_pre_save_validation")
 @patch("resume_editor.app.api.routes.resume.build_complete_resume_from_sections")
@@ -1681,28 +1706,32 @@ def test_accept_refined_resume_overwrite_experience(
     mock_build_sections,
     mock_pre_save,
     mock_update_db,
-    mock_create_db,
-    mock_get_resumes,
+    mock_gen_detail_html,
     client_with_auth_and_resume,
     test_resume,
 ):
     """Test accepting an 'experience' refinement and overwriting the resume."""
     refined_content = "# Experience\n..."
     mock_extract_experience.return_value = ExperienceResponse(roles=[], projects=[])
-    client_with_auth_and_resume.post(
+    mock_gen_detail_html.return_value = "<html>Detail View</html>"
+    mock_update_db.return_value = test_resume
+
+    response = client_with_auth_and_resume.post(
         f"/api/resumes/{test_resume.id}/refine/accept",
         data={
             "refined_content": refined_content,
             "target_section": RefineTargetSection.EXPERIENCE.value,
-            "action": RefineAction.OVERWRITE.value,
         },
     )
+
+    assert response.status_code == 200
+    assert response.text == "<html>Detail View</html>"
     mock_extract_experience.assert_called_once_with(refined_content)
     mock_extract_personal.assert_called_once_with(test_resume.content)
+    mock_gen_detail_html.assert_called_once_with(test_resume)
 
 
-@patch("resume_editor.app.api.routes.resume.get_user_resumes")
-@patch("resume_editor.app.api.routes.resume.create_resume_db")
+@patch("resume_editor.app.api.routes.resume._generate_resume_detail_html")
 @patch("resume_editor.app.api.routes.resume.update_resume_db")
 @patch("resume_editor.app.api.routes.resume.perform_pre_save_validation")
 @patch("resume_editor.app.api.routes.resume.build_complete_resume_from_sections")
@@ -1718,28 +1747,31 @@ def test_accept_refined_resume_overwrite_certifications(
     mock_build_sections,
     mock_pre_save,
     mock_update_db,
-    mock_create_db,
-    mock_get_resumes,
+    mock_gen_detail_html,
     client_with_auth_and_resume,
     test_resume,
 ):
     """Test accepting a 'certifications' refinement and overwriting the resume."""
     refined_content = "# Certifications\n..."
     mock_extract_certifications.return_value = CertificationsResponse(certifications=[])
-    client_with_auth_and_resume.post(
+    mock_gen_detail_html.return_value = "<html>Detail View</html>"
+    mock_update_db.return_value = test_resume
+
+    response = client_with_auth_and_resume.post(
         f"/api/resumes/{test_resume.id}/refine/accept",
         data={
             "refined_content": refined_content,
             "target_section": RefineTargetSection.CERTIFICATIONS.value,
-            "action": RefineAction.OVERWRITE.value,
         },
     )
+    assert response.status_code == 200
+    assert response.text == "<html>Detail View</html>"
     mock_extract_certifications.assert_called_once_with(refined_content)
     mock_extract_personal.assert_called_once_with(test_resume.content)
+    mock_gen_detail_html.assert_called_once_with(test_resume)
 
 
-@patch("resume_editor.app.api.routes.resume.get_user_resumes")
-@patch("resume_editor.app.api.routes.resume.create_resume_db")
+@patch("resume_editor.app.api.routes.resume._generate_resume_detail_html")
 @patch("resume_editor.app.api.routes.resume.update_resume_db")
 @patch("resume_editor.app.api.routes.resume.perform_pre_save_validation")
 @patch("resume_editor.app.api.routes.resume.build_complete_resume_from_sections")
@@ -1755,15 +1787,15 @@ def test_accept_refined_resume_overwrite_full(
     mock_build_sections,
     mock_pre_save,
     mock_update_db,
-    mock_create_db,
-    mock_get_resumes,
+    mock_gen_detail_html,
     client_with_auth_and_resume,
     test_resume,
 ):
     """Test accepting a 'full' refinement and overwriting the existing resume."""
     # Arrange
     refined_content = "# Personal\nname: Full Refined"
-    mock_get_resumes.return_value = [test_resume]
+    mock_gen_detail_html.return_value = "<html>Detail View</html>"
+    mock_update_db.return_value = test_resume
 
     # Act
     response = client_with_auth_and_resume.post(
@@ -1771,12 +1803,12 @@ def test_accept_refined_resume_overwrite_full(
         data={
             "refined_content": refined_content,
             "target_section": RefineTargetSection.FULL.value,
-            "action": RefineAction.OVERWRITE.value,
         },
     )
 
     # Assert
     assert response.status_code == 200
+    assert response.text == "<html>Detail View</html>"
     mock_extract_personal.assert_not_called()
     mock_extract_education.assert_not_called()
     mock_extract_experience.assert_not_called()
@@ -1786,29 +1818,28 @@ def test_accept_refined_resume_overwrite_full(
     mock_pre_save.assert_called_once_with(refined_content, test_resume.content)
     mock_update_db.assert_called_once()
     assert mock_update_db.call_args.kwargs["content"] == refined_content
-    mock_create_db.assert_not_called()
-    mock_get_resumes.assert_called_once()
+    mock_gen_detail_html.assert_called_once_with(test_resume)
 
 
+@patch("resume_editor.app.api.routes.resume._generate_resume_detail_html")
 @patch("resume_editor.app.api.routes.resume.get_user_resumes")
 @patch("resume_editor.app.api.routes.resume.create_resume_db")
-@patch("resume_editor.app.api.routes.resume.update_resume_db")
 @patch("resume_editor.app.api.routes.resume.perform_pre_save_validation")
 @patch("resume_editor.app.api.routes.resume.build_complete_resume_from_sections")
 @patch("resume_editor.app.api.routes.resume.extract_certifications_info")
 @patch("resume_editor.app.api.routes.resume.extract_experience_info")
 @patch("resume_editor.app.api.routes.resume.extract_education_info")
 @patch("resume_editor.app.api.routes.resume.extract_personal_info")
-def test_accept_refined_resume_save_as_new(
+def test_save_refined_resume_as_new_full(
     mock_extract_personal,
     mock_extract_education,
     mock_extract_experience,
     mock_extract_certifications,
     mock_build_sections,
     mock_pre_save,
-    mock_update_db,
     mock_create_db,
     mock_get_resumes,
+    mock_gen_detail_html,
     client_with_auth_and_resume,
     test_user,
     test_resume,
@@ -1824,14 +1855,14 @@ def test_accept_refined_resume_save_as_new(
     new_resume.id = 2
     mock_create_db.return_value = new_resume
     mock_get_resumes.return_value = [test_resume, new_resume]
+    mock_gen_detail_html.return_value = "<html>New Detail</html>"
 
     # Act
     response = client_with_auth_and_resume.post(
-        f"/api/resumes/{test_resume.id}/refine/accept",
+        f"/api/resumes/{test_resume.id}/refine/save_as_new",
         data={
             "refined_content": refined_content,
             "target_section": RefineTargetSection.FULL.value,
-            "action": RefineAction.SAVE_AS_NEW.value,
             "new_resume_name": "New Name",
         },
     )
@@ -1844,7 +1875,6 @@ def test_accept_refined_resume_save_as_new(
     mock_extract_education.assert_not_called()
     mock_extract_experience.assert_not_called()
     mock_extract_certifications.assert_not_called()
-    mock_update_db.assert_not_called()
     mock_create_db.assert_called_once_with(
         db=ANY,
         user_id=test_user.id,
@@ -1852,7 +1882,10 @@ def test_accept_refined_resume_save_as_new(
         content=refined_content,
     )
     mock_get_resumes.assert_called_once()
-    assert "New Name" in response.text
+    mock_gen_detail_html.assert_called_once_with(new_resume)
+
+    assert '<div id="left-sidebar-content" hx-swap-oob="true">' in response.text
+    assert "<html>New Detail</html>" in response.text
 
     import re
 
@@ -1864,25 +1897,25 @@ def test_accept_refined_resume_save_as_new(
     assert 'onclick="selectResume(2, this)"' in selected_divs[0]
 
 
+@patch("resume_editor.app.api.routes.resume._generate_resume_detail_html")
 @patch("resume_editor.app.api.routes.resume.get_user_resumes")
 @patch("resume_editor.app.api.routes.resume.create_resume_db")
-@patch("resume_editor.app.api.routes.resume.update_resume_db")
 @patch("resume_editor.app.api.routes.resume.perform_pre_save_validation")
 @patch("resume_editor.app.api.routes.resume.build_complete_resume_from_sections")
 @patch("resume_editor.app.api.routes.resume.extract_certifications_info")
 @patch("resume_editor.app.api.routes.resume.extract_experience_info")
 @patch("resume_editor.app.api.routes.resume.extract_education_info")
 @patch("resume_editor.app.api.routes.resume.extract_personal_info")
-def test_accept_refined_resume_save_as_new_partial(
+def test_save_refined_resume_as_new_partial(
     mock_extract_personal,
     mock_extract_education,
     mock_extract_experience,
     mock_extract_certifications,
     mock_build_sections,
     mock_pre_save,
-    mock_update_db,
     mock_create_db,
     mock_get_resumes,
+    mock_gen_detail_html,
     client_with_auth_and_resume,
     test_user,
     test_resume,
@@ -1903,14 +1936,14 @@ def test_accept_refined_resume_save_as_new_partial(
     new_resume.id = 2
     mock_create_db.return_value = new_resume
     mock_get_resumes.return_value = [test_resume, new_resume]
+    mock_gen_detail_html.return_value = "<html>New Detail</html>"
 
     # Act
     response = client_with_auth_and_resume.post(
-        f"/api/resumes/{test_resume.id}/refine/accept",
+        f"/api/resumes/{test_resume.id}/refine/save_as_new",
         data={
             "refined_content": refined_content,
             "target_section": RefineTargetSection.PERSONAL.value,
-            "action": RefineAction.SAVE_AS_NEW.value,
             "new_resume_name": "New Name",
         },
     )
@@ -1921,13 +1954,42 @@ def test_accept_refined_resume_save_as_new_partial(
     mock_extract_education.assert_called_once_with(test_resume.content)
     mock_build_sections.assert_called_once()
     mock_pre_save.assert_called_once_with(reconstructed_content, test_resume.content)
-    mock_update_db.assert_not_called()
     mock_create_db.assert_called_once_with(
         db=ANY,
         user_id=test_user.id,
         name="New Name",
         content=reconstructed_content,
     )
+    mock_gen_detail_html.assert_called_once_with(new_resume)
+
+    assert '<div id="left-sidebar-content" hx-swap-oob="true">' in response.text
+    assert "<html>New Detail</html>" in response.text
+
+
+@patch("resume_editor.app.api.routes.resume.perform_pre_save_validation")
+def test_save_refined_resume_as_new_reconstruction_error(
+    mock_pre_save,
+    client_with_auth_and_resume,
+    test_resume,
+):
+    """Test that a reconstruction error is handled when saving a new refined resume."""
+    # Arrange
+    mock_pre_save.side_effect = HTTPException(status_code=422, detail="Invalid")
+    refined_content = "# Personal\nname: Refined New"
+
+    # Act
+    response = client_with_auth_and_resume.post(
+        f"/api/resumes/{test_resume.id}/refine/save_as_new",
+        data={
+            "refined_content": refined_content,
+            "target_section": RefineTargetSection.FULL.value,
+            "new_resume_name": "New Name",
+        },
+    )
+
+    # Assert
+    assert response.status_code == 422
+    assert "Failed to reconstruct" in response.json()["detail"]
 
 
 @patch("resume_editor.app.api.routes.resume.extract_personal_info")
@@ -1947,7 +2009,6 @@ def test_accept_refined_resume_reconstruction_error(
         data={
             "refined_content": refined_content,
             "target_section": RefineTargetSection.PERSONAL.value,
-            "action": RefineAction.OVERWRITE.value,
         },
     )
 
@@ -1956,38 +2017,21 @@ def test_accept_refined_resume_reconstruction_error(
     assert "Failed to reconstruct" in response.json()["detail"]
 
 
-def test_accept_refined_resume_save_as_new_no_name(
+def test_save_refined_resume_as_new_no_name(
     client_with_auth_and_resume,
     test_resume,
 ):
     """Test that saving as new without a name fails."""
     response = client_with_auth_and_resume.post(
-        f"/api/resumes/{test_resume.id}/refine/accept",
+        f"/api/resumes/{test_resume.id}/refine/save_as_new",
         data={
             "refined_content": "...",
             "target_section": RefineTargetSection.FULL.value,
-            "action": RefineAction.SAVE_AS_NEW.value,
+            "new_resume_name": "",
         },
     )
     assert response.status_code == 400
     assert "New resume name is required" in response.json()["detail"]
-
-
-def test_accept_refined_resume_invalid_action(client_with_auth_and_resume, test_resume):
-    """Test that providing an invalid action to the accept endpoint fails."""
-    response = client_with_auth_and_resume.post(
-        f"/api/resumes/{test_resume.id}/refine/accept",
-        data={
-            "refined_content": "content",
-            "target_section": "full",
-            "action": "invalid_action",
-        },
-    )
-    assert response.status_code == 422
-    body = response.json()
-    assert body["detail"][0]["type"] == "enum"
-    assert body["detail"][0]["input"] == "invalid_action"
-    assert "Input should be 'overwrite' or 'save_as_new'" in body["detail"][0]["msg"]
 
 
 def test_accept_refined_resume_invalid_section(
@@ -2000,7 +2044,6 @@ def test_accept_refined_resume_invalid_section(
         data={
             "refined_content": "content",
             "target_section": "invalid_section",
-            "action": "overwrite",
         },
     )
     assert response.status_code == 422
@@ -2503,13 +2546,15 @@ def setup_dependency_overrides(
         app.dependency_overrides[get_current_user_from_cookie] = raise_unauthorized
 
 
-def test_create_resume_from_form_submission(app, test_user):
+@patch("resume_editor.app.api.routes.resume.validate_resume_content")
+def test_create_resume_from_form_submission(mock_validate, app, test_user):
     """
     Test creating a resume successfully from a form submission.
     This simulates an HTMX request from the web dashboard.
     """
     # Arrange
     mock_db = MagicMock(spec=Session)
+    mock_validate.return_value = None
 
     setup_dependency_overrides(app, mock_db, test_user)
 
@@ -2540,7 +2585,7 @@ def test_create_resume_from_form_submission(app, test_user):
         # Assert
         assert response.status_code == 200, response.text
         assert "Test Resume" in response.text
-
+        mock_validate.assert_called_once_with(VALID_MINIMAL_RESUME_CONTENT)
         # Test that create_resume_db was called correctly
         mock_create_resume_db.assert_called_once_with(
             db=mock_db,
@@ -2631,6 +2676,7 @@ async def test_refine_experience_with_sse_happy_path(
     assert "refined" in events[2]["content"]
 
     mock_refine_experience.assert_called_once_with(
+        request=ANY,
         resume_content=VALID_MINIMAL_RESUME_CONTENT,
         job_description="job",
         llm_endpoint=expected_endpoint,

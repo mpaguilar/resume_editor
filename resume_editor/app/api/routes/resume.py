@@ -438,7 +438,7 @@ def _generate_resume_detail_html(resume: DatabaseResume) -> str:
                   hx-target="#refine-result-container"
                   hx-swap="innerHTML"
                   hx-indicator="#refine-progress-{resume.id}"
-                  hx-on--htmx--after-request="handleAfterRequest(event)">
+                  hx-on="sse:message: handleSseMessage(event, {resume.id}); htmx:afterRequest: handleAfterRequest(event); htmx:abort: handleAbort(event, {resume.id})">
 
                 <h3 class="text-lg leading-6 font-medium text-gray-900 mb-4">Refine Resume with Job Description</h3>
 
@@ -447,7 +447,7 @@ def _generate_resume_detail_html(resume: DatabaseResume) -> str:
 
                 <div class="mt-4">
                   <label for="target_section" class="block text-sm font-medium text-gray-700">Section to Refine</label>
-                  <select name="target_section" id="target_section_{resume.id}" class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md">
+                  <select name="target_section" id="target_section_{resume.id}" onchange="handleSectionChange(this)" class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md">
                       <option value="full">Full Resume</option>
                       <option value="personal">Personal</option>
                       <option value="education">Education</option>
@@ -589,7 +589,15 @@ def _generate_resume_detail_html(resume: DatabaseResume) -> str:
             document.getElementById(`refine-form-container-${{resumeId}}`).classList.add('hidden');
             event.target.sse.close();
         }} else {{
-            progressDiv.innerHTML = `<p class='text-blue-600'>${{msg.message || msg.status}}</p>`;
+            progressDiv.innerHTML = `
+                <div class="flex justify-between items-center">
+                    <p class='text-blue-600'>${{msg.message || msg.status}}</p>
+                    <button type="button" 
+                            onclick="htmx.abort(document.getElementById('refine-form-${{resumeId}}'))"
+                            class="bg-red-500 text-white px-3 py-1 rounded text-sm hover:bg-red-600">
+                        Cancel
+                    </button>
+                </div>`;
         }}
     }}
 
@@ -603,6 +611,13 @@ def _generate_resume_detail_html(resume: DatabaseResume) -> str:
         }}
         form.reset();
         document.getElementById(`refine-form-container-${{event.target.id.split('-')[2]}}`).classList.add('hidden');
+    }}
+
+    function handleAbort(event, resumeId) {{
+        const progressDiv = document.getElementById(`refine-progress-${{resumeId}}`);
+        if (progressDiv) {{
+            progressDiv.innerHTML = "";
+        }}
     }}
     </script>
     """
@@ -1601,20 +1616,25 @@ async def update_certifications_info_structured(
 def _create_refine_result_html(
     resume_id: int, target_section_val: str, refined_content: str
 ) -> str:
-    """Creates the HTML for the refinement result container."""
+    """
+    Creates the HTML for the refinement result container.
+
+    ---
+    """
     return f"""
     <div id="refine-result" class="mt-4 p-4 border rounded-lg bg-gray-50">
         <h4 class="font-semibold text-lg mb-2">AI Refinement Suggestion</h4>
         <p class="text-sm text-gray-600 mb-2">Review the suggestion for the '{target_section_val}' section.</p>
         <form
+            id="accept-overwrite-form-{resume_id}"
             hx-post="/api/resumes/{resume_id}/refine/accept"
-            hx-target="#left-sidebar-content"
+            hx-target="#resume-content"
             hx-swap="innerHTML">
             <input type="hidden" name="target_section" value="{target_section_val}">
             <textarea name="refined_content" class="w-full h-48 p-2 border rounded font-mono text-sm">{html.escape(refined_content)}</textarea>
             <div class="mt-4 flex items-center justify-between">
                 <div>
-                    <button type="submit" name="action" value="overwrite" class="bg-green-500 text-white px-3 py-1 rounded text-sm hover:bg-green-600">
+                    <button type="submit" class="bg-green-500 text-white px-3 py-1 rounded text-sm hover:bg-green-600">
                         Accept & Overwrite
                     </button>
                     <button type="button" onclick="this.closest('#refine-result').remove()" class="bg-gray-500 text-white px-3 py-1 rounded text-sm hover:bg-gray-600 ml-2">
@@ -1623,7 +1643,12 @@ def _create_refine_result_html(
                 </div>
                 <div class="flex items-center">
                     <input type="text" name="new_resume_name" placeholder="Name for new resume" class="border rounded px-2 py-1 text-sm">
-                    <button type="submit" name="action" value="save_as_new" class="bg-blue-500 text-white px-3 py-1 rounded text-sm hover:bg-blue-600 ml-2">
+                    <button type="button" 
+                            hx-post="/api/resumes/{resume_id}/refine/save_as_new"
+                            hx-include="[name='refined_content'], [name='target_section'], [name='new_resume_name']"
+                            hx-target="#resume-content"
+                            hx-swap="innerHTML"
+                            class="bg-blue-500 text-white px-3 py-1 rounded text-sm hover:bg-blue-600 ml-2">
                         Save as New
                     </button>
                 </div>
@@ -1686,6 +1711,7 @@ async def refine_resume(
             # Handle experience refinement with SSE
             async def sse_generator():
                 async for event in refine_experience_section(
+                    request=http_request,
                     resume_content=resume.content,
                     job_description=job_description,
                     llm_endpoint=llm_endpoint,
@@ -1756,34 +1782,22 @@ async def refine_resume(
 async def accept_refined_resume(
     resume: DatabaseResume = Depends(get_resume_for_user),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user_from_cookie),
     refined_content: str = Form(...),
     target_section: RefineTargetSection = Form(...),
-    action: RefineAction = Form(...),
-    new_resume_name: str | None = Form(None),
 ):
     """
-    Accept a refined resume section and persist the changes.
+    Accept a refined resume section and persist the changes by overwriting.
 
     Args:
         resume (DatabaseResume): The original resume being modified.
         db (Session): The database session.
-        current_user (User): The current authenticated user.
         refined_content (str): The refined markdown from the LLM.
         target_section (RefineTargetSection): The section that was refined.
-        action (RefineAction): The action to take (overwrite or save as new).
-        new_resume_name (str | None): The name for the new resume if saving as new.
 
     Returns:
-        HTMLResponse: An HTML partial containing the updated list of resumes.
+        HTMLResponse: An HTML partial containing the updated resume detail view.
 
     """
-    if action == RefineAction.SAVE_AS_NEW and not new_resume_name:
-        raise HTTPException(
-            status_code=400,
-            detail="New resume name is required for 'save as new' action.",
-        )
-
     updated_content = ""
     try:
         if target_section == RefineTargetSection.FULL:
@@ -1825,18 +1839,96 @@ async def accept_refined_resume(
         log.exception(_msg)
         raise HTTPException(status_code=422, detail=_msg)
 
-    newly_selected_id = resume.id
-    if action == RefineAction.OVERWRITE:
-        update_resume_db(db=db, resume=resume, content=updated_content)
-    else:  # This must be RefineAction.SAVE_AS_NEW
-        new_resume = create_resume_db(
-            db=db,
-            user_id=current_user.id,
-            name=new_resume_name,
-            content=updated_content,
+    update_resume_db(db=db, resume=resume, content=updated_content)
+    # For HTMX, return the detail view for the main content area
+    detail_html = _generate_resume_detail_html(resume)
+    return HTMLResponse(content=detail_html)
+
+
+@router.post("/{resume_id}/refine/save_as_new", response_class=HTMLResponse)
+async def save_refined_resume_as_new(
+    resume: DatabaseResume = Depends(get_resume_for_user),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user_from_cookie),
+    refined_content: str = Form(...),
+    target_section: RefineTargetSection = Form(...),
+    new_resume_name: str | None = Form(None),
+):
+    """
+    Save a refined resume as a new resume.
+
+    Args:
+        resume (DatabaseResume): The original resume being modified.
+        db (Session): The database session.
+        current_user (User): The current authenticated user.
+        refined_content (str): The refined markdown from the LLM.
+        target_section (RefineTargetSection): The section that was refined.
+        new_resume_name (str | None): The name for the new resume.
+
+    Returns:
+        HTMLResponse: An HTML partial containing both the new resume detail view
+                      and an out-of-band swap for the sidebar resume list.
+    """
+    if not new_resume_name:
+        raise HTTPException(
+            status_code=400,
+            detail="New resume name is required for 'save as new' action.",
         )
-        newly_selected_id = new_resume.id
+
+    updated_content = ""
+    try:
+        if target_section == RefineTargetSection.FULL:
+            updated_content = refined_content
+        else:
+            personal_info = extract_personal_info(
+                refined_content
+                if target_section == RefineTargetSection.PERSONAL
+                else resume.content
+            )
+            education_info = extract_education_info(
+                refined_content
+                if target_section == RefineTargetSection.EDUCATION
+                else resume.content
+            )
+            experience_info = extract_experience_info(
+                refined_content
+                if target_section == RefineTargetSection.EXPERIENCE
+                else resume.content
+            )
+            certifications_info = extract_certifications_info(
+                refined_content
+                if target_section == RefineTargetSection.CERTIFICATIONS
+                else resume.content
+            )
+            updated_content = build_complete_resume_from_sections(
+                personal_info=personal_info,
+                education=education_info,
+                experience=experience_info,
+                certifications=certifications_info,
+            )
+        perform_pre_save_validation(updated_content, resume.content)
+    except (ValueError, TypeError, HTTPException) as e:
+        detail = getattr(e, "detail", str(e))
+        _msg = f"Failed to reconstruct resume from refined section: {detail}"
+        log.exception(_msg)
+        raise HTTPException(status_code=422, detail=_msg)
+
+    new_resume = create_resume_db(
+        db=db,
+        user_id=current_user.id,
+        name=new_resume_name,
+        content=updated_content,
+    )
 
     resumes = get_user_resumes(db, current_user.id)
-    html_content = _generate_resume_list_html(resumes, newly_selected_id)
-    return HTMLResponse(content=html_content)
+    sidebar_html = _generate_resume_list_html(resumes, new_resume.id)
+    detail_html = _generate_resume_detail_html(new_resume)
+
+    # Use OOB swap to update sidebar, and return main content normally
+    response_html = f"""
+    <div id="left-sidebar-content" hx-swap-oob="true">
+        {sidebar_html}
+    </div>
+    {detail_html}
+    """
+    return HTMLResponse(content=response_html)
