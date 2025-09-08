@@ -145,6 +145,7 @@ A description of the project.
     # Included role
     assert experience.roles[0].basics.company == "Test Corp"
     assert experience.roles[0].basics.inclusion_status == InclusionStatus.INCLUDE
+    assert experience.roles[0].summary is not None
     assert experience.roles[0].summary.text == "This is a summary."
     # Since inclusion status is not parsed, it should default to INCLUDE
     assert experience.roles[1].basics.company == "Omitter Inc"
@@ -184,7 +185,9 @@ def test_extract_experience_info_with_invalid_markdown():
 ### Role
 Company: Test Corp
 """  # Invalid structure
-    with pytest.raises(ValueError, match="Failed to parse experience info"):
+    with pytest.raises(
+        ValueError, match="Failed to parse experience info from resume content."
+    ):
         extract_experience_info(markdown_content)
 
 

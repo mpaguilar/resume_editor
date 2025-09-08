@@ -32,7 +32,7 @@ class RoleSummary(BaseModel):
 
     """
 
-    text: str
+    text: str | None = None
 
 
 class RoleResponsibilities(BaseModel):
@@ -44,7 +44,7 @@ class RoleResponsibilities(BaseModel):
 
     """
 
-    text: str
+    text: str | None = None
 
 
 class RoleSkills(BaseModel):
@@ -469,7 +469,7 @@ class ProjectDescription(BaseModel):
 
     """
 
-    text: str
+    text: str | None = None
 
 
 class Project(BaseModel):
@@ -478,13 +478,13 @@ class Project(BaseModel):
 
     Attributes:
         overview (ProjectOverview | None): The ProjectOverview object containing project metadata.
-        description (ProjectDescription): The ProjectDescription object describing the project.
+        description (ProjectDescription | None): The ProjectDescription object describing the project.
         skills (ProjectSkills | None): The ProjectSkills object listing skills used.
 
     """
 
     overview: ProjectOverview | None = None
-    description: ProjectDescription
+    description: ProjectDescription | None = None
     skills: ProjectSkills | None = None
 
 

@@ -208,9 +208,16 @@ def _refine_generic_section(
     chain = prompt | llm | StrOutputParser()
 
     try:
-        response_str = chain.invoke(
+        # Use streaming to avoid issues with some models returning non-JSON responses
+        # with a JSON content-type header, which causes the OpenAI client to fail
+        # on parsing.
+        response_chunks = []
+        for chunk in chain.stream(
             {"job_description": job_description, "resume_section": section_content},
-        )
+        ):
+            response_chunks.append(chunk)
+
+        response_str = "".join(response_chunks)
 
         parsed_json = parse_json_markdown(response_str)
         refined_section = RefinedSection.model_validate(parsed_json)

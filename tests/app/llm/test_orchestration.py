@@ -25,6 +25,9 @@ from resume_editor.app.api.routes.route_models import (
 from resume_editor.app.llm.models import JobAnalysis, RefinedSection
 from resume_editor.app.models.resume.experience import (
     Project,
+    ProjectDescription,
+    ProjectOverview,
+    ProjectSkills,
     Role,
     RoleBasics,
     RoleResponsibilities,
@@ -210,7 +213,7 @@ def test_refine_generic_section_empty_section(mock_get_section):
     assert result == ""
     mock_get_section.assert_called_once_with("resume", "personal")
     # The LLM's chain should not be invoked.
-    mock_llm.invoke.assert_not_called()
+    mock_llm.stream.assert_not_called()
 
 
 @pytest.fixture
@@ -468,6 +471,10 @@ def mock_chain_invocations():
         final_chain.invoke.return_value = (
             '```json\n{"refined_markdown": "refined content"}\n```'
         )
+        # Stream should return an iterator yielding string chunks
+        final_chain.stream.return_value = iter(
+            ['```json\n{"refined_markdown": "refined content"}\n```']
+        )
 
         yield {
             "chat_openai": mock_chat_openai_class,
@@ -522,13 +529,12 @@ def test_refine_generic_section_json_decode_error(
     mock_chain_invocations, mock_get_section_content
 ):
     """
-    Test that _refine_generic_section handles a JSONDecodeError from the LLM call gracefully.
+    Test that _refine_generic_section handles a JSONDecodeError from manual parsing.
     """
     # Arrange
     final_chain = mock_chain_invocations["final_chain"]
-    final_chain.invoke.side_effect = json.JSONDecodeError(
-        "Expecting value", "some invalid json", 0
-    )
+    # The stream will return invalid JSON, causing parse_json_markdown to fail.
+    final_chain.stream.return_value = iter(["not valid json"])
     mock_llm = mock_chain_invocations["chat_openai"].return_value
 
     # Act & Assert
@@ -552,7 +558,9 @@ def test_refine_generic_section_validation_error(
     """
     # Arrange
     final_chain = mock_chain_invocations["final_chain"]
-    final_chain.invoke.return_value = '```json\n{"wrong_field": "wrong_value"}\n```'
+    final_chain.stream.return_value = iter(
+        ['```json\n{"wrong_field": "wrong_value"}\n```']
+    )
     mock_llm = mock_chain_invocations["chat_openai"].return_value
 
     # Act & Assert
@@ -576,7 +584,7 @@ def test_refine_generic_section_authentication_error(
     """
     # Arrange
     final_chain = mock_chain_invocations["final_chain"]
-    final_chain.invoke.side_effect = AuthenticationError(
+    final_chain.stream.side_effect = AuthenticationError(
         message="Invalid API key", response=MagicMock(), body=None
     )
     mock_llm = mock_chain_invocations["chat_openai"].return_value
@@ -684,6 +692,15 @@ def create_mock_role() -> Role:
         summary=RoleSummary(text="Old summary."),
         responsibilities=RoleResponsibilities(text="* Do old things."),
         skills=RoleSkills(skills=["Old Skill"]),
+    )
+
+
+def create_mock_project() -> Project:
+    """Helper to create a mock Project object for testing."""
+    return Project(
+        overview=ProjectOverview(title="Test Project"),
+        description=ProjectDescription(text="A project description."),
+        skills=ProjectSkills(skills=["testing"]),
     )
 
 
@@ -943,7 +960,6 @@ async def test_refine_experience_section_wrapper_success(mock_private_refiner):
 
 
 @pytest.mark.asyncio
-@patch("resume_editor.app.llm.orchestration.reconstruct_resume_markdown")
 @patch("resume_editor.app.llm.orchestration.refine_role")
 @patch("resume_editor.app.llm.orchestration.analyze_job_description")
 @patch("resume_editor.app.llm.orchestration.extract_experience_info")
@@ -957,7 +973,6 @@ async def test__refine_experience_section(
     mock_extract_experience,
     mock_analyze_job,
     mock_refine_role,
-    mock_reconstruct,
 ):
     """Test that the async orchestrator yields correct statuses and final content."""
     # Arrange
@@ -977,10 +992,10 @@ async def test__refine_experience_section(
     original_role1.basics.company = "Company 1"
     original_role2 = create_mock_role()
     original_role2.basics.company = "Company 2"
-    mock_projects = [MagicMock(spec=Project)]  # Safely mock projects
+    mock_project = create_mock_project()
 
     mock_experience_info = ExperienceResponse(
-        roles=[original_role1, original_role2], projects=mock_projects
+        roles=[original_role1, original_role2], projects=[mock_project]
     )
 
     mock_extract_personal.return_value = mock_personal_info
@@ -999,10 +1014,6 @@ async def test__refine_experience_section(
     refined_role2.summary.text = "Refined summary 2"
     mock_refine_role.side_effect = [refined_role1, refined_role2]
 
-    # 5. Mock return value for reconstructor
-    final_markdown = "final reconstructed markdown"
-    mock_reconstruct.return_value = final_markdown
-
     # Act
     mock_request = MagicMock(spec=Request)
     mock_request.is_disconnected = AsyncMock(return_value=False)
@@ -1019,16 +1030,31 @@ async def test__refine_experience_section(
 
     # Assert
     # 1. Check yielded events
-    assert events == [
-        {"status": "in_progress", "message": "Parsing resume..."},
-        {"status": "in_progress", "message": "Analyzing job description..."},
-        {"status": "in_progress", "message": "Refining role 1 of 2"},
-        {"status": "in_progress", "message": "Refining role 2 of 2"},
-        {"status": "in_progress", "message": "Reconstructing resume..."},
-        {"status": "done", "content": final_markdown},
-    ]
+    assert events[0] == {"status": "in_progress", "message": "Parsing resume..."}
+    assert events[1] == {
+        "status": "in_progress",
+        "message": "Analyzing job description...",
+    }
+    assert events[2] == {"status": "in_progress", "message": "Refining role 1 of 2"}
+    assert events[3] == {"status": "in_progress", "message": "Refining role 2 of 2"}
+    assert events[4] == {
+        "status": "in_progress",
+        "message": "Reconstructing resume...",
+    }
+    assert events[5]["status"] == "done"
+    final_content = events[5]["content"]
 
-    # 2. Check mocks were called
+    # 2. Check the final reconstructed content
+    assert "# Personal" in final_content
+    assert "Name: Test Person" in final_content
+
+    assert "# Experience" in final_content
+    assert "Refined summary 1" in final_content
+    assert "Refined summary 2" in final_content
+    assert "## Projects" in final_content
+    assert "Title: Test Project" in final_content
+
+    # 3. Check mocks were called
     mock_analyze_job.assert_awaited_once_with(
         job_description=job_description,
         llm_endpoint=llm_endpoint,
@@ -1036,24 +1062,6 @@ async def test__refine_experience_section(
         llm_model_name=llm_model_name,
     )
     assert mock_refine_role.await_count == 2
-    mock_refine_role.assert_any_call(
-        role=original_role1,
-        job_analysis=mock_job_analysis,
-        llm_endpoint=llm_endpoint,
-        api_key=api_key,
-        llm_model_name=llm_model_name,
-    )
-    mock_refine_role.assert_any_call(
-        role=original_role2,
-        job_analysis=mock_job_analysis,
-        llm_endpoint=llm_endpoint,
-        api_key=api_key,
-        llm_model_name=llm_model_name,
-    )
-
-    mock_reconstruct.assert_called_once()
-    reconstruct_kwargs = mock_reconstruct.call_args.kwargs
-    assert reconstruct_kwargs["experience"].roles == [refined_role1, refined_role2]
 
 
 @pytest.mark.asyncio

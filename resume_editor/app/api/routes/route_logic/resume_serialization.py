@@ -78,12 +78,12 @@ def extract_personal_info(resume_content: str) -> PersonalInfoResponse:
             )
 
         banner = getattr(personal, "banner", None)
-        if banner is not None:
-            data["banner"] = getattr(banner, "text", None)
+        if banner and hasattr(banner, "text"):
+            data["banner"] = banner.text
 
         note = getattr(personal, "note", None)
-        if note is not None:
-            data["note"] = getattr(note, "text", None)
+        if note and hasattr(note, "text"):
+            data["note"] = note.text
 
         return PersonalInfoResponse(**data)
     except Exception as e:
@@ -181,121 +181,127 @@ def extract_experience_info(resume_content: str) -> ExperienceResponse:
         parse_context = ParseContext(lines, 1)
         parsed_resume = WriterResume.parse(parse_context)
         experience = parsed_resume.experience
-
-        if not experience:
-            return ExperienceResponse(roles=[], projects=[])
-
-        has_roles = bool(getattr(experience, "roles", None))
-        has_projects = bool(getattr(experience, "projects", None))
-        if not has_roles and not has_projects:
-            # Check for content in the original markdown string.
-            in_experience_section = False
-            content_found = False
-            for line in lines:
-                stripped_line = line.strip()
-                if stripped_line.lower() == "# experience":
-                    in_experience_section = True
-                    continue
-
-                if in_experience_section and stripped_line:
-                    # Headers for empty sections are not "content"
-                    if stripped_line.lower() not in ["## roles", "## projects"]:
-                        content_found = True
-                    break  # Found first line of content or next section
-            if content_found:
-                raise ValueError(
-                    "Experience section contains content that could not be parsed.",
-                )
-
-        roles_list = []
-        if hasattr(experience, "roles") and experience.roles is not None:
-            for role in experience.roles:
-                role_dict = {}
-
-                # Basics
-                role_basics = getattr(role, "basics", None)
-                if role_basics:
-                    start_date = getattr(role_basics, "start_date", None)
-                    end_date = getattr(role_basics, "end_date", None)
-                    role_dict["basics"] = {
-                        "company": getattr(role_basics, "company", None),
-                        "title": getattr(role_basics, "title", None),
-                        "start_date": start_date,
-                        "end_date": end_date,
-                        "location": getattr(role_basics, "location", None),
-                        "agency_name": getattr(role_basics, "agency_name", None),
-                        "job_category": getattr(role_basics, "job_category", None),
-                        "employment_type": getattr(
-                            role_basics,
-                            "employment_type",
-                            None,
-                        ),
-                        "reason_for_change": getattr(
-                            role_basics,
-                            "reason_for_change",
-                            None,
-                        ),
-                    }
-
-                # Summary
-                summary = getattr(role, "summary", None)
-                if summary and hasattr(summary, "summary"):
-                    role_dict["summary"] = {"text": summary.summary}
-
-                # Responsibilities
-                responsibilities = getattr(role, "responsibilities", None)
-                if responsibilities and hasattr(responsibilities, "text"):
-                    role_dict["responsibilities"] = {"text": responsibilities.text}
-
-                # Skills
-                skills = getattr(role, "skills", None)
-                if skills and hasattr(skills, "skills"):
-                    role_dict["skills"] = {"skills": skills.skills}
-
-                if role_dict:
-                    roles_list.append(role_dict)
-
-        projects_list = []
-        if hasattr(experience, "projects") and experience.projects is not None:
-            for project in experience.projects:
-                project_dict = {}
-
-                # Overview
-                project_overview = getattr(project, "overview", None)
-                if project_overview:
-                    start_date = getattr(project_overview, "start_date", None)
-                    end_date = getattr(project_overview, "end_date", None)
-                    project_dict["overview"] = {
-                        "title": getattr(project_overview, "title", None),
-                        "url": getattr(project_overview, "url", None),
-                        "url_description": getattr(
-                            project_overview,
-                            "url_description",
-                            None,
-                        ),
-                        "start_date": start_date,
-                        "end_date": end_date,
-                    }
-
-                # Description
-                description = getattr(project, "description", None)
-                if description and hasattr(description, "text"):
-                    project_dict["description"] = {"text": description.text}
-
-                # Skills
-                skills = getattr(project, "skills", None)
-                if skills and hasattr(skills, "skills"):
-                    project_dict["skills"] = {"skills": skills.skills}
-
-                if project_dict:
-                    projects_list.append(project_dict)
-        _ret = ExperienceResponse(roles=roles_list, projects=projects_list)
-        return _ret
     except Exception as e:
         # If parsing fails, re-raise the exception to be handled by the caller.
         _msg = "Failed to parse experience info from resume content."
         log.exception(_msg)
         raise ValueError(_msg) from e
+
+    if not experience:
+        return ExperienceResponse(roles=[], projects=[])
+
+    has_roles = bool(getattr(experience, "roles", None))
+    has_projects = bool(getattr(experience, "projects", None))
+    if not has_roles and not has_projects:
+        # Check for content in the original markdown string.
+        lines = resume_content.splitlines()
+        in_experience_section = False
+        content_found = False
+        for line in lines:
+            stripped_line = line.strip()
+            if stripped_line.lower() == "# experience":
+                in_experience_section = True
+                continue
+
+            if in_experience_section and stripped_line:
+                # Headers for empty sections are not "content"
+                if stripped_line.lower() not in ["## roles", "## projects"]:
+                    content_found = True
+                break  # Found first line of content or next section
+        if content_found:
+            _msg = "Failed to parse experience info from resume content."
+            log.warning(
+                "Experience section contains content that could not be parsed. "
+                "The parser did not fail, but no roles or projects were found.",
+            )
+            raise ValueError(_msg)
+
+    roles_list = []
+    if hasattr(experience, "roles") and experience.roles is not None:
+        for role in experience.roles:
+            role_dict = {}
+
+            # Basics
+            role_basics = getattr(role, "basics", None)
+            if role_basics:
+                start_date = getattr(role_basics, "start_date", None)
+                end_date = getattr(role_basics, "end_date", None)
+                role_dict["basics"] = {
+                    "company": getattr(role_basics, "company", None),
+                    "title": getattr(role_basics, "title", None),
+                    "start_date": start_date,
+                    "end_date": end_date,
+                    "location": getattr(role_basics, "location", None),
+                    "agency_name": getattr(role_basics, "agency_name", None),
+                    "job_category": getattr(role_basics, "job_category", None),
+                    "employment_type": getattr(
+                        role_basics,
+                        "employment_type",
+                        None,
+                    ),
+                    "reason_for_change": getattr(
+                        role_basics,
+                        "reason_for_change",
+                        None,
+                    ),
+                }
+
+            # Summary
+            summary = getattr(role, "summary", None)
+            if summary and hasattr(summary, "summary"):
+                role_dict["summary"] = {"text": summary.summary}
+
+            # Responsibilities
+            responsibilities = getattr(role, "responsibilities", None)
+            if responsibilities and hasattr(responsibilities, "text"):
+                role_dict["responsibilities"] = {
+                    "text": responsibilities.text,
+                }
+
+            # Skills
+            skills = getattr(role, "skills", None)
+            if skills and hasattr(skills, "skills"):
+                role_dict["skills"] = {"skills": skills.skills}
+
+            if role_dict:
+                roles_list.append(role_dict)
+
+    projects_list = []
+    if hasattr(experience, "projects") and experience.projects is not None:
+        for project in experience.projects:
+            project_dict = {}
+
+            # Overview
+            project_overview = getattr(project, "overview", None)
+            if project_overview:
+                start_date = getattr(project_overview, "start_date", None)
+                end_date = getattr(project_overview, "end_date", None)
+                project_dict["overview"] = {
+                    "title": getattr(project_overview, "title", None),
+                    "url": getattr(project_overview, "url", None),
+                    "url_description": getattr(
+                        project_overview,
+                        "url_description",
+                        None,
+                    ),
+                    "start_date": start_date,
+                    "end_date": end_date,
+                }
+
+            # Description
+            description = getattr(project, "description", None)
+            if description and hasattr(description, "text"):
+                project_dict["description"] = {"text": description.text}
+
+            # Skills
+            skills = getattr(project, "skills", None)
+            if skills and hasattr(skills, "skills"):
+                project_dict["skills"] = {"skills": skills.skills}
+
+            if project_dict:
+                projects_list.append(project_dict)
+    _ret = ExperienceResponse(roles=roles_list, projects=projects_list)
+    return _ret
 
 
 def extract_certifications_info(resume_content: str) -> CertificationsResponse:
@@ -561,7 +567,7 @@ def _serialize_project_to_markdown(project) -> list[str]:
 
     if inclusion_status != InclusionStatus.NOT_RELEVANT:
         description = getattr(project, "description", None)
-        if description:
+        if description and getattr(description, "text", None):
             project_content.extend(["#### Description", "", description.text, ""])
 
         skills = getattr(project, "skills", None)
@@ -633,11 +639,11 @@ def _serialize_role_to_markdown(role) -> list[str]:
 
     if inclusion_status != InclusionStatus.NOT_RELEVANT:
         summary = getattr(role, "summary", None)
-        if summary:
+        if summary and getattr(summary, "text", None):
             role_content.extend(["#### Summary", "", summary.text, ""])
 
         responsibilities = getattr(role, "responsibilities", None)
-        if responsibilities:
+        if responsibilities and getattr(responsibilities, "text", None):
             role_content.extend(
                 [
                     "#### Responsibilities",
@@ -663,22 +669,20 @@ def serialize_experience_to_markdown(experience) -> str:
     Serialize experience information to Markdown format.
 
     Args:
-        experience: Experience information to serialize, containing a list of roles.
+        experience: Experience information to serialize, containing lists of roles and projects.
 
     Returns:
         str: Markdown formatted experience section.
 
     Notes:
-        1. Checks if the experience list is empty.
-        2. Initializes an empty list of lines and adds a heading.
-        3. For each role in the list:
-            a. Adds a subsection header.
-            b. Adds each field (company, title, start_date, end_date, location, description) using proper subsection structure.
-            c. Adds a blank line after each role.
-        4. Joins the lines with newlines.
-        5. Returns the formatted string with a trailing newline.
-        6. Returns an empty string if no experience data is present or all is filtered out.
-        7. No network, disk, or database access is performed during this function.
+        1. Checks if the experience object is empty.
+        2. Initializes an empty list of lines.
+        3. If projects exist, serializes each one using `_serialize_project_to_markdown`.
+        4. If roles exist, serializes each one using `_serialize_role_to_markdown`.
+        5. If any content was generated, builds the final Markdown string with `# Experience`, `## Projects` (if any), and `## Roles` (if any) headers.
+        6. Joins the lines with newlines and returns the formatted string with a trailing newline.
+        7. Returns an empty string if no experience data is present or all items are omitted.
+        8. No network, disk, or database access is performed during this function.
 
     """
     if not experience:
