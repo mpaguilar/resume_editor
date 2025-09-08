@@ -461,7 +461,7 @@ def test_extract_experience_info_with_unparseable_content():
 
 
 def test_serialize_experience_with_not_relevant_items():
-    """Test that items with NOT_RELEVANT status are serialized with summary only."""
+    """Test that items with NOT_RELEVANT status are serialized correctly."""
     experience = ExperienceResponse(
         roles=[
             {
@@ -471,8 +471,9 @@ def test_serialize_experience_with_not_relevant_items():
                     "start_date": "2020-01-01",
                     "inclusion_status": InclusionStatus.NOT_RELEVANT,
                 },
-                "summary": {"text": "This summary should NOT be included."},
-                "skills": {"skills": ["ignored skill"]},
+                "summary": {"text": "This summary should now be included."},
+                "responsibilities": {"text": "This text should be ignored."},
+                "skills": {"skills": ["included skill"]},
             },
         ],
         projects=[
@@ -488,14 +489,66 @@ def test_serialize_experience_with_not_relevant_items():
 
     result = serialize_experience_to_markdown(experience)
 
+    # Role assertions
     assert "Not Relevant Corp" in result
     assert "Not Relevant Role" in result
     assert "#### Basics" in result
-    assert "#### Summary" not in result
-    assert "This summary should NOT be included." not in result
-    assert "ignored skill" not in result
 
+    # Summary and skills should now be included
+    assert "#### Summary" in result
+    assert "This summary should now be included." in result
+    assert "#### Skills" in result
+    assert "included skill" in result
+
+    # Responsibilities should be a placeholder
+    assert "#### Responsibilities" in result
+    assert "(no relevant experience)" in result
+    assert "This text should be ignored." not in result
+
+    # Project assertions (unchanged behavior)
     assert "Not Relevant Project" in result
     assert "#### Overview" in result
     assert "#### Description" not in result
     assert "This description should be ignored." not in result
+
+
+def test_serialize_experience_with_not_relevant_role_minimal():
+    """Test that a NOT_RELEVANT role with minimal data serializes correctly."""
+    experience = ExperienceResponse(
+        roles=[
+            {
+                "basics": {
+                    "company": "Minimal Corp",
+                    "title": "Minimalist",
+                    "start_date": "2022-01-01",
+                    "inclusion_status": InclusionStatus.NOT_RELEVANT,
+                },
+                "summary": None,
+                "responsibilities": {"text": "This should be ignored."},
+                "skills": None,
+            },
+        ],
+        projects=[],
+    )
+    result = serialize_experience_to_markdown(experience)
+    expected = textwrap.dedent(
+        """\
+        # Experience
+
+        ## Roles
+
+        ### Role
+
+        #### Basics
+
+        Company: Minimal Corp
+        Title: Minimalist
+        Start date: 01/2022
+
+        #### Responsibilities
+
+        (no relevant experience)
+
+        """
+    )
+    assert result == expected

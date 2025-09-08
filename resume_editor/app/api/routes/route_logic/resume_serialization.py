@@ -596,11 +596,11 @@ def _serialize_role_to_markdown(role) -> list[str]:
         2. Checks if the inclusion status is OMIT; if so, returns an empty list.
         3. Builds the basics content with company, title, employment type, job category, agency name, start date, end date, reason for change, and location.
         4. Adds the basics section to the role content.
-        5. If the inclusion status is not NOT_RELEVANT:
-            a. Adds the summary if present.
-            b. Adds the responsibilities if present.
-            c. Adds the skills if present.
-        6. Returns the full role content as a list of lines.
+        5. Serializes and adds `Summary` and `Skills` sections if they exist.
+        6. For the `Responsibilities` section:
+            a. If `inclusion_status` is `NOT_RELEVANT`, a placeholder text is added.
+            b. If `inclusion_status` is `INCLUDE`, the original content is added if it exists.
+        7. Returns the full role content as a list of lines.
 
     """
     basics = getattr(role, "basics", None)
@@ -637,11 +637,20 @@ def _serialize_role_to_markdown(role) -> list[str]:
         role_content.extend(basics_content)
         role_content.append("")
 
-    if inclusion_status != InclusionStatus.NOT_RELEVANT:
-        summary = getattr(role, "summary", None)
-        if summary and getattr(summary, "text", None):
-            role_content.extend(["#### Summary", "", summary.text, ""])
+    summary = getattr(role, "summary", None)
+    if summary and getattr(summary, "text", None):
+        role_content.extend(["#### Summary", "", summary.text, ""])
 
+    if inclusion_status == InclusionStatus.NOT_RELEVANT:
+        role_content.extend(
+            [
+                "#### Responsibilities",
+                "",
+                "(no relevant experience)",
+                "",
+            ]
+        )
+    else:  # Status is INCLUDE
         responsibilities = getattr(role, "responsibilities", None)
         if responsibilities and getattr(responsibilities, "text", None):
             role_content.extend(
@@ -653,11 +662,11 @@ def _serialize_role_to_markdown(role) -> list[str]:
                 ],
             )
 
-        skills = getattr(role, "skills", None)
-        if skills and hasattr(skills, "skills") and skills.skills:
-            role_content.extend(["#### Skills", ""])
-            role_content.extend([f"* {skill}" for skill in skills.skills])
-            role_content.append("")
+    skills = getattr(role, "skills", None)
+    if skills and hasattr(skills, "skills") and skills.skills:
+        role_content.extend(["#### Skills", ""])
+        role_content.extend([f"* {skill}" for skill in skills.skills])
+        role_content.append("")
 
     if role_content:
         return ["### Role", ""] + role_content

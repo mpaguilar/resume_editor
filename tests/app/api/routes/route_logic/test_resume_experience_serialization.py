@@ -87,10 +87,12 @@ def test_serialize_experience_with_inclusion_controls(sample_experience_data):
     assert "Omit Ltd" not in markdown
     assert "Omit Project" not in markdown
 
-    # Not Relevant items should have basics/overview only
+    # Not Relevant role items should have basics, summary, and placeholder responsibilities
     assert "Not Relevant Inc" in markdown
     assert "Backend Dev" in markdown
-    assert "Another summary." not in markdown
+    assert "Another summary." in markdown
+    assert "(no relevant experience)" in markdown
+    # Not Relevant project items should have overview only
     assert "Not Relevant Project" in markdown
     assert "Another project description." not in markdown
 
@@ -284,9 +286,9 @@ def test_serialize_experience_not_relevant_role_with_full_basics():
                     "reason_for_change": "Not Relevant Reason",
                     "inclusion_status": InclusionStatus.NOT_RELEVANT,
                 },
-                "summary": {"text": "This summary should be excluded."},
+                "summary": {"text": "This summary should be included."},
                 "responsibilities": {
-                    "text": "These responsibilities should be excluded.",
+                    "text": "These responsibilities should be ignored.",
                 },
                 "skills": {"skills": ["Skill G", "Skill H"]},
             },
@@ -295,6 +297,7 @@ def test_serialize_experience_not_relevant_role_with_full_basics():
     )
     markdown = serialize_experience_to_markdown(experience)
 
+    # Basics should always be present
     assert "Company: Not Relevant Company" in markdown
     assert "Title: Not Relevant Title" in markdown
     assert "Start date: 01/2021" in markdown
@@ -304,10 +307,15 @@ def test_serialize_experience_not_relevant_role_with_full_basics():
     assert "Job category: Not Relevant Category" in markdown
     assert "Employment type: Not Relevant Type" in markdown
     assert "Reason for change: Not Relevant Reason" in markdown
-    assert "This summary should be excluded." not in markdown
-    assert "These responsibilities should be excluded." not in markdown
-    assert "Skill G" not in markdown
-    assert "Skill H" not in markdown
+
+    # Summary and skills are now included
+    assert "This summary should be included." in markdown
+    assert "* Skill G" in markdown
+    assert "* Skill H" in markdown
+
+    # Responsibilities should be replaced with a placeholder
+    assert "(no relevant experience)" in markdown
+    assert "These responsibilities should be ignored." not in markdown
 
 
 def test_serialize_experience_to_markdown_all_fields_from_main():
@@ -411,7 +419,7 @@ def test_serialize_not_relevant_project_with_only_title():
 
 
 def test_serialize_not_relevant_role_with_only_basics():
-    """Test serializing a NOT_RELEVANT role with only basics."""
+    """Test serializing a NOT_RELEVANT role with basics and summary."""
     experience = ExperienceResponse(
         roles=[
             {
@@ -421,7 +429,7 @@ def test_serialize_not_relevant_role_with_only_basics():
                     "start_date": "2020-01-01",
                     "inclusion_status": InclusionStatus.NOT_RELEVANT,
                 },
-                "summary": {"text": "A summary to be ignored."},
+                "summary": {"text": "A summary to be included."},
             },
         ],
         projects=[],
@@ -440,6 +448,14 @@ def test_serialize_not_relevant_role_with_only_basics():
     Company: A Company
     Title: A Role
     Start date: 01/2020
+
+    #### Summary
+
+    A summary to be included.
+
+    #### Responsibilities
+
+    (no relevant experience)
 
     """,
     )
