@@ -1,5 +1,6 @@
 import textwrap
 from datetime import datetime
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -8,6 +9,7 @@ from resume_editor.app.api.routes.route_logic.resume_reconstruction import (
     reconstruct_resume_markdown,
 )
 from resume_editor.app.api.routes.route_logic.resume_serialization import (
+    _serialize_role_to_markdown,
     extract_experience_info,
     serialize_experience_to_markdown,
     update_resume_content_with_structured_data,
@@ -229,6 +231,125 @@ def test_serialize_experience_to_markdown_with_roles_and_projects():
         """
     )
     assert result == expected
+
+
+def test_serialize_role_to_markdown_not_relevant_full():
+    """Test that a 'not relevant' role with full data is serialized correctly."""
+    # 1. Construct a mock Role object with sample data for all sections
+    # Using SimpleNamespace to mock the object structure
+    mock_role = SimpleNamespace(
+        basics=SimpleNamespace(
+            company="Test Corp",
+            title="Tester",
+            start_date=datetime(2022, 1, 1),
+            end_date=None,
+            location="Remote",
+            agency_name=None,
+            job_category=None,
+            employment_type=None,
+            reason_for_change=None,
+            inclusion_status=InclusionStatus.NOT_RELEVANT,
+        ),
+        summary=SimpleNamespace(text="This summary should be visible."),
+        responsibilities=SimpleNamespace(
+            text="These responsibilities should be replaced."
+        ),
+        skills=SimpleNamespace(skills=["Python", "Testing"]),
+    )
+
+    # 3. Call _serialize_role_to_markdown
+    result_lines = _serialize_role_to_markdown(mock_role)
+    result = "\n".join(result_lines)
+
+    # 4. Assert conditions
+    # Basics and Summary content should be present
+    assert "Company: Test Corp" in result
+    assert "Title: Tester" in result
+    assert "#### Summary" in result
+    assert "This summary should be visible." in result
+
+    # Responsibilities header and placeholder text should be present
+    assert "#### Responsibilities" in result
+    assert "(no relevant experience)" in result
+
+    # Original responsibilities text should NOT be present
+    assert "These responsibilities should be replaced." not in result
+
+    # Skills content should be present
+    assert "#### Skills" in result
+    assert "* Python" in result
+    assert "* Testing" in result
+
+
+def test_serialize_role_to_markdown_include_full():
+    """Test that an 'include' role with full data is serialized correctly."""
+    mock_role = SimpleNamespace(
+        basics=SimpleNamespace(
+            company="Test Corp",
+            title="Tester",
+            start_date=datetime(2022, 1, 1),
+            end_date=None,
+            location="Remote",
+            agency_name=None,
+            job_category=None,
+            employment_type=None,
+            reason_for_change=None,
+            inclusion_status=InclusionStatus.INCLUDE,
+        ),
+        summary=SimpleNamespace(text="This is a summary."),
+        responsibilities=SimpleNamespace(text="These are responsibilities."),
+        skills=SimpleNamespace(skills=["Python", "Testing"]),
+    )
+
+    result_lines = _serialize_role_to_markdown(mock_role)
+    result = "\n".join(result_lines)
+
+    assert "Company: Test Corp" in result
+    assert "Title: Tester" in result
+    assert "#### Summary" in result
+    assert "This is a summary." in result
+    assert "#### Responsibilities" in result
+    assert "These are responsibilities." in result
+    assert "(no relevant experience)" not in result
+    assert "#### Skills" in result
+    assert "* Python" in result
+
+
+def test_serialize_role_to_markdown_omit():
+    """Test that an 'omit' role returns an empty list."""
+    mock_role = SimpleNamespace(basics=SimpleNamespace(inclusion_status=InclusionStatus.OMIT))
+    result_lines = _serialize_role_to_markdown(mock_role)
+    assert result_lines == []
+
+
+def test_serialize_role_to_markdown_no_basics():
+    """Test serializing a role with no 'basics' attribute returns an empty list."""
+    mock_role = SimpleNamespace(summary=SimpleNamespace(text="summary"))
+    result_lines = _serialize_role_to_markdown(mock_role)
+    assert result_lines == []
+
+
+def test_serialize_role_to_markdown_empty_role_content():
+    """Test serializing a role that results in no content returns an empty list."""
+    mock_role = SimpleNamespace(
+        basics=SimpleNamespace(
+            company=None,
+            title=None,
+            start_date=None,
+            end_date=None,
+            location=None,
+            agency_name=None,
+            job_category=None,
+            employment_type=None,
+            reason_for_change=None,
+            inclusion_status=InclusionStatus.INCLUDE,
+        ),
+        summary=None,
+        responsibilities=None,
+        skills=None,
+    )
+    result_lines = _serialize_role_to_markdown(mock_role)
+    assert result_lines == []
 
 
 def test_serialize_experience_with_roles_only():

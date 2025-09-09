@@ -643,7 +643,7 @@ def test_refine_generic_section_prompt_content(
 
     # Check that crucial rules and spec are always in the system template
     assert "MARKDOWN RESUME SPECIFICATION EXAMPLE" in system_template
-    assert "Stick to the Facts" in system_template
+    assert "Rephrase and Re-contextualize, Do Not Invent" in system_template
 
     # Check that placeholders are in the templates
     assert "{goal}" in system_template

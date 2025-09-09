@@ -342,7 +342,8 @@ async def refine_role(
         7. Asynchronously invoke the chain with the serialized JSON data.
         8. Parse the LLM's string response to extract the JSON.
         9. Validate the extracted JSON against the Role model.
-        10. Return the validated Role object.
+        10. Preserves the original `inclusion_status` of the role, as this is a user-controlled setting.
+        11. Return the validated Role object.
 
     Network access:
         - This function makes a network request to the LLM endpoint.
@@ -402,6 +403,9 @@ async def refine_role(
         raise ValueError(
             "The AI service returned an unexpected response. Please try again."
         ) from e
+
+    # Preserve the original inclusion status, as the AI should not decide this.
+    refined_role.basics.inclusion_status = role.basics.inclusion_status
 
     _msg = "refine_role returning"
     log.debug(_msg)

@@ -592,15 +592,14 @@ def _serialize_role_to_markdown(role) -> list[str]:
         list[str]: A list of markdown lines representing the role.
 
     Notes:
-        1. Gets the basics from the role.
-        2. Checks if the inclusion status is OMIT; if so, returns an empty list.
-        3. Builds the basics content with company, title, employment type, job category, agency name, start date, end date, reason for change, and location.
-        4. Adds the basics section to the role content.
-        5. Serializes and adds `Summary` and `Skills` sections if they exist.
-        6. For the `Responsibilities` section:
-            a. If `inclusion_status` is `NOT_RELEVANT`, a placeholder text is added.
-            b. If `inclusion_status` is `INCLUDE`, the original content is added if it exists.
-        7. Returns the full role content as a list of lines.
+        1. Gets the `basics` section from the role. If not present, returns an empty list.
+        2. Checks the `inclusion_status` on the `basics` object. If `OMIT`, returns an empty list.
+        3. Serializes the `basics` content (company, title, dates, etc.) into Markdown.
+        4. Serializes the `summary` and `skills` sections into Markdown if they exist. This happens for both `INCLUDE` and `NOT_RELEVANT` statuses.
+        5. Handles the `responsibilities` section based on `inclusion_status`:
+            - If `NOT_RELEVANT`, it writes a placeholder text `(no relevant experience)`.
+            - If `INCLUDE`, it serializes the original responsibilities text if it exists.
+        6. Returns the combined list of Markdown lines for the role.
 
     """
     basics = getattr(role, "basics", None)
