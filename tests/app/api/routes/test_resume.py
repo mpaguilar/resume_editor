@@ -734,12 +734,39 @@ def test_get_resume(client_with_auth_and_resume, test_resume):
     assert refine_form.get("hx-indicator") == f"#refine-progress-{test_resume.id}"
     hx_on_value = refine_form.get("hx-on")
     assert "sse:message: handleSseMessage" in hx_on_value
-    assert "htmx:afterRequest: handleAfterRequest" in hx_on_value
+    assert "htmx:afterRequest: handleAfterRequest" not in hx_on_value
 
     progress_div = soup.find("div", id=f"refine-progress-{test_resume.id}")
     assert progress_div is not None
     assert "htmx-indicator" in progress_div.get("class", [])
     assert progress_div.text == ""
+
+
+def test_generate_resume_detail_html_refine_form(test_resume):
+    """Test that the generated HTML for the refine form is correct."""
+    from resume_editor.app.api.routes.resume import _generate_resume_detail_html
+    from bs4 import BeautifulSoup
+
+    html = _generate_resume_detail_html(test_resume)
+    soup = BeautifulSoup(html, "html.parser")
+
+    # Check that the form exists
+    form = soup.find("form", id=f"refine-form-{test_resume.id}")
+    assert form is not None
+
+    # 1. Assert that the <select> dropdown is gone
+    select = form.find("select", {"name": "target_section"})
+    assert select is None
+
+    # 2. Assert that the hidden input for "experience" exists
+    hidden_input = form.find(
+        "input",
+        {"type": "hidden", "name": "target_section", "value": "experience"},
+    )
+    assert hidden_input is not None
+
+    # 3. Assert hx-swap="none" is set
+    assert form.get("hx-swap") == "none"
 
 
 @patch("resume_editor.app.api.routes.resume.validate_resume_content")

@@ -398,9 +398,10 @@ def _generate_resume_detail_html(resume: DatabaseResume) -> str:
 
     Notes:
         1. Creates HTML for the resume detail section with a header, content area, and footer.
-        2. Includes buttons for refining with AI, exporting, and editing.
+        2. Includes buttons for refining the 'Experience' section with AI, exporting, and editing.
         3. Creates modal dialogs for export and refine actions with appropriate event handlers.
-        4. Returns the complete HTML string.
+        4. The AI refinement is hardcoded to target the 'experience' section using SSE.
+        5. Returns the complete HTML string.
 
     """
     return f"""
@@ -436,25 +437,16 @@ def _generate_resume_detail_html(resume: DatabaseResume) -> str:
                   hx-ext="sse"
                   hx-post="/api/resumes/{resume.id}/refine"
                   hx-target="#refine-result-container"
-                  hx-swap="innerHTML"
+                  hx-swap="none"
                   hx-indicator="#refine-progress-{resume.id}"
-                  hx-on="sse:message: handleSseMessage(event, {resume.id}); htmx:afterRequest: handleAfterRequest(event); htmx:abort: handleAbort(event, {resume.id})">
+                  hx-on="sse:message: handleSseMessage(event, {resume.id}); htmx:abort: handleAbort(event, {resume.id})">
 
-                <h3 class="text-lg leading-6 font-medium text-gray-900 mb-4">Refine Resume with Job Description</h3>
+                <h3 class="text-lg leading-6 font-medium text-gray-900 mb-4">Refine Experience Section with Job Description</h3>
+
+                <input type="hidden" name="target_section" value="experience">
 
                 <label for="job_description" class="block text-sm font-medium text-gray-700">Job Description</label>
                 <textarea name="job_description" class="mt-1 w-full h-40 p-2 border border-gray-300 rounded" placeholder="Paste job description here..." required></textarea>
-
-                <div class="mt-4">
-                  <label for="target_section" class="block text-sm font-medium text-gray-700">Section to Refine</label>
-                  <select name="target_section" id="target_section_{resume.id}" onchange="handleSectionChange(this)" class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md">
-                      <option value="full">Full Resume</option>
-                      <option value="personal">Personal</option>
-                      <option value="education">Education</option>
-                      <option value="experience">Experience</option>
-                      <option value="certifications">Certifications</option>
-                  </select>
-                </div>
 
                 <div class="mt-6 flex justify-end">
                     <button type="button"
@@ -557,20 +549,8 @@ def _generate_resume_detail_html(resume: DatabaseResume) -> str:
         document.getElementById(`export-modal-${{resumeId}}`).classList.add('hidden');
     }}
 
-    function handleSectionChange(select) {{
-        const form = select.closest('form');
-        if (select.value === 'experience') {{
-            form.setAttribute('hx-swap', 'none');
-        }} else {{
-            form.setAttribute('hx-swap', 'innerHTML');
-        }}
-    }}
-
     function handleSseMessage(event, resumeId) {{
         const form = document.getElementById(`refine-form-${{resumeId}}`);
-        const targetSectionSelect = form.querySelector(`[name='target_section']`);
-        if (targetSectionSelect.value !== 'experience') return;
-
         const progressDiv = document.getElementById(`refine-progress-${{resumeId}}`);
         const resultContainer = document.getElementById('refine-result-container');
         const msg = JSON.parse(event.detail.data);
@@ -599,18 +579,6 @@ def _generate_resume_detail_html(resume: DatabaseResume) -> str:
                     </button>
                 </div>`;
         }}
-    }}
-
-    function handleAfterRequest(event) {{
-        const form = event.target;
-        const targetSectionSelect = form.querySelector(`[name='target_section']`);
-        if (targetSectionSelect.value === 'experience') {{
-            // SSE stream handles its own success/error display.
-            // When stream closes, we don't want to clear results.
-             return;
-        }}
-        form.reset();
-        document.getElementById(`refine-form-container-${{event.target.id.split('-')[2]}}`).classList.add('hidden');
     }}
 
     function handleAbort(event, resumeId) {{

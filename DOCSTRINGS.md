@@ -3049,9 +3049,10 @@ Returns:
 
 Notes:
     1. Creates HTML for the resume detail section with a header, content area, and footer.
-    2. Includes buttons for refining with AI, exporting, and editing.
+    2. Includes buttons for refining the 'Experience' section with AI, exporting, and editing.
     3. Creates modal dialogs for export and refine actions with appropriate event handlers.
-    4. Returns the complete HTML string.
+    4. The AI refinement is hardcoded to target the 'experience' section using SSE.
+    5. Returns the complete HTML string.
 
 ---
 
@@ -4380,15 +4381,14 @@ Returns:
     list[str]: A list of markdown lines representing the role.
 
 Notes:
-    1. Gets the basics from the role.
-    2. Checks if the inclusion status is OMIT; if so, returns an empty list.
-    3. Builds the basics content with company, title, employment type, job category, agency name, start date, end date, reason for change, and location.
-    4. Adds the basics section to the role content.
-    5. If the inclusion status is not NOT_RELEVANT:
-        a. Adds the summary if present.
-        b. Adds the responsibilities if present.
-        c. Adds the skills if present.
-    6. Returns the full role content as a list of lines.
+    1. Gets the `basics` section from the role. If not present, returns an empty list.
+    2. Checks the `inclusion_status` on the `basics` object. If `OMIT`, returns an empty list.
+    3. Serializes the `basics` content (company, title, dates, etc.) into Markdown.
+    4. Serializes the `summary` and `skills` sections into Markdown if they exist. This happens for both `INCLUDE` and `NOT_RELEVANT` statuses.
+    5. Handles the `responsibilities` section based on `inclusion_status`:
+        - If `NOT_RELEVANT`, it writes a placeholder text `(no relevant experience)`.
+        - If `INCLUDE`, it serializes the original responsibilities text if it exists.
+    6. Returns the combined list of Markdown lines for the role.
 
 ---
 
@@ -4397,22 +4397,20 @@ Notes:
 Serialize experience information to Markdown format.
 
 Args:
-    experience: Experience information to serialize, containing a list of roles.
+    experience: Experience information to serialize, containing lists of roles and projects.
 
 Returns:
     str: Markdown formatted experience section.
 
 Notes:
-    1. Checks if the experience list is empty.
-    2. Initializes an empty list of lines and adds a heading.
-    3. For each role in the list:
-        a. Adds a subsection header.
-        b. Adds each field (company, title, start_date, end_date, location, description) using proper subsection structure.
-        c. Adds a blank line after each role.
-    4. Joins the lines with newlines.
-    5. Returns the formatted string with a trailing newline.
-    6. Returns an empty string if no experience data is present or all is filtered out.
-    7. No network, disk, or database access is performed during this function.
+    1. Checks if the experience object is empty.
+    2. Initializes an empty list of lines.
+    3. If projects exist, serializes each one using `_serialize_project_to_markdown`.
+    4. If roles exist, serializes each one using `_serialize_role_to_markdown`.
+    5. If any content was generated, builds the final Markdown string with `# Experience`, `## Projects` (if any), and `## Roles` (if any) headers.
+    6. Joins the lines with newlines and returns the formatted string with a trailing newline.
+    7. Returns an empty string if no experience data is present or all items are omitted.
+    8. No network, disk, or database access is performed during this function.
 
 ---
 
