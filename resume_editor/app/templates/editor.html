@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Edit Resume: {{ resume.name }}</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100">
+    <div class="container mx-auto px-4 py-8">
+        <header class="mb-6 flex justify-between items-center">
+            <div>
+                <h1 class="text-2xl font-bold text-gray-800">Editing: {{ resume.name }}</h1>
+                <a href="/dashboard" class="text-sm text-blue-600 hover:underline">&larr; Back to Dashboard</a>
+            </div>
+            <div>
+                <a href="/resumes/{{ resume.id }}/refine" class="bg-purple-500 hover:bg-purple-600 text-white px-4 py-2 rounded-md text-sm font-medium">
+                    Refine with AI
+                </a>
+            </div>
+        </header>
+
+        <div class="bg-white rounded-lg shadow p-6">
+            <h2 class="text-xl font-semibold mb-4">Resume Content</h2>
+            <pre class="bg-gray-50 p-4 rounded-md overflow-x-auto text-sm">{{ resume.content }}</pre>
+        </div>
+    </div>
+</body>
+</html>

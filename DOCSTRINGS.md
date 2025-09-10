@@ -3018,13 +3018,12 @@ Notes:
 ===
 # File: `resume_editor/app/api/routes/resume.py`
 
-## function: `_generate_resume_list_html(resumes: list[DatabaseResume], selected_resume_id: int | None) -> str`
+## function: `_generate_resume_list_html(resumes: list[DatabaseResume]) -> str`
 
-Generates HTML for a list of resumes, marking one as selected.
+Generates HTML for a list of resumes.
 
 Args:
     resumes (list[DatabaseResume]): The list of resumes to display.
-    selected_resume_id (int | None): The ID of the resume to mark as selected.
 
 Returns:
     str: HTML string for the resume list.
@@ -3032,7 +3031,7 @@ Returns:
 Notes:
     1. Checks if the resumes list is empty.
     2. If empty, returns a message indicating no resumes were found.
-    3. Otherwise, generates HTML for each resume item with a selected class if it matches the selected ID.
+    3. Otherwise, generates HTML for each resume item with a link to the edit page.
     4. Returns the concatenated HTML string.
 
 ---

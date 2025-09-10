@@ -44,53 +44,74 @@ def extract_personal_info(resume_content: str) -> PersonalInfoResponse:
         parse_context = ParseContext(lines, 1)
         parsed_resume = WriterResume.parse(parse_context)
         personal = parsed_resume.personal
-
-        if not personal:
-            return PersonalInfoResponse()
-
-        data = {}
-
-        contact_info = getattr(personal, "contact_info", None)
-        if contact_info is not None:
-            data["name"] = getattr(contact_info, "name", None)
-            data["email"] = getattr(contact_info, "email", None)
-            data["phone"] = getattr(contact_info, "phone", None)
-            data["location"] = getattr(contact_info, "location", None)
-
-        websites = getattr(personal, "websites", None)
-        if websites is not None:
-            data["website"] = getattr(websites, "website", None)
-            data["github"] = getattr(websites, "github", None)
-            data["linkedin"] = getattr(websites, "linkedin", None)
-            data["twitter"] = getattr(websites, "twitter", None)
-
-        visa_status = getattr(personal, "visa_status", None)
-        if visa_status is not None:
-            data["work_authorization"] = getattr(
-                visa_status,
-                "work_authorization",
-                None,
-            )
-            data["require_sponsorship"] = getattr(
-                visa_status,
-                "require_sponsorship",
-                None,
-            )
-
-        banner = getattr(personal, "banner", None)
-        if banner and hasattr(banner, "text"):
-            data["banner"] = banner.text
-
-        note = getattr(personal, "note", None)
-        if note and hasattr(note, "text"):
-            data["note"] = note.text
-
-        return PersonalInfoResponse(**data)
     except Exception as e:
-        # If parsing fails, re-raise the exception to be handled by the caller.
         _msg = "Failed to parse personal info from resume content."
         log.exception(_msg)
         raise ValueError(_msg) from e
+
+    if not personal:
+        lines = resume_content.splitlines()
+        in_personal_section = False
+        content_found = False
+        for line in lines:
+            stripped_line = line.strip()
+            if stripped_line.lower() == "# personal":
+                in_personal_section = True
+                continue
+
+            if in_personal_section:
+                if stripped_line.lower().startswith("# "):
+                    break  # Next section
+                if stripped_line:
+                    content_found = True
+                    break
+        if content_found:
+            _msg = "Failed to parse personal info from resume content."
+            log.warning(
+                "Personal section contains content that could not be parsed. "
+                "The parser did not fail, but no personal info was found.",
+            )
+            raise ValueError(_msg)
+        return PersonalInfoResponse()
+
+    data = {}
+
+    contact_info = getattr(personal, "contact_info", None)
+    if contact_info is not None:
+        data["name"] = getattr(contact_info, "name", None)
+        data["email"] = getattr(contact_info, "email", None)
+        data["phone"] = getattr(contact_info, "phone", None)
+        data["location"] = getattr(contact_info, "location", None)
+
+    websites = getattr(personal, "websites", None)
+    if websites is not None:
+        data["website"] = getattr(websites, "website", None)
+        data["github"] = getattr(websites, "github", None)
+        data["linkedin"] = getattr(websites, "linkedin", None)
+        data["twitter"] = getattr(websites, "twitter", None)
+
+    visa_status = getattr(personal, "visa_status", None)
+    if visa_status is not None:
+        data["work_authorization"] = getattr(
+            visa_status,
+            "work_authorization",
+            None,
+        )
+        data["require_sponsorship"] = getattr(
+            visa_status,
+            "require_sponsorship",
+            None,
+        )
+
+    banner = getattr(personal, "banner", None)
+    if banner and hasattr(banner, "text"):
+        data["banner"] = banner.text
+
+    note = getattr(personal, "note", None)
+    if note and hasattr(note, "text"):
+        data["note"] = note.text
+
+    return PersonalInfoResponse(**data)
 
 
 def extract_education_info(resume_content: str) -> EducationResponse:
@@ -124,29 +145,28 @@ def extract_education_info(resume_content: str) -> EducationResponse:
         parse_context = ParseContext(lines, 1)
         parsed_resume = WriterResume.parse(parse_context)
         education = parsed_resume.education
-
-        if not education or not hasattr(education, "degrees") or not education.degrees:
-            return EducationResponse(degrees=[])
-
-        degrees_list = []
-        for degree in education.degrees:
-            degrees_list.append(
-                {
-                    "school": degree.school if degree.school else None,
-                    "degree": degree.degree if degree.degree else None,
-                    "major": degree.major if degree.major else None,
-                    "start_date": degree.start_date,
-                    "end_date": degree.end_date,
-                    "gpa": degree.gpa if degree.gpa else None,
-                },
-            )
-
-        return EducationResponse(degrees=degrees_list)
     except Exception as e:
-        # If parsing fails, re-raise the exception to be handled by the caller.
         _msg = "Failed to parse education info from resume content."
         log.exception(_msg)
         raise ValueError(_msg) from e
+
+    if not education or not hasattr(education, "degrees") or not education.degrees:
+        return EducationResponse(degrees=[])
+
+    degrees_list = []
+    for degree in education.degrees:
+        degrees_list.append(
+            {
+                "school": degree.school if degree.school else None,
+                "degree": degree.degree if degree.degree else None,
+                "major": degree.major if degree.major else None,
+                "start_date": degree.start_date,
+                "end_date": degree.end_date,
+                "gpa": degree.gpa if degree.gpa else None,
+            },
+        )
+
+    return EducationResponse(degrees=degrees_list)
 
 
 def extract_experience_info(resume_content: str) -> ExperienceResponse:
@@ -182,7 +202,6 @@ def extract_experience_info(resume_content: str) -> ExperienceResponse:
         parsed_resume = WriterResume.parse(parse_context)
         experience = parsed_resume.experience
     except Exception as e:
-        # If parsing fails, re-raise the exception to be handled by the caller.
         _msg = "Failed to parse experience info from resume content."
         log.exception(_msg)
         raise ValueError(_msg) from e
@@ -335,30 +354,29 @@ def extract_certifications_info(resume_content: str) -> CertificationsResponse:
         parse_context = ParseContext(lines, 1)
         parsed_resume = WriterResume.parse(parse_context)
         certifications = parsed_resume.certifications
-
-        if not certifications or not hasattr(certifications, "__iter__"):
-            return CertificationsResponse(certifications=[])
-
-        certs_list = []
-        for cert in certifications:
-            issued = getattr(cert, "issued", None)
-            expires = getattr(cert, "expires", None)
-            certs_list.append(
-                {
-                    "name": getattr(cert, "name", None),
-                    "issuer": getattr(cert, "issuer", None),
-                    "certification_id": getattr(cert, "certification_id", None),
-                    "issued": issued,
-                    "expires": expires,
-                },
-            )
-
-        return CertificationsResponse(certifications=certs_list)
     except Exception as e:
-        # If parsing fails, re-raise the exception to be handled by the caller.
         _msg = "Failed to parse certifications info from resume content."
         log.exception(_msg)
         raise ValueError(_msg) from e
+
+    if not certifications or not hasattr(certifications, "__iter__"):
+        return CertificationsResponse(certifications=[])
+
+    certs_list = []
+    for cert in certifications:
+        issued = getattr(cert, "issued", None)
+        expires = getattr(cert, "expires", None)
+        certs_list.append(
+            {
+                "name": getattr(cert, "name", None),
+                "issuer": getattr(cert, "issuer", None),
+                "certification_id": getattr(cert, "certification_id", None),
+                "issued": issued,
+                "expires": expires,
+            },
+        )
+
+    return CertificationsResponse(certifications=certs_list)
 
 
 def serialize_personal_info_to_markdown(personal_info) -> str:

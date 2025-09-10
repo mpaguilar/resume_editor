@@ -479,6 +479,7 @@ async def _refine_experience_section(
         experience=refined_experience,
     )
 
+    # The final payload contains the refined content. The route handler will build the HTML.
     yield {"status": "done", "content": updated_resume_content}
 
 

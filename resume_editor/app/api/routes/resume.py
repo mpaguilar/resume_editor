@@ -69,6 +69,7 @@ from resume_editor.app.api.routes.route_models import (
     PersonalInfoUpdateRequest,
     ProjectsResponse,
     RefineAction,
+    ResumeCreateRequest,
     RefineResponse,
     RefineTargetSection,
     ResumeDetailResponse,
@@ -118,11 +119,10 @@ async def get_resume_for_user(
 
 
 def _generate_resume_list_html(
-    resumes: list[DatabaseResume],
-    selected_resume_id: int | None,
+    resumes: list[DatabaseResume], selected_resume_id: int | None = None
 ) -> str:
     """
-    Generates HTML for a list of resumes, marking one as selected.
+    Generates HTML for a list of resumes, optionally marking one as selected.
 
     Args:
         resumes (list[DatabaseResume]): The list of resumes to display.
@@ -134,8 +134,9 @@ def _generate_resume_list_html(
     Notes:
         1. Checks if the resumes list is empty.
         2. If empty, returns a message indicating no resumes were found.
-        3. Otherwise, generates HTML for each resume item with a selected class if it matches the selected ID.
-        4. Returns the concatenated HTML string.
+        3. Otherwise, generates HTML for each resume item with a link to the edit page.
+        4. If `selected_resume_id` is provided, the corresponding item is marked with a "selected" class.
+        5. Returns the concatenated HTML string.
 
     """
     if not resumes:
@@ -148,12 +149,16 @@ def _generate_resume_list_html(
 
     resume_items = []
     for r in resumes:
-        selected_class = "selected" if r.id == selected_resume_id else ""
+        selected_class = " selected" if selected_resume_id and r.id == selected_resume_id else ""
         resume_items.append(f"""
-            <div class="resume-item p-3 rounded cursor-pointer border border-gray-200 mb-2 {selected_class}"
-                 onclick="selectResume({r.id}, this)">
-                <div class="font-medium text-gray-800">{r.name}</div>
-                <div class="text-xs text-gray-500">ID: {r.id}</div>
+            <div class="resume-item p-3 border-b border-gray-200 flex justify-between items-center{selected_class}">
+                <div>
+                   <div class="font-medium text-gray-800">{r.name}</div>
+                   <div class="text-xs text-gray-500">ID: {r.id}</div>
+                </div>
+                <a href="/resumes/{r.id}/edit" class="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-sm">
+                    Edit
+                </a>
             </div>
             """)
     return "\n".join(resume_items)
@@ -184,32 +189,25 @@ async def parse_resume_endpoint(request: ParseRequest):
         8. Performs network access: None.
 
     """
-    return parse_resume_content(request.markdown_content)
+    return ParseResponse(resume_data=parse_resume_content(request.markdown_content))
 
 
 @router.post("", response_model=ResumeResponse)
 async def create_resume(
-    http_request: Request,
+    request: ResumeCreateRequest,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user_from_cookie),
-    name: str = Form(...),
-    content: str = Form(...),
 ):
     """
-    Save a new resume to the database, associating it with the current user.
-
-    This endpoint handles both JSON API calls and HTMX form submissions.
+    Save a new resume to the database via API, associating it with the current user.
 
     Args:
-        http_request (Request): The HTTP request object.
+        request (ResumeCreateRequest): The request containing the resume name and content.
         db (Session): The database session dependency.
         current_user (User): The current authenticated user.
-        name (str): The resume name from form data.
-        content (str): The resume content from form data.
-
 
     Returns:
-        ResumeResponse | HTMLResponse: The created resume's ID and name, or HTML for HTMX.
+        ResumeResponse: The created resume's ID and name.
 
     Raises:
         HTTPException: If there's an error saving the resume to the database or if Markdown validation fails.
@@ -222,26 +220,19 @@ async def create_resume(
         5. Adds the new resume to the database session.
         6. Commits the transaction to save the data.
         7. Refreshes the resume object to ensure it has the latest state, including the ID.
-        8. If the request is from HTMX, returns an HTML partial of the new resume detail view.
-        9. Otherwise, returns a ResumeResponse with the resume ID and name.
-        10. Performs database access: Writes to the database via db.add and db.commit.
+        8. Returns a ResumeResponse with the resume ID and name.
+        9. Performs database access: Writes to the database via db.add and db.commit.
 
     """
     # Validate Markdown content before saving
-    validate_resume_content(content)
+    validate_resume_content(request.content)
 
     resume = create_resume_db(
         db=db,
         user_id=current_user.id,
-        name=name,
-        content=content,
+        name=request.name,
+        content=request.content,
     )
-
-    # Check if this is an HTMX request
-    if "HX-Request" in http_request.headers:
-        # For HTMX, return the detail view for the main content area
-        detail_html = _generate_resume_detail_html(resume)
-        return HTMLResponse(content=detail_html)
 
     return ResumeResponse(id=resume.id, name=resume.name)
 
@@ -291,12 +282,6 @@ async def update_resume(
         db=db, resume=resume, name=name, content=content_to_update
     )
 
-    # Check if this is an HTMX request
-    if "HX-Request" in http_request.headers:
-        # For HTMX, return the detail view for the main content area
-        detail_html = _generate_resume_detail_html(updated_resume)
-        return HTMLResponse(content=detail_html)
-
     return ResumeResponse(id=updated_resume.id, name=updated_resume.name)
 
 
@@ -340,7 +325,7 @@ async def delete_resume(
     if "HX-Request" in http_request.headers:
         # Return updated resume list
         resumes = get_user_resumes(db, current_user.id)
-        html_content = _generate_resume_list_html(resumes, None)
+        html_content = _generate_resume_list_html(resumes)
         return HTMLResponse(content=html_content)
 
     return {"message": "Resume deleted successfully"}
@@ -380,7 +365,7 @@ async def list_resumes(
 
     # Check if this is an HTMX request
     if "HX-Request" in request.headers:
-        html_content = _generate_resume_list_html(resumes, None)
+        html_content = _generate_resume_list_html(resumes)
         return HTMLResponse(content=html_content)
 
     return [ResumeResponse(id=resume.id, name=resume.name) for resume in resumes]
@@ -421,13 +406,10 @@ def _generate_resume_detail_html(resume: DatabaseResume) -> str:
                     class="bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded text-sm">
                     Export
                 </button>
-                <button 
-                    hx-get="/dashboard/edit-resume-form/{resume.id}"
-                    hx-target="#resume-content" 
-                    hx-swap="innerHTML"
-                    class="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-sm">
+                <a href="/resumes/{resume.id}/edit"
+                   class="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-sm">
                     Edit
-                </button>
+                </a>
             </div>
         </div>
 
@@ -618,11 +600,6 @@ async def get_resume(
         6. Performs network access: None.
 
     """
-    # Check if this is an HTMX request
-    if "HX-Request" in request.headers:
-        html_content = _generate_resume_detail_html(resume)
-        return HTMLResponse(content=html_content)
-
     return ResumeDetailResponse(
         id=resume.id,
         name=resume.name,
@@ -1889,7 +1866,7 @@ async def save_refined_resume_as_new(
     )
 
     resumes = get_user_resumes(db, current_user.id)
-    sidebar_html = _generate_resume_list_html(resumes, new_resume.id)
+    sidebar_html = _generate_resume_list_html(resumes, selected_resume_id=new_resume.id)
     detail_html = _generate_resume_detail_html(new_resume)
 
     # Use OOB swap to update sidebar, and return main content normally

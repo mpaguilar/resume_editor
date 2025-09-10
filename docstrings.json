@@ -915,8 +915,8 @@
     "filename": "resume.py",
     "functions": [
       [
-        "_generate_resume_list_html(resumes: list[DatabaseResume], selected_resume_id: int | None) -> str",
-        "Generates HTML for a list of resumes, marking one as selected.\n\nArgs:\n    resumes (list[DatabaseResume]): The list of resumes to display.\n    selected_resume_id (int | None): The ID of the resume to mark as selected.\n\nReturns:\n    str: HTML string for the resume list.\n\nNotes:\n    1. Checks if the resumes list is empty.\n    2. If empty, returns a message indicating no resumes were found.\n    3. Otherwise, generates HTML for each resume item with a selected class if it matches the selected ID.\n    4. Returns the concatenated HTML string."
+        "_generate_resume_list_html(resumes: list[DatabaseResume]) -> str",
+        "Generates HTML for a list of resumes.\n\nArgs:\n    resumes (list[DatabaseResume]): The list of resumes to display.\n\nReturns:\n    str: HTML string for the resume list.\n\nNotes:\n    1. Checks if the resumes list is empty.\n    2. If empty, returns a message indicating no resumes were found.\n    3. Otherwise, generates HTML for each resume item with a link to the edit page.\n    4. Returns the concatenated HTML string."
       ],
       [
         "_generate_resume_detail_html(resume: DatabaseResume) -> str",

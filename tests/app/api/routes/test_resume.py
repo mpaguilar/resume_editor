@@ -225,29 +225,6 @@ def test_update_resume_name_only_no_htmx(
     mock_validate.assert_not_called()
 
 
-@patch("resume_editor.app.api.routes.resume.validate_resume_content")
-def test_update_resume_htmx(mock_validate, client_with_auth_and_resume, test_resume):
-    """Test updating a resume with HTMX returns just the detail view."""
-    mock_validate.return_value = None
-    response = client_with_auth_and_resume.put(
-        f"/api/resumes/{test_resume.id}",
-        data={"name": "Updated Resume Name", "content": test_resume.content},
-        headers={"HX-Request": "true"},
-    )
-    assert response.status_code == 200
-    assert "Updated Resume Name" in response.text
-
-    # Check for original name
-    assert "Test Resume" not in response.text
-
-    # Check that we only have the detail view, and not the resume list
-    # by looking for the list item class.
-    from bs4 import BeautifulSoup
-
-    soup = BeautifulSoup(response.text, "html.parser")
-    resume_list_item = soup.find("div", class_="resume-item")
-    assert resume_list_item is None
-    mock_validate.assert_called_once_with(test_resume.content)
 
 
 
@@ -272,6 +249,13 @@ def test_list_resumes_htmx_with_resumes(client_with_auth_and_resume, test_resume
     assert response.status_code == 200
     assert test_resume.name in response.text
     assert "No resumes found" not in response.text
+    # Check for the edit link
+    from bs4 import BeautifulSoup
+
+    soup = BeautifulSoup(response.text, "html.parser")
+    edit_link = soup.find("a", href=f"/resumes/{test_resume.id}/edit")
+    assert edit_link is not None
+    assert "Edit" in edit_link.text
 
 
 def test_list_resumes_htmx_no_resumes(client_with_auth_no_resume):
@@ -282,6 +266,31 @@ def test_list_resumes_htmx_no_resumes(client_with_auth_no_resume):
     )
     assert response.status_code == 200
     assert "No resumes found" in response.text
+
+
+def test_parse_resume_endpoint_success(client):
+    """Test successful parsing of resume content."""
+    response = client.post(
+        "/api/resumes/parse",
+        json={"markdown_content": VALID_MINIMAL_RESUME_CONTENT},
+    )
+    assert response.status_code == 200
+    data = response.json().get("resume_data", {})
+    assert "personal" in data
+    assert "education" in data
+    assert "certifications" in data
+    assert "experience" in data
+    assert data["personal"]["name"] == "Test Person"
+
+
+def test_parse_resume_endpoint_failure(client):
+    """Test failure in parsing of resume content."""
+    response = client.post(
+        "/api/resumes/parse",
+        json={"markdown_content": "this is not a valid resume"},
+    )
+    assert response.status_code == 400
+    assert "Failed to parse resume" in response.json()["detail"]
 
 
 # Test cases for not found resume
@@ -707,7 +716,7 @@ def test_update_certifications_info_structured_success(
 
 
 def test_get_resume(client_with_auth_and_resume, test_resume):
-    """Test getting a resume with and without HTMX."""
+    """Test getting a resume."""
     # Without HTMX (JSON)
     response = client_with_auth_and_resume.get(f"/api/resumes/{test_resume.id}")
     assert response.status_code == 200
@@ -715,31 +724,6 @@ def test_get_resume(client_with_auth_and_resume, test_resume):
     assert json_response["id"] == test_resume.id
     assert json_response["name"] == test_resume.name
     assert json_response["content"] == test_resume.content
-
-    # With HTMX (HTML)
-    response = client_with_auth_and_resume.get(
-        f"/api/resumes/{test_resume.id}",
-        headers={"HX-Request": "true"},
-    )
-    assert response.status_code == 200
-    assert test_resume.name in response.text
-    assert test_resume.content in response.text
-
-    # Check for spinner and indicator
-    from bs4 import BeautifulSoup
-
-    soup = BeautifulSoup(response.text, "html.parser")
-    refine_form = soup.find("form", id=f"refine-form-{test_resume.id}")
-    assert refine_form is not None
-    assert refine_form.get("hx-indicator") == f"#refine-progress-{test_resume.id}"
-    hx_on_value = refine_form.get("hx-on")
-    assert "sse:message: handleSseMessage" in hx_on_value
-    assert "htmx:afterRequest: handleAfterRequest" not in hx_on_value
-
-    progress_div = soup.find("div", id=f"refine-progress-{test_resume.id}")
-    assert progress_div is not None
-    assert "htmx-indicator" in progress_div.get("class", [])
-    assert progress_div.text == ""
 
 
 def test_generate_resume_detail_html_refine_form(test_resume):
@@ -749,6 +733,11 @@ def test_generate_resume_detail_html_refine_form(test_resume):
 
     html = _generate_resume_detail_html(test_resume)
     soup = BeautifulSoup(html, "html.parser")
+
+    edit_link = soup.find("a", href=f"/resumes/{test_resume.id}/edit")
+    assert edit_link is not None
+    assert "Edit" in edit_link.text
+    assert edit_link.get("hx-get") is None
 
     # Check that the form exists
     form = soup.find("form", id=f"refine-form-{test_resume.id}")
@@ -786,7 +775,7 @@ def test_create_resume_json(
 
     response = client_with_auth_no_resume.post(
         "/api/resumes",
-        data={"name": "New Resume", "content": VALID_MINIMAL_RESUME_CONTENT},
+        json={"name": "New Resume", "content": VALID_MINIMAL_RESUME_CONTENT},
     )
 
     assert response.status_code == 200
@@ -800,36 +789,6 @@ def test_create_resume_json(
     assert call_args["content"] == VALID_MINIMAL_RESUME_CONTENT
 
 
-@patch("resume_editor.app.api.routes.resume.validate_resume_content")
-@patch("resume_editor.app.api.routes.resume.create_resume_db")
-def test_create_resume_htmx_response(
-    mock_create_resume_db, mock_validate, client_with_auth_no_resume, test_user
-):
-    """Test creating a resume via HTMX returns an HTML response."""
-    mock_validate.return_value = None
-    created_resume = DatabaseResume(
-        user_id=test_user.id,
-        name="New Resume",
-        content=VALID_MINIMAL_RESUME_CONTENT,
-    )
-    created_resume.id = 2
-    mock_create_resume_db.return_value = created_resume
-
-    response = client_with_auth_no_resume.post(
-        "/api/resumes",
-        data={"name": "New Resume", "content": VALID_MINIMAL_RESUME_CONTENT},
-        headers={"HX-Request": "true"},
-    )
-    assert response.status_code == 200
-    assert "text/html" in response.headers["content-type"]
-    assert "New Resume" in response.text
-    assert "Refine with AI" in response.text
-    mock_validate.assert_called_once_with(VALID_MINIMAL_RESUME_CONTENT)
-    from bs4 import BeautifulSoup
-
-    soup = BeautifulSoup(response.text, "html.parser")
-    resume_list_item = soup.find("div", class_="resume-item")
-    assert resume_list_item is None
 
 
 @patch("resume_editor.app.api.routes.resume.validate_resume_content")
@@ -1914,14 +1873,21 @@ def test_save_refined_resume_as_new_full(
     assert '<div id="left-sidebar-content" hx-swap-oob="true">' in response.text
     assert "<html>New Detail</html>" in response.text
 
-    import re
+    from bs4 import BeautifulSoup
 
-    divs = re.findall(r'(<div class="resume-item.*?</div>)', response.text, re.DOTALL)
-    assert len(divs) == 2
-    selected_divs = [d for d in divs if "selected" in d]
-    assert len(selected_divs) == 1
-    assert "New Name" in selected_divs[0]
-    assert 'onclick="selectResume(2, this)"' in selected_divs[0]
+    soup = BeautifulSoup(response.text, "html.parser")
+    sidebar_content = soup.find(id="left-sidebar-content")
+    assert sidebar_content is not None
+
+    all_items = sidebar_content.find_all(class_="resume-item")
+    assert len(all_items) == 2
+
+    selected_item = sidebar_content.find(class_="selected")
+    assert selected_item is not None
+    assert "New Name" in selected_item.text
+
+    edit_link = selected_item.find("a", href="/resumes/2/edit")
+    assert edit_link is not None
 
 
 @patch("resume_editor.app.api.routes.resume._generate_resume_detail_html")
@@ -2087,12 +2053,12 @@ def test_generate_resume_list_html_empty():
     """Test that _generate_resume_list_html returns the correct message for an empty list."""
     from resume_editor.app.api.routes.resume import _generate_resume_list_html
 
-    html = _generate_resume_list_html([], None)
+    html = _generate_resume_list_html([])
     assert "No resumes found" in html
     assert "Create your first resume" in html
 
 
-def test_generate_resume_list_html_no_selection():
+def test_generate_resume_list_html():
     """Test that _generate_resume_list_html correctly handles no selection."""
     from resume_editor.app.api.routes.resume import _generate_resume_list_html
 
@@ -2101,33 +2067,15 @@ def test_generate_resume_list_html_no_selection():
     r2 = DatabaseResume(user_id=1, name="R2", content="")
     r2.id = 2
     resumes = [r1, r2]
-    html = _generate_resume_list_html(resumes, None)
+    html = _generate_resume_list_html(resumes)
     assert "R1" in html
     assert "R2" in html
     assert "selected" not in html
+    assert 'href="/resumes/1/edit"' in html
+    assert 'href="/resumes/2/edit"' in html
+    assert "onclick" not in html
 
 
-def test_generate_resume_list_html_with_selection():
-    """Test that _generate_resume_list_html correctly marks an item as selected."""
-    import re
-
-    from resume_editor.app.api.routes.resume import _generate_resume_list_html
-
-    r1 = DatabaseResume(user_id=1, name="R1", content="c1")
-    r1.id = 1
-    r2 = DatabaseResume(user_id=1, name="R2", content="c2")
-    r2.id = 2
-    resumes = [r1, r2]
-    html = _generate_resume_list_html(resumes, 2)
-
-    divs = re.findall(r'(<div class="resume-item.*?</div>)', html, re.DOTALL)
-    assert len(divs) == 2
-    selected_divs = [d for d in divs if "selected" in d]
-    unselected_divs = [d for d in divs if "selected" not in d]
-    assert len(selected_divs) == 1
-    assert len(unselected_divs) == 1
-    assert "R2" in selected_divs[0]
-    assert "R1" in unselected_divs[0]
 
 
 # --- Tests for form-based updates ---
@@ -2573,56 +2521,6 @@ def setup_dependency_overrides(
         app.dependency_overrides[get_current_user_from_cookie] = raise_unauthorized
 
 
-@patch("resume_editor.app.api.routes.resume.validate_resume_content")
-def test_create_resume_from_form_submission(mock_validate, app, test_user):
-    """
-    Test creating a resume successfully from a form submission.
-    This simulates an HTMX request from the web dashboard.
-    """
-    # Arrange
-    mock_db = MagicMock(spec=Session)
-    mock_validate.return_value = None
-
-    setup_dependency_overrides(app, mock_db, test_user)
-
-    client = TestClient(app)
-
-    # Mock return value for create_resume_db
-    created_resume = DatabaseResume(
-        user_id=test_user.id,
-        name="Test Resume",
-        content=VALID_MINIMAL_RESUME_CONTENT,
-    )
-    created_resume.id = 1
-
-    with patch(
-        "resume_editor.app.api.routes.resume.create_resume_db",
-        return_value=created_resume,
-    ) as mock_create_resume_db:
-        # Act
-        response = client.post(
-            "/api/resumes",
-            data={
-                "name": "Test Resume",
-                "content": VALID_MINIMAL_RESUME_CONTENT,
-            },
-            headers={"HX-Request": "true"},
-        )
-
-        # Assert
-        assert response.status_code == 200, response.text
-        assert "Test Resume" in response.text
-        mock_validate.assert_called_once_with(VALID_MINIMAL_RESUME_CONTENT)
-        # Test that create_resume_db was called correctly
-        mock_create_resume_db.assert_called_once_with(
-            db=mock_db,
-            user_id=test_user.id,
-            name="Test Resume",
-            content=VALID_MINIMAL_RESUME_CONTENT,
-        )
-
-    # Clean up
-    app.dependency_overrides.clear()
 
 
 @pytest.mark.asyncio
@@ -2844,61 +2742,3 @@ def test_refine_resume_json_decode_error_non_htmx(
     assert response.json() == {"detail": error_message}
 
 
-def test_update_resume_from_form_submission(app, test_user):
-    """
-    Test updating a resume successfully from a form submission.
-    This simulates an HTMX request from the web dashboard.
-    """
-    # Arrange
-    mock_db = MagicMock(spec=Session)
-
-    existing_resume = DatabaseResume(
-        user_id=test_user.id,
-        name="Old Name",
-        content=VALID_MINIMAL_RESUME_CONTENT,
-    )
-    existing_resume.id = 1
-
-    setup_dependency_overrides(app, mock_db, test_user)
-
-    # The get_resume_for_user dependency will be called, so we mock its result
-    # by patching the function it calls.
-    with patch(
-        "resume_editor.app.api.routes.resume.get_resume_by_id_and_user",
-        return_value=existing_resume,
-    ):
-        client = TestClient(app)
-
-        # Mock return value for update_resume_db
-        updated_resume = DatabaseResume(
-            user_id=test_user.id,
-            name="New Name",
-            content=VALID_MINIMAL_RESUME_CONTENT,
-        )
-        updated_resume.id = 1
-        with patch(
-            "resume_editor.app.api.routes.resume.update_resume_db",
-            return_value=updated_resume,
-        ) as mock_update_resume_db:
-            # Act
-            response = client.put(
-                "/api/resumes/1",
-                data={
-                    "name": "New Name",
-                    "content": VALID_MINIMAL_RESUME_CONTENT,
-                },
-                headers={"HX-Request": "true"},
-            )
-
-            # Assert
-            assert response.status_code == 200, response.text
-            assert "New Name" in response.text
-            mock_update_resume_db.assert_called_once_with(
-                db=mock_db,
-                resume=existing_resume,
-                name="New Name",
-                content=VALID_MINIMAL_RESUME_CONTENT,
-            )
-
-    # Clean up
-    app.dependency_overrides.clear()

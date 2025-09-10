@@ -5,6 +5,19 @@ from fastapi import HTTPException
 from resume_writer.models.parsers import ParseContext
 from resume_writer.models.resume import Resume as WriterResume
 
+from resume_editor.app.api.routes.route_logic.resume_serialization import (
+    extract_certifications_info,
+    extract_education_info,
+    extract_experience_info,
+    extract_personal_info,
+)
+from resume_editor.app.api.routes.route_models import (
+    CertificationsResponse,
+    EducationResponse,
+    ExperienceResponse,
+    PersonalInfoResponse,
+)
+
 log = logging.getLogger(__name__)
 
 
@@ -88,8 +101,8 @@ def parse_resume(markdown_content: str) -> dict[str, Any]:
 
     Notes:
         1. Log the start of the parsing process.
-        2. Call parse_resume_to_writer_object to parse the Markdown content into a WriterResume object.
-        3. Convert the WriterResume object to a dictionary using vars().
+        2. Call a series of extraction functions to get serializable Pydantic models.
+        3. Construct a dictionary from these models.
         4. Log successful completion.
         5. Return the dictionary representation.
         6. No disk, network, or database access is performed.
@@ -99,20 +112,45 @@ def parse_resume(markdown_content: str) -> dict[str, Any]:
     log.debug(_msg)
 
     try:
-        parsed_resume = parse_resume_to_writer_object(markdown_content)
+        personal_info = extract_personal_info(markdown_content)
+        education_info = extract_education_info(markdown_content)
+        experience_info = extract_experience_info(markdown_content)
+        certifications_info = extract_certifications_info(markdown_content)
 
-        # Convert to dictionary
-        resume_dict = vars(parsed_resume)
+        resume_dict = {
+            "personal": personal_info,
+            "education": education_info,
+            "experience": experience_info,
+            "certifications": certifications_info,
+        }
+        personal_empty = not personal_info or not any(
+            v for v in personal_info.model_dump().values() if v
+        )
+        education_empty = not education_info or not education_info.degrees
+        experience_empty = (
+            not experience_info or (not experience_info.roles and not experience_info.projects)
+        )
+        certifications_empty = (
+            not certifications_info or not certifications_info.certifications
+        )
+
+        if (
+            personal_empty
+            and education_empty
+            and experience_empty
+            and certifications_empty
+        ):
+            raise ValueError("No valid resume content could be parsed.")
 
         _msg = "parse_resume returning successfully"
         log.debug(_msg)
 
         return resume_dict
 
-    except Exception as e:
+    except ValueError as e:
         _msg = f"Failed to parse resume content: {str(e)}"
         log.exception(_msg)
-        raise HTTPException(status_code=422, detail=f"Invalid resume format: {str(e)}")
+        raise ValueError(f"Invalid resume format: {str(e)}") from e
 
 
 def parse_resume_content(markdown_content: str) -> dict[str, Any]:
@@ -147,12 +185,17 @@ def parse_resume_content(markdown_content: str) -> dict[str, Any]:
     try:
         # Use our parse_resume function
         result = parse_resume(markdown_content)
+        # This check is flawed because empty sections can be valid.
+        # The lower-level parsing functions are responsible for validation.
+
         _msg = "parse_resume_content returning successfully"
         log.debug(_msg)
         return result
-    except Exception as e:
+    except ValueError as e:
         log.exception("Failed to parse resume")
-        raise HTTPException(status_code=400, detail=f"Failed to parse resume: {str(e)}")
+        raise HTTPException(
+            status_code=400, detail=f"Failed to parse resume: {str(e)}"
+        ) from e
 
 
 def validate_resume_content(content: str) -> None:
@@ -183,10 +226,10 @@ def validate_resume_content(content: str) -> None:
         parse_resume(content)
         _msg = "validate_resume_content returning successfully"
         log.debug(_msg)
-    except Exception as e:
+    except ValueError as e:
         _msg = f"Markdown validation failed: {str(e)}"
         log.exception(_msg)
         raise HTTPException(
             status_code=422,
             detail=f"Invalid Markdown format: {str(e)}",
-        )
+        ) from e

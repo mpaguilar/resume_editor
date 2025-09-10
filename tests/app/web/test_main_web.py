@@ -4,6 +4,7 @@ import re
 from unittest.mock import MagicMock, patch
 
 from bs4 import BeautifulSoup
+from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
 from resume_editor.app.api.routes.route_logic.resume_parsing import parse_resume_content
@@ -55,8 +56,13 @@ def test_dashboard_as_non_admin():
     assert response.status_code == 200
 
     soup = BeautifulSoup(response.content, "html.parser")
+    assert soup.find(id="resume-detail") is None
     admin_link = soup.find("a", href="/admin/users/")
     assert admin_link is None
+
+    new_resume_link = soup.find("a", href="/resumes/create")
+    assert new_resume_link is not None
+    assert "+ New Resume" in new_resume_link.text
 
     app.dependency_overrides.clear()
 
@@ -83,184 +89,40 @@ def test_dashboard_as_admin():
     assert response.status_code == 200
 
     soup = BeautifulSoup(response.content, "html.parser")
+    assert soup.find(id="resume-detail") is None
     admin_link = soup.find("a", href="/admin/users/")
     assert admin_link is not None
     assert admin_link.text.strip() == "Admin"
 
+    new_resume_link = soup.find("a", href="/resumes/create")
+    assert new_resume_link is not None
+    assert "+ New Resume" in new_resume_link.text
+
     app.dependency_overrides.clear()
 
 
-def test_create_resume_form_default_content_is_valid():
+@patch("resume_editor.app.api.routes.resume.get_user_resumes")
+def test_list_resumes_htmx_request(mock_get_user_resumes):
     """
-    GIVEN a request for the create resume form
-    WHEN the form is rendered
-    THEN the default resume content in the placeholder should be valid and parsable.
-    """
-    app = create_app()
-    client = TestClient(app)
-    app.dependency_overrides.clear()
-    log.debug("Starting test_create_resume_form_default_content_is_valid")
-
-    # The create-resume-form is not protected by auth, but the middleware
-    # will redirect if no users exist. So we patch user_count.
-    with patch("resume_editor.app.main.user_crud.user_count", return_value=1):
-        response = client.get("/dashboard/create-resume-form")
-
-    assert response.status_code == 200
-    html_content = response.text
-
-    # Extract placeholder content from the textarea using regex
-    match = re.search(r'<textarea.*?placeholder="(.*?)".*?>', html_content, re.DOTALL)
-    assert match, "Textarea with placeholder not found in the response"
-    placeholder_encoded = match.group(1)
-
-    # Decode HTML entities (e.g., &#10; -> \n)
-    placeholder_decoded = html.unescape(placeholder_encoded)
-
-    assert placeholder_decoded.strip(), "Placeholder content is empty"
-
-    # Validate that the placeholder content is parsable
-    try:
-        parsed_content = parse_resume_content(markdown_content=placeholder_decoded)
-        assert parsed_content is not None
-        # Check for key sections to ensure parsing was meaningful
-        assert "personal" in parsed_content
-        assert "education" in parsed_content
-        assert "certifications" in parsed_content
-        assert "experience" in parsed_content
-    except Exception as e:
-        assert False, f"Default resume content failed to parse: {e}"
-
-    log.debug("Finished test_create_resume_form_default_content_is_valid")
-    app.dependency_overrides.clear()
-
-
-def test_get_edit_resume_form():
-    """
-    GIVEN an authenticated user with a resume
-    WHEN they request the edit form for that resume
-    THEN the form is returned with the resume's data pre-filled.
+    GIVEN an htmx request to /api/resumes
+    WHEN resumes exist for the user
+    THEN an HTML partial is returned with resume items containing edit links.
     """
     app = create_app()
     client = TestClient(app)
     app.dependency_overrides.clear()
 
     mock_user = User(
-        id=1,
-        username="testuser",
-        email="test@test.com",
-        hashed_password="hashed",
+        id=1, username="testuser", email="test@test.com", hashed_password="hashed"
     )
-    mock_resume = DatabaseResume(
-        user_id=1,
-        name="My Test Resume",
-        content="# Personal\n\nName: Test User",
-    )
+
+    def get_mock_user():
+        return mock_user
+
+    mock_resume = DatabaseResume(user_id=1, name="Test Resume", content="...")
     mock_resume.id = 1
-
-    def get_mock_user():
-        return mock_user
-
-    mock_db = MagicMock()
-    mock_db.query.return_value.filter.return_value.first.return_value = mock_resume
-
-    def get_mock_db():
-        yield mock_db
-
-    app.dependency_overrides[get_current_user_from_cookie] = get_mock_user
-    app.dependency_overrides[get_db] = get_mock_db
-
-    with patch("resume_editor.app.main.user_crud.user_count", return_value=1):
-        response = client.get("/dashboard/edit-resume-form/1")
-    assert response.status_code == 200
-
-    soup = BeautifulSoup(response.content, "html.parser")
-    name_input = soup.find("input", {"name": "name"})
-    content_textarea = soup.find("textarea", {"name": "content"})
-
-    assert name_input["value"] == "My Test Resume"
-    assert content_textarea.text == "# Personal\n\nName: Test User"
-
-    form = soup.find("form")
-    assert form["hx-put"] == "/api/resumes/1"
-    assert form["hx-target"] == "#resume-content"
-
-    app.dependency_overrides.clear()
-
-
-def test_get_edit_resume_form_not_found():
-    """
-    GIVEN an authenticated user
-    WHEN they request the edit form for a non-existent resume
-    THEN a 404 error is returned.
-    """
-    app = create_app()
-    client = TestClient(app)
-    app.dependency_overrides.clear()
-
-    mock_user = User(
-        id=1,
-        username="testuser",
-        email="test@test.com",
-        hashed_password="hashed",
-    )
-
-    def get_mock_user():
-        return mock_user
-
-    mock_db = MagicMock()
-    # This will make get_resume_by_id_and_user return None
-    mock_db.query.return_value.filter.return_value.first.return_value = None
-
-    def get_mock_db():
-        yield mock_db
-
-    app.dependency_overrides[get_current_user_from_cookie] = get_mock_user
-    app.dependency_overrides[get_db] = get_mock_db
-
-    with patch("resume_editor.app.main.user_crud.user_count", return_value=1):
-        response = client.get("/dashboard/edit-resume-form/999")
-    assert response.status_code == 404
-    assert response.json()["detail"] == "Resume not found"
-
-    app.dependency_overrides.clear()
-
-
-@patch("resume_editor.app.api.routes.resume.validate_resume_content")
-@patch("resume_editor.app.api.routes.resume.update_resume_db")
-def test_update_resume_htmx(mock_update_resume_db, mock_validate_content):
-    """
-    GIVEN an authenticated user and a resume
-    WHEN the user submits the edit form via HTMX
-    THEN the resume is updated and the resume detail view is returned.
-    """
-    app = create_app()
-    client = TestClient(app)
-    app.dependency_overrides.clear()
-
-    mock_user = User(
-        id=1,
-        username="testuser",
-        email="test@test.com",
-        hashed_password="hashed",
-    )
-    original_resume = DatabaseResume(
-        user_id=1,
-        name="Original Name",
-        content="Original Content",
-    )
-    original_resume.id = 1
-    updated_resume = DatabaseResume(
-        user_id=1,
-        name="Updated Name",
-        content="Updated Content",
-    )
-    updated_resume.id = 1
-
-    mock_update_resume_db.return_value = updated_resume
-
-    def get_mock_user():
-        return mock_user
+    mock_resumes = [mock_resume]
+    mock_get_user_resumes.return_value = mock_resumes
 
     mock_db = MagicMock()
 
@@ -270,38 +132,19 @@ def test_update_resume_htmx(mock_update_resume_db, mock_validate_content):
     app.dependency_overrides[get_current_user_from_cookie] = get_mock_user
     app.dependency_overrides[get_db] = get_mock_db
 
-    with patch(
-        "resume_editor.app.api.routes.resume.get_resume_by_id_and_user"
-    ) as mock_get_resume_by_id:
-        mock_get_resume_by_id.return_value = original_resume
-        response = client.put(
-            "/api/resumes/1",
-            data={"name": "Updated Name", "content": "Updated Content"},
-            headers={"HX-Request": "true"},
-        )
+    response = client.get("/api/resumes", headers={"HX-Request": "true"})
 
     assert response.status_code == 200
-    mock_validate_content.assert_called_once_with("Updated Content")
-    mock_update_resume_db.assert_called_once_with(
-        db=mock_db,
-        resume=original_resume,
-        name="Updated Name",
-        content="Updated Content",
-    )
-
-    # Check that the response is the updated detail view
+    assert "text/html" in response.headers["content-type"]
     soup = BeautifulSoup(response.content, "html.parser")
-    h2 = soup.find("h2")
-    assert h2
-    assert "Updated Name" in h2.text
 
-    textarea = soup.select_one("textarea[readonly]")
-    assert textarea
-    assert "Updated Content" in textarea.text
+    resume_item = soup.find("div", class_="resume-item")
+    assert resume_item is not None
+    assert "Test Resume" in resume_item.text
 
-    # Check for OOB content (list view)
-    oob_div = soup.find("div", {"id": "resume-list", "hx-swap-oob": "innerHTML"})
-    assert oob_div is None
+    edit_link = resume_item.find("a", {"href": "/resumes/1/edit"})
+    assert edit_link is not None
+    assert edit_link.get("hx-get") is None
 
     app.dependency_overrides.clear()
 
@@ -431,13 +274,11 @@ def test_update_settings_form_submission(mock_update_user_settings):
     app.dependency_overrides.clear()
 
 
-@patch("resume_editor.app.api.routes.resume.validate_resume_content")
-@patch("resume_editor.app.api.routes.resume.create_resume_db")
-def test_create_resume_htmx(mock_create_resume_db, mock_validate_content):
+def test_resume_editor_page_loads_correctly():
     """
-    GIVEN an authenticated user
-    WHEN they submit the create resume form via HTMX
-    THEN a new resume is created and the detail view is returned.
+    GIVEN an authenticated user and a resume
+    WHEN they navigate to the dedicated editor page for that resume
+    THEN the page loads with the correct resume content and links.
     """
     app = create_app()
     client = TestClient(app)
@@ -449,16 +290,19 @@ def test_create_resume_htmx(mock_create_resume_db, mock_validate_content):
         email="test@test.com",
         hashed_password="hashed",
     )
-    new_resume = DatabaseResume(
-        user_id=1, name="New Resume", content="# Personal\n\nName: New Name"
+    mock_resume = DatabaseResume(
+        user_id=1,
+        name="My Test Resume",
+        content="# My Resume Content",
     )
-    new_resume.id = 2
-    mock_create_resume_db.return_value = new_resume
+    mock_resume.id = 1
 
     def get_mock_user():
         return mock_user
 
     mock_db = MagicMock()
+    # This mock will be used by get_resume_by_id_and_user
+    mock_db.query.return_value.filter.return_value.first.return_value = mock_resume
 
     def get_mock_db():
         yield mock_db
@@ -466,30 +310,250 @@ def test_create_resume_htmx(mock_create_resume_db, mock_validate_content):
     app.dependency_overrides[get_current_user_from_cookie] = get_mock_user
     app.dependency_overrides[get_db] = get_mock_db
 
-    response = client.post(
-        "/api/resumes",
-        data={"name": "New Resume", "content": "# Personal\n\nName: New Name"},
-        headers={"HX-Request": "true"},
-    )
-
+    response = client.get("/resumes/1/edit")
     assert response.status_code == 200
-    mock_validate_content.assert_called_once_with("# Personal\n\nName: New Name")
-    mock_create_resume_db.assert_called_once_with(
-        db=mock_db,
-        user_id=1,
-        name="New Resume",
-        content="# Personal\n\nName: New Name",
-    )
 
     soup = BeautifulSoup(response.content, "html.parser")
+    header = soup.find("h1")
+    assert "Editing: My Test Resume" in header.text
 
-    # Check for main content (detail view)
-    h2 = soup.find("h2")
-    assert h2
-    assert "New Resume" in h2.text
+    content_pre = soup.find("pre")
+    assert "# My Resume Content" in content_pre.text
 
-    # Check that there is no OOB content
-    oob_div = soup.find("div", {"id": "resume-list", "hx-swap-oob": "innerHTML"})
-    assert oob_div is None
+    refine_link = soup.find("a", href="/resumes/1/refine")
+    assert refine_link is not None
+    assert "Refine with AI" in refine_link.text
+
+    dashboard_link = soup.find("a", href="/dashboard")
+    assert dashboard_link is not None
 
     app.dependency_overrides.clear()
+
+
+def test_resume_editor_page_not_found():
+    """
+    GIVEN an authenticated user
+    WHEN they navigate to an editor page for a non-existent resume
+    THEN a 404 error is returned.
+    """
+    app = create_app()
+    client = TestClient(app)
+    app.dependency_overrides.clear()
+
+    mock_user = User(
+        id=1,
+        username="testuser",
+        email="test@test.com",
+        hashed_password="hashed",
+    )
+
+    def get_mock_user():
+        return mock_user
+
+    mock_db = MagicMock()
+    # This will make get_resume_by_id_and_user return None
+    mock_db.query.return_value.filter.return_value.first.return_value = None
+
+    def get_mock_db():
+        yield mock_db
+
+    app.dependency_overrides[get_current_user_from_cookie] = get_mock_user
+    app.dependency_overrides[get_db] = get_mock_db
+
+    response = client.get("/resumes/999/edit")
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Resume not found"
+
+    app.dependency_overrides.clear()
+
+
+def test_get_create_resume_page():
+    """
+    GIVEN an authenticated user
+    WHEN they navigate to the create resume page
+    THEN the page with the creation form is returned.
+    """
+    app = create_app()
+    client = TestClient(app)
+    app.dependency_overrides.clear()
+
+    mock_user = User(
+        id=1,
+        username="testuser",
+        email="test@test.com",
+        hashed_password="hashed",
+    )
+
+    def get_mock_user():
+        return mock_user
+
+    app.dependency_overrides[get_current_user_from_cookie] = get_mock_user
+
+    response = client.get("/resumes/create")
+    assert response.status_code == 200
+
+    soup = BeautifulSoup(response.content, "html.parser")
+    form = soup.find("form", {"action": "/resumes/create", "method": "post"})
+    assert form is not None
+    assert soup.find("input", {"name": "name"}) is not None
+    assert soup.find("textarea", {"name": "content"}) is not None
+
+    app.dependency_overrides.clear()
+
+
+@patch("resume_editor.app.main.validate_resume_content")
+@patch("resume_editor.app.main.create_resume_db")
+def test_handle_create_resume_success(mock_create_resume_db, mock_validate_content):
+    """
+    GIVEN an authenticated user submitting a valid new resume
+    WHEN the form is posted
+    THEN a new resume is created and the user is redirected to the editor page.
+    """
+    app = create_app()
+    client = TestClient(app)
+    app.dependency_overrides.clear()
+
+    mock_user = User(id=1, username="testuser", email="test@test.com", hashed_password="hashed")
+    mock_resume = DatabaseResume(user_id=1, name="New Resume", content="Content")
+    mock_resume.id = 123
+
+    def get_mock_user():
+        return mock_user
+
+    mock_db = MagicMock()
+    app.dependency_overrides[get_current_user_from_cookie] = get_mock_user
+    app.dependency_overrides[get_db] = lambda: mock_db
+
+    mock_create_resume_db.return_value = mock_resume
+
+    response = client.post(
+        "/resumes/create",
+        data={"name": "New Resume", "content": "Content"},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 303
+    assert response.headers["location"] == "/resumes/123/edit"
+    mock_validate_content.assert_called_once_with("Content")
+    mock_create_resume_db.assert_called_once_with(
+        db=mock_db, user_id=1, name="New Resume", content="Content"
+    )
+
+    app.dependency_overrides.clear()
+
+
+@patch("resume_editor.app.main.validate_resume_content")
+@patch("resume_editor.app.main.create_resume_db")
+def test_handle_create_resume_validation_error(
+    mock_create_resume_db, mock_validate_content
+):
+    """
+    GIVEN an authenticated user submitting an invalid resume
+    WHEN the form is posted
+    THEN the form is re-rendered with an error message.
+    """
+    app = create_app()
+    client = TestClient(app)
+    app.dependency_overrides.clear()
+
+    mock_user = User(id=1, username="testuser", email="test@test.com", hashed_password="hashed")
+
+    def get_mock_user():
+        return mock_user
+
+    app.dependency_overrides[get_current_user_from_cookie] = get_mock_user
+
+    mock_validate_content.side_effect = HTTPException(status_code=422, detail="Invalid Markdown")
+
+    response = client.post(
+        "/resumes/create",
+        data={"name": "Invalid Resume", "content": "Bad Content"},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 422
+    mock_create_resume_db.assert_not_called()
+    assert "Invalid Markdown" in response.text
+    assert 'value="Invalid Resume"' in response.text
+    assert "Bad Content" in response.text
+
+    app.dependency_overrides.clear()
+
+
+def test_get_refine_resume_page_loads_correctly():
+    """
+    GIVEN an authenticated user and a resume
+    WHEN they navigate to the refine page for that resume
+    THEN the page loads with a form to start refinement.
+    """
+    app = create_app()
+    client = TestClient(app)
+    app.dependency_overrides.clear()
+
+    mock_user = User(
+        id=1, username="testuser", email="test@test.com", hashed_password="hashed"
+    )
+    mock_resume = DatabaseResume(user_id=1, name="My Test Resume", content="Content")
+    mock_resume.id = 1
+
+    def get_mock_user():
+        return mock_user
+
+    mock_db = MagicMock()
+    mock_db.query.return_value.filter.return_value.first.return_value = mock_resume
+
+    def get_mock_db():
+        yield mock_db
+
+    app.dependency_overrides[get_current_user_from_cookie] = get_mock_user
+    app.dependency_overrides[get_db] = get_mock_db
+
+    response = client.get("/resumes/1/refine")
+    assert response.status_code == 200
+
+    soup = BeautifulSoup(response.content, "html.parser")
+    header = soup.find("h1")
+    assert "Refine Resume: My Test Resume" in header.text
+
+    form = soup.find("form")
+    assert form is not None
+    assert form["hx-post"] == "/resumes/1/refine/start"
+    assert soup.find("textarea", {"name": "job_description"}) is not None
+
+    app.dependency_overrides.clear()
+
+
+def test_get_refine_resume_page_not_found():
+    """
+    GIVEN an authenticated user
+    WHEN they navigate to the refine page for a non-existent resume
+    THEN a 404 error is returned.
+    """
+    app = create_app()
+    client = TestClient(app)
+    app.dependency_overrides.clear()
+
+    mock_user = User(
+        id=1, username="testuser", email="test@test.com", hashed_password="hashed"
+    )
+
+    def get_mock_user():
+        return mock_user
+
+    mock_db = MagicMock()
+    # This will make get_resume_by_id_and_user return None
+    mock_db.query.return_value.filter.return_value.first.return_value = None
+
+    def get_mock_db():
+        yield mock_db
+
+    app.dependency_overrides[get_current_user_from_cookie] = get_mock_user
+    app.dependency_overrides[get_db] = get_mock_db
+
+    response = client.get("/resumes/999/refine")
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Resume not found"
+
+    app.dependency_overrides.clear()
+
+

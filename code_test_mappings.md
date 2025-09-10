@@ -17,3 +17,4 @@ These are known mappings:
 - `resume_editor/app/api/routes/route_logic/settings_crud.py` -> `tests/app/api/routes/route_logic/test_settings_crud.py`
 - `resume_editor/app/llm/orchestration.py` -> `tests/app/llm/test_orchestration.py`
 - `resume_editor/app/api/routes/route_logic/resume_serialization.py` -> `tests/app/api/routes/route_logic/test_resume_serialization.py`
+- `resume_editor/app/api/routes/route_logic/resume_parsing.py` -> `tests/app/api/routes/route_logic/test_resume_parsing.py`

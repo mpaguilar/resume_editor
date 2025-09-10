@@ -12,7 +12,13 @@ from sqlalchemy.orm import Session
 from resume_editor.app.api.routes.admin import router as admin_router
 from resume_editor.app.api.routes.resume import router as resume_router
 from resume_editor.app.api.routes.route_logic.resume_crud import (
+    create_resume as create_resume_db,
+)
+from resume_editor.app.api.routes.route_logic.resume_crud import (
     get_resume_by_id_and_user,
+)
+from resume_editor.app.api.routes.route_logic.resume_parsing import (
+    validate_resume_content,
 )
 from resume_editor.app.api.routes.route_logic.settings_crud import (
     get_user_settings,
@@ -292,6 +298,75 @@ def create_app() -> FastAPI:
             {"current_user": current_user},
         )
 
+    @app.get("/resumes/{resume_id}/edit", response_class=HTMLResponse)
+    async def resume_editor_page(
+        request: Request,
+        resume_id: int,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_user_from_cookie),
+    ):
+        """Serve the dedicated editor page for a single resume."""
+        resume = get_resume_by_id_and_user(db, resume_id, current_user.id)
+        return templates.TemplateResponse(
+            request, "editor.html", {"resume": resume, "current_user": current_user}
+        )
+
+    @app.get("/resumes/create", response_class=HTMLResponse)
+    async def create_resume_page(
+        request: Request,
+        current_user: User = Depends(get_current_user_from_cookie),
+    ):
+        """Serve the page for creating a new resume."""
+        return templates.TemplateResponse(
+            request,
+            "create_resume.html",
+            {"current_user": current_user, "name": None, "content": None, "error": None},
+        )
+
+    @app.post("/resumes/create")
+    async def handle_create_resume(
+        request: Request,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_user_from_cookie),
+        name: str = Form(...),
+        content: str = Form(...),
+    ):
+        """Handle the form submission for creating a new resume."""
+        try:
+            validate_resume_content(content)
+        except HTTPException as e:
+            return templates.TemplateResponse(
+                request,
+                "create_resume.html",
+                {
+                    "current_user": current_user,
+                    "name": name,
+                    "content": content,
+                    "error": e.detail,
+                },
+                status_code=422,
+            )
+
+        resume = create_resume_db(
+            db=db, user_id=current_user.id, name=name, content=content
+        )
+        return RedirectResponse(
+            url=f"/resumes/{resume.id}/edit", status_code=status.HTTP_303_SEE_OTHER
+        )
+
+    @app.get("/resumes/{resume_id}/refine", response_class=HTMLResponse)
+    async def refine_resume_page(
+        request: Request,
+        resume_id: int,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_user_from_cookie),
+    ):
+        """Serve the dedicated page for refining a resume."""
+        resume = get_resume_by_id_and_user(db, resume_id, current_user.id)
+        return templates.TemplateResponse(
+            request, "refine.html", {"resume": resume, "current_user": current_user}
+        )
+
     @app.get("/settings", response_class=HTMLResponse)
     async def settings_page(
         request: Request,
@@ -427,577 +502,6 @@ def create_app() -> FastAPI:
             '<div class="p-4 mb-4 text-sm text-green-800 rounded-lg bg-green-50" role="alert"><span class="font-medium">Success!</span> Your password has been changed.</div>',
         )
 
-    @app.get("/dashboard/create-resume-form")
-    async def create_resume_form():
-        """
-        Serve the form for creating a new resume.
-
-        Args:
-            None
-
-        Returns:
-            HTMLResponse: A form for creating a new resume.
-
-        Notes:
-            1. Return an HTML form with a textarea for resume content.
-            2. Include a submit button to save the resume.
-
-        """
-        _msg = "Create resume form requested"
-        log.debug(_msg)
-        html_content = """
-        <div class="h-full flex flex-col">
-            <h2 class="text-xl font-semibold mb-4">Create New Resume</h2>
-            <form hx-post="/api/resumes" hx-target="#resume-content" hx-swap="innerHTML" hx-ext="json-enc">
-                <div class="mb-4">
-                    <label for="name" class="block text-sm font-medium text-gray-700 mb-1">Resume Name</label>
-                    <input 
-                        type="text" 
-                        id="name" 
-                        name="name" 
-                        required
-                        class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        placeholder="My Professional Resume">
-                </div>
-                <div class="mb-4">
-                    <label for="content" class="block text-sm font-medium text-gray-700 mb-1">Resume Content (Markdown)</label>
-                    <textarea 
-                        id="content" 
-                        name="content" 
-                        rows="20"
-                        required
-                        class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm"
-                        placeholder="# Personal&#10;## Contact Information&#10;&#10;Name: Jane Doe&#10;&#10;# Education&#10;## Degrees&#10;### Degree&#10;&#10;School: State University&#10;&#10;# Certifications&#10;## Certification&#10;&#10;Name: Certified Professional&#10;&#10;# Experience&#10;## Roles&#10;### Role&#10;#### Basics&#10;&#10;Company: A Company, LLC&#10;&#10;Title: Engineer&#10;&#10;Start date: 01/2020&#10;## Projects&#10;### Project&#10;#### Overview&#10;&#10;Title: A Project&#10;#### Description&#10;&#10;A description of the project."></textarea>
-                </div>
-                <div class="flex space-x-3">
-                    <button 
-                        type="submit"
-                        class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-md text-sm font-medium">
-                        Save Resume
-                    </button>
-                    <button 
-                        type="button"
-                        hx-get="/dashboard"
-                        hx-target="#resume-content"
-                        hx-swap="innerHTML"
-                        class="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded-md text-sm font-medium">
-                        Cancel
-                    </button>
-                </div>
-            </form>
-        </div>
-        """
-        return HTMLResponse(content=html_content)
-
-    @app.get("/dashboard/edit-resume-form/{resume_id}", response_class=HTMLResponse)
-    async def edit_resume_form(
-        request: Request,
-        resume_id: int,
-        db: Session = Depends(get_db),
-        current_user: User = Depends(get_current_user_from_cookie),
-    ):
-        """
-        Serve the form for editing an existing resume.
-        """
-        _msg = f"Edit resume form requested for resume {resume_id}"
-        log.debug(_msg)
-        resume = get_resume_by_id_and_user(
-            db, resume_id=resume_id, user_id=current_user.id
-        )
-
-        html_content = f"""
-        <div class="h-full flex flex-col">
-            <h2 class="text-xl font-semibold mb-4">Edit Resume</h2>
-            <form hx-put="/api/resumes/{resume.id}" hx-target="#resume-content" hx-swap="innerHTML" hx-ext="json-enc">
-                <div class="mb-4">
-                    <label for="name" class="block text-sm font-medium text-gray-700 mb-1">Resume Name</label>
-                    <input 
-                        type="text" 
-                        id="name" 
-                        name="name" 
-                        required
-                        value="{html.escape(resume.name)}"
-                        class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
-                </div>
-                <div class="mb-4">
-                    <label for="content" class="block text-sm font-medium text-gray-700 mb-1">Resume Content (Markdown)</label>
-                    <textarea 
-                        id="content" 
-                        name="content" 
-                        rows="20"
-                        required
-                        class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm"
-                        >{html.escape(resume.content)}</textarea>
-                </div>
-                <div class="flex space-x-3">
-                    <button 
-                        type="submit"
-                        class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-md text-sm font-medium">
-                        Save Resume
-                    </button>
-                    <button 
-                        type="button"
-                        hx-get="/api/resumes/{resume_id}"
-                        hx-target="#resume-content"
-                        hx-swap="innerHTML"
-                        class="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded-md text-sm font-medium">
-                        Cancel
-                    </button>
-                </div>
-            </form>
-        </div>
-        """
-        return HTMLResponse(content=html_content)
-
-    @app.get("/dashboard/resumes/{resume_id}/edit/personal")
-    async def edit_personal_info(request: Request, resume_id: int):
-        """
-        Serve the form for editing personal information.
-
-        Args:
-            request: The HTTP request object.
-            resume_id: The ID of the resume to edit.
-
-        Returns:
-            HTMLResponse: A form for editing personal information.
-
-        Notes:
-            1. Return an HTML form with fields for personal information.
-            2. Include submit and cancel buttons.
-
-        """
-        _msg = f"Edit personal info form requested for resume {resume_id}"
-        log.debug(_msg)
-        html_content = f"""
-        <div class="h-full flex flex-col">
-            <h2 class="text-xl font-semibold mb-4">Edit Personal Information</h2>
-            <form hx-post="/api/resumes/{resume_id}/edit/personal" hx-target="#resume-content" hx-swap="innerHTML">
-                <div class="mb-4">
-                    <label for="name" class="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
-                    <input 
-                        type="text" 
-                        id="name" 
-                        name="name" 
-                        required
-                        class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        placeholder="John Doe">
-                </div>
-                <div class="mb-4">
-                    <label for="email" class="block text-sm font-medium text-gray-700 mb-1">Email</label>
-                    <input 
-                        type="email" 
-                        id="email" 
-                        name="email" 
-                        class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        placeholder="john.doe@example.com">
-                </div>
-                <div class="mb-4">
-                    <label for="phone" class="block text-sm font-medium text-gray-700 mb-1">Phone</label>
-                    <input 
-                        type="text" 
-                        id="phone" 
-                        name="phone" 
-                        class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        placeholder="(555) 123-4567">
-                </div>
-                <div class="mb-4">
-                    <label for="location" class="block text-sm font-medium text-gray-700 mb-1">Location</label>
-                    <input 
-                        type="text" 
-                        id="location" 
-                        name="location" 
-                        class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        placeholder="San Francisco, CA">
-                </div>
-                <div class="mb-4">
-                    <label for="website" class="block text-sm font-medium text-gray-700 mb-1">Website</label>
-                    <input 
-                        type="url" 
-                        id="website" 
-                        name="website" 
-                        class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        placeholder="https://johndoe.com">
-                </div>
-                <div class="flex space-x-3">
-                    <button 
-                        type="submit"
-                        class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-md text-sm font-medium">
-                        Save Changes
-                    </button>
-                    <button 
-                        type="button"
-                        hx-get="/api/resumes/{resume_id}"
-                        hx-target="#resume-content"
-                        hx-swap="innerHTML"
-                        class="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded-md text-sm font-medium">
-                        Cancel
-                    </button>
-                </div>
-            </form>
-        </div>
-        """
-        return HTMLResponse(content=html_content)
-
-    @app.get(
-        "/dashboard/resumes/{resume_id}/edit/education",
-        response_class=HTMLResponse,
-    )
-    async def edit_education(request: Request, resume_id: int):
-        """
-        Serve the form for editing education information.
-
-        Args:
-            request: The HTTP request object.
-            resume_id: The ID of the resume to edit.
-
-        Returns:
-            HTMLResponse: A form for editing education information.
-
-        Notes:
-            1. Return an HTML form with fields for education information.
-            2. Include submit and cancel buttons.
-
-        """
-        _msg = f"Edit education form requested for resume {resume_id}"
-        log.debug(_msg)
-        html_content = f"""
-        <div class="h-full flex flex-col">
-            <h2 class="text-xl font-semibold mb-4">Edit Education</h2>
-            <form hx-post="/api/resumes/{resume_id}/edit/education" hx-target="#resume-content" hx-swap="innerHTML">
-                <div class="mb-4">
-                    <label for="school" class="block text-sm font-medium text-gray-700 mb-1">School</label>
-                    <input 
-                        type="text" 
-                        id="school" 
-                        name="school" 
-                        required
-                        class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        placeholder="University of Example">
-                </div>
-                <div class="mb-4">
-                    <label for="degree" class="block text-sm font-medium text-gray-700 mb-1">Degree</label>
-                    <input 
-                        type="text" 
-                        id="degree" 
-                        name="degree" 
-                        class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        placeholder="Bachelor of Science">
-                </div>
-                <div class="mb-4">
-                    <label for="major" class="block text-sm font-medium text-gray-700 mb-1">Major</label>
-                    <input 
-                        type="text" 
-                        id="major" 
-                        name="major" 
-                        class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        placeholder="Computer Science">
-                </div>
-                <div class="mb-4">
-                    <label for="start_date" class="block text-sm font-medium text-gray-700 mb-1">Start Date</label>
-                    <input 
-                        type="date" 
-                        id="start_date" 
-                        name="start_date" 
-                        class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
-                </div>
-                <div class="mb-4">
-                    <label for="end_date" class="block text-sm font-medium text-gray-700 mb-1">End Date</label>
-                    <input 
-                        type="date" 
-                        id="end_date" 
-                        name="end_date" 
-                        class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
-                </div>
-                <div class="flex space-x-3">
-                    <button 
-                        type="submit"
-                        class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-md text-sm font-medium">
-                        Save Changes
-                    </button>
-                    <button 
-                        type="button"
-                        hx-get="/api/resumes/{resume_id}"
-                        hx-target="#resume-content"
-                        hx-swap="innerHTML"
-                        class="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded-md text-sm font-medium">
-                        Cancel
-                    </button>
-                </div>
-            </form>
-        </div>
-        """
-        return HTMLResponse(content=html_content)
-
-    @app.get(
-        "/dashboard/resumes/{resume_id}/edit/experience",
-        response_class=HTMLResponse,
-    )
-    async def edit_experience(request: Request, resume_id: int):
-        """
-        Serve the form for editing experience information.
-
-        Args:
-            request: The HTTP request object.
-            resume_id: The ID of the resume to edit.
-
-        Returns:
-            HTMLResponse: A form for editing experience information.
-
-        Notes:
-            1. Return an HTML form with fields for experience information.
-            2. Include submit and cancel buttons.
-
-        """
-        _msg = f"Edit experience form requested for resume {resume_id}"
-        log.debug(_msg)
-        html_content = f"""
-        <div class="h-full flex flex-col">
-            <h2 class="text-xl font-semibold mb-4">Edit Experience</h2>
-            <form hx-post="/api/resumes/{resume_id}/edit/experience" hx-target="#resume-content" hx-swap="innerHTML">
-                <div class="mb-4">
-                    <label for="company" class="block text-sm font-medium text-gray-700 mb-1">Company</label>
-                    <input 
-                        type="text" 
-                        id="company" 
-                        name="company" 
-                        required
-                        class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        placeholder="Example Corp">
-                </div>
-                <div class="mb-4">
-                    <label for="title" class="block text-sm font-medium text-gray-700 mb-1">Job Title</label>
-                    <input 
-                        type="text" 
-                        id="title" 
-                        name="title" 
-                        required
-                        class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        placeholder="Software Engineer">
-                </div>
-                <div class="mb-4">
-                    <label for="start_date" class="block text-sm font-medium text-gray-700 mb-1">Start Date</label>
-                    <input 
-                        type="date" 
-                        id="start_date" 
-                        name="start_date" 
-                        class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
-                </div>
-                <div class="mb-4">
-                    <label for="end_date" class="block text-sm font-medium text-gray-700 mb-1">End Date</label>
-                    <input 
-                        type="date" 
-                        id="end_date" 
-                        name="end_date" 
-                        class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
-                </div>
-                <div class="mb-4">
-                    <label for="description" class="block text-sm font-medium text-gray-700 mb-1">Description</label>
-                    <textarea 
-                        id="description" 
-                        name="description" 
-                        rows="4"
-                        class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        placeholder="Describe your responsibilities and achievements..."></textarea>
-                </div>
-                <div class="flex space-x-3">
-                    <button 
-                        type="submit"
-                        class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-md text-sm font-medium">
-                        Save Changes
-                    </button>
-                    <button 
-                        type="button"
-                        hx-get="/api/resumes/{resume_id}"
-                        hx-target="#resume-content"
-                        hx-swap="innerHTML"
-                        class="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded-md text-sm font-medium">
-                        Cancel
-                    </button>
-                </div>
-            </form>
-        </div>
-        """
-        return HTMLResponse(content=html_content)
-
-    @app.get(
-        "/dashboard/resumes/{resume_id}/edit/projects",
-        response_class=HTMLResponse,
-    )
-    async def edit_projects(request: Request, resume_id: int):
-        """
-        Serve the form for editing projects information.
-
-        Args:
-            request: The HTTP request object.
-            resume_id: The ID of the resume to edit.
-
-        Returns:
-            HTMLResponse: A form for editing projects information.
-
-        Notes:
-            1. Return an HTML form with fields for projects information.
-            2. Include submit and cancel buttons.
-
-        """
-        _msg = f"Edit projects form requested for resume {resume_id}"
-        log.debug(_msg)
-        html_content = f"""
-        <div class="h-full flex flex-col">
-            <h2 class="text-xl font-semibold mb-4">Edit Projects</h2>
-            <form hx-post="/api/resumes/{resume_id}/edit/projects" hx-target="#resume-content" hx-swap="innerHTML">
-                <div class="mb-4">
-                    <label for="project_title" class="block text-sm font-medium text-gray-700 mb-1">Project Title</label>
-                    <input 
-                        type="text" 
-                        id="project_title" 
-                        name="project_title" 
-                        required
-                        class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        placeholder="Resume Editor Application">
-                </div>
-                <div class="mb-4">
-                    <label for="project_description" class="block text-sm font-medium text-gray-700 mb-1">Description</label>
-                    <textarea 
-                        id="project_description" 
-                        name="project_description" 
-                        rows="3"
-                        class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        placeholder="A web-based application for resume editing..."></textarea>
-                </div>
-                <div class="mb-4">
-                    <label for="project_url" class="block text-sm font-medium text-gray-700 mb-1">URL</label>
-                    <input 
-                        type="url" 
-                        id="project_url" 
-                        name="project_url" 
-                        class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        placeholder="https://github.com/example/resume-editor">
-                </div>
-                <div class="mb-4">
-                    <label for="project_start_date" class="block text-sm font-medium text-gray-700 mb-1">Start Date</label>
-                    <input 
-                        type="date" 
-                        id="project_start_date" 
-                        name="project_start_date" 
-                        class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
-                </div>
-                <div class="mb-4">
-                    <label for="project_end_date" class="block text-sm font-medium text-gray-700 mb-1">End Date</label>
-                    <input 
-                        type="date" 
-                        id="project_end_date" 
-                        name="project_end_date" 
-                        class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
-                </div>
-                <div class="flex space-x-3">
-                    <button 
-                        type="submit"
-                        class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-md text-sm font-medium">
-                        Save Changes
-                    </button>
-                    <button 
-                        type="button"
-                        hx-get="/api/resumes/{resume_id}"
-                        hx-target="#resume-content"
-                        hx-swap="innerHTML"
-                        class="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded-md text-sm font-medium">
-                        Cancel
-                    </button>
-                </div>
-            </form>
-        </div>
-        """
-        return HTMLResponse(content=html_content)
-
-    @app.get(
-        "/dashboard/resumes/{resume_id}/edit/certifications",
-        response_class=HTMLResponse,
-    )
-    async def edit_certifications(request: Request, resume_id: int):
-        """
-        Serve the form for editing certifications information.
-
-        Args:
-            request: The HTTP request object.
-            resume_id: The ID of the resume to edit.
-
-        Returns:
-            HTMLResponse: A form for editing certifications information.
-
-        Notes:
-            1. Return an HTML form with fields for certifications information.
-            2. Include submit and cancel buttons.
-
-        """
-        _msg = f"Edit certifications form requested for resume {resume_id}"
-        log.debug(_msg)
-        html_content = f"""
-        <div class="h-full flex flex-col">
-            <h2 class="text-xl font-semibold mb-4">Edit Certifications</h2>
-            <form hx-post="/api/resumes/{resume_id}/edit/certifications" hx-target="#resume-content" hx-swap="innerHTML">
-                <div class="mb-4">
-                    <label for="cert_name" class="block text-sm font-medium text-gray-700 mb-1">Certification Name</label>
-                    <input 
-                        type="text" 
-                        id="cert_name" 
-                        name="cert_name" 
-                        required
-                        class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        placeholder="AWS Certified Solutions Architect">
-                </div>
-                <div class="mb-4">
-                    <label for="cert_issuer" class="block text-sm font-medium text-gray-700 mb-1">Issuer</label>
-                    <input 
-                        type="text" 
-                        id="cert_issuer" 
-                        name="cert_issuer" 
-                        class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        placeholder="Amazon Web Services">
-                </div>
-                <div class="mb-4">
-                    <label for="cert_id" class="block text-sm font-medium text-gray-700 mb-1">Certification ID</label>
-                    <input 
-                        type="text" 
-                        id="cert_id" 
-                        name="cert_id" 
-                        class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        placeholder="ABC123XYZ">
-                </div>
-                <div class="mb-4">
-                    <label for="cert_issued_date" class="block text-sm font-medium text-gray-700 mb-1">Issued Date</label>
-                    <input 
-                        type="date" 
-                        id="cert_issued_date" 
-                        name="cert_issued_date" 
-                        class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
-                </div>
-                <div class="mb-4">
-                    <label for="cert_expiry_date" class="block text-sm font-medium text-gray-700 mb-1">Expiry Date</label>
-                    <input 
-                        type="date" 
-                        id="cert_expiry_date" 
-                        name="cert_expiry_date" 
-                        class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
-                </div>
-                <div class="flex space-x-3">
-                    <button 
-                        type="submit"
-                        class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-md text-sm font-medium">
-                        Save Changes
-                    </button>
-                    <button 
-                        type="button"
-                        hx-get="/api/resumes/{resume_id}"
-                        hx-target="#resume-content"
-                        hx-swap="innerHTML"
-                        class="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded-md text-sm font-medium">
-                        Cancel
-                    </button>
-                </div>
-            </form>
-        </div>
-        """
-        return HTMLResponse(content=html_content)
 
     _msg = "FastAPI application created successfully"
     log.debug(_msg)

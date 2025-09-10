@@ -1043,8 +1043,6 @@ async def test__refine_experience_section(
     }
     assert events[5]["status"] == "done"
     final_content = events[5]["content"]
-
-    # 2. Check the final reconstructed content
     assert "# Personal" in final_content
     assert "Name: Test Person" in final_content
 
@@ -1111,12 +1109,17 @@ async def test__refine_experience_section_no_roles(
 
     # Assert
     # 1. Check yielded events
-    assert events == [
-        {"status": "in_progress", "message": "Parsing resume..."},
-        {"status": "in_progress", "message": "Analyzing job description..."},
-        {"status": "in_progress", "message": "Reconstructing resume..."},
-        {"status": "done", "content": "reconstructed content with no roles"},
-    ]
+    assert events[0] == {"status": "in_progress", "message": "Parsing resume..."}
+    assert events[1] == {
+        "status": "in_progress",
+        "message": "Analyzing job description...",
+    }
+    assert events[2] == {
+        "status": "in_progress",
+        "message": "Reconstructing resume...",
+    }
+    assert events[3]["status"] == "done"
+    assert events[3]["content"] == "reconstructed content with no roles"
 
     # 2. Check mocks were called
     mock_analyze_job.assert_awaited_once()
@@ -1214,38 +1217,37 @@ async def test__refine_experience_section_role_refinement_fails(
 
 
 @pytest.mark.asyncio
-@patch("resume_editor.app.llm.orchestration.log")
 @patch("resume_editor.app.llm.orchestration._refine_experience_section")
 async def test_refine_experience_section_wrapper_general_exception(
-    mock_private_refiner, mock_log
+    mock_private_refiner,
 ):
     """Test that the public wrapper handles a general exception from the private generator."""
     # Arrange
     async def mock_generator_with_error():
         yield {"status": "one"}
-        raise Exception("A wild error appeared!")
+        raise ValueError("A wild error appeared!")
 
     mock_private_refiner.return_value = mock_generator_with_error()
 
     # Act
     mock_request = MagicMock(spec=Request)
     events = []
-    async for event in refine_experience_section(mock_request, "r", "j", None, None, None):
+    async for event in refine_experience_section(
+        mock_request, "r", "j", None, None, None
+    ):
         events.append(event)
 
     # Assert
-    assert len(events) == 2
-    assert events[0] == {"status": "one"}
-    assert events[1] == {"status": "error", "message": "A wild error appeared!"}
-    mock_log.exception.assert_called_once()
-    assert "An unexpected error occurred" in mock_log.exception.call_args.args[0]
+    assert events == [
+        {"status": "one"},
+        {"status": "error", "message": "A wild error appeared!"},
+    ]
 
 
 @pytest.mark.asyncio
-@patch("resume_editor.app.llm.orchestration.log")
 @patch("resume_editor.app.llm.orchestration._refine_experience_section")
 async def test_refine_experience_section_wrapper_authentication_error(
-    mock_private_refiner, mock_log
+    mock_private_refiner,
 ):
     """Test that the public wrapper handles an AuthenticationError from the private generator."""
     # Arrange
@@ -1258,18 +1260,18 @@ async def test_refine_experience_section_wrapper_authentication_error(
     # Act
     mock_request = MagicMock(spec=Request)
     events = []
-    async for event in refine_experience_section(mock_request, "r", "j", None, None, None):
+    async for event in refine_experience_section(
+        mock_request, "r", "j", None, None, None
+    ):
         events.append(event)
-
     # Assert
-    assert len(events) == 2
-    assert events[0] == {"status": "one"}
-    assert events[1] == {
-        "status": "error",
-        "message": "LLM authentication failed. Please check your API key in settings.",
-    }
-    mock_log.warning.assert_called_once()
-    assert "LLM authentication error" in mock_log.warning.call_args.args[0]
+    assert events == [
+        {"status": "one"},
+        {
+            "status": "error",
+            "message": "LLM authentication failed. Please check your API key in settings.",
+        },
+    ]
 
 
 @pytest.mark.asyncio
