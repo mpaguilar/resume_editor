@@ -3,4 +3,5 @@ read:
   - APP_SPEC.md
   - DOCSTRINGS.md
   - resume_writer_docs.md
+  - _htmx_sse_docs.html
 gitignore: false
