@@ -194,6 +194,7 @@ async def parse_resume_endpoint(request: ParseRequest):
 
 @router.post("", response_model=ResumeResponse)
 async def create_resume(
+    http_request: Request,
     request: ResumeCreateRequest,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user_from_cookie),
@@ -201,27 +202,31 @@ async def create_resume(
     """
     Save a new resume to the database via API, associating it with the current user.
 
+    This endpoint handles both standard JSON API calls and HTMX form submissions that
+    trigger a page redirect.
+
     Args:
+        http_request (Request): The HTTP request object.
         request (ResumeCreateRequest): The request containing the resume name and content.
         db (Session): The database session dependency.
         current_user (User): The current authenticated user.
 
     Returns:
-        ResumeResponse: The created resume's ID and name.
+        ResumeResponse | HTMLResponse: For HTMX requests, returns an empty response with
+                                       an `HX-Redirect` header. For standard API
+                                       calls, returns the created resume's data.
 
     Raises:
         HTTPException: If there's an error saving the resume to the database or if Markdown validation fails.
 
     Notes:
         1. Validates the Markdown content using the resume parser.
-        2. If validation fails, raises a 422 error with parsing details.
-        3. Creates a new DatabaseResume instance with the provided name and content.
-        4. Associates the resume with the current user using the user_id.
-        5. Adds the new resume to the database session.
-        6. Commits the transaction to save the data.
-        7. Refreshes the resume object to ensure it has the latest state, including the ID.
-        8. Returns a ResumeResponse with the resume ID and name.
-        9. Performs database access: Writes to the database via db.add and db.commit.
+        2. Creates a new DatabaseResume instance with the provided name and content.
+        3. Associates the resume with the current user.
+        4. Saves the new resume to the database.
+        5. If the request is from HTMX, returns an HTMLResponse with a `HX-Redirect`
+           header pointing to the new resume's edit page.
+        6. Otherwise, returns a JSON response with the new resume's data.
 
     """
     # Validate Markdown content before saving
@@ -233,6 +238,9 @@ async def create_resume(
         name=request.name,
         content=request.content,
     )
+
+    if "HX-Request" in http_request.headers:
+        return HTMLResponse(headers={"HX-Redirect": f"/resumes/{resume.id}/edit"})
 
     return ResumeResponse(id=resume.id, name=resume.name)
 

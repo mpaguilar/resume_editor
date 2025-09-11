@@ -760,10 +760,10 @@ def test_generate_resume_detail_html_refine_form(test_resume):
 
 @patch("resume_editor.app.api.routes.resume.validate_resume_content")
 @patch("resume_editor.app.api.routes.resume.create_resume_db")
-def test_create_resume_json(
+def test_create_resume_no_htmx(
     mock_create_resume_db, mock_validate, client_with_auth_no_resume, test_user
 ):
-    """Test creating a resume via JSON API returns a JSON response."""
+    """Test creating a resume without HTMX returns a JSON response."""
     mock_validate.return_value = None
     created_resume = DatabaseResume(
         user_id=test_user.id,
@@ -789,6 +789,32 @@ def test_create_resume_json(
     assert call_args["content"] == VALID_MINIMAL_RESUME_CONTENT
 
 
+@patch("resume_editor.app.api.routes.resume.validate_resume_content")
+@patch("resume_editor.app.api.routes.resume.create_resume_db")
+def test_create_resume_htmx_redirect(
+    mock_create_resume_db, mock_validate, client_with_auth_no_resume, test_user
+):
+    """Test creating a resume via HTMX returns a redirect response."""
+    mock_validate.return_value = None
+    created_resume = DatabaseResume(
+        user_id=test_user.id,
+        name="New Resume",
+        content=VALID_MINIMAL_RESUME_CONTENT,
+    )
+    created_resume.id = 99
+    mock_create_resume_db.return_value = created_resume
+
+    response = client_with_auth_no_resume.post(
+        "/api/resumes",
+        json={"name": "New Resume", "content": VALID_MINIMAL_RESUME_CONTENT},
+        headers={"HX-Request": "true"},
+    )
+
+    assert response.status_code == 200
+    assert "HX-Redirect" in response.headers
+    assert response.headers["HX-Redirect"] == "/resumes/99/edit"
+    assert response.text == ""
+    mock_create_resume_db.assert_called_once()
 
 
 @patch("resume_editor.app.api.routes.resume.validate_resume_content")
