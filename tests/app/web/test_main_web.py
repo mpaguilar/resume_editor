@@ -14,7 +14,7 @@ from resume_editor.app.api.routes.route_logic.resume_parsing import (
 )
 from resume_editor.app.core.auth import get_current_user, get_current_user_from_cookie
 from resume_editor.app.database.database import get_db
-from resume_editor.app.main import create_app, initialize_database, main
+from resume_editor.app.main import create_app, initialize_database
 from resume_editor.app.models.resume_model import Resume as DatabaseResume
 from resume_editor.app.models.role import Role
 from resume_editor.app.models.user import User
@@ -301,33 +301,6 @@ def test_initialize_database_logs_message(mock_log_debug):
     mock_log_debug.assert_called_with(
         "Database initialization is now handled by Alembic. Skipping create_all."
     )
-
-
-@patch("uvicorn.run")
-def test_main_invoked_by_entrypoint(mock_uvicorn_run):
-    """
-    GIVEN the script is run directly
-    WHEN `if __name__ == '__main__'` is checked
-    THEN main() is called, which starts the uvicorn server.
-    """
-    runpy.run_module("resume_editor.app.main", run_name="__main__")
-    mock_uvicorn_run.assert_called_once_with(ANY, host="0.0.0.0", port=8000)
-
-
-@patch("uvicorn.run")
-@patch("resume_editor.app.main.initialize_database")
-def test_main_function_calls_init_db_and_uvicorn(mock_init_db, mock_uvicorn_run):
-    """
-    GIVEN the main function
-    WHEN it is called
-    THEN it initializes the database and starts the uvicorn server.
-    """
-    # Note: Patch decorator order means mocks are passed inner-to-outer
-    # @patch("uvicorn.run") -> mock_uvicorn_run
-    # @patch("...initialize_database") -> mock_init_db
-    main()
-    mock_init_db.assert_called_once()
-    mock_uvicorn_run.assert_called_once_with(ANY, host="0.0.0.0", port=8000)
 
 
 def test_dashboard_as_non_admin():
@@ -851,5 +824,7 @@ def test_get_refine_resume_page_not_found():
     assert response.json()["detail"] == "Resume not found"
 
     app.dependency_overrides.clear()
+
+
 
 

@@ -530,14 +530,3 @@ def initialize_database():
     log.debug(_msg)
 
 
-def main():
-    """Entry point for running the application directly."""
-    import uvicorn
-
-    initialize_database()
-    uvicorn.run(app, host="0.0.0.0", port=8000)
-
-
-# Only run uvicorn when this module is run directly
-if __name__ == "__main__":
-    main()
