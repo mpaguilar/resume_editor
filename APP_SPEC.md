@@ -36,19 +36,24 @@ Pay attention to the `BasicBlockParse` class. It is a base class for many parsin
 
 ## Web Dashboard
 
-* An HTMX-powered web dashboard for managing resumes and user settings.
-* View a list of all resumes for the current user.
-* View resume details, including a rendered view of the Markdown.
-* Create new resumes from a form.
-* Edit all sections of a resume (personal, education, experience, etc.) through dedicated forms.
-* Initiate actions like AI refinement and export from the dashboard, with real-time progress updates and error notifications for AI tasks.
-* A dedicated settings page for managing LLM configurations and changing passwords.
+*   An HTMX-powered web dashboard for managing resumes and user settings.
+*   Displays a list of all resumes for the current user, with links to a dedicated editor page for each resume.
+*   Provides a form to create new resumes. After creation, the user is redirected to the editor page for the new resume.
+*   A dedicated settings page for managing LLM configurations and changing passwords.
+
+## Dedicated Resume Editor
+
+*   A dedicated, HTMX-powered page for viewing and editing a single resume.
+*   Displays the resume's name and its full Markdown content.
+*   Provides forms for editing all sections of a resume (personal, education, experience, etc.).
+*   Initiates actions like AI refinement and export, with real-time progress updates and error notifications for AI tasks.
 
 ## Resume Management
 
 * Create new resumes via a web form; new resumes are pre-filled with valid placeholder content.
 * Save resumes to a PostgreSQL database with user-assigned names.
 * List, update, and delete resumes.
+* Save LLM-refined content either by overwriting the existing resume or by creating a new one.
 * Download resumes in Markdown or DOCX formats.
 
 ## Editing Features
@@ -56,7 +61,7 @@ Pay attention to the `BasicBlockParse` class. It is a base class for many parsin
 * Edit a resume's name and raw Markdown content
 * Edit structured candidate information (contact details, education, experience, etc.) through dedicated forms
 * Dedicated interfaces for editing individual jobs and projects
-* Per-item inclusion controls: Include, Not Relevant (summary only), Omit
+* Per-item inclusion controls: Include, Not Relevant (includes summary and skills, with placeholder for responsibilities), Omit
 * Filter jobs for export using customizable date ranges
 
 ## Export Formats
@@ -68,11 +73,10 @@ Pay attention to the `BasicBlockParse` class. It is a base class for many parsin
 
 ## LLM Integration
 
-* Refine resume content using LLMs.
+* Refine the "Experience" section of a resume using LLMs.
 * Analyze job descriptions with an LLM to extract key skills and qualifications.
 * Multi-pass refinement of the "Experience" section, where each role is individually refined against the job analysis.
 * Real-time progress feedback using Server-Sent Events (SSE) during refinement, with graceful error handling.
-* Save and download LLM-refined versions.
 * Configure custom OpenAI-compatible API endpoints and model names.
 
 # Technical Requirements
