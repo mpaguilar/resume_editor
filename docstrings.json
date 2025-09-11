@@ -915,8 +915,8 @@
     "filename": "resume.py",
     "functions": [
       [
-        "_generate_resume_list_html(resumes: list[DatabaseResume]) -> str",
-        "Generates HTML for a list of resumes.\n\nArgs:\n    resumes (list[DatabaseResume]): The list of resumes to display.\n\nReturns:\n    str: HTML string for the resume list.\n\nNotes:\n    1. Checks if the resumes list is empty.\n    2. If empty, returns a message indicating no resumes were found.\n    3. Otherwise, generates HTML for each resume item with a link to the edit page.\n    4. Returns the concatenated HTML string."
+        "_generate_resume_list_html(resumes: list[DatabaseResume], selected_resume_id: int | None) -> str",
+        "Generates HTML for a list of resumes, optionally marking one as selected.\n\nArgs:\n    resumes (list[DatabaseResume]): The list of resumes to display.\n    selected_resume_id (int | None): The ID of the resume to mark as selected.\n\nReturns:\n    str: HTML string for the resume list.\n\nNotes:\n    1. Checks if the resumes list is empty.\n    2. If empty, returns a message indicating no resumes were found.\n    3. Otherwise, generates HTML for each resume item with a link to the edit page.\n    4. If `selected_resume_id` is provided, the corresponding item is marked with a \"selected\" class.\n    5. Returns the concatenated HTML string."
       ],
       [
         "_generate_resume_detail_html(resume: DatabaseResume) -> str",
@@ -1188,7 +1188,7 @@
       ],
       [
         "parse_resume(markdown_content: str) -> dict[str, Any]",
-        "Parse Markdown resume content using resume_writer parser and return a dictionary.\n\nArgs:\n    markdown_content (str): The Markdown content to parse, expected to follow a valid resume format.\n\nReturns:\n    dict[str, Any]: A dictionary representation of the parsed resume data, including:\n        - personal: Personal information (e.g., name, email, phone).\n        - experience: List of work experience entries.\n        - education: List of educational qualifications.\n        - certifications: List of certifications.\n        - Any other sections supported by resume_writer.\n\nRaises:\n    HTTPException: If parsing fails due to invalid format or content, with status 422 and a descriptive message.\n\nNotes:\n    1. Log the start of the parsing process.\n    2. Call parse_resume_to_writer_object to parse the Markdown content into a WriterResume object.\n    3. Convert the WriterResume object to a dictionary using vars().\n    4. Log successful completion.\n    5. Return the dictionary representation.\n    6. No disk, network, or database access is performed."
+        "Parse Markdown resume content using resume_writer parser and return a dictionary.\n\nArgs:\n    markdown_content (str): The Markdown content to parse, expected to follow a valid resume format.\n\nReturns:\n    dict[str, Any]: A dictionary representation of the parsed resume data, including:\n        - personal: Personal information (e.g., name, email, phone).\n        - experience: List of work experience entries.\n        - education: List of educational qualifications.\n        - certifications: List of certifications.\n        - Any other sections supported by resume_writer.\n\nRaises:\n    HTTPException: If parsing fails due to invalid format or content, with status 422 and a descriptive message.\n\nNotes:\n    1. Log the start of the parsing process.\n    2. Call a series of extraction functions to get serializable Pydantic models.\n    3. Construct a dictionary from these models.\n    4. Log successful completion.\n    5. Return the dictionary representation.\n    6. No disk, network, or database access is performed."
       ],
       [
         "parse_resume_content(markdown_content: str) -> dict[str, Any]",

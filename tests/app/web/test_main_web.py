@@ -1,16 +1,20 @@
 import html
 import logging
 import re
-from unittest.mock import MagicMock, patch
+import runpy
+from unittest.mock import ANY, MagicMock, patch
 
 from bs4 import BeautifulSoup
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
-from resume_editor.app.api.routes.route_logic.resume_parsing import parse_resume_content
+from resume_editor.app.api.routes.route_logic import user_crud
+from resume_editor.app.api.routes.route_logic.resume_parsing import (
+    parse_resume_content,
+)
 from resume_editor.app.core.auth import get_current_user, get_current_user_from_cookie
 from resume_editor.app.database.database import get_db
-from resume_editor.app.main import create_app
+from resume_editor.app.main import create_app, initialize_database, main
 from resume_editor.app.models.resume_model import Resume as DatabaseResume
 from resume_editor.app.models.role import Role
 from resume_editor.app.models.user import User
@@ -24,14 +28,306 @@ def test_dashboard_not_authenticated():
     """Test that unauthenticated access to /dashboard redirects to the login page."""
     app = create_app()
     client = TestClient(app)
-    app.dependency_overrides.clear()
 
+    # By default, no user is logged in
     response = client.get("/dashboard", follow_redirects=False)
 
     assert response.status_code == 307
     assert response.headers["location"] == "http://testserver/login"
 
     app.dependency_overrides.clear()
+
+
+@patch("resume_editor.app.main.user_crud.user_count")
+def test_setup_middleware_redirects_when_no_users(mock_user_count):
+    """
+    GIVEN no users exist in the database
+    WHEN a request is made to a protected page (e.g., /dashboard)
+    THEN the user is redirected to the /setup page.
+    """
+    app = create_app()
+    client = TestClient(app)
+    app.dependency_overrides.clear()
+
+    mock_user_count.return_value = 0
+
+    # dashboard is a non-excluded path
+    response = client.get("/dashboard", follow_redirects=False)
+
+    assert response.status_code == 307
+    assert response.headers["location"] == "/setup"
+    mock_user_count.assert_called_once()
+
+    # Check that an excluded path is not redirected
+    mock_user_count.reset_mock()
+    response = client.get("/login", follow_redirects=False)
+    assert response.status_code == 200
+    assert mock_user_count.call_count == 0
+
+    app.dependency_overrides.clear()
+
+
+def test_health_check():
+    """
+    GIVEN the application is running
+    WHEN the /health endpoint is requested
+    THEN a 200 OK response with {"status": "ok"} is returned.
+    """
+    app = create_app()
+    client = TestClient(app)
+    response = client.get("/health")
+    assert response.status_code == 200
+    assert response.json() == {"status": "ok"}
+    app.dependency_overrides.clear()
+
+
+def test_get_login_page():
+    """
+    GIVEN a request to the login page
+    WHEN the /login endpoint is requested with GET
+    THEN a 200 OK response with the login form is returned.
+    """
+    app = create_app()
+    client = TestClient(app)
+    response = client.get("/login")
+    assert response.status_code == 200
+    soup = BeautifulSoup(response.content, "html.parser")
+    assert soup.find("form", action="/login") is not None
+    app.dependency_overrides.clear()
+
+
+@patch("resume_editor.app.main.authenticate_user")
+def test_login_for_access_token_success(mock_authenticate_user):
+    """
+    GIVEN a user provides correct credentials
+    WHEN they submit the login form
+    THEN they are redirected to the dashboard and a cookie is set.
+    """
+    app = create_app()
+    client = TestClient(app)
+    app.dependency_overrides.clear()
+
+    mock_db = MagicMock()
+
+    def get_mock_db():
+        yield mock_db
+
+    app.dependency_overrides[get_db] = get_mock_db
+
+    mock_user = User(
+        id=1, username="testuser", email="test@test.com", hashed_password="hashed"
+    )
+    mock_authenticate_user.return_value = mock_user
+
+    response = client.post(
+        "/login",
+        data={"username": "testuser", "password": "password"},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 303
+    assert response.headers["location"] == "/dashboard"
+    assert "access_token" in response.cookies
+    mock_authenticate_user.assert_called_with(
+        db=mock_db, username="testuser", password="password"
+    )
+    app.dependency_overrides.clear()
+
+
+@patch("resume_editor.app.main.authenticate_user")
+def test_login_for_access_token_failure(mock_authenticate_user):
+    """
+    GIVEN a user provides incorrect credentials
+    WHEN they submit the login form
+    THEN the login page is re-rendered with an error message.
+    """
+    app = create_app()
+    client = TestClient(app)
+    app.dependency_overrides.clear()
+
+    mock_db = MagicMock()
+
+    def get_mock_db():
+        yield mock_db
+
+    app.dependency_overrides[get_db] = get_mock_db
+
+    mock_authenticate_user.return_value = None
+
+    response = client.post(
+        "/login", data={"username": "testuser", "password": "wrongpassword"}
+    )
+
+    assert response.status_code == 401
+    assert "Invalid username or password" in response.text
+    app.dependency_overrides.clear()
+
+
+def test_logout():
+    """
+    GIVEN an authenticated user
+    WHEN they navigate to /logout
+    THEN they are redirected to the login page and the cookie is cleared.
+    """
+    app = create_app()
+    client = TestClient(app)
+    app.dependency_overrides.clear()
+
+    # Set a dummy cookie to test deletion
+    client.cookies.set("access_token", "fake_token")
+
+    response = client.get("/logout", follow_redirects=False)
+
+    assert response.status_code == 307
+    assert response.headers["location"] == "http://testserver/login"
+    # The cookie should be expired
+    assert "Max-Age=0" in response.headers["set-cookie"]
+    app.dependency_overrides.clear()
+
+
+@patch("resume_editor.app.main.verify_password")
+@patch("resume_editor.app.main.get_password_hash")
+def test_change_password_form_success(mock_hash, mock_verify):
+    """
+    GIVEN a user submits a valid password change form
+    WHEN they POST to /change-password
+    THEN the password is updated and a success message is returned.
+    """
+    app = create_app()
+    client = TestClient(app)
+    app.dependency_overrides.clear()
+
+    mock_user = User(
+        id=1,
+        username="testuser",
+        email="test@test.com",
+        hashed_password="old_hashed_password",
+    )
+    mock_db = MagicMock()
+
+    app.dependency_overrides[get_current_user_from_cookie] = lambda: mock_user
+    app.dependency_overrides[get_db] = lambda: mock_db
+
+    mock_verify.return_value = True
+    mock_hash.return_value = "new_hashed_password"
+
+    form_data = {
+        "current_password": "old_password",
+        "new_password": "new_password",
+        "confirm_new_password": "new_password",
+    }
+    response = client.post("/change-password", data=form_data)
+
+    assert response.status_code == 200
+    assert "Success!" in response.text
+    assert "Your password has been changed" in response.text
+
+    mock_verify.assert_called_once_with("old_password", "old_hashed_password")
+    mock_hash.assert_called_once_with("new_password")
+    assert mock_user.hashed_password == "new_hashed_password"
+    mock_db.commit.assert_called_once()
+
+    app.dependency_overrides.clear()
+
+
+def test_change_password_form_mismatch():
+    """
+    GIVEN a user submits a password change form with mismatching new passwords
+    WHEN they POST to /change-password
+    THEN an error message about mismatching passwords is returned.
+    """
+    app = create_app()
+    client = TestClient(app)
+    app.dependency_overrides.clear()
+
+    mock_user = User(
+        id=1, username="testuser", email="test@test.com", hashed_password="hashed"
+    )
+    app.dependency_overrides[get_current_user_from_cookie] = lambda: mock_user
+
+    form_data = {
+        "current_password": "old_password",
+        "new_password": "new_password_1",
+        "confirm_new_password": "new_password_2",
+    }
+    response = client.post("/change-password", data=form_data)
+
+    assert response.status_code == 200
+    assert "New passwords do not match" in response.text
+
+    app.dependency_overrides.clear()
+
+
+@patch("resume_editor.app.main.verify_password")
+def test_change_password_form_incorrect_current_password(mock_verify):
+    """
+    GIVEN a user submits a password change form with an incorrect current password
+    WHEN they POST to /change-password
+    THEN an error message about incorrect password is returned.
+    """
+    app = create_app()
+    client = TestClient(app)
+    app.dependency_overrides.clear()
+
+    mock_user = User(
+        id=1, username="testuser", email="test@test.com", hashed_password="hashed"
+    )
+    app.dependency_overrides[get_current_user_from_cookie] = lambda: mock_user
+
+    mock_verify.return_value = False
+
+    form_data = {
+        "current_password": "wrong_old_password",
+        "new_password": "new_password",
+        "confirm_new_password": "new_password",
+    }
+    response = client.post("/change-password", data=form_data)
+
+    assert response.status_code == 200
+    assert "Incorrect current password" in response.text
+    mock_verify.assert_called_once_with("wrong_old_password", "hashed")
+
+    app.dependency_overrides.clear()
+
+
+@patch("resume_editor.app.main.log.debug")
+def test_initialize_database_logs_message(mock_log_debug):
+    """
+    GIVEN a call to initialize_database
+    WHEN the function is executed
+    THEN it logs that initialization is handled by Alembic.
+    """
+    initialize_database()
+    mock_log_debug.assert_called_with(
+        "Database initialization is now handled by Alembic. Skipping create_all."
+    )
+
+
+@patch("uvicorn.run")
+def test_main_invoked_by_entrypoint(mock_uvicorn_run):
+    """
+    GIVEN the script is run directly
+    WHEN `if __name__ == '__main__'` is checked
+    THEN main() is called, which starts the uvicorn server.
+    """
+    runpy.run_module("resume_editor.app.main", run_name="__main__")
+    mock_uvicorn_run.assert_called_once_with(ANY, host="0.0.0.0", port=8000)
+
+
+@patch("uvicorn.run")
+@patch("resume_editor.app.main.initialize_database")
+def test_main_function_calls_init_db_and_uvicorn(mock_init_db, mock_uvicorn_run):
+    """
+    GIVEN the main function
+    WHEN it is called
+    THEN it initializes the database and starts the uvicorn server.
+    """
+    # Note: Patch decorator order means mocks are passed inner-to-outer
+    # @patch("uvicorn.run") -> mock_uvicorn_run
+    # @patch("...initialize_database") -> mock_init_db
+    main()
+    mock_init_db.assert_called_once()
+    mock_uvicorn_run.assert_called_once_with(ANY, host="0.0.0.0", port=8000)
 
 
 def test_dashboard_as_non_admin():

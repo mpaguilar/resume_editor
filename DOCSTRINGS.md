@@ -3018,12 +3018,13 @@ Notes:
 ===
 # File: `resume_editor/app/api/routes/resume.py`
 
-## function: `_generate_resume_list_html(resumes: list[DatabaseResume]) -> str`
+## function: `_generate_resume_list_html(resumes: list[DatabaseResume], selected_resume_id: int | None) -> str`
 
-Generates HTML for a list of resumes.
+Generates HTML for a list of resumes, optionally marking one as selected.
 
 Args:
     resumes (list[DatabaseResume]): The list of resumes to display.
+    selected_resume_id (int | None): The ID of the resume to mark as selected.
 
 Returns:
     str: HTML string for the resume list.
@@ -3032,7 +3033,8 @@ Notes:
     1. Checks if the resumes list is empty.
     2. If empty, returns a message indicating no resumes were found.
     3. Otherwise, generates HTML for each resume item with a link to the edit page.
-    4. Returns the concatenated HTML string.
+    4. If `selected_resume_id` is provided, the corresponding item is marked with a "selected" class.
+    5. Returns the concatenated HTML string.
 
 ---
 
@@ -4133,8 +4135,8 @@ Raises:
 
 Notes:
     1. Log the start of the parsing process.
-    2. Call parse_resume_to_writer_object to parse the Markdown content into a WriterResume object.
-    3. Convert the WriterResume object to a dictionary using vars().
+    2. Call a series of extraction functions to get serializable Pydantic models.
+    3. Construct a dictionary from these models.
     4. Log successful completion.
     5. Return the dictionary representation.
     6. No disk, network, or database access is performed.
