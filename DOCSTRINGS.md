@@ -2971,12 +2971,6 @@ Notes:
 
 ---
 
-## function: `main() -> UnknownType`
-
-Entry point for running the application directly.
-
----
-
 
 ===
 

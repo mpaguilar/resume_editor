@@ -891,10 +891,6 @@
       [
         "initialize_database() -> UnknownType",
         "Initialize the database.\n\nArgs:\n    None\n\nReturns:\n    None\n\nNotes:\n    1. Database initialization is now handled by Alembic migrations.\n    2. This function is kept for structural consistency but performs no actions."
-      ],
-      [
-        "main() -> UnknownType",
-        "Entry point for running the application directly."
       ]
     ],
     "classes": {}
