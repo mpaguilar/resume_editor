@@ -10,6 +10,11 @@ A single file may have multiple test files.
 
 These are known mappings:
 
+- `resume_editor/app/api/dependencies.py` -> `tests/app/api/test_dependencies.py`
+- `resume_editor/app/api/routes/html_fragments.py` -> `tests/app/api/routes/test_html_fragments.py`
+- `resume_editor/app/api/routes/resume_ai.py` -> `tests/app/api/routes/test_resume_ai.py`
+- `resume_editor/app/api/routes/resume_edit.py` -> `tests/app/api/routes/test_resume_edit.py`
+- `resume_editor/app/api/routes/resume_export.py` -> `tests/app/api/routes/test_resume_export.py`
 - `resume_editor/app/api/routes/user.py` -> `tests/app/api/routes/test_user_route.py`
 - `resume_editor/app/main.py` -> `tests/app/web/test_main_web.py`
 - `resume_editor/app/main.py` -> `tests/app/web/test_resume_web.py`

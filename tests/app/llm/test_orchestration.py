@@ -22,7 +22,7 @@ from resume_editor.app.api.routes.route_models import (
     ExperienceResponse,
     PersonalInfoResponse,
 )
-from resume_editor.app.llm.models import JobAnalysis, RefinedSection
+from resume_editor.app.llm.models import JobAnalysis, RefinedRole, RefinedSection
 from resume_editor.app.models.resume.experience import (
     Project,
     ProjectDescription,
@@ -247,7 +247,7 @@ def mock_chain_invocations_for_analysis():
 
         # The final ainvoke should return a string, not a JobAnalysis object
         final_chain.ainvoke = AsyncMock(
-            return_value='```json\n{"required_skills": ["python", "fastapi"], "nice_to_have_skills": ["docker"], "job_title": "Software Engineer"}\n```'
+            return_value='```json\n{"key_skills": ["python", "fastapi"], "primary_duties": ["develop things"], "themes": ["agile"]}\n```'
         )
 
         yield {
@@ -268,9 +268,9 @@ async def test_analyze_job_description(mock_chain_invocations_for_analysis):
         llm_model_name=None,
     )
     assert isinstance(result, JobAnalysis)
-    assert result.required_skills == ["python", "fastapi"]
-    assert result.nice_to_have_skills == ["docker"]
-    assert result.job_title == "Software Engineer"
+    assert result.key_skills == ["python", "fastapi"]
+    assert result.primary_duties == ["develop things"]
+    assert result.themes == ["agile"]
 
 
 def test_refine_resume_section_with_llm_dispatcher():
@@ -707,9 +707,23 @@ def create_mock_project() -> Project:
 def create_mock_job_analysis() -> JobAnalysis:
     """Helper to create a mock JobAnalysis object for testing."""
     return JobAnalysis(
-        required_skills=["python", "fastapi"],
-        nice_to_have_skills=["docker"],
-        job_title="Software Engineer",
+        key_skills=["python", "fastapi"],
+        primary_duties=["develop things"],
+        themes=["agile"],
+    )
+
+
+def create_mock_refined_role() -> RefinedRole:
+    """Helper to create a mock RefinedRole object for testing."""
+    return RefinedRole(
+        basics=RoleBasics(
+            company="Old Company",
+            title="Old Title",
+            start_date=datetime(2020, 1, 1),
+        ),
+        summary=RoleSummary(text="Refined summary."),
+        responsibilities=RoleResponsibilities(text="* Do refined things."),
+        skills=RoleSkills(skills=["Refined Skill"]),
     )
 
 
@@ -786,7 +800,7 @@ async def test_refine_role_success(mock_chain_invocations_for_role_refine):
         llm_model_name=None,
     )
 
-    assert isinstance(result, Role)
+    assert isinstance(result, RefinedRole)
     assert result.summary.text == "Refined summary."
     assert result.responsibilities.text == "* Do refined things."
     assert result.skills.skills == ["Refined Skill"]
@@ -1008,9 +1022,9 @@ async def test__refine_experience_section(
     mock_analyze_job.return_value = mock_job_analysis
 
     # 4. Mock return values for refiner (it's called with await)
-    refined_role1 = create_mock_role()
+    refined_role1 = create_mock_refined_role()
     refined_role1.summary.text = "Refined summary 1"
-    refined_role2 = create_mock_role()
+    refined_role2 = create_mock_refined_role()
     refined_role2.summary.text = "Refined summary 2"
     mock_refine_role.side_effect = [refined_role1, refined_role2]
 

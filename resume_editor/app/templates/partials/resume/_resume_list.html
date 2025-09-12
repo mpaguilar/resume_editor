@@ -1,0 +1,18 @@
+{% if not resumes %}
+<div class="text-center py-8">
+    <p class="text-gray-500">No resumes found.</p>
+    <p class="text-gray-400 text-sm mt-2">Create your first resume using the "+ New Resume" button.</p>
+</div>
+{% else %}
+    {% for r in resumes %}
+    <div class="resume-item p-3 border-b border-gray-200 flex justify-between items-center{% if selected_resume_id and r.id == selected_resume_id %} selected{% endif %}">
+        <div>
+           <div class="font-medium text-gray-800">{{ r.name }}</div>
+           <div class="text-xs text-gray-500">ID: {{ r.id }}</div>
+        </div>
+        <a href="/resumes/{{ r.id }}/edit" class="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-sm">
+            Edit
+        </a>
+    </div>
+    {% endfor %}
+{% endif %}

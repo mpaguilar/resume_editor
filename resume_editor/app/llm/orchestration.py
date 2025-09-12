@@ -28,7 +28,7 @@ from resume_editor.app.api.routes.route_models import (
     ExperienceResponse,
     PersonalInfoResponse,
 )
-from resume_editor.app.llm.models import JobAnalysis, RefinedSection
+from resume_editor.app.llm.models import JobAnalysis, RefinedRole, RefinedSection
 from resume_editor.app.llm.prompts import (
     JOB_ANALYSIS_HUMAN_PROMPT,
     JOB_ANALYSIS_SYSTEM_PROMPT,
@@ -316,7 +316,7 @@ async def refine_role(
     llm_endpoint: str | None,
     api_key: str | None,
     llm_model_name: str | None,
-) -> Role:
+) -> RefinedRole:
     """Uses an LLM to refine a single resume Role based on a job analysis.
 
     Args:
@@ -351,7 +351,7 @@ async def refine_role(
     _msg = "refine_role starting"
     log.debug(_msg)
 
-    parser = PydanticOutputParser(pydantic_object=Role)
+    parser = PydanticOutputParser(pydantic_object=RefinedRole)
 
     prompt = ChatPromptTemplate.from_messages(
         [
@@ -395,7 +395,7 @@ async def refine_role(
             },
         )
         parsed_json = parse_json_markdown(response_str)
-        refined_role = Role.model_validate(parsed_json)
+        refined_role = RefinedRole.model_validate(parsed_json)
 
     except (json.JSONDecodeError, ValueError) as e:
         _msg = f"Failed to parse LLM response for role refinement: {e!s}"
@@ -452,13 +452,14 @@ async def _refine_experience_section(
             status_msg = f"Refining role {i} of {total_roles}"
             yield {"status": "in_progress", "message": status_msg}
             log.debug(status_msg)
-            refined_role = await refine_role(
+            refined_role_data = await refine_role(
                 role=role,
                 job_analysis=job_analysis,
                 llm_endpoint=llm_endpoint,
                 api_key=api_key,
                 llm_model_name=llm_model_name,
             )
+            refined_role = Role.model_validate(refined_role_data.model_dump())
             refined_roles.append(refined_role)
 
     if client_disconnected:

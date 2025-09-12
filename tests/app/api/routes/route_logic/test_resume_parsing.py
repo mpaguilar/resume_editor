@@ -5,6 +5,7 @@ from fastapi import HTTPException
 
 from resume_editor.app.api.routes.route_logic.resume_parsing import (
     parse_resume,
+    parse_resume_to_writer_object,
     validate_resume_content,
 )
 
@@ -76,3 +77,56 @@ def test_validate_resume_content_failure(mock_parse_resume):
         validate_resume_content("invalid markdown")
     assert exc_info.value.status_code == 422
     assert "Invalid Markdown format: Parsing failed" in exc_info.value.detail
+
+
+def test_parse_resume_to_writer_object_success():
+    """Test that parse_resume_to_writer_object successfully parses valid markdown."""
+    valid_markdown = """
+# Personal
+## Contact Information
+Name: Testy McTestface
+"""
+    result = parse_resume_to_writer_object(valid_markdown)
+    assert result.personal is not None
+    assert result.personal.contact_info.name == "Testy McTestface"
+
+
+def test_parse_resume_to_writer_object_with_leading_junk():
+    """Test that parse_resume_to_writer_object handles leading junk correctly."""
+    markdown_with_junk = """
+This is leading junk.
+Some other text.
+
+# Personal
+## Contact Information
+Name: Testy McTestface
+"""
+    result = parse_resume_to_writer_object(markdown_with_junk)
+    assert result.personal is not None
+    assert result.personal.contact_info.name == "Testy McTestface"
+
+
+def test_parse_resume_to_writer_object_no_valid_sections():
+    """Test that parse_resume_to_writer_object raises ValueError for invalid content."""
+    invalid_markdown = "Completely invalid content without any sections."
+    with pytest.raises(ValueError) as exc_info:
+        parse_resume_to_writer_object(invalid_markdown)
+    assert "No valid resume sections found in content." in str(exc_info.value)
+
+
+def test_parse_resume_to_writer_object_empty_content():
+    """Test that parse_resume_to_writer_object raises ValueError for empty content."""
+    with pytest.raises(ValueError) as exc_info:
+        parse_resume_to_writer_object("")
+    assert "No valid resume sections found in content." in str(exc_info.value)
+
+
+def test_parse_resume_to_writer_object_invalid_header():
+    """Test parsing with an invalid top-level header."""
+    markdown_with_invalid_header = """
+# Invalid Section
+Some content
+"""
+    with pytest.raises(ValueError) as exc_info:
+        parse_resume_to_writer_object(markdown_with_invalid_header)
+    assert "No valid resume sections found in content." in str(exc_info.value)

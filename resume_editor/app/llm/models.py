@@ -2,6 +2,13 @@ import logging
 
 from pydantic import BaseModel, Field
 
+from resume_editor.app.models.resume.experience import (
+    RoleBasics,
+    RoleResponsibilities,
+    RoleSkills,
+    RoleSummary,
+)
+
 log = logging.getLogger(__name__)
 
 
@@ -23,10 +30,23 @@ class RefinedSection(BaseModel):
 class JobAnalysis(BaseModel):
     """A structured analysis of a job description, extracting key information."""
 
-    required_skills: list[str] = Field(
-        ..., description="A list of required skills from the job description."
+    key_skills: list[str] = Field(
+        ...,
+        description="A list of the most important technical skills, soft skills, tools, and qualifications from the job description.",
     )
-    nice_to_have_skills: list[str] = Field(
-        ..., description="A list of nice-to-have skills from the job description."
+    primary_duties: list[str] = Field(
+        ..., description="A list of the primary duties and responsibilities of the role."
     )
-    job_title: str = Field(..., description="The job title from the job description.")
+    themes: list[str] = Field(
+        ...,
+        description="A list of high-level themes, company culture points, or recurring keywords (e.g., 'fast-paced environment,' 'data-driven decisions').",
+    )
+
+
+class RefinedRole(BaseModel):
+    """A structured representation of a single professional role, refined by an LLM."""
+
+    basics: RoleBasics
+    summary: RoleSummary | None = None
+    responsibilities: RoleResponsibilities | None = None
+    skills: RoleSkills | None = None

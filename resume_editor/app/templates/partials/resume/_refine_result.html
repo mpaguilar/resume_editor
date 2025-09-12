@@ -1,0 +1,33 @@
+<div id="refine-result" class="mt-4 p-4 border rounded-lg bg-gray-50">
+    <h4 class="font-semibold text-lg mb-2">AI Refinement Suggestion</h4>
+    <p class="text-sm text-gray-600 mb-2">Review the suggestion for the '{{ target_section_val }}' section.</p>
+    <form
+        id="accept-overwrite-form-{{ resume_id }}"
+        hx-post="/api/resumes/{{ resume_id }}/refine/accept"
+        hx-target="#resume-content"
+        hx-swap="innerHTML">
+        <input type="hidden" name="target_section" value="{{ target_section_val }}">
+        <textarea name="refined_content" class="w-full h-48 p-2 border rounded font-mono text-sm">{{ refined_content }}</textarea>
+        <div class="mt-4 flex items-center justify-between">
+            <div>
+                <button type="submit" class="bg-green-500 text-white px-3 py-1 rounded text-sm hover:bg-green-600">
+                    Accept & Overwrite
+                </button>
+                <button type="button" onclick="this.closest('#refine-result').remove()" class="bg-gray-500 text-white px-3 py-1 rounded text-sm hover:bg-gray-600 ml-2">
+                    Reject
+                </button>
+            </div>
+            <div class="flex items-center">
+                <input type="text" name="new_resume_name" placeholder="Name for new resume" class="border rounded px-2 py-1 text-sm">
+                <button type="button" 
+                        hx-post="/api/resumes/{{ resume_id }}/refine/save_as_new"
+                        hx-include="[name='refined_content'], [name='target_section'], [name='new_resume_name']"
+                        hx-target="#resume-content"
+                        hx-swap="innerHTML"
+                        class="bg-blue-500 text-white px-3 py-1 rounded text-sm hover:bg-blue-600 ml-2">
+                    Save as New
+                </button>
+            </div>
+        </div>
+    </form>
+</div>

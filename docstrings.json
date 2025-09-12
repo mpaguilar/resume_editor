@@ -909,20 +909,7 @@
   "resume_editor/app/api/routes/resume.py": {
     "filepath": "resume_editor/app/api/routes/resume.py",
     "filename": "resume.py",
-    "functions": [
-      [
-        "_generate_resume_list_html(resumes: list[DatabaseResume], selected_resume_id: int | None) -> str",
-        "Generates HTML for a list of resumes, optionally marking one as selected.\n\nArgs:\n    resumes (list[DatabaseResume]): The list of resumes to display.\n    selected_resume_id (int | None): The ID of the resume to mark as selected.\n\nReturns:\n    str: HTML string for the resume list.\n\nNotes:\n    1. Checks if the resumes list is empty.\n    2. If empty, returns a message indicating no resumes were found.\n    3. Otherwise, generates HTML for each resume item with a link to the edit page.\n    4. If `selected_resume_id` is provided, the corresponding item is marked with a \"selected\" class.\n    5. Returns the concatenated HTML string."
-      ],
-      [
-        "_generate_resume_detail_html(resume: DatabaseResume) -> str",
-        "Generate the HTML for the resume detail view.\n\nArgs:\n    resume (DatabaseResume): The resume object to generate HTML for.\n\nReturns:\n    str: HTML string for the resume detail view.\n\nNotes:\n    1. Creates HTML for the resume detail section with a header, content area, and footer.\n    2. Includes buttons for refining the 'Experience' section with AI, exporting, and editing.\n    3. Creates modal dialogs for export and refine actions with appropriate event handlers.\n    4. The AI refinement is hardcoded to target the 'experience' section using SSE.\n    5. Returns the complete HTML string."
-      ],
-      [
-        "_create_refine_result_html(resume_id: int, target_section_val: str, refined_content: str) -> str",
-        "Creates the HTML for the refinement result container.\n\n---"
-      ]
-    ],
+    "functions": [],
     "classes": {}
   },
   "resume_editor/app/api/routes/user.py": {
@@ -1890,6 +1877,49 @@
   "resume_editor/app/llm/prompts.py": {
     "filepath": "resume_editor/app/llm/prompts.py",
     "filename": "prompts.py",
+    "functions": [],
+    "classes": {}
+  },
+  "resume_editor/app/api/dependencies.py": {
+    "filepath": "resume_editor/app/api/dependencies.py",
+    "filename": "dependencies.py",
+    "functions": [],
+    "classes": {}
+  },
+  "resume_editor/app/api/routes/resume_edit.py": {
+    "filepath": "resume_editor/app/api/routes/resume_edit.py",
+    "filename": "resume_edit.py",
+    "functions": [],
+    "classes": {}
+  },
+  "resume_editor/app/api/routes/resume_export.py": {
+    "filepath": "resume_editor/app/api/routes/resume_export.py",
+    "filename": "resume_export.py",
+    "functions": [],
+    "classes": {}
+  },
+  "resume_editor/app/api/routes/html_fragments.py": {
+    "filepath": "resume_editor/app/api/routes/html_fragments.py",
+    "filename": "html_fragments.py",
+    "functions": [
+      [
+        "_generate_resume_list_html(resumes: list[DatabaseResume], selected_resume_id: int | None) -> str",
+        "Generates HTML for a list of resumes, optionally marking one as selected.\n\nArgs:\n    resumes (list[DatabaseResume]): The list of resumes to display.\n    selected_resume_id (int | None): The ID of the resume to mark as selected.\n\nReturns:\n    str: HTML string for the resume list.\n\nNotes:\n    1. Renders the `partials/resume/_resume_list.html` template."
+      ],
+      [
+        "_generate_resume_detail_html(resume: DatabaseResume) -> str",
+        "Generate the HTML for the resume detail view.\n\nArgs:\n    resume (DatabaseResume): The resume object to generate HTML for.\n\nReturns:\n    str: HTML string for the resume detail view.\n\nNotes:\n    1. Renders the `partials/resume/_resume_detail.html` template."
+      ],
+      [
+        "_create_refine_result_html(resume_id: int, target_section_val: str, refined_content: str) -> str",
+        "Creates the HTML for the refinement result container.\n\n---"
+      ]
+    ],
+    "classes": {}
+  },
+  "resume_editor/app/api/routes/resume_ai.py": {
+    "filepath": "resume_editor/app/api/routes/resume_ai.py",
+    "filename": "resume_ai.py",
     "functions": [],
     "classes": {}
   }
