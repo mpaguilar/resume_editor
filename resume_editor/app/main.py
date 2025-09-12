@@ -2,6 +2,7 @@ import html
 import logging
 from pathlib import Path
 from typing import Annotated
+from urllib.parse import quote_plus
 
 from fastapi import Depends, FastAPI, Form, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
@@ -365,6 +366,29 @@ def create_app() -> FastAPI:
         resume = get_resume_by_id_and_user(db, resume_id, current_user.id)
         return templates.TemplateResponse(
             request, "refine.html", {"resume": resume, "current_user": current_user}
+        )
+
+    @app.post("/resumes/{resume_id}/refine/start", response_class=HTMLResponse)
+    async def start_refinement(
+        request: Request,
+        resume_id: int,
+        current_user: User = Depends(get_current_user_from_cookie),
+        job_description: str = Form(...),
+    ):
+        """
+        Starts the refinement process by returning an HTML partial
+        that sets up an SSE connection.
+        """
+        encoded_job_desc = quote_plus(job_description)
+
+        return templates.TemplateResponse(
+            request,
+            "partials/refinement_progress.html",
+            {
+                "resume_id": resume_id,
+                "job_description": encoded_job_desc,
+                "current_user": current_user,
+            },
         )
 
     @app.get("/settings", response_class=HTMLResponse)

@@ -6,9 +6,10 @@
     <title>Refine Resume: {{ resume.name }}</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    <script src="https://unpkg.com/htmx.org/dist/ext/sse.js"></script>
 </head>
 <body class="bg-gray-100">
-    <div class="container mx-auto px-4 py-8">
+    <div class="container mx-auto px-4 py-8" hx-ext="sse">
         <header class="mb-6">
             <h1 class="text-2xl font-bold text-gray-800">Refine Resume: {{ resume.name }}</h1>
             <a href="/resumes/{{ resume.id }}/edit" class="text-sm text-blue-600 hover:underline">&larr; Back to Editor</a>

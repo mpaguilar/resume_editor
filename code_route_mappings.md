@@ -20,3 +20,4 @@ These are the known mappings:
 - `/api/resumes/parse->resume_editor/app/api/routes/resume.py`
 - `/resumes/create->resume_editor/app/main.py`
 - `/resumes/{resume_id}/refine->resume_editor/app/main.py`
+- `/resumes/{resume_id}/refine/start->resume_editor/app/main.py`

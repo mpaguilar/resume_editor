@@ -24,6 +24,59 @@ def test_resume_editor_page_loads_correctly():
     client = TestClient(app)
     app.dependency_overrides.clear()
 
+
+def test_start_refinement_returns_progress_container():
+    """
+    GIVEN a POST request to the start refinement endpoint
+    WHEN the user submits a job description
+    THEN an HTML partial is returned that sets up an SSE connection.
+    """
+    app = create_app()
+    client = TestClient(app)
+    app.dependency_overrides.clear()
+
+    mock_user = User(
+        id=1,
+        username="testuser",
+        email="test@test.com",
+        hashed_password="hashed",
+    )
+
+    def get_mock_user():
+        return mock_user
+
+    app.dependency_overrides[get_current_user_from_cookie] = get_mock_user
+
+    job_desc = "A job with spaces & special characters\nand newlines."
+    expected_encoded_desc = (
+        "A+job+with+spaces+%26+special+characters%0Aand+newlines."
+    )
+    resume_id = 1
+
+    response = client.post(
+        f"/resumes/{resume_id}/refine/start",
+        data={"job_description": job_desc},
+    )
+
+    assert response.status_code == 200
+    soup = BeautifulSoup(response.content, "html.parser")
+
+    container_div = soup.find("div", {"id": "refinement-container"})
+    assert container_div is not None
+
+    assert container_div["hx-ext"] == "sse"
+    expected_sse_connect = (
+        f"/resumes/{resume_id}/refine/stream?job_description={expected_encoded_desc}"
+    )
+    assert container_div["sse-connect"] == expected_sse_connect
+
+    progress_list_ul = container_div.find("ul", {"id": "progress-list"})
+    assert progress_list_ul is not None
+    assert progress_list_ul["sse-swap"] == "progress"
+    assert progress_list_ul["hx-swap"] == "beforeend"
+
+    app.dependency_overrides.clear()
+
     mock_user = User(
         id=1,
         username="testuser",
