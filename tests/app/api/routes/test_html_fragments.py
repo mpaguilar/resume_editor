@@ -110,3 +110,24 @@ def test_create_refine_result_html_template():
             target_section_val=target_section_val,
             refined_content=refined_content,
         )
+
+
+def test_create_refine_result_html_output():
+    """Test that the rendered HTML from _create_refine_result_html is correct."""
+    resume_id = 42
+    target_section_val = "experience"
+    refined_content = "This is *refined* markdown."
+
+    html_output = _create_refine_result_html(
+        resume_id, target_section_val, refined_content
+    )
+
+    assert 'id="refine-result"' in html_output
+    assert 'hx-post="/api/resumes/42/refine/accept"' in html_output
+    assert 'name="target_section" value="experience"' in html_output
+    assert '<textarea name="refined_content"' in html_output
+    assert ">This is *refined* markdown.</textarea>" in html_output
+    assert 'hx-post="/api/resumes/42/refine/save_as_new"' in html_output
+    assert "Accept & Overwrite" in html_output
+    assert "Reject" in html_output
+    assert "Save as New" in html_output

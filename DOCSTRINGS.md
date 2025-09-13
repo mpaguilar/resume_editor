@@ -6336,9 +6336,19 @@ Notes:
 
 ## function: `_create_refine_result_html(resume_id: int, target_section_val: str, refined_content: str) -> str`
 
-Creates the HTML for the refinement result container.
+Creates the HTML for the refinement result container with controls.
 
----
+Args:
+    resume_id (int): The ID of the resume being refined.
+    target_section_val (str): The name of the section that was refined.
+    refined_content (str): The new Markdown content for the section.
+
+Returns:
+    str: An HTML snippet containing a form with the refined content
+         in a textarea and buttons to accept, reject, or save as new.
+
+Notes:
+    1. Renders the `partials/resume/_refine_result.html` template.
 
 ---
 

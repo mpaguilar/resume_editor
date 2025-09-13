@@ -974,6 +974,8 @@ async def test_refine_experience_section_wrapper_success(mock_private_refiner):
 
 
 @pytest.mark.asyncio
+@patch("resume_editor.app.llm.orchestration._create_refine_result_html")
+@patch("resume_editor.app.llm.orchestration.reconstruct_resume_markdown")
 @patch("resume_editor.app.llm.orchestration.refine_role")
 @patch("resume_editor.app.llm.orchestration.analyze_job_description")
 @patch("resume_editor.app.llm.orchestration.extract_experience_info")
@@ -987,6 +989,8 @@ async def test__refine_experience_section(
     mock_extract_experience,
     mock_analyze_job,
     mock_refine_role,
+    mock_reconstruct,
+    mock_create_html,
 ):
     """Test that the async orchestrator yields correct statuses and final content."""
     # Arrange
@@ -1028,8 +1032,13 @@ async def test__refine_experience_section(
     refined_role2.summary.text = "Refined summary 2"
     mock_refine_role.side_effect = [refined_role1, refined_role2]
 
+    # 5. Mock reconstruct and create_html
+    mock_reconstruct.return_value = "final reconstructed markdown"
+    mock_create_html.return_value = "final html"
+
     # Act
     mock_request = MagicMock(spec=Request)
+    mock_request.path_params = {"resume_id": "1"}
     mock_request.is_disconnected = AsyncMock(return_value=False)
     events = []
     async for event in _refine_experience_section(
@@ -1055,18 +1064,18 @@ async def test__refine_experience_section(
         "status": "in_progress",
         "message": "Reconstructing resume...",
     }
-    assert events[5]["status"] == "done"
-    final_content = events[5]["content"]
-    assert "# Personal" in final_content
-    assert "Name: Test Person" in final_content
 
-    assert "# Experience" in final_content
-    assert "Refined summary 1" in final_content
-    assert "Refined summary 2" in final_content
-    assert "## Projects" in final_content
-    assert "Title: Test Project" in final_content
+    assert events[5] == {"status": "in_progress", "message": "Finalizing result..."}
+    assert events[6] == {"event": "complete", "data": "final html"}
+    assert events[7] == {"event": "close", "data": "Connection closed."}
 
     # 3. Check mocks were called
+    mock_reconstruct.assert_called_once()
+    mock_create_html.assert_called_once_with(
+        resume_id=1,
+        target_section_val="experience",
+        refined_content="final reconstructed markdown",
+    )
     mock_analyze_job.assert_awaited_once_with(
         job_description=job_description,
         llm_endpoint=llm_endpoint,
@@ -1077,6 +1086,7 @@ async def test__refine_experience_section(
 
 
 @pytest.mark.asyncio
+@patch("resume_editor.app.llm.orchestration._create_refine_result_html")
 @patch("resume_editor.app.llm.orchestration.reconstruct_resume_markdown")
 @patch("resume_editor.app.llm.orchestration.refine_role")
 @patch("resume_editor.app.llm.orchestration.analyze_job_description")
@@ -1092,6 +1102,7 @@ async def test__refine_experience_section_no_roles(
     mock_analyze_job,
     mock_refine_role,
     mock_reconstruct,
+    mock_create_html,
 ):
     """Test that the orchestrator handles resumes with no roles in the experience section."""
     # Arrange
@@ -1107,9 +1118,11 @@ async def test__refine_experience_section_no_roles(
     mock_job_analysis = create_mock_job_analysis()
     mock_analyze_job.return_value = mock_job_analysis
     mock_reconstruct.return_value = "reconstructed content with no roles"
+    mock_create_html.return_value = "final html no roles"
 
     # Act
     mock_request = MagicMock(spec=Request)
+    mock_request.path_params = {"resume_id": "1"}
     events = []
     async for event in _refine_experience_section(
         request=mock_request,
@@ -1132,8 +1145,9 @@ async def test__refine_experience_section_no_roles(
         "status": "in_progress",
         "message": "Reconstructing resume...",
     }
-    assert events[3]["status"] == "done"
-    assert events[3]["content"] == "reconstructed content with no roles"
+    assert events[3] == {"status": "in_progress", "message": "Finalizing result..."}
+    assert events[4] == {"event": "complete", "data": "final html no roles"}
+    assert events[5] == {"event": "close", "data": "Connection closed."}
 
     # 2. Check mocks were called
     mock_analyze_job.assert_awaited_once()

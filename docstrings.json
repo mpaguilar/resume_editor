@@ -1912,7 +1912,7 @@
       ],
       [
         "_create_refine_result_html(resume_id: int, target_section_val: str, refined_content: str) -> str",
-        "Creates the HTML for the refinement result container.\n\n---"
+        "Creates the HTML for the refinement result container with controls.\n\nArgs:\n    resume_id (int): The ID of the resume being refined.\n    target_section_val (str): The name of the section that was refined.\n    refined_content (str): The new Markdown content for the section.\n\nReturns:\n    str: An HTML snippet containing a form with the refined content\n         in a textarea and buttons to accept, reject, or save as new.\n\nNotes:\n    1. Renders the `partials/resume/_refine_result.html` template."
       ]
     ],
     "classes": {}

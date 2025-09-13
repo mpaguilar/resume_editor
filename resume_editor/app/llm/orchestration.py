@@ -9,6 +9,7 @@ from langchain_core.utils.json import parse_json_markdown
 from langchain_openai import ChatOpenAI
 from openai import AuthenticationError
 
+from resume_editor.app.api.routes.html_fragments import _create_refine_result_html
 from resume_editor.app.api.routes.route_logic.resume_reconstruction import (
     reconstruct_resume_markdown,
 )
@@ -480,8 +481,21 @@ async def _refine_experience_section(
         experience=refined_experience,
     )
 
-    # The final payload contains the refined content. The route handler will build the HTML.
-    yield {"status": "done", "content": updated_resume_content}
+    # Build the final HTML with the refined content and controls.
+    yield {"status": "in_progress", "message": "Finalizing result..."}
+    log.debug("Building final HTML response.")
+    resume_id = int(request.path_params["resume_id"])
+    target_section_val = "experience"
+    result_html = _create_refine_result_html(
+        resume_id=resume_id,
+        target_section_val=target_section_val,
+        refined_content=updated_resume_content,
+    )
+    yield {"event": "complete", "data": result_html}
+
+    # Signal to the client to close the connection.
+    log.debug("Sending close event.")
+    yield {"event": "close", "data": "Connection closed."}
 
 
 async def refine_experience_section(
