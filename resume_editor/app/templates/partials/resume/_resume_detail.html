@@ -23,15 +23,13 @@
 
     <!-- Refine Form Container (hidden by default) -->
     <div id="refine-form-container-{{ resume.id }}" class="hidden my-4 p-4 border rounded-lg bg-gray-50">
-        <form id="refine-form-{{ resume.id }}"
-              hx-ext="sse"
-              hx-get="/api/resumes/{{ resume.id }}/refine/stream"
-              hx-target="#refine-result-container"
-              hx-swap="none"
-              hx-indicator="#refine-progress-{{ resume.id }}"
-              hx-on="sse:message: handleSseMessage(event, {{ resume.id }}); htmx:abort: handleAbort(event, {{ resume.id }})">
+        <form hx-post="/api/resumes/{{ resume.id }}/refine"
+              hx-target="#refine-sse-container"
+              hx-swap="innerHTML">
 
             <h3 class="text-lg leading-6 font-medium text-gray-900 mb-4">Refine Experience Section with Job Description</h3>
+
+            <input type="hidden" name="target_section" value="experience">
 
             <label for="job_description" class="block text-sm font-medium text-gray-700">Job Description</label>
             <textarea name="job_description" class="mt-1 w-full h-40 p-2 border border-gray-300 rounded" placeholder="Paste job description here..." required></textarea>
@@ -46,23 +44,10 @@
                     Refine
                 </button>
             </div>
-            
-            <div id="refine-progress-{{ resume.id }}" class="htmx-indicator mt-4 p-4 border rounded-md bg-gray-100">
-                <div class="flex justify-between items-center mb-2">
-                    <p class="font-semibold text-gray-700">Refinement in progress...</p>
-                    <button type="button"
-                            onclick="htmx.abort(document.getElementById('refine-form-{{ resume.id }}'))"
-                            class="bg-red-500 text-white px-3 py-1 rounded text-sm hover:bg-red-600">
-                        Cancel
-                    </button>
-                </div>
-                <ul id="refine-progress-list-{{ resume.id }}"
-                    class="list-disc list-inside text-sm text-gray-600"
-                    sse-swap="progress"
-                    hx-swap="beforeend"></ul>
-            </div>
-            <div id="refine-result-container" class="mt-4"></div>
         </form>
+        <div id="refine-sse-container">
+            <!-- SSE loader will be placed here -->
+        </div>
     </div>
     
     <div class="flex-grow">
@@ -151,36 +136,17 @@ function exportResume(resumeId, type, format) {
     document.getElementById(`export-modal-${resumeId}`).classList.add('hidden');
 }
 
-function handleSseMessage(event, resumeId) {
-    const form = document.getElementById(`refine-form-${resumeId}`);
-    const progressList = document.getElementById(`refine-progress-list-${resumeId}`);
-    const resultContainer = document.getElementById('refine-result-container');
-    const msg = JSON.parse(event.detail.data);
-
-    if (msg.status === 'done') {
-        resultContainer.innerHTML = msg.content;
-        htmx.process(resultContainer);
-        if (progressList) progressList.innerHTML = '';
-        form.reset();
-        document.getElementById(`refine-form-container-${resumeId}`).classList.add('hidden');
-        event.target.sse.close();
-    } else if (msg.status === 'error') {
-        resultContainer.innerHTML = `<div role='alert' class='text-red-500 p-2'>${msg.message || 'An error occurred during refinement.'}</div>`;
-        if (progressList) progressList.innerHTML = '';
-        form.reset();
-        document.getElementById(`refine-form-container-${resumeId}`).classList.add('hidden');
-        event.target.sse.close();
-    }
-}
 
 function handleAbort(event, resumeId) {
     const progressList = document.getElementById(`refine-progress-list-${resumeId}`);
     if (progressList) {
         progressList.innerHTML = "";
     }
-    const resultContainer = document.getElementById('refine-result-container');
-    if (resultContainer) {
-        resultContainer.innerHTML = "<div role='alert' class='text-yellow-500 p-2'>Refinement cancelled by user.</div>";
+    // The SSE connection will be on an element inside #refine-sse-container,
+    // which will be removed when cancelling, so htmx should handle closing the connection.
+    const sseContainer = document.getElementById('refine-sse-container');
+    if (sseContainer) {
+        sseContainer.innerHTML = "<div role='alert' class='text-yellow-500 p-2'>Refinement cancelled by user.</div>";
     }
 }
 </script>

@@ -5,8 +5,10 @@ from typing import AsyncGenerator
 
 from cryptography.fernet import InvalidToken
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
+from fastapi.templating import Jinja2Templates
 from openai import AuthenticationError
 from sqlalchemy.orm import Session
+from starlette.middleware.base import ClientDisconnect
 from fastapi.responses import HTMLResponse, StreamingResponse
 
 from resume_editor.app.api.dependencies import get_resume_for_user
@@ -54,6 +56,8 @@ log = logging.getLogger(__name__)
 
 router = APIRouter()
 
+templates = Jinja2Templates(directory="resume_editor/app/templates")
+
 
 @router.get("/{resume_id}/refine/stream")
 async def refine_resume_stream(
@@ -82,45 +86,57 @@ async def refine_resume_stream(
             if settings and settings.encrypted_api_key:
                 api_key = decrypt_data(settings.encrypted_api_key)
 
+            final_content = None
             async for event in refine_experience_section(
-                request=request,
                 resume_content=resume.content,
                 job_description=job_description,
                 llm_endpoint=llm_endpoint,
                 api_key=api_key,
                 llm_model_name=llm_model_name,
             ):
-                if event["status"] == "in_progress":
-                    progress_html = f"<li>{html.escape(event['message'])}</li>"
+                if isinstance(event, dict) and event.get("status") == "in_progress":
+                    progress_html = f"<li>{html.escape(event.get('message', ''))}</li>"
                     yield f"event: progress\ndata: {progress_html}\n\n"
-                elif event["status"] == "done":
-                    event["content"] = _create_refine_result_html(
-                        resume.id, "experience", event["content"]
+                elif isinstance(event, dict) and event.get("status") == "error":
+                    # This handles errors yielded from the orchestration generator
+                    error_html = f"<div role='alert' class='text-red-500 p-2'>{html.escape(event.get('message', ''))}</div>"
+                    data_payload = "\n".join(
+                        f"data: {line}" for line in error_html.splitlines()
                     )
-                    yield f"data: {json.dumps(event)}\n\n"
+                    yield f"event: error\n{data_payload}\n\n"
+                    break  # Stop generation on error, but allow finally to run
+                elif isinstance(event, dict) and event.get("status") == "done":
+                    final_content = event.get("content")
+                    if final_content:
+                        result_html = _create_refine_result_html(
+                            resume.id, "experience", final_content
+                        )
+                        data_payload = "\n".join(
+                            f"data: {line}" for line in result_html.splitlines()
+                        )
+                        yield f"event: done\n{data_payload}\n\n"
+                    # Stop the loop since we are done.
+                    break
 
-        except InvalidToken:
-            detail = "Invalid API key. Please update your settings."
-            _msg = f"API key decryption failed for user {current_user.id}"
-            log.warning(_msg)
-            yield f"data: {json.dumps({'status': 'error', 'message': detail})}\n\n"
-        except AuthenticationError as e:
-            detail = "LLM authentication failed. Please check your API key in settings."
-            _msg = f"LLM authentication failed for user {current_user.id}: {e!s}"
-            log.warning(_msg)
-            yield f"data: {json.dumps({'status': 'error', 'message': detail})}\n\n"
-        except ValueError as e:
-            detail = str(e)
-            _msg = (
-                f"LLM refinement failed for resume {resume.id} with ValueError: {detail}"
+        except ClientDisconnect:
+            log.warning(f"Client disconnected from SSE stream for resume {resume.id}.")
+        except (InvalidToken, AuthenticationError, ValueError, Exception) as e:
+            error_message = "An unexpected error occurred."
+            if isinstance(e, InvalidToken):
+                error_message = "Invalid API key. Please update your settings."
+            elif isinstance(e, AuthenticationError):
+                error_message = "LLM authentication failed. Please check your API key."
+            elif isinstance(e, ValueError):
+                error_message = f"Refinement failed: {e!s}"
+
+            log.warning(f"SSE stream error for resume {resume.id}: {error_message}")
+            error_html = f"<div role='alert' class='text-red-500 p-2'>{html.escape(error_message)}</div>"
+            data_payload = "\n".join(
+                f"data: {line}" for line in error_html.splitlines()
             )
-            log.warning(_msg)
-            yield f"data: {json.dumps({'status': 'error', 'message': f'Refinement failed: {detail}'})}\n\n"
-        except Exception as e:
-            detail = f"An unexpected error occurred during refinement: {e!s}"
-            _msg = f"LLM refinement failed for resume {resume.id}: {e!s}"
-            log.exception(_msg)
-            yield f"data: {json.dumps({'status': 'error', 'message': detail})}\n\n"
+            yield f"event: error\n{data_payload}\n\n"
+        finally:
+            yield "event: close\ndata: stream complete\n\n"
 
     return StreamingResponse(
         sse_generator(),
@@ -157,6 +173,16 @@ async def refine_resume(
     """
     _msg = f"Refining resume {resume.id} for section {target_section.value}"
     log.debug(_msg)
+
+    if target_section == RefineTargetSection.EXPERIENCE:
+        return templates.TemplateResponse(
+            http_request,
+            "partials/resume/_refine_sse_loader.html",
+            {
+                "resume_id": resume.id,
+                "job_description": job_description,
+            },
+        )
 
     settings = get_user_settings(db, current_user.id)
     llm_endpoint = settings.llm_endpoint if settings else None
@@ -380,3 +406,17 @@ async def save_refined_resume_as_new(
     {detail_html}
     """
     return HTMLResponse(content=response_html)
+
+
+@router.post("/{resume_id}/refine/discard", response_class=HTMLResponse)
+async def discard_refined_resume(
+    resume: DatabaseResume = Depends(get_resume_for_user),
+):
+    """
+    Discards a refinement and returns the original resume detail view.
+
+    This is used when a user rejects an AI suggestion, and it re-renders
+    the resume detail partial to clear the suggestion from the UI.
+    """
+    detail_html = _generate_resume_detail_html(resume)
+    return HTMLResponse(content=detail_html)

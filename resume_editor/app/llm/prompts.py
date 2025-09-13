@@ -95,48 +95,48 @@ Rewrite the `summary.text` and `responsibilities.text` within the `role` to use 
 
 Job Analysis (for context):
 ```json
-{
+{{
   "key_skills": ["Python", "AWS", "SQL", "Team Leadership"],
   "primary_duties": ["Develop and maintain backend services", "Lead a small team of junior developers", "Manage cloud infrastructure on AWS", "Optimize database queries"],
   "themes": ["fast-paced environment", "ownership", "mentorship"]
-}
+}}
 ```
 
 Role to Refine:
 ```json
-{
-  "basics": {
+{{
+  "basics": {{
     "company": "Tech Solutions Inc.",
     "start_date": "2020-01-15T00:00:00",
     "end_date": "2022-12-31T00:00:00",
     "title": "Software Engineer"
-  },
-  "summary": { "text": "Worked as a software engineer on backend systems." },
-  "responsibilities": { "text": "Wrote code for different projects. Used Python and AWS." },
-  "skills": { "skills": ["Python", "AWS", "Docker", "Git"] }
-}
+  }},
+  "summary": {{ "text": "Worked as a software engineer on backend systems." }},
+  "responsibilities": {{ "text": "Wrote code for different projects. Used Python and AWS." }},
+  "skills": {{ "skills": ["Python", "AWS", "Docker", "Git"] }}
+}}
 ```
 
 ---
 **EXPECTED OUTPUT:**
 ```json
-{
-  "basics": {
+{{
+  "basics": {{
     "company": "Tech Solutions Inc.",
     "start_date": "2020-01-15T00:00:00",
     "end_date": "2022-12-31T00:00:00",
     "title": "Software Engineer"
-  },
-  "summary": {
+  }},
+  "summary": {{
     "text": "Backend-focused Software Engineer with experience developing scalable services in a fast-paced environment, leveraging expertise in Python and AWS to demonstrate strong feature ownership."
-  },
-  "responsibilities": {
+  }},
+  "responsibilities": {{
     "text": "* Developed and maintained backend services using Python, taking ownership of critical features from design to deployment.\n* Engineered RESTful APIs to support new product initiatives, improving system modularity and performance.\n* Managed and provisioned cloud infrastructure using AWS, including services like EC2 and S3, to ensure high availability.\n* Utilized Docker to containerize applications, streamlining development workflows and improving deployment velocity."
-  },
-  "skills": {
+  }},
+  "skills": {{
     "skills": ["Python", "AWS", "Docker", "Git"]
-  }
-}
+  }}
+}}
 ```
 
 **Output Format:**

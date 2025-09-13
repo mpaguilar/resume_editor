@@ -677,26 +677,32 @@ def test_get_refine_resume_page_loads_correctly():
     def get_mock_user():
         return mock_user
 
-    mock_db = MagicMock()
-    mock_db.query.return_value.filter.return_value.first.return_value = mock_resume
-
     def get_mock_db():
-        yield mock_db
+        yield MagicMock()
 
     app.dependency_overrides[get_current_user_from_cookie] = get_mock_user
     app.dependency_overrides[get_db] = get_mock_db
 
-    response = client.get("/resumes/1/refine")
+    with patch(
+        "resume_editor.app.main.get_resume_by_id_and_user", return_value=mock_resume
+    ):
+        response = client.get("/resumes/1/refine")
     assert response.status_code == 200
 
     soup = BeautifulSoup(response.content, "html.parser")
     header = soup.find("h1")
     assert "Refine Resume: My Test Resume" in header.text
 
+    back_link = soup.find("a", href="/resumes/1/edit")
+    assert back_link is not None
+
     form = soup.find("form")
     assert form is not None
-    assert form["hx-post"] == "/resumes/1/refine/start"
+    assert form["hx-post"] == "/api/resumes/1/refine"
     assert soup.find("textarea", {"name": "job_description"}) is not None
+    target_section_input = soup.find("input", {"name": "target_section"})
+    assert target_section_input is not None
+    assert target_section_input["value"] == "experience"
 
     app.dependency_overrides.clear()
 

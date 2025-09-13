@@ -13,9 +13,14 @@
                 <button type="submit" class="bg-green-500 text-white px-3 py-1 rounded text-sm hover:bg-green-600">
                     Accept & Overwrite
                 </button>
-                <a href="/resumes/{{ resume_id }}/edit" class="bg-red-500 text-white px-3 py-1 rounded text-sm hover:bg-red-600 ml-2">
+                <button
+                    type="button"
+                    hx-post="/api/resumes/{{ resume_id }}/refine/discard"
+                    hx-target="#resume-content"
+                    hx-swap="innerHTML"
+                    class="bg-red-500 text-white px-3 py-1 rounded text-sm hover:bg-red-600 ml-2">
                     Discard
-                </a>
+                </button>
             </div>
             <div class="flex items-center">
                 <input type="text" name="new_resume_name" placeholder="Name for new resume" class="border rounded px-2 py-1 text-sm">

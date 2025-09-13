@@ -16,24 +16,41 @@
         </header>
 
         <div id="refinement-container" class="bg-white rounded-lg shadow p-6">
-             <form hx-post="/resumes/{{ resume.id }}/refine/start" 
-                   hx-target="#refinement-container" 
-                   hx-swap="innerHTML">
-                <h2 class="text-xl font-semibold mb-4">Refine Experience Section</h2>
-                <p class="text-gray-600 mb-4">Paste the job description below to refine your resume's experience section to match.</p>
+            <form hx-post="/api/resumes/{{ resume.id }}/refine"
+                  hx-target="#refine-sse-container"
+                  hx-swap="innerHTML">
+                <input type="hidden" name="target_section" value="{{ target_section }}">
+
+                <h2 class="text-xl font-semibold mb-4">Refine {{ target_section | title }} Section</h2>
+                <p class="text-gray-600 mb-4">Paste the job description below to refine your resume's {{ target_section }} section to match.</p>
 
                 <div class="mb-4">
                     <label for="job_description" class="block text-sm font-medium text-gray-700">Job Description</label>
-                    <textarea id="job_description" name="job_description" rows="10" required 
+                    <textarea id="job_description" name="job_description" rows="10" required
                               class="mt-1 w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"></textarea>
                 </div>
                 <div class="flex justify-end">
-                    <button type="submit" class="bg-purple-500 hover:bg-purple-600 text-white px-6 py-2 rounded-md font-medium">
+                     <button type="submit" class="bg-purple-500 hover:bg-purple-600 text-white px-6 py-2 rounded-md font-medium">
                         Start Refinement
                     </button>
                 </div>
-             </form>
+            </form>
+            <div id="refine-sse-container" class="mt-4">
+                <!-- SSE Loader will be injected here -->
+            </div>
         </div>
     </div>
+    <script>
+    function handleAbort(event, resumeId) {
+        const progressList = document.getElementById(`refine-progress-list-${resumeId}`);
+        if (progressList) {
+            progressList.innerHTML = "";
+        }
+        const sseContainer = document.getElementById('refine-sse-container');
+        if (sseContainer) {
+            sseContainer.innerHTML = "<div role='alert' class='text-yellow-500 p-2'>Refinement cancelled by user.</div>";
+        }
+    }
+    </script>
 </body>
 </html>

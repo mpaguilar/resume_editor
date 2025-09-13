@@ -1,5 +1,5 @@
 from unittest.mock import ANY, MagicMock, Mock, patch
-
+import logging
 import pytest
 from cryptography.fernet import InvalidToken
 from fastapi import FastAPI, HTTPException
@@ -334,7 +334,7 @@ def test_refine_resume_llm_auth_failure_htmx(
     )
 
 
-@pytest.mark.parametrize("target_section", ["personal", "experience"])
+@pytest.mark.parametrize("target_section", ["personal"])
 @patch("resume_editor.app.api.routes.resume_ai.decrypt_data")
 @patch("resume_editor.app.api.routes.resume_ai.get_user_settings")
 def test_refine_resume_decryption_failure(
@@ -371,31 +371,39 @@ def test_refine_resume_decryption_failure(
 
 
 @patch("resume_editor.app.api.routes.resume_ai.refine_resume_section_with_llm")
+@patch("resume_editor.app.api.routes.resume_ai.templates.TemplateResponse")
 @patch("resume_editor.app.api.routes.resume_ai.get_user_settings", return_value=None)
-def test_refine_resume_post_for_experience_fails(
+def test_refine_resume_post_for_experience_returns_sse_loader(
     mock_get_user_settings,
+    mock_template_response,
     mock_refine_llm,
     client_with_auth_and_resume,
 ):
-    """Test that POST /refine for 'experience' section now fails correctly."""
+    """Test that POST /refine for 'experience' returns the SSE loader partial."""
     # Arrange
-    error_message = (
-        "Experience section refinement must be called via the async 'refine_experience_section' method."
-    )
-    mock_refine_llm.side_effect = ValueError(error_message)
+    job_desc = "A cool job"
+    mock_template_response.return_value = "sse loader html"
 
     # Act
     response = client_with_auth_and_resume.post(
         "/api/resumes/1/refine",
-        data={"job_description": "job", "target_section": "experience"},
+        data={"job_description": job_desc, "target_section": "experience"},
     )
 
     # Assert
-    assert response.status_code == 400
-    assert response.json()["detail"] == error_message
+    assert response.status_code == 200
+    assert response.text == '"sse loader html"'
+    mock_template_response.assert_called_once_with(
+        ANY,
+        "partials/resume/_refine_sse_loader.html",
+        {
+            "resume_id": 1,
+            "job_description": job_desc,
+        },
+    )
 
 
-@pytest.mark.parametrize("target_section", ["personal", "experience"])
+@pytest.mark.parametrize("target_section", ["personal"])
 @patch("resume_editor.app.api.routes.resume_ai.decrypt_data")
 @patch("resume_editor.app.api.routes.resume_ai.get_user_settings")
 def test_refine_resume_decryption_failure_htmx(
@@ -522,39 +530,34 @@ async def test_refine_resume_stream_happy_path(
 
     # Act
     with client_with_auth_and_resume.stream(
-        "GET",
-        "/api/resumes/1/refine/stream?job_description=a%20new%20job",
+        "GET", "/api/resumes/1/refine/stream?job_description=a%20new%20job"
     ) as response:
         assert response.status_code == 200
         assert "text/event-stream" in response.headers["content-type"]
 
-        parsed_events = []
-        current_event_name = "message"
-        for line in response.iter_lines():
-            if not line:  # End of an event
-                current_event_name = "message"
-                continue
-            if line.startswith("event:"):
-                current_event_name = line.split(":", 1)[1].strip()
-            elif line.startswith("data:"):
-                data = line.split(":", 1)[1].strip()
-                parsed_events.append({"event": current_event_name, "data": data})
+        text_content = response.read().decode("utf-8")
 
     # Assert
-    assert len(parsed_events) == 2
+    # Split events by double newline
+    events = text_content.strip().split("\n\n")
+    assert len(events) == 3
 
     # Check progress event
-    assert parsed_events[0]["event"] == "progress"
-    assert parsed_events[0]["data"] == "<li>doing stuff</li>"
+    progress_event = events[0]
+    assert "event: progress" in progress_event
+    assert "data: <li>doing stuff</li>" in progress_event
 
-    # Check message event for 'done'
-    assert parsed_events[1]["event"] == "message"
-    done_data = json.loads(parsed_events[1]["data"])
-    assert done_data["status"] == "done"
-    assert done_data["content"] == "<html>final refined html</html>"
+    # Check done event
+    done_event = events[1]
+    assert "event: done" in done_event
+    assert "data: <html>final refined html</html>" in done_event
+
+    # Check close event
+    close_event = events[2]
+    assert "event: close" in close_event
+
 
     mock_refine_experience.assert_called_once_with(
-        request=ANY,
         resume_content=VALID_MINIMAL_RESUME_CONTENT,
         job_description="a new job",
         llm_endpoint="http://llm.test",
@@ -564,6 +567,47 @@ async def test_refine_resume_stream_happy_path(
     mock_create_refine_result_html.assert_called_once_with(
         1, "experience", "original refined content"
     )
+
+
+@pytest.mark.asyncio
+@patch("resume_editor.app.api.routes.resume_ai.refine_experience_section")
+@patch("resume_editor.app.api.routes.resume_ai.get_user_settings", return_value=None)
+async def test_refine_resume_stream_orchestration_error(
+    mock_get_user_settings, mock_refine_experience, client_with_auth_and_resume
+):
+    """Test that an error yielded by the orchestrator is handled in the SSE stream."""
+
+    # Mock the async generator to yield an event with an error status
+    async def mock_async_generator():
+        yield {"status": "error", "message": "Orchestration failed"}
+
+    mock_refine_experience.return_value = mock_async_generator()
+
+    # Act
+    with client_with_auth_and_resume.stream(
+        "GET",
+        "/api/resumes/1/refine/stream?job_description=a%20new%20job",
+    ) as response:
+        # Assert
+        assert response.status_code == 200
+        assert "text/event-stream" in response.headers["content-type"]
+        text_content = response.read().decode("utf-8")
+
+    events = text_content.strip().split("\n\n")
+    assert len(events) == 2  # error event, and close event
+
+    error_event = events[0]
+    assert "event: error" in error_event
+    assert (
+        "data: <div role='alert' class='text-red-500 p-2'>Orchestration failed</div>"
+        in error_event
+    )
+
+    close_event = events[1]
+    assert "event: close" in close_event
+    assert "data: stream complete" in close_event
+
+    mock_refine_experience.assert_called_once()
 
 
 @pytest.mark.asyncio
@@ -589,8 +633,9 @@ async def test_refine_resume_stream_unknown_status(
         assert response.status_code == 200
         assert "text/event-stream" in response.headers["content-type"]
         content = response.read()
-        # The generator should not yield anything for an unknown status
-        assert content == b""
+        # The generator should not yield anything for an unknown status, but the
+        # finally block will always send the close event.
+        assert content.strip() == b"event: close\ndata: stream complete"
 
     mock_refine_experience.assert_called_once()
 
@@ -619,7 +664,7 @@ async def test_refine_resume_stream_empty_generator(
         assert response.status_code == 200
         assert "text/event-stream" in response.headers["content-type"]
         content = response.read()
-        assert content == b""
+        assert content.strip() == b"event: close\ndata: stream complete"
 
     mock_refine_experience.assert_called_once()
 
@@ -636,8 +681,6 @@ async def test_refine_resume_stream_invalid_token(
     test_user,
 ):
     """Test SSE stream reports error on API key decryption failure."""
-    import json
-
     mock_settings = UserSettings(user_id=test_user.id, encrypted_api_key="key")
     mock_get_user_settings.return_value = mock_settings
 
@@ -645,80 +688,133 @@ async def test_refine_resume_stream_invalid_token(
         "GET", "/api/resumes/1/refine/stream?job_description=job"
     ) as response:
         assert response.status_code == 200
-        events = []
-        for line in response.iter_lines():
-            if line.startswith("data:"):
-                events.append(json.loads(line[len("data:") :]))
+        text_content = response.read().decode("utf-8")
 
-    assert len(events) == 1
-    assert events[0]["status"] == "error"
-    assert "Invalid API key" in events[0]["message"]
+    events = text_content.strip().split("\n\n")
+    assert len(events) == 2
+    assert "event: error" in events[0]
+    assert "Invalid API key" in events[0]
+    assert "event: close" in events[1]
     mock_refine_experience.assert_not_called()
 
 
 @pytest.mark.asyncio
-@patch(
-    "resume_editor.app.api.routes.resume_ai.refine_experience_section",
-    side_effect=AuthenticationError(message="auth error", response=Mock(), body=None),
-)
+@patch("resume_editor.app.api.routes.resume_ai.refine_experience_section")
 @patch("resume_editor.app.api.routes.resume_ai.get_user_settings", return_value=None)
 async def test_refine_resume_stream_auth_error(
     mock_get_user_settings, mock_refine_experience, client_with_auth_and_resume
 ):
-    """Test SSE stream reports error on LLM authentication failure."""
-    import json
+    """Test SSE stream reports error on LLM authentication failure within sse_generator."""
+    mock_refine_experience.side_effect = AuthenticationError(
+        message="auth error", response=Mock(), body=None
+    )
 
     with client_with_auth_and_resume.stream(
         "GET", "/api/resumes/1/refine/stream?job_description=job"
     ) as response:
         assert response.status_code == 200
-        events = []
-        for line in response.iter_lines():
-            if line.startswith("data:"):
-                events.append(json.loads(line[len("data:") :]))
+        text_content = response.read().decode("utf-8")
 
-    assert len(events) == 1
-    assert events[0]["status"] == "error"
-    assert "LLM authentication failed" in events[0]["message"]
+    events = text_content.strip().split("\n\n")
+    assert len(events) == 2
+    assert "event: error" in events[0]
+    assert "LLM authentication failed. Please check your API key." in events[0]
+    assert "event: close" in events[1]
+
+
+@pytest.mark.asyncio
+@patch("resume_editor.app.api.routes.resume_ai.refine_experience_section")
+@patch("resume_editor.app.api.routes.resume_ai.get_user_settings", return_value=None)
+async def test_refine_resume_stream_with_no_final_content(
+    mock_get_user_settings, mock_refine_experience, client_with_auth_and_resume
+):
+    """Test SSE stream where 'done' event has no content."""
+
+    async def mock_async_generator():
+        yield {"status": "done", "content": None}
+
+    mock_refine_experience.return_value = mock_async_generator()
+
+    # Act
+    with client_with_auth_and_resume.stream(
+        "GET",
+        "/api/resumes/1/refine/stream?job_description=a_job",
+    ) as response:
+        # Assert
+        assert response.status_code == 200
+        content = response.read()
+        assert content.strip() == b"event: close\ndata: stream complete"
+
+    mock_refine_experience.assert_called_once()
 
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
-    "exception,expected_message",
+    "exception,expected_message_part",
     [
         (ValueError("value error"), "Refinement failed: value error"),
-        (
-            Exception("generic error"),
-            "An unexpected error occurred during refinement: generic error",
-        ),
+        (Exception("generic error"), "An unexpected error occurred."),
     ],
 )
 @patch("resume_editor.app.api.routes.resume_ai.refine_experience_section")
 @patch("resume_editor.app.api.routes.resume_ai.get_user_settings", return_value=None)
-async def test_refine_resume_stream_other_errors(
+async def test_refine_resume_stream_errors_in_generator(
     mock_get_user_settings,
     mock_refine_experience,
     exception,
-    expected_message,
+    expected_message_part,
     client_with_auth_and_resume,
 ):
-    """Test SSE stream reports error on other failures."""
-    import json
-
+    """
+    Test that the SSE stream correctly handles exceptions raised from the
+    orchestration function, which are caught inside the sse_generator.
+    """
     mock_refine_experience.side_effect = exception
 
     with client_with_auth_and_resume.stream(
         "GET", "/api/resumes/1/refine/stream?job_description=job"
     ) as response:
         assert response.status_code == 200
-        events = []
-        for line in response.iter_lines():
-            if line.startswith("data:"):
-                events.append(json.loads(line[len("data:") :]))
+        text_content = response.read().decode("utf-8")
 
-    assert len(events) == 1
-    assert events[0]["status"] == "error"
-    assert events[0]["message"] == expected_message
+    events = text_content.strip().split("\n\n")
+    assert len(events) == 2
+    assert "event: error" in events[0]
+    assert expected_message_part in events[0]
+    assert "event: close" in events[1]
+
+
+@pytest.mark.asyncio
+@patch("resume_editor.app.api.routes.resume_ai.refine_experience_section")
+@patch("resume_editor.app.api.routes.resume_ai.get_user_settings", return_value=None)
+async def test_refine_resume_stream_client_disconnect(
+    mock_get_user_settings,
+    mock_refine_experience,
+    client_with_auth_and_resume,
+    caplog,
+):
+    """Test that the SSE stream handles a ClientDisconnect gracefully."""
+    from starlette.middleware.base import ClientDisconnect
+
+    async def mock_generator_with_disconnect():
+        raise ClientDisconnect()
+        yield  # Make it a generator
+
+    mock_refine_experience.return_value = mock_generator_with_disconnect()
+
+    with caplog.at_level(logging.WARNING):
+        with client_with_auth_and_resume.stream(
+            "GET",
+            "/api/resumes/1/refine/stream?job_description=job",
+        ) as response:
+            assert response.status_code == 200
+            # The generator should yield the close event from the finally block
+            # even when the client disconnects.
+            content = response.read()
+            assert b"event: close" in content
+
+    assert "Client disconnected from SSE stream for resume 1." in caplog.text
+    mock_refine_experience.assert_called_once()
 
 
 @patch("resume_editor.app.api.routes.resume_ai.refine_resume_section_with_llm")
@@ -1274,3 +1370,67 @@ def test_accept_refined_resume_invalid_section(
         "Input should be 'full', 'personal', 'education', 'experience' or 'certifications'"
         in body["detail"][0]["msg"]
     )
+
+
+@pytest.mark.asyncio
+@patch(
+    "resume_editor.app.llm.orchestration.reconstruct_resume_markdown",
+    return_value="reconstructed",
+)
+@patch("resume_editor.app.llm.orchestration.refine_role")
+@patch("resume_editor.app.llm.orchestration.analyze_job_description")
+@patch("resume_editor.app.api.routes.resume_ai.get_user_settings", return_value=None)
+async def test_refine_resume_stream_integrated(
+    mock_get_user_settings,
+    mock_analyze_job,
+    mock_refine_role,
+    mock_reconstruct,
+    client_with_auth_and_resume,
+    test_resume,
+):
+    """
+    Test the full SSE stream generation with mocked LLM calls.
+    This is a more integrated test than test_refine_resume_stream_happy_path
+    as it exercises the _refine_experience_section generator.
+    """
+    from resume_editor.app.llm.models import JobAnalysis
+    from resume_editor.app.llm.models import RefinedRole
+    from resume_editor.app.models.resume.experience import Role, RoleBasics, RoleSummary
+
+    # Arrange
+    mock_analyze_job.return_value = JobAnalysis(
+        key_skills=["a", "b"], primary_duties=["c"], themes=["d"]
+    )
+
+    mock_refined_role = RefinedRole(
+        basics=RoleBasics(
+            company="Refined Company", title="Refined Role", start_date="2024-01-01"
+        ),
+        summary=RoleSummary(text="Refined Summary"),
+    )
+    mock_refine_role.return_value = mock_refined_role
+
+    # Act
+    with client_with_auth_and_resume.stream(
+        "GET", "/api/resumes/1/refine/stream?job_description=a%20new%20job"
+    ) as response:
+        assert response.status_code == 200
+        text_content = response.read().decode("utf-8")
+
+    # Assert
+    events = text_content.strip().split("\n\n")
+
+    # Expected events: progress, progress, progress, progress, done, close
+    assert len(events) == 6
+
+    assert "event: progress" in events[0] and "Parsing resume" in events[0]
+    assert "event: progress" in events[1] and "Analyzing job" in events[1]
+    assert "event: progress" in events[2] and "Refining role 1 of 1" in events[2]
+    assert "event: progress" in events[3] and "Reconstructing resume" in events[3]
+
+    assert "event: done" in events[4]
+    assert "event: close" in events[5]
+
+    mock_analyze_job.assert_called_once()
+    mock_refine_role.assert_called_once()
+    mock_reconstruct.assert_called_once()

@@ -414,7 +414,6 @@ async def refine_role(
 
 
 async def _refine_experience_section(
-    request: Request,
     resume_content: str,
     job_description: str,
     llm_endpoint: str | None,
@@ -441,15 +440,9 @@ async def _refine_experience_section(
 
     # 3. Refine each role
     refined_roles: list[Role] = []
-    client_disconnected = False
     if experience_info.roles:
         total_roles = len(experience_info.roles)
         for i, role in enumerate(experience_info.roles, 1):
-            if await request.is_disconnected():
-                _msg = "Client disconnected during experience refinement."
-                log.warning(_msg)
-                client_disconnected = True
-                break
             status_msg = f"Refining role {i} of {total_roles}"
             yield {"status": "in_progress", "message": status_msg}
             log.debug(status_msg)
@@ -463,9 +456,6 @@ async def _refine_experience_section(
             refined_role = Role.model_validate(refined_role_data.model_dump())
             refined_roles.append(refined_role)
 
-    if client_disconnected:
-        return
-
     # 4. Create new experience response with refined roles and original projects
     refined_experience = ExperienceResponse(
         roles=refined_roles, projects=experience_info.projects
@@ -474,32 +464,24 @@ async def _refine_experience_section(
     # 5. Reconstruct the full resume
     yield {"status": "in_progress", "message": "Reconstructing resume..."}
     log.debug("Reconstructing resume...")
-    updated_resume_content = reconstruct_resume_markdown(
-        personal_info=personal_info,
-        education=education_info,
-        certifications=certifications_info,
-        experience=refined_experience,
-    )
 
-    # Build the final HTML with the refined content and controls.
-    yield {"status": "in_progress", "message": "Finalizing result..."}
-    log.debug("Building final HTML response.")
-    resume_id = int(request.path_params["resume_id"])
-    target_section_val = "experience"
-    result_html = _create_refine_result_html(
-        resume_id=resume_id,
-        target_section_val=target_section_val,
-        refined_content=updated_resume_content,
-    )
-    yield {"event": "complete", "data": result_html}
+    # The final yielded value is the complete, reconstructed markdown.
+    try:
+        updated_resume_content = reconstruct_resume_markdown(
+            personal_info=personal_info,
+            education=education_info,
+            certifications=certifications_info,
+            experience=refined_experience,
+        )
+    except Exception as e:
+        log.exception("Error during resume reconstruction.")
+        yield {"status": "error", "message": f"Failed to reconstruct resume: {e!s}"}
+        return
 
-    # Signal to the client to close the connection.
-    log.debug("Sending close event.")
-    yield {"event": "close", "data": "Connection closed."}
+    yield {"status": "done", "content": updated_resume_content}
 
 
 async def refine_experience_section(
-    request: Request,
     resume_content: str,
     job_description: str,
     llm_endpoint: str | None,
@@ -528,15 +510,11 @@ async def refine_experience_section(
         dict[str, str]: A dictionary containing the status of the operation
                         (e.g., "Parsing resume...", "Refining role 1 of 2").
                         The final event will have a status of "done" and include
-                        the "content" of the fully refined resume.
-
-    Raises:
-        ValueError: If an unexpected error occurs during the process.
-        AuthenticationError: If the LLM call fails due to an auth issue.
+                        the "content" of the fully refined resume. An 'error'
+                        status can also be yielded if a problem occurs.
     """
     try:
         async for event in _refine_experience_section(
-            request=request,
             resume_content=resume_content,
             job_description=job_description,
             llm_endpoint=llm_endpoint,
@@ -544,15 +522,17 @@ async def refine_experience_section(
             llm_model_name=llm_model_name,
         ):
             yield event
-
     except AuthenticationError as e:
-        detail = "LLM authentication failed. Please check your API key in settings."
-        _msg = f"LLM authentication error during experience refinement: {e!s}"
-        log.warning(_msg)
-        yield {"status": "error", "message": detail}
-    except Exception as e:
-        _msg = f"An unexpected error occurred during experience refinement: {e!s}"
-        log.exception(_msg)
-        yield {"status": "error", "message": str(e)}
+        log.warning(f"Authentication error during experience refinement: {e!s}")
+        yield {
+            "status": "error",
+            "message": "LLM authentication failed. Please check your API key.",
+        }
+    except ValueError as e:
+        log.warning(f"Value error during experience refinement: {e!s}")
+        yield {"status": "error", "message": f"Refinement failed: {e!s}"}
+    except Exception:
+        log.exception("An unexpected error occurred during experience refinement.")
+        yield {"status": "error", "message": "An unexpected error occurred."}
 
 

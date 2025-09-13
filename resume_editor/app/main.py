@@ -42,6 +42,7 @@ from resume_editor.app.schemas.user import (
 from resume_editor.app.web.admin import router as admin_web_router
 from resume_editor.app.web.admin_forms import router as admin_forms_router
 from resume_editor.app.api.routes.pages.setup import router as setup_router
+from resume_editor.app.api.routes.resume_ai import router as resume_ai_router
 
 log = logging.getLogger(__name__)
 
@@ -126,6 +127,7 @@ def create_app() -> FastAPI:
     # Include API routers
     app.include_router(user_router)
     app.include_router(resume_router)
+    app.include_router(resume_ai_router, prefix="/api/resumes", tags=["resumes"])
     app.include_router(admin_router)
     app.include_router(admin_web_router)
     app.include_router(admin_forms_router)
@@ -364,45 +366,16 @@ def create_app() -> FastAPI:
         """Serve the dedicated page for refining a resume."""
         resume = get_resume_by_id_and_user(db, resume_id, current_user.id)
         return templates.TemplateResponse(
-            request, "refine.html", {"resume": resume, "current_user": current_user}
-        )
-
-    @app.post("/resumes/{resume_id}/refine/start", response_class=HTMLResponse)
-    async def start_refinement(
-        request: Request,
-        resume_id: int,
-        current_user: User = Depends(get_current_user_from_cookie),
-        job_description: str = Form(...),
-    ):
-        """
-        Starts the refinement process by returning an HTML partial
-        that sets up an SSE connection.
-        """
-        encoded_job_desc = quote_plus(job_description)
-
-        return templates.TemplateResponse(
             request,
-            "partials/refinement_progress.html",
+            "refine.html",
             {
-                "resume_id": resume_id,
-                "job_description": encoded_job_desc,
+                "resume": resume,
                 "current_user": current_user,
+                "target_section": "experience",
             },
         )
 
-    @app.post("/resumes/{resume_id}/save")
-    async def save_resume(
-        resume_id: int,
-        db: Session = Depends(get_db),
-        current_user: User = Depends(get_current_user_from_cookie),
-        content: str = Form(...),
-    ):
-        """Handle the form submission for saving a refined resume."""
-        resume = get_resume_by_id_and_user(db, resume_id, current_user.id)
-        update_resume(db=db, resume=resume, content=content)
-        response = Response(status_code=status.HTTP_200_OK)
-        response.headers["HX-Redirect"] = f"/resumes/{resume_id}/edit"
-        return response
+
 
     @app.get("/settings", response_class=HTMLResponse)
     async def settings_page(

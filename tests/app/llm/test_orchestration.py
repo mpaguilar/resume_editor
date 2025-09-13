@@ -946,8 +946,6 @@ async def test_refine_role_prompt_content(mock_chain_invocations_for_role_refine
 async def test_refine_experience_section_wrapper_success(mock_private_refiner):
     """Test that the public refine_experience_section wrapper correctly calls and yields from the private generator."""
     # Arrange
-    mock_request = MagicMock(spec=Request)
-
     async def mock_generator():
         yield {"status": "one"}
         yield {"status": "two"}
@@ -956,14 +954,11 @@ async def test_refine_experience_section_wrapper_success(mock_private_refiner):
 
     # Act
     events = []
-    async for event in refine_experience_section(
-        mock_request, "r", "j", None, None, None
-    ):
+    async for event in refine_experience_section("r", "j", None, None, None):
         events.append(event)
 
     # Assert
     mock_private_refiner.assert_called_once_with(
-        request=mock_request,
         resume_content="r",
         job_description="j",
         llm_endpoint=None,
@@ -1037,12 +1032,8 @@ async def test__refine_experience_section(
     mock_create_html.return_value = "final html"
 
     # Act
-    mock_request = MagicMock(spec=Request)
-    mock_request.path_params = {"resume_id": "1"}
-    mock_request.is_disconnected = AsyncMock(return_value=False)
     events = []
     async for event in _refine_experience_section(
-        request=mock_request,
         resume_content=resume_content,
         job_description=job_description,
         llm_endpoint=llm_endpoint,
@@ -1064,18 +1055,12 @@ async def test__refine_experience_section(
         "status": "in_progress",
         "message": "Reconstructing resume...",
     }
-
-    assert events[5] == {"status": "in_progress", "message": "Finalizing result..."}
-    assert events[6] == {"event": "complete", "data": "final html"}
-    assert events[7] == {"event": "close", "data": "Connection closed."}
+    # The final event should be the reconstructed markdown string itself
+    assert events[5] == {"status": "done", "content": "final reconstructed markdown"}
 
     # 3. Check mocks were called
     mock_reconstruct.assert_called_once()
-    mock_create_html.assert_called_once_with(
-        resume_id=1,
-        target_section_val="experience",
-        refined_content="final reconstructed markdown",
-    )
+    mock_create_html.assert_not_called()
     mock_analyze_job.assert_awaited_once_with(
         job_description=job_description,
         llm_endpoint=llm_endpoint,
@@ -1121,11 +1106,8 @@ async def test__refine_experience_section_no_roles(
     mock_create_html.return_value = "final html no roles"
 
     # Act
-    mock_request = MagicMock(spec=Request)
-    mock_request.path_params = {"resume_id": "1"}
     events = []
     async for event in _refine_experience_section(
-        request=mock_request,
         resume_content="some content",
         job_description="some job",
         llm_endpoint=None,
@@ -1145,9 +1127,10 @@ async def test__refine_experience_section_no_roles(
         "status": "in_progress",
         "message": "Reconstructing resume...",
     }
-    assert events[3] == {"status": "in_progress", "message": "Finalizing result..."}
-    assert events[4] == {"event": "complete", "data": "final html no roles"}
-    assert events[5] == {"event": "close", "data": "Connection closed."}
+    assert events[3] == {
+        "status": "done",
+        "content": "reconstructed content with no roles",
+    }
 
     # 2. Check mocks were called
     mock_analyze_job.assert_awaited_once()
@@ -1180,11 +1163,10 @@ async def test__refine_experience_section_job_analysis_fails(
     mock_analyze_job.side_effect = ValueError("Job analysis failed")
 
     # Act & Assert
-    mock_request = MagicMock(spec=Request)
     events = []
     with pytest.raises(ValueError, match="Job analysis failed"):
         async for event in _refine_experience_section(
-            mock_request, "resume", "job", None, None, None
+            "resume", "job", None, None, None
         ):
             events.append(event)
 
@@ -1224,12 +1206,10 @@ async def test__refine_experience_section_role_refinement_fails(
     mock_analyze_job.return_value = create_mock_job_analysis()
 
     # Act & Assert
-    mock_request = MagicMock(spec=Request)
-    mock_request.is_disconnected = AsyncMock(return_value=False)
     events = []
     with pytest.raises(ValueError, match="Role refinement failed"):
         async for event in _refine_experience_section(
-            mock_request, "resume", "job", None, None, None
+            "resume", "job", None, None, None
         ):
             events.append(event)
 
@@ -1245,64 +1225,6 @@ async def test__refine_experience_section_role_refinement_fails(
 
 
 @pytest.mark.asyncio
-@patch("resume_editor.app.llm.orchestration._refine_experience_section")
-async def test_refine_experience_section_wrapper_general_exception(
-    mock_private_refiner,
-):
-    """Test that the public wrapper handles a general exception from the private generator."""
-    # Arrange
-    async def mock_generator_with_error():
-        yield {"status": "one"}
-        raise ValueError("A wild error appeared!")
-
-    mock_private_refiner.return_value = mock_generator_with_error()
-
-    # Act
-    mock_request = MagicMock(spec=Request)
-    events = []
-    async for event in refine_experience_section(
-        mock_request, "r", "j", None, None, None
-    ):
-        events.append(event)
-
-    # Assert
-    assert events == [
-        {"status": "one"},
-        {"status": "error", "message": "A wild error appeared!"},
-    ]
-
-
-@pytest.mark.asyncio
-@patch("resume_editor.app.llm.orchestration._refine_experience_section")
-async def test_refine_experience_section_wrapper_authentication_error(
-    mock_private_refiner,
-):
-    """Test that the public wrapper handles an AuthenticationError from the private generator."""
-    # Arrange
-    async def mock_generator_with_auth_error():
-        yield {"status": "one"}
-        raise AuthenticationError("Invalid key", response=MagicMock(), body=None)
-
-    mock_private_refiner.return_value = mock_generator_with_auth_error()
-
-    # Act
-    mock_request = MagicMock(spec=Request)
-    events = []
-    async for event in refine_experience_section(
-        mock_request, "r", "j", None, None, None
-    ):
-        events.append(event)
-    # Assert
-    assert events == [
-        {"status": "one"},
-        {
-            "status": "error",
-            "message": "LLM authentication failed. Please check your API key in settings.",
-        },
-    ]
-
-
-@pytest.mark.asyncio
 @patch("resume_editor.app.llm.orchestration.reconstruct_resume_markdown")
 @patch("resume_editor.app.llm.orchestration.refine_role")
 @patch("resume_editor.app.llm.orchestration.analyze_job_description")
@@ -1310,9 +1232,7 @@ async def test_refine_experience_section_wrapper_authentication_error(
 @patch("resume_editor.app.llm.orchestration.extract_certifications_info")
 @patch("resume_editor.app.llm.orchestration.extract_education_info")
 @patch("resume_editor.app.llm.orchestration.extract_personal_info")
-@patch("resume_editor.app.llm.orchestration.log")
-async def test__refine_experience_section_cancellation(
-    mock_log,
+async def test__refine_experience_section_reconstruction_fails(
     mock_extract_personal,
     mock_extract_education,
     mock_extract_certifications,
@@ -1321,53 +1241,67 @@ async def test__refine_experience_section_cancellation(
     mock_refine_role,
     mock_reconstruct,
 ):
-    """Test that the async orchestrator stops processing if the client disconnects."""
+    """Test that the private orchestrator handles an error during resume reconstruction."""
     # Arrange
-    # 1. Mock extractors
+    # Let resume reconstruction fail
     mock_extract_personal.return_value = MagicMock()
     mock_extract_education.return_value = MagicMock()
     mock_extract_certifications.return_value = MagicMock()
-
-    original_role1 = create_mock_role()
-    original_role2 = create_mock_role()
-    mock_experience_info = ExperienceResponse(
-        roles=[original_role1, original_role2], projects=[]
-    )
-    mock_extract_experience.return_value = mock_experience_info
-
-    # 2. Mock job analysis
+    mock_extract_experience.return_value = ExperienceResponse(roles=[], projects=[])
     mock_analyze_job.return_value = create_mock_job_analysis()
+    mock_reconstruct.side_effect = Exception("Reconstruction failed")
 
-    # 3. Mock role refinement (only one should be called)
-    mock_refine_role.return_value = create_mock_role()
-
-    # 4. Mock the request object to simulate disconnection
-    mock_request = MagicMock(spec=Request)
-    mock_request.is_disconnected = AsyncMock(side_effect=[False, True])
-
-    # Act
+    # Act & Assert
     events = []
-    async for event in _refine_experience_section(
-        request=mock_request,
-        resume_content="resume content",
-        job_description="job description",
-        llm_endpoint=None,
-        api_key=None,
-        llm_model_name=None,
-    ):
+    async for event in _refine_experience_section("r", "j", None, None, None):
         events.append(event)
 
-    # Assert
-    # 1. Check yielded events (should stop after starting the first role)
+    # Assert that the error was yielded and the generator stopped
     assert events == [
         {"status": "in_progress", "message": "Parsing resume..."},
         {"status": "in_progress", "message": "Analyzing job description..."},
-        {"status": "in_progress", "message": "Refining role 1 of 2"},
+        {"status": "in_progress", "message": "Reconstructing resume..."},
+        {
+            "status": "error",
+            "message": "Failed to reconstruct resume: Reconstruction failed",
+        },
     ]
 
-    # 2. Check that processing was cancelled
-    mock_log.warning.assert_called_once_with(
-        "Client disconnected during experience refinement."
-    )
-    assert mock_refine_role.await_count == 1
-    mock_reconstruct.assert_not_called()
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "exception, expected_message",
+    [
+        (
+            ValueError("A wild error appeared!"),
+            "Refinement failed: A wild error appeared!",
+        ),
+        (
+            AuthenticationError(message="bad key", response=MagicMock(), body=None),
+            "LLM authentication failed. Please check your API key.",
+        ),
+        (Exception("generic fail"), "An unexpected error occurred."),
+    ],
+)
+@patch("resume_editor.app.llm.orchestration._refine_experience_section")
+async def test_refine_experience_section_wrapper_handles_errors(
+    mock_private_refiner, exception, expected_message
+):
+    """Test the public wrapper handles various exceptions and yields an error event."""
+    # Arrange
+    async def mock_generator_with_error():
+        yield {"status": "one"}
+        raise exception
+
+    mock_private_refiner.return_value = mock_generator_with_error()
+
+    # Act
+    events = []
+    async for event in refine_experience_section("r", "j", None, None, None):
+        events.append(event)
+
+    # Assert
+    assert events == [
+        {"status": "one"},
+        {"status": "error", "message": expected_message},
+    ]

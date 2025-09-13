@@ -1,0 +1,27 @@
+<div id="refine-sse-loader"
+     sse-connect="/api/resumes/{{ resume_id }}/refine/stream?job_description={{ job_description | urlencode }}"
+     sse-swap="done,error"
+     sse-close="close"
+     hx-swap="outerHTML"
+     hx-on="htmx:abort: handleAbort(event, {{ resume_id }})">
+
+    <div class="p-4 border rounded-md bg-gray-100">
+        <div class="flex justify-between items-center mb-2">
+            <p class="font-semibold text-gray-700">Refinement in progress...</p>
+            <button type="button"
+                    onclick="htmx.trigger(htmx.closest(this, '#refine-sse-loader'), 'htmx:abort')"
+                    class="bg-red-500 text-white px-3 py-1 rounded text-sm hover:bg-red-600">
+                Cancel
+            </button>
+        </div>
+        <ul id="refine-progress-list-{{ resume_id }}"
+            class="list-disc list-inside text-sm text-gray-600"
+            sse-swap="progress"
+            hx-swap="beforeend">
+            <!-- progress items will be swapped here -->
+        </ul>
+    </div>
+    <div id="refine-result-container" class="mt-4">
+        <!-- This container is no longer the swap target for done/error -->
+    </div>
+</div>
