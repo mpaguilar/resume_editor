@@ -23,6 +23,7 @@ These are the known mappings:
 - `/resumes/create->resume_editor/app/main.py`
 - `/api/resumes/{resume_id}/refine->resume_editor/app/api/routes/resume_ai.py`
 - `/resumes/{resume_id}/refine/start->resume_editor/app/main.py`
+- `/resumes/{resume_id}/save->resume_editor/app/main.py`
 - `/api/resumes/{resume_id}/refine/stream->resume_editor/app/api/routes/resume_ai.py`
 - `/api/resumes/{resume_id}/refine/accept->resume_editor/app/api/routes/resume_ai.py`
 - `/api/resumes/{resume_id}/refine/save_as_new->resume_editor/app/api/routes/resume_ai.py`

@@ -24,6 +24,54 @@ def test_resume_editor_page_loads_correctly():
     client = TestClient(app)
     app.dependency_overrides.clear()
 
+    mock_user = User(
+        id=1,
+        username="testuser",
+        email="test@test.com",
+        hashed_password="hashed",
+    )
+    mock_resume = DatabaseResume(
+        user_id=1,
+        name="My Test Resume",
+        content="# My Resume Content",
+    )
+    mock_resume.id = 1
+
+    def get_mock_user():
+        return mock_user
+
+    mock_db_session = MagicMock()
+
+    def get_mock_db():
+        yield mock_db_session
+
+    app.dependency_overrides[get_current_user_from_cookie] = get_mock_user
+    app.dependency_overrides[get_db] = get_mock_db
+
+    with patch(
+        "resume_editor.app.main.get_resume_by_id_and_user", return_value=mock_resume
+    ) as mock_get_resume:
+        response = client.get("/resumes/1/edit")
+        assert response.status_code == 200
+
+        soup = BeautifulSoup(response.content, "html.parser")
+        header = soup.find("h1")
+        assert "Editing: My Test Resume" in header.text
+
+        content_pre = soup.find("pre")
+        assert "# My Resume Content" in content_pre.text
+
+        refine_link = soup.find("a", href="/resumes/1/refine")
+        assert refine_link is not None
+        assert "Refine with AI" in refine_link.text
+
+        dashboard_link = soup.find("a", href="/dashboard")
+        assert dashboard_link is not None
+
+        mock_get_resume.assert_called_once_with(mock_db_session, 1, 1)
+
+    app.dependency_overrides.clear()
+
 
 def test_start_refinement_returns_progress_container():
     """
@@ -74,54 +122,6 @@ def test_start_refinement_returns_progress_container():
     assert progress_list_ul is not None
     assert progress_list_ul["sse-swap"] == "progress"
     assert progress_list_ul["hx-swap"] == "beforeend"
-
-    app.dependency_overrides.clear()
-
-    mock_user = User(
-        id=1,
-        username="testuser",
-        email="test@test.com",
-        hashed_password="hashed",
-    )
-    mock_resume = DatabaseResume(
-        user_id=1,
-        name="My Test Resume",
-        content="# My Resume Content",
-    )
-    mock_resume.id = 1
-
-    def get_mock_user():
-        return mock_user
-
-    mock_db_session = MagicMock()
-
-    def get_mock_db():
-        yield mock_db_session
-
-    app.dependency_overrides[get_current_user_from_cookie] = get_mock_user
-    app.dependency_overrides[get_db] = get_mock_db
-
-    with patch(
-        "resume_editor.app.main.get_resume_by_id_and_user", return_value=mock_resume
-    ) as mock_get_resume:
-        response = client.get("/resumes/1/edit")
-        assert response.status_code == 200
-
-        soup = BeautifulSoup(response.content, "html.parser")
-        header = soup.find("h1")
-        assert "Editing: My Test Resume" in header.text
-
-        content_pre = soup.find("pre")
-        assert "# My Resume Content" in content_pre.text
-
-        refine_link = soup.find("a", href="/resumes/1/refine")
-        assert refine_link is not None
-        assert "Refine with AI" in refine_link.text
-
-        dashboard_link = soup.find("a", href="/dashboard")
-        assert dashboard_link is not None
-
-        mock_get_resume.assert_called_once_with(mock_db_session, 1, 1)
 
     app.dependency_overrides.clear()
 
@@ -371,3 +371,126 @@ def test_refine_resume_page_loads_correctly():
         mock_get_resume.assert_called_once_with(mock_db_session, 1, 1)
 
     app.dependency_overrides.clear()
+
+
+def test_handle_save_resume_success():
+    """
+    GIVEN a POST request to the save endpoint with valid data
+    WHEN the user saves refined content
+    THEN the resume is updated and the user is redirected.
+    """
+    app = create_app()
+    client = TestClient(app)
+    app.dependency_overrides.clear()
+
+    mock_user = User(
+        id=1,
+        username="testuser",
+        email="test@test.com",
+        hashed_password="hashed",
+    )
+    mock_resume = DatabaseResume(user_id=1, name="Test", content="Old Content")
+    mock_resume.id = 123
+
+    def get_mock_user():
+        return mock_user
+
+    mock_db_session = MagicMock()
+
+    def get_mock_db():
+        yield mock_db_session
+
+    app.dependency_overrides[get_current_user_from_cookie] = get_mock_user
+    app.dependency_overrides[get_db] = get_mock_db
+
+    with patch(
+        "resume_editor.app.main.get_resume_by_id_and_user", return_value=mock_resume
+    ) as mock_get_resume, patch(
+        "resume_editor.app.main.update_resume"
+    ) as mock_update_resume:
+        new_content = "This is the new refined content."
+        response = client.post(
+            f"/resumes/{mock_resume.id}/save",
+            data={"content": new_content},
+        )
+
+        assert response.status_code == 200
+        assert response.headers["HX-Redirect"] == f"/resumes/{mock_resume.id}/edit"
+
+        mock_get_resume.assert_called_once_with(
+            mock_db_session, mock_resume.id, mock_user.id
+        )
+        mock_update_resume.assert_called_once_with(
+            db=mock_db_session, resume=mock_resume, content=new_content
+        )
+
+    app.dependency_overrides.clear()
+
+
+def test_handle_save_resume_not_found():
+    """
+    GIVEN a POST request for a resume the user doesn't own
+    WHEN the user tries to save
+    THEN a 404 error is returned.
+    """
+    app = create_app()
+    client = TestClient(app)
+    app.dependency_overrides.clear()
+
+    mock_user = User(
+        id=1,
+        username="testuser",
+        email="test@test.com",
+        hashed_password="hashed",
+    )
+
+    def get_mock_user():
+        return mock_user
+
+    mock_db_session = MagicMock()
+
+    def get_mock_db():
+        yield mock_db_session
+
+    app.dependency_overrides[get_current_user_from_cookie] = get_mock_user
+    app.dependency_overrides[get_db] = get_mock_db
+
+    with patch(
+        "resume_editor.app.main.get_resume_by_id_and_user"
+    ) as mock_get_resume, patch(
+        "resume_editor.app.main.update_resume"
+    ) as mock_update_resume:
+        mock_get_resume.side_effect = HTTPException(
+            status_code=404, detail="Resume not found"
+        )
+
+        response = client.post(
+            "/resumes/999/save",
+            data={"content": "some content"},
+        )
+
+        assert response.status_code == 404
+        assert response.json()["detail"] == "Resume not found"
+        mock_update_resume.assert_not_called()
+
+    app.dependency_overrides.clear()
+
+
+def test_handle_save_resume_unauthenticated():
+    """
+    GIVEN an unauthenticated user
+    WHEN they try to save a resume
+    THEN they are redirected to the login page.
+    """
+    app = create_app()
+    client = TestClient(app)
+    app.dependency_overrides.clear()
+
+    response = client.post(
+        "/resumes/123/save",
+        data={"content": "new content"},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 307
+    assert response.headers["location"] == "http://testserver/login"

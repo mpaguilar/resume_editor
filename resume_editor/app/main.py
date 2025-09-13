@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Annotated
 from urllib.parse import quote_plus
 
-from fastapi import Depends, FastAPI, Form, HTTPException, Request, status
+from fastapi import Depends, FastAPI, Form, HTTPException, Request, Response, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
@@ -14,9 +14,8 @@ from resume_editor.app.api.routes.admin import router as admin_router
 from resume_editor.app.api.routes.resume import router as resume_router
 from resume_editor.app.api.routes.route_logic.resume_crud import (
     create_resume as create_resume_db,
-)
-from resume_editor.app.api.routes.route_logic.resume_crud import (
     get_resume_by_id_and_user,
+    update_resume,
 )
 from resume_editor.app.api.routes.route_logic.resume_parsing import (
     validate_resume_content,
@@ -390,6 +389,20 @@ def create_app() -> FastAPI:
                 "current_user": current_user,
             },
         )
+
+    @app.post("/resumes/{resume_id}/save")
+    async def save_resume(
+        resume_id: int,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_user_from_cookie),
+        content: str = Form(...),
+    ):
+        """Handle the form submission for saving a refined resume."""
+        resume = get_resume_by_id_and_user(db, resume_id, current_user.id)
+        update_resume(db=db, resume=resume, content=content)
+        response = Response(status_code=status.HTTP_200_OK)
+        response.headers["HX-Redirect"] = f"/resumes/{resume_id}/edit"
+        return response
 
     @app.get("/settings", response_class=HTMLResponse)
     async def settings_page(
