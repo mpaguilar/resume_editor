@@ -129,5 +129,7 @@ def test_create_refine_result_html_output():
     assert ">This is *refined* markdown.</textarea>" in html_output
     assert 'hx-post="/api/resumes/42/refine/save_as_new"' in html_output
     assert "Accept & Overwrite" in html_output
-    assert "Reject" in html_output
+    assert 'href="/resumes/42/edit"' in html_output
+    assert "Discard" in html_output
     assert "Save as New" in html_output
+    assert "Reject" not in html_output

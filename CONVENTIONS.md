@@ -11,6 +11,8 @@
 * All assigned variables should be used. 
     * If a variable is unused, remove the variable.
 
+* Do NOT empty files, delete them.
+
 # Preferred libraries
 
 * `click` for command line parsing.
