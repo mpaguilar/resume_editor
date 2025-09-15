@@ -36,6 +36,9 @@ from resume_editor.app.models.resume.experience import (
     RoleSummary,
 )
 
+_real_asyncio_sleep = asyncio.sleep
+
+
 FULL_RESUME = """# Personal
 name: Test Person
 
@@ -1280,3 +1283,106 @@ async def test_refine_single_role_concurrently():
 
         # Check that the result is correct
         assert result == mock_refined_role
+
+
+@pytest.mark.asyncio
+@patch("resume_editor.app.llm.orchestration.asyncio.sleep", new_callable=AsyncMock)
+@patch("resume_editor.app.llm.orchestration.refine_role", new_callable=AsyncMock)
+@patch(
+    "resume_editor.app.llm.orchestration.analyze_job_description",
+    new_callable=AsyncMock,
+)
+@patch("resume_editor.app.llm.orchestration.extract_experience_info")
+@patch("resume_editor.app.llm.orchestration.extract_certifications_info", MagicMock())
+@patch("resume_editor.app.llm.orchestration.extract_education_info", MagicMock())
+@patch("resume_editor.app.llm.orchestration.extract_personal_info", MagicMock())
+async def test_async_refine_experience_section_concurrency_and_delay(
+    mock_extract_experience,
+    mock_analyze_job,
+    mock_refine_role,
+    mock_sleep,
+):
+    """
+    Test that async_refine_experience_section respects concurrency limits and delays.
+    This test does NOT mock asyncio.Semaphore to allow for real concurrency checks.
+    """
+    # Arrange
+    resume_content = "some resume"
+    job_description = "some job"
+    max_concurrency = 2
+    num_roles = 5
+
+    # Mocks for parsing
+    mock_roles = [create_mock_role() for i in range(num_roles)]
+    for i, role in enumerate(mock_roles):
+        role.basics.title = f"Role {i}"
+        role.basics.company = f"Company {i}"
+
+    mock_experience_info = ExperienceResponse(roles=mock_roles, projects=[])
+    mock_extract_experience.return_value = mock_experience_info
+
+    # Mock for analysis
+    mock_job_analysis = create_mock_job_analysis()
+    mock_analyze_job.return_value = mock_job_analysis
+
+    # Set up a side effect for the sleep mock. It will perform a real sleep
+    # for durations other than 1s (which is the delay in the orchestrator),
+    # allowing the mock refinement tasks to actually yield control.
+    async def selective_sleep(duration):
+        if duration != 1:
+            await _real_asyncio_sleep(duration)
+
+    mock_sleep.side_effect = selective_sleep
+
+    # Concurrency tracking setup
+    active_tasks = 0
+    max_observed_concurrency = 0
+    lock = asyncio.Lock()
+
+    async def mock_refinement_side_effect(*args, **kwargs):
+        nonlocal active_tasks, max_observed_concurrency
+        async with lock:
+            active_tasks += 1
+            max_observed_concurrency = max(max_observed_concurrency, active_tasks)
+
+        await asyncio.sleep(0.02)  # Use a small real sleep to yield control
+
+        async with lock:
+            active_tasks -= 1
+
+        return create_mock_refined_role()
+
+    mock_refine_role.side_effect = mock_refinement_side_effect
+
+    # Act
+    events = []
+    async for event in async_refine_experience_section(
+        resume_content=resume_content,
+        job_description=job_description,
+        llm_endpoint=None,
+        api_key=None,
+        llm_model_name=None,
+        max_concurrency=max_concurrency,
+    ):
+        events.append(event)
+
+    # Assert
+    # 1. Concurrency limit was respected
+    assert (
+        max_observed_concurrency == max_concurrency
+    ), f"Expected concurrency {max_concurrency}, but observed {max_observed_concurrency}"
+
+    # 2. Delay between task creation was respected
+    # The `await asyncio.sleep(1)` inside the orchestrator is mocked,
+    # so we just check that it was called the correct number of times.
+    calls_with_1_sec_delay = [
+        call for call in mock_sleep.await_args_list if call.args == (1,)
+    ]
+    assert (
+        len(calls_with_1_sec_delay) == num_roles
+    ), f"Expected sleep(1) to be awaited {num_roles} times, but it was {len(calls_with_1_sec_delay)}"
+
+    # 3. All roles were processed
+    assert mock_refine_role.call_count == num_roles
+    result_events = [e for e in events if e.get("status") == "role_refined"]
+    assert len(result_events) == num_roles
