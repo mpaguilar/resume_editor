@@ -33,6 +33,7 @@ from resume_editor.app.api.routes.route_logic.resume_validation import (
     perform_pre_save_validation,
 )
 from resume_editor.app.api.routes.route_models import (
+    ExperienceResponse,
     RefineAction,
     RefineResponse,
     RefineTargetSection,
@@ -44,6 +45,7 @@ from resume_editor.app.llm.orchestration import (
     refine_experience_section,
     refine_resume_section_with_llm,
 )
+from resume_editor.app.models.resume.experience import Role
 from resume_editor.app.models.resume_model import Resume as DatabaseResume
 from .html_fragments import (
     _create_refine_result_html,
@@ -86,7 +88,8 @@ async def refine_resume_stream(
             if settings and settings.encrypted_api_key:
                 api_key = decrypt_data(settings.encrypted_api_key)
 
-            final_content = None
+            refined_roles_data = []
+            error_occurred = False
             async for event in refine_experience_section(
                 resume_content=resume.content,
                 job_description=job_description,
@@ -97,26 +100,45 @@ async def refine_resume_stream(
                 if isinstance(event, dict) and event.get("status") == "in_progress":
                     progress_html = f"<li>{html.escape(event.get('message', ''))}</li>"
                     yield f"event: progress\ndata: {progress_html}\n\n"
+                elif isinstance(event, dict) and event.get("status") == "role_refined":
+                    refined_roles_data.append(event.get("data"))
                 elif isinstance(event, dict) and event.get("status") == "error":
-                    # This handles errors yielded from the orchestration generator
+                    error_occurred = True
                     error_html = f"<div role='alert' class='text-red-500 p-2'>{html.escape(event.get('message', ''))}</div>"
                     data_payload = "\n".join(
                         f"data: {line}" for line in error_html.splitlines()
                     )
                     yield f"event: error\n{data_payload}\n\n"
                     break  # Stop generation on error, but allow finally to run
-                elif isinstance(event, dict) and event.get("status") == "done":
-                    final_content = event.get("content")
-                    if final_content:
-                        result_html = _create_refine_result_html(
-                            resume.id, "experience", final_content
-                        )
-                        data_payload = "\n".join(
-                            f"data: {line}" for line in result_html.splitlines()
-                        )
-                        yield f"event: done\n{data_payload}\n\n"
-                    # Stop the loop since we are done.
-                    break
+
+            if not error_occurred and refined_roles_data:
+                personal_info = extract_personal_info(resume.content)
+                education_info = extract_education_info(resume.content)
+                experience_info = extract_experience_info(resume.content)
+                certifications_info = extract_certifications_info(resume.content)
+
+                roles_to_reconstruct = [
+                    Role.model_validate(data) for data in refined_roles_data
+                ]
+
+                refined_experience = ExperienceResponse(
+                    roles=roles_to_reconstruct, projects=experience_info.projects
+                )
+
+                updated_resume_content = build_complete_resume_from_sections(
+                    personal_info=personal_info,
+                    education=education_info,
+                    experience=refined_experience,
+                    certifications=certifications_info,
+                )
+
+                result_html = _create_refine_result_html(
+                    resume.id, "experience", updated_resume_content
+                )
+                data_payload = "\n".join(
+                    f"data: {line}" for line in result_html.splitlines()
+                )
+                yield f"event: done\n{data_payload}\n\n"
 
         except ClientDisconnect:
             log.warning(f"Client disconnected from SSE stream for resume {resume.id}.")

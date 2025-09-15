@@ -1,7 +1,7 @@
 import asyncio
 import json
 import logging
-from typing import AsyncGenerator
+from typing import Any, AsyncGenerator
 
 from fastapi import Request
 from langchain_core.output_parsers import PydanticOutputParser, StrOutputParser
@@ -182,7 +182,32 @@ def _refine_generic_section(
     target_section: str,
     llm: ChatOpenAI,
 ) -> str:
-    """Uses a generic LLM chain to refine a non-experience section of the resume."""
+    """Uses a generic LLM chain to refine a non-experience section of the resume.
+
+    Args:
+        resume_content (str): The full Markdown content of the resume.
+        job_description (str): The job description to align the resume with.
+        target_section (str): The section of the resume to refine.
+        llm (ChatOpenAI): An initialized ChatOpenAI client instance.
+
+    Returns:
+        str: The refined Markdown content for the target section. Returns an empty
+             string if the target section is empty.
+
+    Raises:
+        ValueError: If the LLM response is not valid JSON or fails Pydantic validation.
+
+    Notes:
+        1. Extracts the target section content from the resume using `_get_section_content`.
+        2. If the extracted content is empty, returns an empty string.
+        3. Sets up a `PydanticOutputParser` for structured output based on the `RefinedSection` model.
+        4. Creates a `ChatPromptTemplate` with instructions for the LLM.
+        5. Creates a chain combining the prompt, LLM, and a `StrOutputParser`.
+        6. Streams the response from the chain and joins the chunks.
+        7. Parses the LLM's JSON-Markdown output using `parse_json_markdown`.
+        8. Validates the parsed JSON against the `RefinedSection` model.
+        9. Returns the `refined_markdown` field from the validated result.
+    """
     section_content = _get_section_content(resume_content, target_section)
     if not section_content.strip():
         _msg = f"Section '{target_section}' is empty, returning as-is."
@@ -280,15 +305,15 @@ async def async_refine_experience_section(
     api_key: str | None,
     llm_model_name: str | None,
     max_concurrency: int = 5,
-) -> AsyncGenerator[dict[str, str], None]:
+) -> AsyncGenerator[dict[str, Any], None]:
     """
     Orchestrates the CONCURRENT refinement of the 'experience' section of a resume.
 
     This function sets up a concurrent workflow for refining roles:
     1. Parses the resume into structured data.
     2. Analyzes the job description.
-    3. Prepares a list of coroutines, one for refining each role against the job analysis.
-       The actual concurrent execution will be handled in subsequent steps.
+    3. Creates and manages concurrent tasks for refining each role, yielding status updates.
+    4. Yields refined role data as it becomes available.
 
     Args:
         resume_content (str): The full Markdown content of the resume.
@@ -299,7 +324,7 @@ async def async_refine_experience_section(
         max_concurrency (int): The maximum number of roles to refine in parallel.
 
     Yields:
-        dict[str, str]: Status updates during the setup process.
+        dict[str, Any]: Status updates and refined role data.
     """
     log.debug("async_refine_experience_section starting")
     semaphore = asyncio.Semaphore(max_concurrency)
@@ -322,34 +347,91 @@ async def async_refine_experience_section(
         llm_model_name=llm_model_name,
     )
 
-    # 3. Prepare coroutines for role refinement
-    # In this step, we only prepare them. Execution is for a later step.
-    coroutines = []
+    # 3. Create and dispatch tasks for role refinement
+    tasks = []
     if experience_info.roles:
-        coroutines = [
-            _refine_single_role_concurrently(
-                role=role,
-                job_analysis=job_analysis,
-                semaphore=semaphore,
-                llm_endpoint=llm_endpoint,
-                api_key=api_key,
-                llm_model_name=llm_model_name,
+        for role in experience_info.roles:
+            task = asyncio.create_task(
+                _refine_single_role_concurrently(
+                    role=role,
+                    job_analysis=job_analysis,
+                    semaphore=semaphore,
+                    llm_endpoint=llm_endpoint,
+                    api_key=api_key,
+                    llm_model_name=llm_model_name,
+                )
             )
-            for role in experience_info.roles
-        ]
+            tasks.append(task)
+            role_title = f"{role.basics.title} @ {role.basics.company}"
+            yield {
+                "status": "in_progress",
+                "message": f"Queueing role '{role_title}' for refinement.",
+            }
+            await asyncio.sleep(1)
 
-    # These variables will be used in subsequent steps.
-    # For now, their creation is what is being tested.
-    _ = (
-        semaphore,
-        personal_info,
-        education_info,
-        certifications_info,
-        job_analysis,
-        coroutines,
-    )
+    # 4. Yield results as they complete
+    for future in asyncio.as_completed(tasks):
+        refined_role_data = await future
+        yield {"status": "role_refined", "data": refined_role_data.model_dump(mode="json")}
 
-    log.debug("async_refine_experience_section finishing setup")
+    log.debug("async_refine_experience_section finishing")
+
+
+async def refine_experience_section(
+    resume_content: str,
+    job_description: str,
+    llm_endpoint: str | None,
+    api_key: str | None,
+    llm_model_name: str | None,
+    max_concurrency: int = 5,
+) -> AsyncGenerator[dict[str, Any], None]:
+    """
+    Orchestrates the asynchronous refinement of the 'experience' section of a resume.
+
+    This function performs a multi-step process:
+    1. Parses the entire resume to get structured data for all sections.
+    2. Analyzes the job description to extract keywords, skills, and themes.
+    3. Concurrently refines each professional role from the experience section individually.
+    4. Yields refined role data as it becomes available.
+
+    It yields status updates as it progresses through these stages.
+
+    Args:
+        resume_content (str): The full Markdown content of the resume.
+        job_description (str): The job description to align the resume with.
+        llm_endpoint (str | None): The custom LLM endpoint URL.
+        api_key (str | None): The user's decrypted LLM API key.
+        llm_model_name (str | None): The user-specified LLM model name.
+        max_concurrency (int): The maximum number of roles to refine in parallel.
+
+    Yields:
+        dict[str, Any]: A dictionary containing a status update or a piece of refined data.
+                        - For status updates: `{"status": "in_progress", "message": "..."}`
+                        - For refined roles: `{"status": "role_refined", "data": {...}}`
+                        - For errors: `{"status": "error", "message": "..."}`
+    """
+    try:
+        async for event in async_refine_experience_section(
+            resume_content=resume_content,
+            job_description=job_description,
+            llm_endpoint=llm_endpoint,
+            api_key=api_key,
+            llm_model_name=llm_model_name,
+            max_concurrency=max_concurrency,
+        ):
+            yield event
+    except AuthenticationError as e:
+        log.warning(f"Authentication error during experience refinement: {e!s}")
+        yield {
+            "status": "error",
+            "message": "LLM authentication failed. Please check your API key.",
+        }
+    except ValueError as e:
+        log.warning(f"Value error during experience refinement: {e!s}")
+        yield {"status": "error", "message": f"Refinement failed: {e!s}"}
+    except Exception:
+        log.exception("An unexpected error occurred during experience refinement.")
+        yield {"status": "error", "message": "An unexpected error occurred."}
 
 
 def refine_resume_section_with_llm(
@@ -360,8 +442,7 @@ def refine_resume_section_with_llm(
     api_key: str | None,
     llm_model_name: str | None,
 ) -> str:
-    """
-    Uses an LLM to refine a specific non-experience section of a resume based on a job description.
+    """Uses an LLM to refine a specific non-experience section of a resume.
 
     This function acts as a dispatcher. For 'experience' section, it raises an error,
     directing the caller to use the appropriate async generator. For all other sections,
@@ -376,13 +457,26 @@ def refine_resume_section_with_llm(
         llm_model_name (str | None): The user-specified LLM model name.
 
     Returns:
-        str: The refined Markdown content for the target section. Returns an empty string if the target section is empty.
+        str: The refined Markdown content for the target section. Returns an empty
+             string if the target section is empty.
 
     Raises:
         ValueError: If `target_section` is 'experience'.
 
     Network access:
-        - This function makes network requests to the LLM endpoint specified by llm_endpoint.
+        - This function makes network requests to the LLM endpoint specified by
+          llm_endpoint.
+
+    Notes:
+        1. Checks if `target_section` is 'experience' and raises a `ValueError` if so.
+        2. Determines the model name, falling back to a default if not provided.
+        3. Constructs parameters for `ChatOpenAI`, including the model name, endpoint,
+           and API key. A dummy API key is used for custom, non-OpenRouter endpoints if
+           no key is provided.
+        4. Initializes the `ChatOpenAI` client.
+        5. Calls `_refine_generic_section` with the resume content, job description,
+           target section, and the initialized LLM client.
+        6. Returns the refined content from the helper function.
 
     """
     _msg = f"refine_resume_section_with_llm starting for section '{target_section}'"
@@ -532,126 +626,5 @@ async def refine_role(
     return refined_role
 
 
-async def _refine_experience_section(
-    resume_content: str,
-    job_description: str,
-    llm_endpoint: str | None,
-    api_key: str | None,
-    llm_model_name: str | None,
-) -> AsyncGenerator[dict[str, str], None]:
-    # 1. Parse all sections of the resume
-    yield {"status": "in_progress", "message": "Parsing resume..."}
-    log.debug("Parsing resume...")
-    personal_info = extract_personal_info(resume_content)
-    education_info = extract_education_info(resume_content)
-    certifications_info = extract_certifications_info(resume_content)
-    experience_info = extract_experience_info(resume_content)
-
-    # 2. Analyze the job description
-    yield {"status": "in_progress", "message": "Analyzing job description..."}
-    log.debug("Analyzing job description...")
-    job_analysis = await analyze_job_description(
-        job_description=job_description,
-        llm_endpoint=llm_endpoint,
-        api_key=api_key,
-        llm_model_name=llm_model_name,
-    )
-
-    # 3. Refine each role
-    refined_roles: list[Role] = []
-    if experience_info.roles:
-        total_roles = len(experience_info.roles)
-        for i, role in enumerate(experience_info.roles, 1):
-            status_msg = f"Refining role {i} of {total_roles}"
-            yield {"status": "in_progress", "message": status_msg}
-            log.debug(status_msg)
-            refined_role_data = await refine_role(
-                role=role,
-                job_analysis=job_analysis,
-                llm_endpoint=llm_endpoint,
-                api_key=api_key,
-                llm_model_name=llm_model_name,
-            )
-            refined_role = Role.model_validate(refined_role_data.model_dump())
-            refined_roles.append(refined_role)
-
-    # 4. Create new experience response with refined roles and original projects
-    refined_experience = ExperienceResponse(
-        roles=refined_roles, projects=experience_info.projects
-    )
-
-    # 5. Reconstruct the full resume
-    yield {"status": "in_progress", "message": "Reconstructing resume..."}
-    log.debug("Reconstructing resume...")
-
-    # The final yielded value is the complete, reconstructed markdown.
-    try:
-        updated_resume_content = reconstruct_resume_markdown(
-            personal_info=personal_info,
-            education=education_info,
-            certifications=certifications_info,
-            experience=refined_experience,
-        )
-    except Exception as e:
-        log.exception("Error during resume reconstruction.")
-        yield {"status": "error", "message": f"Failed to reconstruct resume: {e!s}"}
-        return
-
-    yield {"status": "done", "content": updated_resume_content}
-
-
-async def refine_experience_section(
-    resume_content: str,
-    job_description: str,
-    llm_endpoint: str | None,
-    api_key: str | None,
-    llm_model_name: str | None,
-) -> AsyncGenerator[dict[str, str], None]:
-    """
-    Orchestrates the asynchronous refinement of the 'experience' section of a resume.
-
-    This function performs a multi-step process:
-    1. Parses the entire resume to get structured data for all sections.
-    2. Analyzes the job description to extract keywords, skills, and themes.
-    3. Refines each professional role from the experience section individually.
-    4. Reconstructs the full resume Markdown with the refined roles.
-
-    It yields status updates as it progresses through these stages.
-
-    Args:
-        resume_content (str): The full Markdown content of the resume.
-        job_description (str): The job description to align the resume with.
-        llm_endpoint (str | None): The custom LLM endpoint URL.
-        api_key (str | None): The user's decrypted LLM API key.
-        llm_model_name (str | None): The user-specified LLM model name.
-
-    Yields:
-        dict[str, str]: A dictionary containing the status of the operation
-                        (e.g., "Parsing resume...", "Refining role 1 of 2").
-                        The final event will have a status of "done" and include
-                        the "content" of the fully refined resume. An 'error'
-                        status can also be yielded if a problem occurs.
-    """
-    try:
-        async for event in _refine_experience_section(
-            resume_content=resume_content,
-            job_description=job_description,
-            llm_endpoint=llm_endpoint,
-            api_key=api_key,
-            llm_model_name=llm_model_name,
-        ):
-            yield event
-    except AuthenticationError as e:
-        log.warning(f"Authentication error during experience refinement: {e!s}")
-        yield {
-            "status": "error",
-            "message": "LLM authentication failed. Please check your API key.",
-        }
-    except ValueError as e:
-        log.warning(f"Value error during experience refinement: {e!s}")
-        yield {"status": "error", "message": f"Refinement failed: {e!s}"}
-    except Exception:
-        log.exception("An unexpected error occurred during experience refinement.")
-        yield {"status": "error", "message": "An unexpected error occurred."}
 
 

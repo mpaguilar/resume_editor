@@ -1,4 +1,4 @@
-from unittest.mock import ANY, MagicMock, Mock, patch
+from unittest.mock import ANY, AsyncMock, MagicMock, Mock, patch
 import logging
 import pytest
 from cryptography.fernet import InvalidToken
@@ -498,19 +498,33 @@ def test_refine_resume_no_htmx_response(
 
 @pytest.mark.asyncio
 @patch("resume_editor.app.api.routes.resume_ai._create_refine_result_html")
+@patch("resume_editor.app.api.routes.resume_ai.build_complete_resume_from_sections")
+@patch("resume_editor.app.api.routes.resume_ai.extract_certifications_info")
+@patch("resume_editor.app.api.routes.resume_ai.extract_experience_info")
+@patch("resume_editor.app.api.routes.resume_ai.extract_education_info")
+@patch("resume_editor.app.api.routes.resume_ai.extract_personal_info")
 @patch("resume_editor.app.api.routes.resume_ai.refine_experience_section")
-@patch("resume_editor.app.api.routes.resume_ai.decrypt_data", return_value="decrypted_key")
+@patch(
+    "resume_editor.app.api.routes.resume_ai.decrypt_data",
+    return_value="decrypted_key",
+)
 @patch("resume_editor.app.api.routes.resume_ai.get_user_settings")
 async def test_refine_resume_stream_happy_path(
     mock_get_user_settings,
     mock_decrypt_data,
     mock_refine_experience,
+    mock_extract_personal,
+    mock_extract_education,
+    mock_extract_experience,
+    mock_extract_certifications,
+    mock_build_sections,
     mock_create_refine_result_html,
     client_with_auth_and_resume,
     test_user,
 ):
     """Test successful SSE refinement via the new GET stream endpoint."""
-    import json
+    from resume_editor.app.api.routes.route_models import ExperienceResponse
+    from resume_editor.app.models.resume.experience import Role, RoleBasics, RoleSummary
 
     mock_settings = UserSettings(
         user_id=test_user.id,
@@ -520,10 +534,25 @@ async def test_refine_resume_stream_happy_path(
     )
     mock_get_user_settings.return_value = mock_settings
 
-    # Mock the async generator
+    # Mock extractors to return valid, empty data
+    mock_extract_personal.return_value = MagicMock()
+    mock_extract_education.return_value = MagicMock()
+    mock_extract_experience.return_value = ExperienceResponse(roles=[], projects=[])
+    mock_extract_certifications.return_value = MagicMock()
+    mock_build_sections.return_value = "reconstructed content"
+
+    # Mock the async generator from refine_experience_section
+    refined_role = Role(
+        basics=RoleBasics(
+            company="Refined Company", title="Refined Role", start_date="2024-01-01"
+        ),
+        summary=RoleSummary(text="Refined Summary"),
+    )
+    refined_role_data = refined_role.model_dump(mode="json")
+
     async def mock_async_generator():
         yield {"status": "in_progress", "message": "doing stuff"}
-        yield {"status": "done", "content": "original refined content"}
+        yield {"status": "role_refined", "data": refined_role_data}
 
     mock_refine_experience.return_value = mock_async_generator()
     mock_create_refine_result_html.return_value = "<html>final refined html</html>"
@@ -534,29 +563,20 @@ async def test_refine_resume_stream_happy_path(
     ) as response:
         assert response.status_code == 200
         assert "text/event-stream" in response.headers["content-type"]
-
         text_content = response.read().decode("utf-8")
 
     # Assert
-    # Split events by double newline
     events = text_content.strip().split("\n\n")
-    assert len(events) == 3
+    # Expected: progress, done, close
+    assert len(events) == 3, f"Expected 3 events, got {len(events)}: {events}"
 
-    # Check progress event
-    progress_event = events[0]
-    assert "event: progress" in progress_event
-    assert "data: <li>doing stuff</li>" in progress_event
+    assert "event: progress" in events[0]
+    assert "data: <li>doing stuff</li>" in events[0]
+    assert "event: done" in events[1]
+    assert "data: <html>final refined html</html>" in events[1]
+    assert "event: close" in events[2]
 
-    # Check done event
-    done_event = events[1]
-    assert "event: done" in done_event
-    assert "data: <html>final refined html</html>" in done_event
-
-    # Check close event
-    close_event = events[2]
-    assert "event: close" in close_event
-
-
+    # Assert mocks
     mock_refine_experience.assert_called_once_with(
         resume_content=VALID_MINIMAL_RESUME_CONTENT,
         job_description="a new job",
@@ -564,8 +584,13 @@ async def test_refine_resume_stream_happy_path(
         api_key="decrypted_key",
         llm_model_name="test-model",
     )
+    mock_extract_personal.assert_called_once_with(VALID_MINIMAL_RESUME_CONTENT)
+    mock_build_sections.assert_called_once()
+    reconstruct_kwargs = mock_build_sections.call_args.kwargs
+    assert len(reconstruct_kwargs["experience"].roles) == 1
+    assert reconstruct_kwargs["experience"].roles[0].summary.text == "Refined Summary"
     mock_create_refine_result_html.assert_called_once_with(
-        1, "experience", "original refined content"
+        1, "experience", "reconstructed content"
     )
 
 
@@ -1373,42 +1398,73 @@ def test_accept_refined_resume_invalid_section(
 
 
 @pytest.mark.asyncio
+@patch("resume_editor.app.api.routes.resume_ai._create_refine_result_html")
+@patch("resume_editor.app.api.routes.resume_ai.build_complete_resume_from_sections")
+@patch("resume_editor.app.api.routes.resume_ai.extract_certifications_info")
+@patch("resume_editor.app.api.routes.resume_ai.extract_experience_info")
+@patch("resume_editor.app.api.routes.resume_ai.extract_education_info")
+@patch("resume_editor.app.api.routes.resume_ai.extract_personal_info")
+@patch("resume_editor.app.llm.orchestration.refine_role", new_callable=AsyncMock)
 @patch(
-    "resume_editor.app.llm.orchestration.reconstruct_resume_markdown",
-    return_value="reconstructed",
+    "resume_editor.app.llm.orchestration.analyze_job_description",
+    new_callable=AsyncMock,
 )
-@patch("resume_editor.app.llm.orchestration.refine_role")
-@patch("resume_editor.app.llm.orchestration.analyze_job_description")
 @patch("resume_editor.app.api.routes.resume_ai.get_user_settings", return_value=None)
 async def test_refine_resume_stream_integrated(
     mock_get_user_settings,
     mock_analyze_job,
     mock_refine_role,
-    mock_reconstruct,
+    mock_extract_personal,
+    mock_extract_education,
+    mock_extract_experience,
+    mock_extract_certifications,
+    mock_build_sections,
+    mock_create_html,
     client_with_auth_and_resume,
     test_resume,
 ):
     """
-    Test the full SSE stream generation with mocked LLM calls.
-    This is a more integrated test than test_refine_resume_stream_happy_path
-    as it exercises the _refine_experience_section generator.
+    Test the full SSE stream generation with mocked LLM calls, including reconstruction.
     """
-    from resume_editor.app.llm.models import JobAnalysis
-    from resume_editor.app.llm.models import RefinedRole
-    from resume_editor.app.models.resume.experience import Role, RoleBasics, RoleSummary
+    from resume_editor.app.api.routes.route_models import ExperienceResponse
+    from resume_editor.app.llm.models import JobAnalysis, RefinedRole
+    from resume_editor.app.models.resume.experience import (
+        Project,
+        ProjectDescription,
+        ProjectOverview,
+        ProjectSkills,
+        Role,
+        RoleBasics,
+        RoleSummary,
+    )
 
     # Arrange
+    # 1. Mock orchestrator dependencies
     mock_analyze_job.return_value = JobAnalysis(
         key_skills=["a", "b"], primary_duties=["c"], themes=["d"]
     )
-
-    mock_refined_role = RefinedRole(
+    mock_refined_role_obj = RefinedRole(
         basics=RoleBasics(
             company="Refined Company", title="Refined Role", start_date="2024-01-01"
         ),
         summary=RoleSummary(text="Refined Summary"),
     )
-    mock_refine_role.return_value = mock_refined_role
+    mock_refine_role.return_value = mock_refined_role_obj
+
+    # 2. Mock reconstruction dependencies
+    mock_extract_personal.return_value = MagicMock()
+    mock_extract_education.return_value = MagicMock()
+    # For experience, return a mock with projects to ensure they are preserved
+    mock_project = Project(
+        overview=ProjectOverview(title="Test Project"),
+        description=ProjectDescription(text="A project description."),
+        skills=ProjectSkills(skills=["testing"]),
+    )
+    mock_original_experience = ExperienceResponse(roles=[], projects=[mock_project])
+    mock_extract_experience.return_value = mock_original_experience
+    mock_extract_certifications.return_value = MagicMock()
+    mock_build_sections.return_value = "reconstructed content"
+    mock_create_html.return_value = "<html>final refined html</html>"
 
     # Act
     with client_with_auth_and_resume.stream(
@@ -1420,17 +1476,34 @@ async def test_refine_resume_stream_integrated(
     # Assert
     events = text_content.strip().split("\n\n")
 
-    # Expected events: progress, progress, progress, progress, done, close
-    assert len(events) == 6
+    # Expected events: progress, progress, progress (queuing), done, close
+    assert len(events) == 5, f"Expected 5 events, but got {len(events)}: {events}"
 
     assert "event: progress" in events[0] and "Parsing resume" in events[0]
     assert "event: progress" in events[1] and "Analyzing job" in events[1]
-    assert "event: progress" in events[2] and "Refining role 1 of 1" in events[2]
-    assert "event: progress" in events[3] and "Reconstructing resume" in events[3]
+    assert "event: progress" in events[2] and "Queueing role" in events[2]
 
-    assert "event: done" in events[4]
-    assert "event: close" in events[5]
+    assert "event: done" in events[3]
+    assert "data: <html>final refined html</html>" in events[3]
 
+    assert "event: close" in events[4]
+
+    # Assert mocks
     mock_analyze_job.assert_called_once()
-    mock_refine_role.assert_called_once()
-    mock_reconstruct.assert_called_once()
+    mock_refine_role.assert_called_once()  # We have one role in the fixture
+
+    mock_extract_personal.assert_called_once()
+    mock_build_sections.assert_called_once()
+    # Check that the refined role data was used for reconstruction
+    reconstruct_kwargs = mock_build_sections.call_args.kwargs
+    assert isinstance(reconstruct_kwargs["experience"].roles[0], Role)
+    assert reconstruct_kwargs["experience"].roles[0].summary.text == "Refined Summary"
+    # Ensure original projects were preserved
+    assert (
+        reconstruct_kwargs["experience"].projects
+        == mock_original_experience.projects
+    )
+
+    mock_create_html.assert_called_once_with(
+        1, "experience", "reconstructed content"
+    )

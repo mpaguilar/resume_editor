@@ -6238,11 +6238,35 @@ Notes:
 
 Uses a generic LLM chain to refine a non-experience section of the resume.
 
+Args:
+    resume_content (str): The full Markdown content of the resume.
+    job_description (str): The job description to align the resume with.
+    target_section (str): The section of the resume to refine.
+    llm (ChatOpenAI): An initialized ChatOpenAI client instance.
+
+Returns:
+    str: The refined Markdown content for the target section. Returns an empty
+         string if the target section is empty.
+
+Raises:
+    ValueError: If the LLM response is not valid JSON or fails Pydantic validation.
+
+Notes:
+    1. Extracts the target section content from the resume using `_get_section_content`.
+    2. If the extracted content is empty, returns an empty string.
+    3. Sets up a `PydanticOutputParser` for structured output based on the `RefinedSection` model.
+    4. Creates a `ChatPromptTemplate` with instructions for the LLM.
+    5. Creates a chain combining the prompt, LLM, and a `StrOutputParser`.
+    6. Streams the response from the chain and joins the chunks.
+    7. Parses the LLM's JSON-Markdown output using `parse_json_markdown`.
+    8. Validates the parsed JSON against the `RefinedSection` model.
+    9. Returns the `refined_markdown` field from the validated result.
+
 ---
 
 ## function: `refine_resume_section_with_llm(resume_content: str, job_description: str, target_section: str, llm_endpoint: str | None, api_key: str | None, llm_model_name: str | None) -> str`
 
-Uses an LLM to refine a specific non-experience section of a resume based on a job description.
+Uses an LLM to refine a specific non-experience section of a resume.
 
 This function acts as a dispatcher. For 'experience' section, it raises an error,
 directing the caller to use the appropriate async generator. For all other sections,
@@ -6257,13 +6281,26 @@ Args:
     llm_model_name (str | None): The user-specified LLM model name.
 
 Returns:
-    str: The refined Markdown content for the target section. Returns an empty string if the target section is empty.
+    str: The refined Markdown content for the target section. Returns an empty
+         string if the target section is empty.
 
 Raises:
     ValueError: If `target_section` is 'experience'.
 
 Network access:
-    - This function makes network requests to the LLM endpoint specified by llm_endpoint.
+    - This function makes network requests to the LLM endpoint specified by
+      llm_endpoint.
+
+Notes:
+    1. Checks if `target_section` is 'experience' and raises a `ValueError` if so.
+    2. Determines the model name, falling back to a default if not provided.
+    3. Constructs parameters for `ChatOpenAI`, including the model name, endpoint,
+       and API key. A dummy API key is used for custom, non-OpenRouter endpoints if
+       no key is provided.
+    4. Initializes the `ChatOpenAI` client.
+    5. Calls `_refine_generic_section` with the resume content, job description,
+       target section, and the initialized LLM client.
+    6. Returns the refined content from the helper function.
 
 ---
 
