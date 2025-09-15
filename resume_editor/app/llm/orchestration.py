@@ -234,6 +234,45 @@ def _refine_generic_section(
     return refined_section.refined_markdown
 
 
+async def _refine_single_role_concurrently(
+    role: Role,
+    job_analysis: JobAnalysis,
+    semaphore: asyncio.Semaphore,
+    llm_endpoint: str | None,
+    api_key: str | None,
+    llm_model_name: str | None,
+) -> RefinedRole:
+    """Acquires a semaphore and refines a single role using the LLM.
+
+    Args:
+        role (Role): The structured role object to refine.
+        job_analysis (JobAnalysis): The structured job analysis to use as context.
+        semaphore (asyncio.Semaphore): The semaphore to control concurrency.
+        llm_endpoint (str | None): The custom LLM endpoint URL.
+        api_key (str | None): The user's decrypted LLM API key.
+        llm_model_name (str | None): The user-specified LLM model name.
+
+    Returns:
+        RefinedRole: The refined and validated role object.
+
+    Notes:
+        1. This function is a coroutine.
+        2. It acquires the provided semaphore before proceeding.
+        3. It calls `refine_role` to perform the actual LLM refinement.
+        4. The semaphore is released automatically by the `async with` block.
+    """
+    log.debug("Waiting on semaphore for role refinement")
+    async with semaphore:
+        log.debug("Semaphore acquired, refining role")
+        return await refine_role(
+            role=role,
+            job_analysis=job_analysis,
+            llm_endpoint=llm_endpoint,
+            api_key=api_key,
+            llm_model_name=llm_model_name,
+        )
+
+
 async def async_refine_experience_section(
     resume_content: str,
     job_description: str,
@@ -288,9 +327,10 @@ async def async_refine_experience_section(
     coroutines = []
     if experience_info.roles:
         coroutines = [
-            refine_role(
+            _refine_single_role_concurrently(
                 role=role,
                 job_analysis=job_analysis,
+                semaphore=semaphore,
                 llm_endpoint=llm_endpoint,
                 api_key=api_key,
                 llm_model_name=llm_model_name,

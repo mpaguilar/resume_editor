@@ -12,6 +12,7 @@ from resume_editor.app.llm.orchestration import (
     _get_section_content,
     _refine_experience_section,
     _refine_generic_section,
+    _refine_single_role_concurrently,
     analyze_job_description,
     async_refine_experience_section,
     refine_experience_section,
@@ -1310,7 +1311,10 @@ async def test_refine_experience_section_wrapper_handles_errors(
 
 
 @pytest.mark.asyncio
-@patch("resume_editor.app.llm.orchestration.refine_role")
+@patch(
+    "resume_editor.app.llm.orchestration._refine_single_role_concurrently",
+    new_callable=MagicMock,
+)
 @patch("resume_editor.app.llm.orchestration.asyncio.Semaphore")
 @patch(
     "resume_editor.app.llm.orchestration.analyze_job_description",
@@ -1327,7 +1331,7 @@ async def test_async_refine_experience_section_setup(
     mock_extract_experience,
     mock_analyze_job,
     mock_semaphore,
-    mock_refine_role,
+    mock_refine_single_role,
 ):
     """
     Test that the async orchestrator setup correctly initializes the semaphore,
@@ -1379,11 +1383,13 @@ async def test_async_refine_experience_section_setup(
     ]
 
     # Check that coroutines were prepared
-    assert mock_refine_role.call_count == len(mock_roles)
+    assert mock_refine_single_role.call_count == len(mock_roles)
+    mock_semaphore_instance = mock_semaphore.return_value
     for role in mock_roles:
-        mock_refine_role.assert_any_call(
+        mock_refine_single_role.assert_any_call(
             role=role,
             job_analysis=mock_job_analysis,
+            semaphore=mock_semaphore_instance,
             llm_endpoint=llm_endpoint,
             api_key=api_key,
             llm_model_name=llm_model_name,
@@ -1391,7 +1397,10 @@ async def test_async_refine_experience_section_setup(
 
 
 @pytest.mark.asyncio
-@patch("resume_editor.app.llm.orchestration.refine_role")
+@patch(
+    "resume_editor.app.llm.orchestration._refine_single_role_concurrently",
+    new_callable=MagicMock,
+)
 @patch("resume_editor.app.llm.orchestration.asyncio.Semaphore")
 @patch(
     "resume_editor.app.llm.orchestration.analyze_job_description",
@@ -1408,7 +1417,7 @@ async def test_async_refine_experience_section_setup_no_roles(
     mock_extract_experience,
     mock_analyze_job,
     mock_semaphore,
-    mock_refine_role,
+    mock_refine_single_role,
 ):
     """
     Test that the async orchestrator setup handles cases with no roles gracefully.
@@ -1447,4 +1456,53 @@ async def test_async_refine_experience_section_setup_no_roles(
     ]
 
     # Check that no coroutines were prepared
-    assert mock_refine_role.call_count == 0
+    assert mock_refine_single_role.call_count == 0
+
+
+@pytest.mark.asyncio
+async def test_refine_single_role_concurrently():
+    """
+    Test that the concurrent role refinement helper correctly uses the semaphore
+    and calls the underlying refine_role function.
+    """
+    # Arrange
+    mock_role = create_mock_role()
+    mock_job_analysis = create_mock_job_analysis()
+    mock_semaphore = AsyncMock(spec=asyncio.Semaphore)
+    mock_refined_role = create_mock_refined_role()
+
+    llm_endpoint = "http://fake.llm"
+    api_key = "key"
+    llm_model_name = "model"
+
+    with patch(
+        "resume_editor.app.llm.orchestration.refine_role", new_callable=AsyncMock
+    ) as mock_refine_role:
+        mock_refine_role.return_value = mock_refined_role
+
+        # Act
+        result = await _refine_single_role_concurrently(
+            role=mock_role,
+            job_analysis=mock_job_analysis,
+            semaphore=mock_semaphore,
+            llm_endpoint=llm_endpoint,
+            api_key=api_key,
+            llm_model_name=llm_model_name,
+        )
+
+        # Assert
+        # Check that the semaphore was acquired and released
+        mock_semaphore.__aenter__.assert_awaited_once()
+        mock_semaphore.__aexit__.assert_awaited_once()
+
+        # Check that refine_role was called with the correct arguments
+        mock_refine_role.assert_awaited_once_with(
+            role=mock_role,
+            job_analysis=mock_job_analysis,
+            llm_endpoint=llm_endpoint,
+            api_key=api_key,
+            llm_model_name=llm_model_name,
+        )
+
+        # Check that the result is correct
+        assert result == mock_refined_role
