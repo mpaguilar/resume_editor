@@ -145,7 +145,8 @@ async def refine_resume_stream(
                 yield f"event: error\n{data_payload}\n\n"
 
         except ClientDisconnect:
-            log.warning(f"Client disconnected from SSE stream for resume {resume.id}.")
+            _msg = f"Client disconnected from SSE stream for resume {resume.id}."
+            log.warning(_msg)
         except (InvalidToken, AuthenticationError, ValueError, Exception) as e:
             error_message = "An unexpected error occurred."
             if isinstance(e, InvalidToken):
@@ -155,7 +156,8 @@ async def refine_resume_stream(
             elif isinstance(e, ValueError):
                 error_message = f"Refinement failed: {e!s}"
 
-            log.exception(f"SSE stream error for resume {resume.id}: {error_message}")
+            _msg = f"SSE stream error for resume {resume.id}: {error_message}"
+            log.exception(_msg)
             error_html = f"<div role='alert' class='text-red-500 p-2'>{html.escape(error_message)}</div>"
             data_payload = "\n".join(
                 f"data: {line}" for line in error_html.splitlines()

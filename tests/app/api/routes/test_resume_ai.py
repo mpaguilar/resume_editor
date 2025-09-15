@@ -90,6 +90,17 @@ Start date: 01/2024
 Company: B Company
 Title: B Role
 Start date: 01/2023
+
+## Projects
+
+### Project
+
+#### Overview
+
+Title: A Cool Project
+#### Description
+
+A project description.
 """
 
 
@@ -566,10 +577,21 @@ async def test_refine_resume_stream_happy_path(
     mock_create_refine_result_html,
     client_with_auth_and_resume,
     test_user,
+    test_resume,
 ):
     """Test successful SSE refinement via the new GET stream endpoint."""
+    # This test mocks the orchestrator, so the original resume content just needs
+    # to be consistent for the reconstruction step.
+    test_resume.content = VALID_RESUME_TWO_ROLES
+
     from resume_editor.app.api.routes.route_models import ExperienceResponse
-    from resume_editor.app.models.resume.experience import Role, RoleBasics, RoleSummary
+    from resume_editor.app.models.resume.experience import (
+        Project,
+        ProjectOverview,
+        Role,
+        RoleBasics,
+        RoleSummary,
+    )
 
     mock_settings = UserSettings(
         user_id=test_user.id,
@@ -579,10 +601,12 @@ async def test_refine_resume_stream_happy_path(
     )
     mock_get_user_settings.return_value = mock_settings
 
-    # Mock extractors to return valid, empty data
+    # Mock extractors to return valid data, including projects
+    mock_project = Project(overview=ProjectOverview(title="A Cool Project"))
+    mock_original_experience = ExperienceResponse(roles=[], projects=[mock_project])
     mock_extract_personal.return_value = MagicMock()
     mock_extract_education.return_value = MagicMock()
-    mock_extract_experience.return_value = ExperienceResponse(roles=[], projects=[])
+    mock_extract_experience.return_value = mock_original_experience
     mock_extract_certifications.return_value = MagicMock()
     mock_build_sections.return_value = "reconstructed content"
 
@@ -644,19 +668,25 @@ async def test_refine_resume_stream_happy_path(
 
     # Assert mocks
     mock_async_refine_experience.assert_called_once_with(
-        resume_content=VALID_MINIMAL_RESUME_CONTENT,
+        resume_content=VALID_RESUME_TWO_ROLES,
         job_description="a new job",
         llm_endpoint="http://llm.test",
         api_key="decrypted_key",
         llm_model_name="test-model",
     )
-    mock_extract_personal.assert_called_once_with(VALID_MINIMAL_RESUME_CONTENT)
+    mock_extract_personal.assert_called_once_with(VALID_RESUME_TWO_ROLES)
+    mock_extract_education.assert_called_once_with(VALID_RESUME_TWO_ROLES)
+    mock_extract_experience.assert_called_once_with(VALID_RESUME_TWO_ROLES)
+    mock_extract_certifications.assert_called_once_with(VALID_RESUME_TWO_ROLES)
     mock_build_sections.assert_called_once()
     reconstruct_kwargs = mock_build_sections.call_args.kwargs
-    reconstructed_roles = reconstruct_kwargs["experience"].roles
+    reconstructed_experience = reconstruct_kwargs["experience"]
+    reconstructed_roles = reconstructed_experience.roles
+
     assert len(reconstructed_roles) == 2
     assert reconstructed_roles[0].summary.text == "Refined Summary 1"
     assert reconstructed_roles[1].summary.text == "Refined Summary 2"
+    assert reconstructed_experience.projects == mock_original_experience.projects
     mock_create_refine_result_html.assert_called_once_with(
         1, "experience", "reconstructed content"
     )
@@ -743,7 +773,8 @@ async def test_refine_resume_stream_malformed_events(
     events = text_content.strip().split("\n\n")
     assert len(events) == 2, f"Expected 2 events, got {len(events)}: {events}"
     assert "event: error" in events[0]
-    assert "no roles were found to refine" in events[0]
+    assert "Refinement finished, but no roles were found to refine." in events[0]
+    assert "text-yellow-500" in events[0]
     assert "event: close" in events[1]
 
     mock_async_refine_experience.assert_called_once()
@@ -779,7 +810,8 @@ async def test_refine_resume_stream_empty_generator(
     events = text_content.strip().split("\n\n")
     assert len(events) == 2, f"Expected 2 events, but got {len(events)}: {events}"
     assert "event: error" in events[0]
-    assert "no roles were found to refine" in events[0]
+    assert "Refinement finished, but no roles were found to refine." in events[0]
+    assert "text-yellow-500" in events[0]
     assert "event: close" in events[1]
 
     mock_async_refine_experience.assert_called_once()
@@ -809,7 +841,8 @@ async def test_refine_resume_stream_invalid_token(
     events = text_content.strip().split("\n\n")
     assert len(events) == 2
     assert "event: error" in events[0]
-    assert "Invalid API key" in events[0]
+    assert "Invalid API key. Please update your settings." in events[0]
+    assert "text-red-500" in events[0]
     assert "event: close" in events[1]
     mock_async_refine_experience.assert_not_called()
 
@@ -837,6 +870,7 @@ async def test_refine_resume_stream_auth_error(
     assert len(events) == 2
     assert "event: error" in events[0]
     assert "LLM authentication failed. Please check your API key." in events[0]
+    assert "text-red-500" in events[0]
     assert "event: close" in events[1]
 
 
@@ -875,6 +909,7 @@ async def test_refine_resume_stream_errors_in_generator(
     assert len(events) == 2
     assert "event: error" in events[0]
     assert expected_message_part in events[0]
+    assert "text-red-500" in events[0]
     assert "event: close" in events[1]
 
 

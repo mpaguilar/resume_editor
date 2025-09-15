@@ -1069,11 +1069,6 @@ async def test_async_refine_experience_section_execution(
             "message": "Queueing role 'Engineer II @ Company B' for refinement.",
         },
     ]
-    expected_result_events = [
-        {"status": "role_refined", "data": mock_refined_role1.model_dump(mode="json")},
-        {"status": "role_refined", "data": mock_refined_role2.model_dump(mode="json")},
-    ]
-
     # Extract event types for easier assertion
     initial_events = [
         e
