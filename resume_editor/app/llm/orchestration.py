@@ -1,3 +1,4 @@
+import asyncio
 import json
 import logging
 from typing import AsyncGenerator
@@ -231,6 +232,84 @@ def _refine_generic_section(
         ) from e
 
     return refined_section.refined_markdown
+
+
+async def async_refine_experience_section(
+    resume_content: str,
+    job_description: str,
+    llm_endpoint: str | None,
+    api_key: str | None,
+    llm_model_name: str | None,
+    max_concurrency: int = 5,
+) -> AsyncGenerator[dict[str, str], None]:
+    """
+    Orchestrates the CONCURRENT refinement of the 'experience' section of a resume.
+
+    This function sets up a concurrent workflow for refining roles:
+    1. Parses the resume into structured data.
+    2. Analyzes the job description.
+    3. Prepares a list of coroutines, one for refining each role against the job analysis.
+       The actual concurrent execution will be handled in subsequent steps.
+
+    Args:
+        resume_content (str): The full Markdown content of the resume.
+        job_description (str): The job description to align the resume with.
+        llm_endpoint (str | None): The custom LLM endpoint URL.
+        api_key (str | None): The user's decrypted LLM API key.
+        llm_model_name (str | None): The user-specified LLM model name.
+        max_concurrency (int): The maximum number of roles to refine in parallel.
+
+    Yields:
+        dict[str, str]: Status updates during the setup process.
+    """
+    log.debug("async_refine_experience_section starting")
+    semaphore = asyncio.Semaphore(max_concurrency)
+
+    # 1. Parse all sections of the resume
+    yield {"status": "in_progress", "message": "Parsing resume..."}
+    log.debug("Parsing resume...")
+    personal_info = extract_personal_info(resume_content)
+    education_info = extract_education_info(resume_content)
+    certifications_info = extract_certifications_info(resume_content)
+    experience_info = extract_experience_info(resume_content)
+
+    # 2. Analyze the job description
+    yield {"status": "in_progress", "message": "Analyzing job description..."}
+    log.debug("Analyzing job description...")
+    job_analysis = await analyze_job_description(
+        job_description=job_description,
+        llm_endpoint=llm_endpoint,
+        api_key=api_key,
+        llm_model_name=llm_model_name,
+    )
+
+    # 3. Prepare coroutines for role refinement
+    # In this step, we only prepare them. Execution is for a later step.
+    coroutines = []
+    if experience_info.roles:
+        coroutines = [
+            refine_role(
+                role=role,
+                job_analysis=job_analysis,
+                llm_endpoint=llm_endpoint,
+                api_key=api_key,
+                llm_model_name=llm_model_name,
+            )
+            for role in experience_info.roles
+        ]
+
+    # These variables will be used in subsequent steps.
+    # For now, their creation is what is being tested.
+    _ = (
+        semaphore,
+        personal_info,
+        education_info,
+        certifications_info,
+        job_analysis,
+        coroutines,
+    )
+
+    log.debug("async_refine_experience_section finishing setup")
 
 
 def refine_resume_section_with_llm(

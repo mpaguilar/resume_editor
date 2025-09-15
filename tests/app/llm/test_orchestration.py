@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from datetime import datetime
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -12,6 +13,7 @@ from resume_editor.app.llm.orchestration import (
     _refine_experience_section,
     _refine_generic_section,
     analyze_job_description,
+    async_refine_experience_section,
     refine_experience_section,
     refine_resume_section_with_llm,
     refine_role,
@@ -1305,3 +1307,144 @@ async def test_refine_experience_section_wrapper_handles_errors(
         {"status": "one"},
         {"status": "error", "message": expected_message},
     ]
+
+
+@pytest.mark.asyncio
+@patch("resume_editor.app.llm.orchestration.refine_role")
+@patch("resume_editor.app.llm.orchestration.asyncio.Semaphore")
+@patch(
+    "resume_editor.app.llm.orchestration.analyze_job_description",
+    new_callable=AsyncMock,
+)
+@patch("resume_editor.app.llm.orchestration.extract_experience_info")
+@patch("resume_editor.app.llm.orchestration.extract_certifications_info")
+@patch("resume_editor.app.llm.orchestration.extract_education_info")
+@patch("resume_editor.app.llm.orchestration.extract_personal_info")
+async def test_async_refine_experience_section_setup(
+    mock_extract_personal,
+    mock_extract_education,
+    mock_extract_certifications,
+    mock_extract_experience,
+    mock_analyze_job,
+    mock_semaphore,
+    mock_refine_role,
+):
+    """
+    Test that the async orchestrator setup correctly initializes the semaphore,
+    yields initial statuses, and prepares role refinement coroutines.
+    """
+    # Arrange
+    resume_content = "some resume"
+    job_description = "some job"
+    llm_endpoint = "http://fake.llm"
+    api_key = "key"
+    llm_model_name = "model"
+    max_concurrency = 3
+
+    mock_roles = [create_mock_role(), create_mock_role()]
+    mock_experience_info = ExperienceResponse(roles=mock_roles, projects=[])
+    mock_extract_experience.return_value = mock_experience_info
+
+    mock_job_analysis = create_mock_job_analysis()
+    mock_analyze_job.return_value = mock_job_analysis
+
+    # Act
+    events = []
+    async for event in async_refine_experience_section(
+        resume_content=resume_content,
+        job_description=job_description,
+        llm_endpoint=llm_endpoint,
+        api_key=api_key,
+        llm_model_name=llm_model_name,
+        max_concurrency=max_concurrency,
+    ):
+        events.append(event)
+
+    # Assert
+    mock_semaphore.assert_called_once_with(max_concurrency)
+    mock_extract_personal.assert_called_once_with(resume_content)
+    mock_extract_education.assert_called_once_with(resume_content)
+    mock_extract_certifications.assert_called_once_with(resume_content)
+    mock_extract_experience.assert_called_once_with(resume_content)
+    mock_analyze_job.assert_awaited_once_with(
+        job_description=job_description,
+        llm_endpoint=llm_endpoint,
+        api_key=api_key,
+        llm_model_name=llm_model_name,
+    )
+
+    assert events == [
+        {"status": "in_progress", "message": "Parsing resume..."},
+        {"status": "in_progress", "message": "Analyzing job description..."},
+    ]
+
+    # Check that coroutines were prepared
+    assert mock_refine_role.call_count == len(mock_roles)
+    for role in mock_roles:
+        mock_refine_role.assert_any_call(
+            role=role,
+            job_analysis=mock_job_analysis,
+            llm_endpoint=llm_endpoint,
+            api_key=api_key,
+            llm_model_name=llm_model_name,
+        )
+
+
+@pytest.mark.asyncio
+@patch("resume_editor.app.llm.orchestration.refine_role")
+@patch("resume_editor.app.llm.orchestration.asyncio.Semaphore")
+@patch(
+    "resume_editor.app.llm.orchestration.analyze_job_description",
+    new_callable=AsyncMock,
+)
+@patch("resume_editor.app.llm.orchestration.extract_experience_info")
+@patch("resume_editor.app.llm.orchestration.extract_certifications_info")
+@patch("resume_editor.app.llm.orchestration.extract_education_info")
+@patch("resume_editor.app.llm.orchestration.extract_personal_info")
+async def test_async_refine_experience_section_setup_no_roles(
+    mock_extract_personal,
+    mock_extract_education,
+    mock_extract_certifications,
+    mock_extract_experience,
+    mock_analyze_job,
+    mock_semaphore,
+    mock_refine_role,
+):
+    """
+    Test that the async orchestrator setup handles cases with no roles gracefully.
+    """
+    # Arrange
+    resume_content = "some resume"
+    job_description = "some job"
+    llm_endpoint = "http://fake.llm"
+    api_key = "key"
+    llm_model_name = "model"
+    max_concurrency = 3
+
+    mock_experience_info = ExperienceResponse(roles=[], projects=[])
+    mock_extract_experience.return_value = mock_experience_info
+    mock_job_analysis = create_mock_job_analysis()
+    mock_analyze_job.return_value = mock_job_analysis
+
+    # Act
+    events = []
+    async for event in async_refine_experience_section(
+        resume_content=resume_content,
+        job_description=job_description,
+        llm_endpoint=llm_endpoint,
+        api_key=api_key,
+        llm_model_name=llm_model_name,
+        max_concurrency=max_concurrency,
+    ):
+        events.append(event)
+
+    # Assert
+    mock_semaphore.assert_called_once_with(max_concurrency)
+    mock_analyze_job.assert_awaited_once()
+    assert events == [
+        {"status": "in_progress", "message": "Parsing resume..."},
+        {"status": "in_progress", "message": "Analyzing job description..."},
+    ]
+
+    # Check that no coroutines were prepared
+    assert mock_refine_role.call_count == 0
