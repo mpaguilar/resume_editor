@@ -1,5 +1,6 @@
 from unittest.mock import ANY, AsyncMock, MagicMock, Mock, patch
 import logging
+import asyncio
 import pytest
 from cryptography.fernet import InvalidToken
 from fastapi import FastAPI, HTTPException
@@ -13,6 +14,8 @@ from resume_editor.app.main import create_app
 from resume_editor.app.models.resume_model import Resume as DatabaseResume
 from resume_editor.app.models.user import User as DBUser
 from resume_editor.app.models.user_settings import UserSettings
+
+_real_asyncio_sleep = asyncio.sleep
 
 VALID_MINIMAL_RESUME_CONTENT = """# Personal
 
@@ -45,6 +48,48 @@ Name: A Cert
 Company: A Company
 Title: A Role
 Start date: 01/2024
+"""
+
+
+VALID_RESUME_TWO_ROLES = """# Personal
+
+## Contact Information
+
+Name: Test Person
+
+# Education
+
+## Degrees
+
+### Degree
+
+School: A School
+
+# Certifications
+
+## Certification
+
+Name: A Cert
+
+# Experience
+
+## Roles
+
+### Role
+
+#### Basics
+
+Company: A Company
+Title: A Role
+Start date: 01/2024
+
+### Role
+
+#### Basics
+
+Company: B Company
+Title: B Role
+Start date: 01/2023
 """
 
 
@@ -542,17 +587,38 @@ async def test_refine_resume_stream_happy_path(
     mock_build_sections.return_value = "reconstructed content"
 
     # Mock the async generator from refine_experience_section
-    refined_role = Role(
+    refined_role1 = Role(
         basics=RoleBasics(
-            company="Refined Company", title="Refined Role", start_date="2024-01-01"
+            company="Refined Company 1",
+            title="Refined Role 1",
+            start_date="2024-01-01",
         ),
-        summary=RoleSummary(text="Refined Summary"),
+        summary=RoleSummary(text="Refined Summary 1"),
     )
-    refined_role_data = refined_role.model_dump(mode="json")
+    refined_role1_data = refined_role1.model_dump(mode="json")
+    refined_role2 = Role(
+        basics=RoleBasics(
+            company="Refined Company 2",
+            title="Refined Role 2",
+            start_date="2023-01-01",
+        ),
+        summary=RoleSummary(text="Refined Summary 2"),
+    )
+    refined_role2_data = refined_role2.model_dump(mode="json")
 
     async def mock_async_generator():
         yield {"status": "in_progress", "message": "doing stuff"}
-        yield {"status": "role_refined", "data": refined_role_data}
+        # Yield out of order to ensure sorting logic is tested
+        yield {
+            "status": "role_refined",
+            "data": refined_role2_data,
+            "original_index": 1,
+        }
+        yield {
+            "status": "role_refined",
+            "data": refined_role1_data,
+            "original_index": 0,
+        }
 
     mock_async_refine_experience.return_value = mock_async_generator()
     mock_create_refine_result_html.return_value = "<html>final refined html</html>"
@@ -587,8 +653,10 @@ async def test_refine_resume_stream_happy_path(
     mock_extract_personal.assert_called_once_with(VALID_MINIMAL_RESUME_CONTENT)
     mock_build_sections.assert_called_once()
     reconstruct_kwargs = mock_build_sections.call_args.kwargs
-    assert len(reconstruct_kwargs["experience"].roles) == 1
-    assert reconstruct_kwargs["experience"].roles[0].summary.text == "Refined Summary"
+    reconstructed_roles = reconstruct_kwargs["experience"].roles
+    assert len(reconstructed_roles) == 2
+    assert reconstructed_roles[0].summary.text == "Refined Summary 1"
+    assert reconstructed_roles[1].summary.text == "Refined Summary 2"
     mock_create_refine_result_html.assert_called_once_with(
         1, "experience", "reconstructed content"
     )
@@ -635,18 +703,28 @@ async def test_refine_resume_stream_orchestration_error(
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "malformed_event",
+    [
+        {"status": "processing", "message": "unhandled status"},  # Unknown status
+        {"status": "role_refined", "data": {"some": "data"}},  # Missing index
+        {"status": "role_refined", "original_index": 0},  # Missing data
+        {"status": "role_refined", "data": None, "original_index": 0},
+        {"status": "role_refined", "data": {"some": "data"}, "original_index": None},
+    ],
+)
 @patch("resume_editor.app.api.routes.resume_ai.async_refine_experience_section")
 @patch("resume_editor.app.api.routes.resume_ai.get_user_settings", return_value=None)
-async def test_refine_resume_stream_unknown_status(
+async def test_refine_resume_stream_malformed_events(
     mock_get_user_settings,
     mock_async_refine_experience,
+    malformed_event,
     client_with_auth_and_resume,
 ):
-    """Test SSE stream handles unknown event statuses gracefully."""
+    """Test SSE stream handles unknown or malformed events gracefully."""
 
-    # Mock the async generator to yield an event with an unknown status
     async def mock_async_generator():
-        yield {"status": "processing", "message": "unhandled status"}
+        yield malformed_event
 
     mock_async_refine_experience.return_value = mock_async_generator()
 
@@ -658,10 +736,15 @@ async def test_refine_resume_stream_unknown_status(
         # Assert
         assert response.status_code == 200
         assert "text/event-stream" in response.headers["content-type"]
-        content = response.read()
-        # The generator should not yield anything for an unknown status, but the
-        # finally block will always send the close event.
-        assert content.strip() == b"event: close\ndata: stream complete"
+        text_content = response.read().decode("utf-8")
+
+    # The generator should not add any roles, so an error event for "no roles"
+    # should be yielded, followed by the close event.
+    events = text_content.strip().split("\n\n")
+    assert len(events) == 2, f"Expected 2 events, got {len(events)}: {events}"
+    assert "event: error" in events[0]
+    assert "no roles were found to refine" in events[0]
+    assert "event: close" in events[1]
 
     mock_async_refine_experience.assert_called_once()
 
@@ -691,8 +774,13 @@ async def test_refine_resume_stream_empty_generator(
         # Assert
         assert response.status_code == 200
         assert "text/event-stream" in response.headers["content-type"]
-        content = response.read()
-        assert content.strip() == b"event: close\ndata: stream complete"
+        text_content = response.read().decode("utf-8")
+
+    events = text_content.strip().split("\n\n")
+    assert len(events) == 2, f"Expected 2 events, but got {len(events)}: {events}"
+    assert "event: error" in events[0]
+    assert "no roles were found to refine" in events[0]
+    assert "event: close" in events[1]
 
     mock_async_refine_experience.assert_called_once()
 
@@ -1385,6 +1473,11 @@ def test_accept_refined_resume_invalid_section(
 @patch("resume_editor.app.api.routes.resume_ai.extract_experience_info")
 @patch("resume_editor.app.api.routes.resume_ai.extract_education_info")
 @patch("resume_editor.app.api.routes.resume_ai.extract_personal_info")
+@patch("resume_editor.app.llm.orchestration.extract_certifications_info", MagicMock())
+@patch("resume_editor.app.llm.orchestration.extract_education_info", MagicMock())
+@patch("resume_editor.app.llm.orchestration.extract_personal_info", MagicMock())
+@patch("resume_editor.app.llm.orchestration.extract_experience_info")
+@patch("resume_editor.app.llm.orchestration.asyncio.sleep", new_callable=AsyncMock)
 @patch("resume_editor.app.llm.orchestration.refine_role", new_callable=AsyncMock)
 @patch(
     "resume_editor.app.llm.orchestration.analyze_job_description",
@@ -1395,6 +1488,8 @@ async def test_refine_resume_stream_integrated(
     mock_get_user_settings,
     mock_analyze_job,
     mock_refine_role,
+    mock_sleep,
+    mock_orch_extract_experience,
     mock_extract_personal,
     mock_extract_education,
     mock_extract_experience,
@@ -1420,17 +1515,51 @@ async def test_refine_resume_stream_integrated(
     )
 
     # Arrange
+    # Use resume with two roles to test ordering
+    test_resume.content = VALID_RESUME_TWO_ROLES
+
     # 1. Mock orchestrator dependencies
+    mock_role_a = Role(
+        basics=RoleBasics(company="A Company", title="A Role", start_date="2024-01-01")
+    )
+    mock_role_b = Role(
+        basics=RoleBasics(company="B Company", title="B Role", start_date="2023-01-01")
+    )
+    mock_orch_extract_experience.return_value = ExperienceResponse(
+        roles=[mock_role_a, mock_role_b], projects=[]
+    )
+
     mock_analyze_job.return_value = JobAnalysis(
         key_skills=["a", "b"], primary_duties=["c"], themes=["d"]
     )
-    mock_refined_role_obj = RefinedRole(
+
+    mock_refined_role1 = RefinedRole(
         basics=RoleBasics(
-            company="Refined Company", title="Refined Role", start_date="2024-01-01"
+            company="A Company", title="Refined A Role", start_date="2024-01-01"
         ),
-        summary=RoleSummary(text="Refined Summary"),
+        summary=RoleSummary(text="Refined Summary for A"),
     )
-    mock_refine_role.return_value = mock_refined_role_obj
+    mock_refined_role2 = RefinedRole(
+        basics=RoleBasics(
+            company="B Company", title="Refined B Role", start_date="2023-01-01"
+        ),
+        summary=RoleSummary(text="Refined Summary for B"),
+    )
+
+    # Mock the refinement to complete out of order
+    async def refine_role_side_effect(*args, **kwargs):
+        role_title = kwargs["role"].basics.title
+        if role_title == "A Role":
+            await _real_asyncio_sleep(0.02)  # Slower task
+            return mock_refined_role1
+        # B Role
+        await _real_asyncio_sleep(0.01)  # Faster task
+        return mock_refined_role2
+
+    mock_refine_role.side_effect = refine_role_side_effect
+
+    # Make sleep a no-op for the orchestrator's delay
+    mock_sleep.return_value = None
 
     # 2. Mock reconstruction dependencies
     mock_extract_personal.return_value = MagicMock()
@@ -1457,28 +1586,39 @@ async def test_refine_resume_stream_integrated(
     # Assert
     events = text_content.strip().split("\n\n")
 
-    # Expected events: progress, progress, progress (queuing), done, close
-    assert len(events) == 5, f"Expected 5 events, but got {len(events)}: {events}"
+    # Expected events: progress, progress, 2x progress (queuing), done, close
+    assert len(events) == 6, f"Expected 6 events, but got {len(events)}: {events}"
 
     assert "event: progress" in events[0] and "Parsing resume" in events[0]
     assert "event: progress" in events[1] and "Analyzing job" in events[1]
-    assert "event: progress" in events[2] and "Queueing role" in events[2]
+    assert (
+        "event: progress" in events[2]
+        and "Queueing role &#x27;A Role @ A Company&#x27;" in events[2]
+    )
+    assert (
+        "event: progress" in events[3]
+        and "Queueing role &#x27;B Role @ B Company&#x27;" in events[3]
+    )
 
-    assert "event: done" in events[3]
-    assert "data: <html>final refined html</html>" in events[3]
+    assert "event: done" in events[4]
+    assert "data: <html>final refined html</html>" in events[4]
 
-    assert "event: close" in events[4]
+    assert "event: close" in events[5]
 
     # Assert mocks
     mock_analyze_job.assert_called_once()
-    mock_refine_role.assert_called_once()  # We have one role in the fixture
+    assert mock_refine_role.call_count == 2  # We have two roles in the fixture
 
     mock_extract_personal.assert_called_once()
     mock_build_sections.assert_called_once()
-    # Check that the refined role data was used for reconstruction
+
+    # Check that the refined roles were re-ordered correctly before reconstruction
     reconstruct_kwargs = mock_build_sections.call_args.kwargs
-    assert isinstance(reconstruct_kwargs["experience"].roles[0], Role)
-    assert reconstruct_kwargs["experience"].roles[0].summary.text == "Refined Summary"
+    reconstructed_roles = reconstruct_kwargs["experience"].roles
+    assert len(reconstructed_roles) == 2
+    assert reconstructed_roles[0].basics.title == "Refined A Role"
+    assert reconstructed_roles[1].basics.title == "Refined B Role"
+
     # Ensure original projects were preserved
     assert (
         reconstruct_kwargs["experience"].projects

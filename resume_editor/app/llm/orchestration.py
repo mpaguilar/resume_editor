@@ -266,7 +266,8 @@ async def _refine_single_role_concurrently(
     llm_endpoint: str | None,
     api_key: str | None,
     llm_model_name: str | None,
-) -> RefinedRole:
+    original_index: int,
+) -> tuple[RefinedRole, int]:
     """Acquires a semaphore and refines a single role using the LLM.
 
     Args:
@@ -276,9 +277,10 @@ async def _refine_single_role_concurrently(
         llm_endpoint (str | None): The custom LLM endpoint URL.
         api_key (str | None): The user's decrypted LLM API key.
         llm_model_name (str | None): The user-specified LLM model name.
+        original_index (int): The original index of the role in the resume.
 
     Returns:
-        RefinedRole: The refined and validated role object.
+        tuple[RefinedRole, int]: A tuple containing the refined role and its original index.
 
     Notes:
         1. This function is a coroutine.
@@ -289,13 +291,14 @@ async def _refine_single_role_concurrently(
     log.debug("Waiting on semaphore for role refinement")
     async with semaphore:
         log.debug("Semaphore acquired, refining role")
-        return await refine_role(
+        refined_role = await refine_role(
             role=role,
             job_analysis=job_analysis,
             llm_endpoint=llm_endpoint,
             api_key=api_key,
             llm_model_name=llm_model_name,
         )
+        return refined_role, original_index
 
 
 async def async_refine_experience_section(
@@ -350,7 +353,7 @@ async def async_refine_experience_section(
     # 3. Create and dispatch tasks for role refinement
     tasks = []
     if experience_info.roles:
-        for role in experience_info.roles:
+        for index, role in enumerate(experience_info.roles):
             task = asyncio.create_task(
                 _refine_single_role_concurrently(
                     role=role,
@@ -359,6 +362,7 @@ async def async_refine_experience_section(
                     llm_endpoint=llm_endpoint,
                     api_key=api_key,
                     llm_model_name=llm_model_name,
+                    original_index=index,
                 )
             )
             tasks.append(task)
@@ -371,8 +375,12 @@ async def async_refine_experience_section(
 
     # 4. Yield results as they complete
     for future in asyncio.as_completed(tasks):
-        refined_role_data = await future
-        yield {"status": "role_refined", "data": refined_role_data.model_dump(mode="json")}
+        refined_role, original_index = await future
+        yield {
+            "status": "role_refined",
+            "data": refined_role.model_dump(mode="json"),
+            "original_index": original_index,
+        }
 
     log.debug("async_refine_experience_section finishing")
 

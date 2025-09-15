@@ -1002,7 +1002,13 @@ async def test_async_refine_experience_section_execution(
     mock_refined_role1.basics.title = "Refined Engineer I"
     mock_refined_role2 = create_mock_refined_role()
     mock_refined_role2.basics.title = "Refined Engineer II"
-    mock_refine_single_role.side_effect = [mock_refined_role1, mock_refined_role2]
+
+    def side_effect_func(*args, **kwargs):
+        if kwargs["original_index"] == 0:
+            return mock_refined_role1, 0
+        return mock_refined_role2, 1
+
+    mock_refine_single_role.side_effect = side_effect_func
 
     # Act
     events = []
@@ -1033,7 +1039,7 @@ async def test_async_refine_experience_section_execution(
     # 2. Refinement calls
     assert mock_refine_single_role.call_count == len(mock_roles)
     mock_semaphore_instance = mock_semaphore.return_value
-    for role in mock_roles:
+    for i, role in enumerate(mock_roles):
         mock_refine_single_role.assert_any_call(
             role=role,
             job_analysis=mock_job_analysis,
@@ -1041,6 +1047,7 @@ async def test_async_refine_experience_section_execution(
             llm_endpoint=llm_endpoint,
             api_key=api_key,
             llm_model_name=llm_model_name,
+            original_index=i,
         )
 
     # 3. Sleep calls
@@ -1079,18 +1086,26 @@ async def test_async_refine_experience_section_execution(
     assert initial_events == expected_initial_events
     assert queueing_events == expected_queueing_events
 
-    # Order of results is not guaranteed, so compare sets of data
-    received_results_data = {
-        json.dumps(e["data"], sort_keys=True) for e in result_events
-    }
-    expected_results_data = {
-        json.dumps(e["data"], sort_keys=True) for e in expected_result_events
-    }
-    assert received_results_data == expected_results_data
+    # Order of results is not guaranteed. Extract index and data, then sort by index.
+    received_results = sorted(
+        [
+            (e["original_index"], json.dumps(e["data"], sort_keys=True))
+            for e in result_events
+        ]
+    )
+    expected_refined_data = [
+        mock_refined_role1.model_dump(mode="json"),
+        mock_refined_role2.model_dump(mode="json"),
+    ]
+    expected_results = [
+        (i, json.dumps(data, sort_keys=True))
+        for i, data in enumerate(expected_refined_data)
+    ]
+    assert received_results == expected_results
 
     assert len(events) == len(expected_initial_events) + len(
         expected_queueing_events
-    ) + len(expected_result_events)
+    ) + len(result_events)
 
 
 @pytest.mark.asyncio
@@ -1251,6 +1266,7 @@ async def test_refine_single_role_concurrently():
     llm_endpoint = "http://fake.llm"
     api_key = "key"
     llm_model_name = "model"
+    original_index = 5
 
     with patch(
         "resume_editor.app.llm.orchestration.refine_role", new_callable=AsyncMock
@@ -1258,13 +1274,14 @@ async def test_refine_single_role_concurrently():
         mock_refine_role.return_value = mock_refined_role
 
         # Act
-        result = await _refine_single_role_concurrently(
+        result_role, result_index = await _refine_single_role_concurrently(
             role=mock_role,
             job_analysis=mock_job_analysis,
             semaphore=mock_semaphore,
             llm_endpoint=llm_endpoint,
             api_key=api_key,
             llm_model_name=llm_model_name,
+            original_index=original_index,
         )
 
         # Assert
@@ -1282,7 +1299,8 @@ async def test_refine_single_role_concurrently():
         )
 
         # Check that the result is correct
-        assert result == mock_refined_role
+        assert result_role == mock_refined_role
+        assert result_index == original_index
 
 
 @pytest.mark.asyncio
@@ -1341,6 +1359,9 @@ async def test_async_refine_experience_section_concurrency_and_delay(
 
     async def mock_refinement_side_effect(*args, **kwargs):
         nonlocal active_tasks, max_observed_concurrency
+        # The _refine_single_role_concurrently is not mocked, so we are mocking
+        # the refine_role call inside it. It doesn't receive the index.
+        # We simulate the wrapper's behavior in the test's main logic.
         async with lock:
             active_tasks += 1
             max_observed_concurrency = max(max_observed_concurrency, active_tasks)

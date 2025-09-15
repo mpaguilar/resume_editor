@@ -88,7 +88,7 @@ async def refine_resume_stream(
             if settings and settings.encrypted_api_key:
                 api_key = decrypt_data(settings.encrypted_api_key)
 
-            refined_roles_data = []
+            refined_roles = {}
             async for event in async_refine_experience_section(
                 resume_content=resume.content,
                 job_description=job_description,
@@ -100,16 +100,23 @@ async def refine_resume_stream(
                     progress_html = f"<li>{html.escape(event.get('message', ''))}</li>"
                     yield f"event: progress\ndata: {progress_html}\n\n"
                 elif isinstance(event, dict) and event.get("status") == "role_refined":
-                    refined_roles_data.append(event.get("data"))
+                    index = event.get("original_index")
+                    data = event.get("data")
+                    if index is not None and data is not None:
+                        refined_roles[index] = data
 
-            if refined_roles_data:
+            if refined_roles:
                 personal_info = extract_personal_info(resume.content)
                 education_info = extract_education_info(resume.content)
                 experience_info = extract_experience_info(resume.content)
                 certifications_info = extract_certifications_info(resume.content)
 
+                # Sort roles by original index to preserve order
+                sorted_roles_data = [
+                    role_data for _, role_data in sorted(refined_roles.items())
+                ]
                 roles_to_reconstruct = [
-                    Role.model_validate(data) for data in refined_roles_data
+                    Role.model_validate(data) for data in sorted_roles_data
                 ]
 
                 refined_experience = ExperienceResponse(
@@ -130,6 +137,12 @@ async def refine_resume_stream(
                     f"data: {line}" for line in result_html.splitlines()
                 )
                 yield f"event: done\n{data_payload}\n\n"
+            else:
+                error_html = "<div role='alert' class='text-yellow-500 p-2'>Refinement finished, but no roles were found to refine.</div>"
+                data_payload = "\n".join(
+                    f"data: {line}" for line in error_html.splitlines()
+                )
+                yield f"event: error\n{data_payload}\n\n"
 
         except ClientDisconnect:
             log.warning(f"Client disconnected from SSE stream for resume {resume.id}.")
@@ -142,7 +155,7 @@ async def refine_resume_stream(
             elif isinstance(e, ValueError):
                 error_message = f"Refinement failed: {e!s}"
 
-            log.warning(f"SSE stream error for resume {resume.id}: {error_message}")
+            log.exception(f"SSE stream error for resume {resume.id}: {error_message}")
             error_html = f"<div role='alert' class='text-red-500 p-2'>{html.escape(error_message)}</div>"
             data_payload = "\n".join(
                 f"data: {line}" for line in error_html.splitlines()
