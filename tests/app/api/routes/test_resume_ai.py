@@ -503,7 +503,7 @@ def test_refine_resume_no_htmx_response(
 @patch("resume_editor.app.api.routes.resume_ai.extract_experience_info")
 @patch("resume_editor.app.api.routes.resume_ai.extract_education_info")
 @patch("resume_editor.app.api.routes.resume_ai.extract_personal_info")
-@patch("resume_editor.app.api.routes.resume_ai.refine_experience_section")
+@patch("resume_editor.app.api.routes.resume_ai.async_refine_experience_section")
 @patch(
     "resume_editor.app.api.routes.resume_ai.decrypt_data",
     return_value="decrypted_key",
@@ -512,7 +512,7 @@ def test_refine_resume_no_htmx_response(
 async def test_refine_resume_stream_happy_path(
     mock_get_user_settings,
     mock_decrypt_data,
-    mock_refine_experience,
+    mock_async_refine_experience,
     mock_extract_personal,
     mock_extract_education,
     mock_extract_experience,
@@ -554,7 +554,7 @@ async def test_refine_resume_stream_happy_path(
         yield {"status": "in_progress", "message": "doing stuff"}
         yield {"status": "role_refined", "data": refined_role_data}
 
-    mock_refine_experience.return_value = mock_async_generator()
+    mock_async_refine_experience.return_value = mock_async_generator()
     mock_create_refine_result_html.return_value = "<html>final refined html</html>"
 
     # Act
@@ -577,7 +577,7 @@ async def test_refine_resume_stream_happy_path(
     assert "event: close" in events[2]
 
     # Assert mocks
-    mock_refine_experience.assert_called_once_with(
+    mock_async_refine_experience.assert_called_once_with(
         resume_content=VALID_MINIMAL_RESUME_CONTENT,
         job_description="a new job",
         llm_endpoint="http://llm.test",
@@ -595,18 +595,17 @@ async def test_refine_resume_stream_happy_path(
 
 
 @pytest.mark.asyncio
-@patch("resume_editor.app.api.routes.resume_ai.refine_experience_section")
+@patch("resume_editor.app.api.routes.resume_ai.async_refine_experience_section")
 @patch("resume_editor.app.api.routes.resume_ai.get_user_settings", return_value=None)
 async def test_refine_resume_stream_orchestration_error(
-    mock_get_user_settings, mock_refine_experience, client_with_auth_and_resume
+    mock_get_user_settings,
+    mock_async_refine_experience,
+    client_with_auth_and_resume,
 ):
-    """Test that an error yielded by the orchestrator is handled in the SSE stream."""
+    """Test that an error raised by the orchestrator is handled in the SSE stream."""
 
-    # Mock the async generator to yield an event with an error status
-    async def mock_async_generator():
-        yield {"status": "error", "message": "Orchestration failed"}
-
-    mock_refine_experience.return_value = mock_async_generator()
+    # Mock the async generator to raise an error
+    mock_async_refine_experience.side_effect = ValueError("Orchestration failed")
 
     # Act
     with client_with_auth_and_resume.stream(
@@ -624,7 +623,7 @@ async def test_refine_resume_stream_orchestration_error(
     error_event = events[0]
     assert "event: error" in error_event
     assert (
-        "data: <div role='alert' class='text-red-500 p-2'>Orchestration failed</div>"
+        "data: <div role='alert' class='text-red-500 p-2'>Refinement failed: Orchestration failed</div>"
         in error_event
     )
 
@@ -632,14 +631,16 @@ async def test_refine_resume_stream_orchestration_error(
     assert "event: close" in close_event
     assert "data: stream complete" in close_event
 
-    mock_refine_experience.assert_called_once()
+    mock_async_refine_experience.assert_called_once()
 
 
 @pytest.mark.asyncio
-@patch("resume_editor.app.api.routes.resume_ai.refine_experience_section")
+@patch("resume_editor.app.api.routes.resume_ai.async_refine_experience_section")
 @patch("resume_editor.app.api.routes.resume_ai.get_user_settings", return_value=None)
 async def test_refine_resume_stream_unknown_status(
-    mock_get_user_settings, mock_refine_experience, client_with_auth_and_resume
+    mock_get_user_settings,
+    mock_async_refine_experience,
+    client_with_auth_and_resume,
 ):
     """Test SSE stream handles unknown event statuses gracefully."""
 
@@ -647,7 +648,7 @@ async def test_refine_resume_stream_unknown_status(
     async def mock_async_generator():
         yield {"status": "processing", "message": "unhandled status"}
 
-    mock_refine_experience.return_value = mock_async_generator()
+    mock_async_refine_experience.return_value = mock_async_generator()
 
     # Act
     with client_with_auth_and_resume.stream(
@@ -662,14 +663,16 @@ async def test_refine_resume_stream_unknown_status(
         # finally block will always send the close event.
         assert content.strip() == b"event: close\ndata: stream complete"
 
-    mock_refine_experience.assert_called_once()
+    mock_async_refine_experience.assert_called_once()
 
 
 @pytest.mark.asyncio
-@patch("resume_editor.app.api.routes.resume_ai.refine_experience_section")
+@patch("resume_editor.app.api.routes.resume_ai.async_refine_experience_section")
 @patch("resume_editor.app.api.routes.resume_ai.get_user_settings", return_value=None)
 async def test_refine_resume_stream_empty_generator(
-    mock_get_user_settings, mock_refine_experience, client_with_auth_and_resume
+    mock_get_user_settings,
+    mock_async_refine_experience,
+    client_with_auth_and_resume,
 ):
     """Test SSE stream with an empty generator from the LLM service."""
 
@@ -678,7 +681,7 @@ async def test_refine_resume_stream_empty_generator(
         return
         yield  # pylint: disable=unreachable
 
-    mock_refine_experience.return_value = mock_empty_async_generator()
+    mock_async_refine_experience.return_value = mock_empty_async_generator()
 
     # Act
     with client_with_auth_and_resume.stream(
@@ -691,17 +694,17 @@ async def test_refine_resume_stream_empty_generator(
         content = response.read()
         assert content.strip() == b"event: close\ndata: stream complete"
 
-    mock_refine_experience.assert_called_once()
+    mock_async_refine_experience.assert_called_once()
 
 
 @pytest.mark.asyncio
-@patch("resume_editor.app.api.routes.resume_ai.refine_experience_section")
+@patch("resume_editor.app.api.routes.resume_ai.async_refine_experience_section")
 @patch("resume_editor.app.api.routes.resume_ai.decrypt_data", side_effect=InvalidToken)
 @patch("resume_editor.app.api.routes.resume_ai.get_user_settings")
 async def test_refine_resume_stream_invalid_token(
     mock_get_user_settings,
     mock_decrypt_data,
-    mock_refine_experience,
+    mock_async_refine_experience,
     client_with_auth_and_resume,
     test_user,
 ):
@@ -720,17 +723,19 @@ async def test_refine_resume_stream_invalid_token(
     assert "event: error" in events[0]
     assert "Invalid API key" in events[0]
     assert "event: close" in events[1]
-    mock_refine_experience.assert_not_called()
+    mock_async_refine_experience.assert_not_called()
 
 
 @pytest.mark.asyncio
-@patch("resume_editor.app.api.routes.resume_ai.refine_experience_section")
+@patch("resume_editor.app.api.routes.resume_ai.async_refine_experience_section")
 @patch("resume_editor.app.api.routes.resume_ai.get_user_settings", return_value=None)
 async def test_refine_resume_stream_auth_error(
-    mock_get_user_settings, mock_refine_experience, client_with_auth_and_resume
+    mock_get_user_settings,
+    mock_async_refine_experience,
+    client_with_auth_and_resume,
 ):
     """Test SSE stream reports error on LLM authentication failure within sse_generator."""
-    mock_refine_experience.side_effect = AuthenticationError(
+    mock_async_refine_experience.side_effect = AuthenticationError(
         message="auth error", response=Mock(), body=None
     )
 
@@ -747,30 +752,6 @@ async def test_refine_resume_stream_auth_error(
     assert "event: close" in events[1]
 
 
-@pytest.mark.asyncio
-@patch("resume_editor.app.api.routes.resume_ai.refine_experience_section")
-@patch("resume_editor.app.api.routes.resume_ai.get_user_settings", return_value=None)
-async def test_refine_resume_stream_with_no_final_content(
-    mock_get_user_settings, mock_refine_experience, client_with_auth_and_resume
-):
-    """Test SSE stream where 'done' event has no content."""
-
-    async def mock_async_generator():
-        yield {"status": "done", "content": None}
-
-    mock_refine_experience.return_value = mock_async_generator()
-
-    # Act
-    with client_with_auth_and_resume.stream(
-        "GET",
-        "/api/resumes/1/refine/stream?job_description=a_job",
-    ) as response:
-        # Assert
-        assert response.status_code == 200
-        content = response.read()
-        assert content.strip() == b"event: close\ndata: stream complete"
-
-    mock_refine_experience.assert_called_once()
 
 
 @pytest.mark.asyncio
@@ -781,11 +762,11 @@ async def test_refine_resume_stream_with_no_final_content(
         (Exception("generic error"), "An unexpected error occurred."),
     ],
 )
-@patch("resume_editor.app.api.routes.resume_ai.refine_experience_section")
+@patch("resume_editor.app.api.routes.resume_ai.async_refine_experience_section")
 @patch("resume_editor.app.api.routes.resume_ai.get_user_settings", return_value=None)
 async def test_refine_resume_stream_errors_in_generator(
     mock_get_user_settings,
-    mock_refine_experience,
+    mock_async_refine_experience,
     exception,
     expected_message_part,
     client_with_auth_and_resume,
@@ -794,7 +775,7 @@ async def test_refine_resume_stream_errors_in_generator(
     Test that the SSE stream correctly handles exceptions raised from the
     orchestration function, which are caught inside the sse_generator.
     """
-    mock_refine_experience.side_effect = exception
+    mock_async_refine_experience.side_effect = exception
 
     with client_with_auth_and_resume.stream(
         "GET", "/api/resumes/1/refine/stream?job_description=job"
@@ -810,11 +791,11 @@ async def test_refine_resume_stream_errors_in_generator(
 
 
 @pytest.mark.asyncio
-@patch("resume_editor.app.api.routes.resume_ai.refine_experience_section")
+@patch("resume_editor.app.api.routes.resume_ai.async_refine_experience_section")
 @patch("resume_editor.app.api.routes.resume_ai.get_user_settings", return_value=None)
 async def test_refine_resume_stream_client_disconnect(
     mock_get_user_settings,
-    mock_refine_experience,
+    mock_async_refine_experience,
     client_with_auth_and_resume,
     caplog,
 ):
@@ -825,7 +806,7 @@ async def test_refine_resume_stream_client_disconnect(
         raise ClientDisconnect()
         yield  # Make it a generator
 
-    mock_refine_experience.return_value = mock_generator_with_disconnect()
+    mock_async_refine_experience.return_value = mock_generator_with_disconnect()
 
     with caplog.at_level(logging.WARNING):
         with client_with_auth_and_resume.stream(
@@ -839,7 +820,7 @@ async def test_refine_resume_stream_client_disconnect(
             assert b"event: close" in content
 
     assert "Client disconnected from SSE stream for resume 1." in caplog.text
-    mock_refine_experience.assert_called_once()
+    mock_async_refine_experience.assert_called_once()
 
 
 @patch("resume_editor.app.api.routes.resume_ai.refine_resume_section_with_llm")

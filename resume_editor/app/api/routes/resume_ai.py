@@ -42,7 +42,7 @@ from resume_editor.app.core.auth import get_current_user_from_cookie
 from resume_editor.app.core.security import decrypt_data
 from resume_editor.app.database.database import get_db
 from resume_editor.app.llm.orchestration import (
-    refine_experience_section,
+    async_refine_experience_section,
     refine_resume_section_with_llm,
 )
 from resume_editor.app.models.resume.experience import Role
@@ -89,8 +89,7 @@ async def refine_resume_stream(
                 api_key = decrypt_data(settings.encrypted_api_key)
 
             refined_roles_data = []
-            error_occurred = False
-            async for event in refine_experience_section(
+            async for event in async_refine_experience_section(
                 resume_content=resume.content,
                 job_description=job_description,
                 llm_endpoint=llm_endpoint,
@@ -102,16 +101,8 @@ async def refine_resume_stream(
                     yield f"event: progress\ndata: {progress_html}\n\n"
                 elif isinstance(event, dict) and event.get("status") == "role_refined":
                     refined_roles_data.append(event.get("data"))
-                elif isinstance(event, dict) and event.get("status") == "error":
-                    error_occurred = True
-                    error_html = f"<div role='alert' class='text-red-500 p-2'>{html.escape(event.get('message', ''))}</div>"
-                    data_payload = "\n".join(
-                        f"data: {line}" for line in error_html.splitlines()
-                    )
-                    yield f"event: error\n{data_payload}\n\n"
-                    break  # Stop generation on error, but allow finally to run
 
-            if not error_occurred and refined_roles_data:
+            if refined_roles_data:
                 personal_info = extract_personal_info(resume.content)
                 education_info = extract_education_info(resume.content)
                 experience_info = extract_experience_info(resume.content)

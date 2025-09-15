@@ -14,7 +14,6 @@ from resume_editor.app.llm.orchestration import (
     _refine_single_role_concurrently,
     analyze_job_description,
     async_refine_experience_section,
-    refine_experience_section,
     refine_resume_section_with_llm,
     refine_role,
 )
@@ -1231,86 +1230,6 @@ async def test_async_refine_experience_section_role_refinement_fails(
             "status": "in_progress",
             "message": "Queueing role 'Old Title @ Old Company' for refinement.",
         },
-    ]
-
-
-@pytest.mark.asyncio
-@patch("resume_editor.app.llm.orchestration.async_refine_experience_section")
-async def test_refine_experience_section_wrapper_success(mock_concurrent_refiner):
-    """Test that the public refine_experience_section wrapper correctly calls and yields from the concurrent generator."""
-    # Arrange
-    async def mock_generator():
-        yield {"status": "one"}
-        yield {"status": "two"}
-
-    mock_concurrent_refiner.return_value = mock_generator()
-    max_concurrency = 7
-
-    # Act
-    events = []
-    async for event in refine_experience_section(
-        "r", "j", None, None, None, max_concurrency=max_concurrency
-    ):
-        events.append(event)
-
-    # Assert
-    mock_concurrent_refiner.assert_called_once_with(
-        resume_content="r",
-        job_description="j",
-        llm_endpoint=None,
-        api_key=None,
-        llm_model_name=None,
-        max_concurrency=max_concurrency,
-    )
-    assert events == [{"status": "one"}, {"status": "two"}]
-
-
-@pytest.mark.asyncio
-@pytest.mark.parametrize(
-    "exception, expected_message",
-    [
-        (
-            ValueError("A wild error appeared!"),
-            "Refinement failed: A wild error appeared!",
-        ),
-        (
-            AuthenticationError(message="bad key", response=MagicMock(), body=None),
-            "LLM authentication failed. Please check your API key.",
-        ),
-        (Exception("generic fail"), "An unexpected error occurred."),
-    ],
-)
-@patch("resume_editor.app.llm.orchestration.async_refine_experience_section")
-async def test_refine_experience_section_wrapper_handles_errors(
-    mock_concurrent_refiner, exception, expected_message
-):
-    """Test the public wrapper handles various exceptions and yields an error event."""
-    # Arrange
-    async def mock_generator_with_error():
-        yield {"status": "one"}
-        raise exception
-
-    mock_concurrent_refiner.return_value = mock_generator_with_error()
-
-    # Act
-    events = []
-    async for event in refine_experience_section(
-        "r", "j", None, None, None, max_concurrency=5
-    ):
-        events.append(event)
-
-    # Assert
-    mock_concurrent_refiner.assert_called_once_with(
-        resume_content="r",
-        job_description="j",
-        llm_endpoint=None,
-        api_key=None,
-        llm_model_name=None,
-        max_concurrency=5,
-    )
-    assert events == [
-        {"status": "one"},
-        {"status": "error", "message": expected_message},
     ]
 
 

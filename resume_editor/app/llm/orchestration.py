@@ -377,61 +377,6 @@ async def async_refine_experience_section(
     log.debug("async_refine_experience_section finishing")
 
 
-async def refine_experience_section(
-    resume_content: str,
-    job_description: str,
-    llm_endpoint: str | None,
-    api_key: str | None,
-    llm_model_name: str | None,
-    max_concurrency: int = 5,
-) -> AsyncGenerator[dict[str, Any], None]:
-    """
-    Orchestrates the asynchronous refinement of the 'experience' section of a resume.
-
-    This function performs a multi-step process:
-    1. Parses the entire resume to get structured data for all sections.
-    2. Analyzes the job description to extract keywords, skills, and themes.
-    3. Concurrently refines each professional role from the experience section individually.
-    4. Yields refined role data as it becomes available.
-
-    It yields status updates as it progresses through these stages.
-
-    Args:
-        resume_content (str): The full Markdown content of the resume.
-        job_description (str): The job description to align the resume with.
-        llm_endpoint (str | None): The custom LLM endpoint URL.
-        api_key (str | None): The user's decrypted LLM API key.
-        llm_model_name (str | None): The user-specified LLM model name.
-        max_concurrency (int): The maximum number of roles to refine in parallel.
-
-    Yields:
-        dict[str, Any]: A dictionary containing a status update or a piece of refined data.
-                        - For status updates: `{"status": "in_progress", "message": "..."}`
-                        - For refined roles: `{"status": "role_refined", "data": {...}}`
-                        - For errors: `{"status": "error", "message": "..."}`
-    """
-    try:
-        async for event in async_refine_experience_section(
-            resume_content=resume_content,
-            job_description=job_description,
-            llm_endpoint=llm_endpoint,
-            api_key=api_key,
-            llm_model_name=llm_model_name,
-            max_concurrency=max_concurrency,
-        ):
-            yield event
-    except AuthenticationError as e:
-        log.warning(f"Authentication error during experience refinement: {e!s}")
-        yield {
-            "status": "error",
-            "message": "LLM authentication failed. Please check your API key.",
-        }
-    except ValueError as e:
-        log.warning(f"Value error during experience refinement: {e!s}")
-        yield {"status": "error", "message": f"Refinement failed: {e!s}"}
-    except Exception:
-        log.exception("An unexpected error occurred during experience refinement.")
-        yield {"status": "error", "message": "An unexpected error occurred."}
 
 
 def refine_resume_section_with_llm(
