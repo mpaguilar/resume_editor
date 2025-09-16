@@ -180,15 +180,15 @@ def client_with_auth_no_resume(app, client, test_user):
     return client
 
 
-def test_delete_resume_htmx_refreshes(client_with_auth_and_resume):
-    """Test deleting a resume with HTMX returns an HX-Refresh header."""
+def test_delete_resume_htmx_redirects(client_with_auth_and_resume):
+    """Test deleting a resume with HTMX returns an HX-Redirect header."""
     response = client_with_auth_and_resume.delete(
         "/api/resumes/1",
         headers={"HX-Request": "true"},
     )
     assert response.status_code == 200
     assert response.text == ""
-    assert response.headers["HX-Refresh"] == "true"
+    assert response.headers["HX-Redirect"] == "/dashboard"
 
 
 def test_delete_resume_no_htmx(client_with_auth_and_resume):

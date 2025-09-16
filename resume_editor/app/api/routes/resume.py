@@ -196,43 +196,42 @@ async def update_resume(
 async def delete_resume(
     http_request: Request,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user_from_cookie),
     resume: DatabaseResume = Depends(get_resume_for_user),
 ):
     """
     Delete a resume for the current user.
 
+    The `get_resume_for_user` dependency handles fetching the resume and ensuring
+    it belongs to the authenticated user.
+
     Args:
-        resume_id (int): The unique identifier of the resume to delete.
         http_request (Request): The HTTP request object.
         db (Session): The database session dependency.
-        current_user (User): The current authenticated user.
+        resume (DatabaseResume): The resume to delete, injected via dependency.
 
     Returns:
-        dict | Response: A success message, or an empty response with HX-Refresh header for HTMX.
+        dict | Response: A success message, or an empty response with HX-Redirect header for HTMX.
 
     Raises:
         HTTPException: If the resume is not found, doesn't belong to the user, or there's an error deleting.
 
     Notes:
-        1. Queries the database for a resume with the given ID and user_id.
-        2. If no resume is found, raises a 404 error.
-        3. Deletes the resume from the database.
-        4. Commits the transaction to save the changes.
-        5. If the request is from HTMX, returns a response with an `HX-Refresh` header to trigger a full page refresh on the client.
-        6. Otherwise, returns a success message.
-        7. Performs database access: Reads from and writes to the database via db.query, db.delete, db.commit.
-        8. Performs network access: None.
-
+        1. The `get_resume_for_user` dependency validates that the resume exists and belongs to the current user.
+        2. Deletes the resume from the database using `delete_resume_db`.
+        3. If the request is from HTMX, returns a response with an `HX-Redirect` header to redirect the user to the dashboard.
+        4. Otherwise, returns a JSON success message.
+        5. Performs database access: Reads via `get_resume_for_user` dependency and writes via `delete_resume_db`.
+        6. Performs network access: None.
     """
     # Delete the resume
     delete_resume_db(db, resume)
 
     # Check if this is an HTMX request
     if "HX-Request" in http_request.headers:
-        # With HTMX, a full page refresh is the simplest way to handle
-        # updating both the list and the detail view.
-        return Response(status_code=200, headers={"HX-Refresh": "true"})
+        # For HTMX requests, redirect to the dashboard. This is more robust
+        # than a refresh, as it avoids a 404 if the user is on the deleted
+        # resume's edit page.
+        return Response(status_code=200, headers={"HX-Redirect": "/dashboard"})
 
     return {"message": "Resume deleted successfully"}
 
