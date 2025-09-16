@@ -259,46 +259,74 @@ def _refine_generic_section(
     return refined_section.refined_markdown
 
 
-async def _refine_single_role_concurrently(
+async def _refine_role_and_put_on_queue(
     role: Role,
     job_analysis: JobAnalysis,
     semaphore: asyncio.Semaphore,
+    event_queue: asyncio.Queue,
     llm_endpoint: str | None,
     api_key: str | None,
     llm_model_name: str | None,
     original_index: int,
-) -> tuple[RefinedRole, int]:
-    """Acquires a semaphore and refines a single role using the LLM.
+) -> None:
+    """
+    Refines a single role and puts progress/result events onto an asyncio.Queue.
+
+    This function acts as a concurrent worker. It acquires a semaphore to limit
+    concurrency, sends an 'in_progress' event to the queue, calls the `refine_role`
+    LLM function, and then puts either the successful `role_refined` event or an
+    exception onto the queue.
 
     Args:
         role (Role): The structured role object to refine.
         job_analysis (JobAnalysis): The structured job analysis to use as context.
         semaphore (asyncio.Semaphore): The semaphore to control concurrency.
+        event_queue (asyncio.Queue): The queue to send events to.
         llm_endpoint (str | None): The custom LLM endpoint URL.
         api_key (str | None): The user's decrypted LLM API key.
         llm_model_name (str | None): The user-specified LLM model name.
         original_index (int): The original index of the role in the resume.
 
     Returns:
-        tuple[RefinedRole, int]: A tuple containing the refined role and its original index.
+        None
 
     Notes:
         1. This function is a coroutine.
-        2. It acquires the provided semaphore before proceeding.
-        3. It calls `refine_role` to perform the actual LLM refinement.
-        4. The semaphore is released automatically by the `async with` block.
+        2. It waits to acquire the provided semaphore.
+        3. Once acquired, it puts an 'in_progress' status message onto the `event_queue`.
+        4. It calls `refine_role` to perform the actual LLM refinement.
+        5. It puts the result of the refinement (a `role_refined` dictionary) onto the `event_queue`.
+        6. If any exception occurs during the process, it puts the exception object onto the `event_queue`.
+        7. The semaphore is released automatically by the `async with` block.
     """
-    log.debug("Waiting on semaphore for role refinement")
-    async with semaphore:
-        log.debug("Semaphore acquired, refining role")
-        refined_role = await refine_role(
-            role=role,
-            job_analysis=job_analysis,
-            llm_endpoint=llm_endpoint,
-            api_key=api_key,
-            llm_model_name=llm_model_name,
-        )
-        return refined_role, original_index
+    try:
+        log.debug("Waiting on semaphore for role refinement for index %d", original_index)
+        async with semaphore:
+            role_title = f"{role.basics.title} @ {role.basics.company}"
+            await event_queue.put(
+                {
+                    "status": "in_progress",
+                    "message": f"Refining role '{role_title}'...",
+                }
+            )
+
+            log.debug("Semaphore acquired, refining role for index %d", original_index)
+            refined_role = await refine_role(
+                role=role,
+                job_analysis=job_analysis,
+                llm_endpoint=llm_endpoint,
+                api_key=api_key,
+                llm_model_name=llm_model_name,
+            )
+            await event_queue.put(
+                {
+                    "status": "role_refined",
+                    "data": refined_role.model_dump(mode="json"),
+                    "original_index": original_index,
+                }
+            )
+    except Exception as e:
+        await event_queue.put(e)
 
 
 async def async_refine_experience_section(
@@ -312,12 +340,6 @@ async def async_refine_experience_section(
     """
     Orchestrates the CONCURRENT refinement of the 'experience' section of a resume.
 
-    This function sets up a concurrent workflow for refining roles:
-    1. Parses the resume into structured data.
-    2. Analyzes the job description.
-    3. Creates and manages concurrent tasks for refining each role, yielding status updates.
-    4. Yields refined role data as it becomes available.
-
     Args:
         resume_content (str): The full Markdown content of the resume.
         job_description (str): The job description to align the resume with.
@@ -328,16 +350,22 @@ async def async_refine_experience_section(
 
     Yields:
         dict[str, Any]: Status updates and refined role data.
+
+    Notes:
+        1. Yields a progress message for parsing the resume.
+        2. Extracts the experience section from the resume content.
+        3. Yields a progress message for analyzing the job description.
+        4. Calls `analyze_job_description` to get a structured analysis.
+        5. If roles are found, creates an `asyncio.Queue` for events and a `Semaphore` for concurrency control.
+        6. For each role, creates a concurrent task using `_refine_role_and_put_on_queue`.
+        7. Enters a loop to consume events from the queue until all roles are processed.
+        8. For each event, if it's an exception, it is raised. Otherwise, it is yielded to the caller.
     """
     log.debug("async_refine_experience_section starting")
-    semaphore = asyncio.Semaphore(max_concurrency)
 
-    # 1. Parse all sections of the resume
+    # 1. Parse the experience section of the resume
     yield {"status": "in_progress", "message": "Parsing resume..."}
     log.debug("Parsing resume...")
-    personal_info = extract_personal_info(resume_content)
-    education_info = extract_education_info(resume_content)
-    certifications_info = extract_certifications_info(resume_content)
     experience_info = extract_experience_info(resume_content)
 
     # 2. Analyze the job description
@@ -351,36 +379,40 @@ async def async_refine_experience_section(
     )
 
     # 3. Create and dispatch tasks for role refinement
-    tasks = []
-    if experience_info.roles:
-        for index, role in enumerate(experience_info.roles):
-            task = asyncio.create_task(
-                _refine_single_role_concurrently(
-                    role=role,
-                    job_analysis=job_analysis,
-                    semaphore=semaphore,
-                    llm_endpoint=llm_endpoint,
-                    api_key=api_key,
-                    llm_model_name=llm_model_name,
-                    original_index=index,
-                )
-            )
-            tasks.append(task)
-            role_title = f"{role.basics.title} @ {role.basics.company}"
-            yield {
-                "status": "in_progress",
-                "message": f"Queueing role '{role_title}' for refinement.",
-            }
-            await asyncio.sleep(1)
+    num_roles = len(experience_info.roles) if experience_info.roles else 0
+    if num_roles == 0:
+        log.warning("No roles found in experience section to refine.")
+        return
 
-    # 4. Yield results as they complete
-    for future in asyncio.as_completed(tasks):
-        refined_role, original_index = await future
-        yield {
-            "status": "role_refined",
-            "data": refined_role.model_dump(mode="json"),
-            "original_index": original_index,
-        }
+    event_queue = asyncio.Queue()
+    semaphore = asyncio.Semaphore(max_concurrency)
+
+    for index, role in enumerate(experience_info.roles):
+        asyncio.create_task(
+            _refine_role_and_put_on_queue(
+                role=role,
+                job_analysis=job_analysis,
+                semaphore=semaphore,
+                event_queue=event_queue,
+                llm_endpoint=llm_endpoint,
+                api_key=api_key,
+                llm_model_name=llm_model_name,
+                original_index=index,
+            )
+        )
+
+    # 4. Yield events from the queue
+    processed_count = 0
+    while processed_count < num_roles:
+        event = await event_queue.get()
+        if isinstance(event, Exception):
+            raise event
+
+        if event.get("status") in ("role_refined",):
+            processed_count += 1
+
+        yield event
+        event_queue.task_done()
 
     log.debug("async_refine_experience_section finishing")
 

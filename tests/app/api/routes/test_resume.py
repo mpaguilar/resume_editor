@@ -180,62 +180,15 @@ def client_with_auth_no_resume(app, client, test_user):
     return client
 
 
-@pytest.fixture
-def client_with_last_resume(app, client, test_user, test_resume):
-    """Fixture for deleting the last resume."""
-    mock_db = Mock()
-    query_mock = Mock()
-    filter_mock = Mock()
-    # For get_resume_by_id_and_user to find the resume to delete
-    filter_mock.first.return_value = test_resume
-    # For get_user_resumes which is called after deletion to rebuild the list
-    filter_mock.all.return_value = []
-    query_mock.filter.return_value = filter_mock
-    mock_db.query.return_value = query_mock
-
-    def get_mock_db_with_last_resume():
-        yield mock_db
-
-    app.dependency_overrides[get_db] = get_mock_db_with_last_resume
-    app.dependency_overrides[get_current_user_from_cookie] = lambda: test_user
-    return client
-
-
-def test_delete_resume_htmx_no_remaining_resumes(client_with_last_resume):
-    """Test deleting the last resume with HTMX returns the correct message."""
-    # The fixture simulates that no resumes are left after deletion.
-    response = client_with_last_resume.delete(
-        "/api/resumes/1",
-        headers={"HX-Request": "true"},
-    )
-    assert response.status_code == 200
-    assert "No resumes found" in response.text
-
-
-@patch("resume_editor.app.api.routes.resume.get_user_resumes")
-def test_delete_resume_htmx_with_remaining_resumes(
-    mock_get_user_resumes,
-    client_with_auth_and_resume,
-    test_user,
-):
-    """Test deleting a resume with HTMX when other resumes remain."""
-    remaining_resume = DatabaseResume(
-        user_id=test_user.id,
-        name="Another Resume",
-        content="...",
-    )
-    remaining_resume.id = 2
-    mock_get_user_resumes.return_value = [remaining_resume]
-
+def test_delete_resume_htmx_refreshes(client_with_auth_and_resume):
+    """Test deleting a resume with HTMX returns an HX-Refresh header."""
     response = client_with_auth_and_resume.delete(
         "/api/resumes/1",
         headers={"HX-Request": "true"},
     )
-
     assert response.status_code == 200
-    assert "Another Resume" in response.text
-    assert "Test Resume" not in response.text
-    mock_get_user_resumes.assert_called_once()
+    assert response.text == ""
+    assert response.headers["HX-Refresh"] == "true"
 
 
 def test_delete_resume_no_htmx(client_with_auth_and_resume):
@@ -243,6 +196,13 @@ def test_delete_resume_no_htmx(client_with_auth_and_resume):
     response = client_with_auth_and_resume.delete("/api/resumes/1")
     assert response.status_code == 200
     assert response.json() == {"message": "Resume deleted successfully"}
+
+
+def test_delete_resume_not_found(client_with_auth_no_resume):
+    """Test deleting a non-existent or unauthorized resume returns 404."""
+    response = client_with_auth_no_resume.delete("/api/resumes/999")
+    assert response.status_code == 404
+    assert response.json() == {"detail": "Resume not found"}
 
 
 @patch("resume_editor.app.api.routes.resume.validate_resume_content")

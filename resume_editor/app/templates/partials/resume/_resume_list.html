@@ -10,9 +10,17 @@
            <div class="font-medium text-gray-800">{{ r.name }}</div>
            <div class="text-xs text-gray-500">ID: {{ r.id }}</div>
         </div>
-        <a href="/resumes/{{ r.id }}/edit" class="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-sm">
-            Edit
-        </a>
+        <div class="flex items-center space-x-2">
+            <a href="/resumes/{{ r.id }}/edit" class="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-sm">
+                Edit
+            </a>
+            <button hx-delete="/api/resumes/{{ r.id }}"
+                    hx-confirm="Are you sure you want to delete this resume?"
+                    hx-swap="none"
+                    class="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded text-sm">
+                Delete
+            </button>
+        </div>
     </div>
     {% endfor %}
 {% endif %}

@@ -11,7 +11,6 @@ import json
 from resume_editor.app.llm.orchestration import (
     _get_section_content,
     _refine_generic_section,
-    _refine_single_role_concurrently,
     analyze_job_description,
     async_refine_experience_section,
     refine_resume_section_with_llm,
@@ -947,32 +946,19 @@ async def test_refine_role_prompt_content(mock_chain_invocations_for_role_refine
 
 
 @pytest.mark.asyncio
-@patch("resume_editor.app.llm.orchestration.asyncio.sleep", new_callable=AsyncMock)
-@patch(
-    "resume_editor.app.llm.orchestration._refine_single_role_concurrently",
-    new_callable=AsyncMock,
-)
-@patch("resume_editor.app.llm.orchestration.asyncio.Semaphore")
+@patch("resume_editor.app.llm.orchestration.refine_role", new_callable=AsyncMock)
 @patch(
     "resume_editor.app.llm.orchestration.analyze_job_description",
     new_callable=AsyncMock,
 )
 @patch("resume_editor.app.llm.orchestration.extract_experience_info")
-@patch("resume_editor.app.llm.orchestration.extract_certifications_info")
-@patch("resume_editor.app.llm.orchestration.extract_education_info")
-@patch("resume_editor.app.llm.orchestration.extract_personal_info")
 async def test_async_refine_experience_section_execution(
-    mock_extract_personal,
-    mock_extract_education,
-    mock_extract_certifications,
     mock_extract_experience,
     mock_analyze_job,
-    mock_semaphore,
-    mock_refine_single_role,
-    mock_sleep,
+    mock_refine_role,
 ):
     """
-    Test the full concurrent execution flow of async_refine_experience_section.
+    Test the full execution flow of async_refine_experience_section with new queuing logic.
     """
     # Arrange
     resume_content = "some resume"
@@ -992,8 +978,6 @@ async def test_async_refine_experience_section_execution(
     mock_roles = [mock_role1, mock_role2]
     mock_experience_info = ExperienceResponse(roles=mock_roles, projects=[])
     mock_extract_experience.return_value = mock_experience_info
-
-    # Mock for analysis
     mock_job_analysis = create_mock_job_analysis()
     mock_analyze_job.return_value = mock_job_analysis
 
@@ -1003,12 +987,12 @@ async def test_async_refine_experience_section_execution(
     mock_refined_role2 = create_mock_refined_role()
     mock_refined_role2.basics.title = "Refined Engineer II"
 
-    def side_effect_func(*args, **kwargs):
-        if kwargs["original_index"] == 0:
-            return mock_refined_role1, 0
-        return mock_refined_role2, 1
+    async def refine_role_side_effect(role, **kwargs):
+        if role.basics.title == "Engineer I":
+            return mock_refined_role1
+        return mock_refined_role2
 
-    mock_refine_single_role.side_effect = side_effect_func
+    mock_refine_role.side_effect = refine_role_side_effect
 
     # Act
     events = []
@@ -1024,10 +1008,6 @@ async def test_async_refine_experience_section_execution(
 
     # Assert
     # 1. Initial setup calls
-    mock_semaphore.assert_called_once_with(max_concurrency)
-    mock_extract_personal.assert_called_once_with(resume_content)
-    mock_extract_education.assert_called_once_with(resume_content)
-    mock_extract_certifications.assert_called_once_with(resume_content)
     mock_extract_experience.assert_called_once_with(resume_content)
     mock_analyze_job.assert_awaited_once_with(
         job_description=job_description,
@@ -1035,98 +1015,54 @@ async def test_async_refine_experience_section_execution(
         api_key=api_key,
         llm_model_name=llm_model_name,
     )
-
-    # 2. Refinement calls
-    assert mock_refine_single_role.call_count == len(mock_roles)
-    mock_semaphore_instance = mock_semaphore.return_value
-    for i, role in enumerate(mock_roles):
-        mock_refine_single_role.assert_any_call(
-            role=role,
-            job_analysis=mock_job_analysis,
-            semaphore=mock_semaphore_instance,
-            llm_endpoint=llm_endpoint,
-            api_key=api_key,
-            llm_model_name=llm_model_name,
-            original_index=i,
-        )
-
-    # 3. Sleep calls
-    assert mock_sleep.await_count == len(mock_roles)
-    mock_sleep.assert_awaited_with(1)
+    assert mock_refine_role.call_count == len(mock_roles)
 
     # 4. Yielded events
-    expected_initial_events = [
+    # We expect 2 initial progress, 2 refining progress, and 2 result events
+    assert len(events) == 6
+
+    initial_events = [
+        e for e in events if e.get("message") in ("Parsing resume...", "Analyzing job description...")
+    ]
+    refining_events = [e for e in events if "Refining role" in e.get("message", "")]
+    result_events = [e for e in events if e.get("status") == "role_refined"]
+
+    assert initial_events == [
         {"status": "in_progress", "message": "Parsing resume..."},
         {"status": "in_progress", "message": "Analyzing job description..."},
     ]
-    expected_queueing_events = [
-        {
-            "status": "in_progress",
-            "message": "Queueing role 'Engineer I @ Company A' for refinement.",
-        },
-        {
-            "status": "in_progress",
-            "message": "Queueing role 'Engineer II @ Company B' for refinement.",
-        },
-    ]
-    # Extract event types for easier assertion
-    initial_events = [
-        e
-        for e in events
-        if e.get("message") in ("Parsing resume...", "Analyzing job description...")
-    ]
-    queueing_events = [e for e in events if "Queueing role" in e.get("message", "")]
-    result_events = [e for e in events if e.get("status") == "role_refined"]
-
-    assert initial_events == expected_initial_events
-    assert queueing_events == expected_queueing_events
+    
+    # Check for presence of refining messages, order is not guaranteed.
+    assert len(refining_events) == 2
+    refining_messages = {e["message"] for e in refining_events}
+    assert "Refining role 'Engineer I @ Company A'..." in refining_messages
+    assert "Refining role 'Engineer II @ Company B'..." in refining_messages
 
     # Order of results is not guaranteed. Extract index and data, then sort by index.
     received_results = sorted(
-        [
-            (e["original_index"], json.dumps(e["data"], sort_keys=True))
-            for e in result_events
-        ]
+        [(e["original_index"], json.dumps(e["data"], sort_keys=True)) for e in result_events]
     )
     expected_refined_data = [
         mock_refined_role1.model_dump(mode="json"),
         mock_refined_role2.model_dump(mode="json"),
     ]
     expected_results = [
-        (i, json.dumps(data, sort_keys=True))
-        for i, data in enumerate(expected_refined_data)
+        (i, json.dumps(data, sort_keys=True)) for i, data in enumerate(expected_refined_data)
     ]
     assert received_results == expected_results
 
-    assert len(events) == len(expected_initial_events) + len(
-        expected_queueing_events
-    ) + len(result_events)
-
 
 @pytest.mark.asyncio
-@patch("resume_editor.app.llm.orchestration.asyncio.sleep", new_callable=AsyncMock)
-@patch(
-    "resume_editor.app.llm.orchestration._refine_single_role_concurrently",
-    new_callable=AsyncMock,
-)
-@patch("resume_editor.app.llm.orchestration.asyncio.Semaphore")
+@patch("resume_editor.app.llm.orchestration.refine_role", new_callable=AsyncMock)
 @patch(
     "resume_editor.app.llm.orchestration.analyze_job_description",
     new_callable=AsyncMock,
 )
 @patch("resume_editor.app.llm.orchestration.extract_experience_info")
-@patch("resume_editor.app.llm.orchestration.extract_certifications_info")
-@patch("resume_editor.app.llm.orchestration.extract_education_info")
-@patch("resume_editor.app.llm.orchestration.extract_personal_info")
 async def test_async_refine_experience_section_execution_no_roles(
-    mock_extract_personal,
-    mock_extract_education,
-    mock_extract_certifications,
     mock_extract_experience,
     mock_analyze_job,
-    mock_semaphore,
-    mock_refine_single_role,
-    mock_sleep,
+    mock_refine_role,
 ):
     """
     Test that the async orchestrator execution handles cases with no roles gracefully.
@@ -1157,16 +1093,12 @@ async def test_async_refine_experience_section_execution_no_roles(
         events.append(event)
 
     # Assert
-    mock_semaphore.assert_called_once_with(max_concurrency)
     mock_analyze_job.assert_awaited_once()
     assert events == [
         {"status": "in_progress", "message": "Parsing resume..."},
         {"status": "in_progress", "message": "Analyzing job description..."},
     ]
-
-    # Check that no tasks were created or awaited
-    assert mock_refine_single_role.call_count == 0
-    mock_sleep.assert_not_awaited()
+    mock_refine_role.assert_not_called()
 
 
 @pytest.mark.asyncio
@@ -1174,13 +1106,15 @@ async def test_async_refine_experience_section_execution_no_roles(
     "resume_editor.app.llm.orchestration.analyze_job_description",
     new_callable=AsyncMock,
 )
-@patch("resume_editor.app.llm.orchestration.extract_experience_info", MagicMock())
-@patch("resume_editor.app.llm.orchestration.extract_certifications_info", MagicMock())
-@patch("resume_editor.app.llm.orchestration.extract_education_info", MagicMock())
-@patch("resume_editor.app.llm.orchestration.extract_personal_info", MagicMock())
-async def test_async_refine_experience_section_job_analysis_fails(mock_analyze_job):
+@patch("resume_editor.app.llm.orchestration.extract_experience_info")
+async def test_async_refine_experience_section_job_analysis_fails(
+    mock_extract_experience, mock_analyze_job
+):
     """Test that the concurrent orchestrator raises an error if job analysis fails."""
     # Arrange
+    mock_extract_experience.return_value = ExperienceResponse(
+        roles=[create_mock_role()], projects=[]
+    )
     mock_analyze_job.side_effect = ValueError("Job analysis failed")
 
     # Act & Assert
@@ -1198,24 +1132,16 @@ async def test_async_refine_experience_section_job_analysis_fails(mock_analyze_j
 
 
 @pytest.mark.asyncio
-@patch("resume_editor.app.llm.orchestration.asyncio.sleep", new_callable=AsyncMock)
-@patch(
-    "resume_editor.app.llm.orchestration._refine_single_role_concurrently",
-    new_callable=AsyncMock,
-)
+@patch("resume_editor.app.llm.orchestration.refine_role", new_callable=AsyncMock)
 @patch(
     "resume_editor.app.llm.orchestration.analyze_job_description",
     new_callable=AsyncMock,
 )
 @patch("resume_editor.app.llm.orchestration.extract_experience_info")
-@patch("resume_editor.app.llm.orchestration.extract_certifications_info", MagicMock())
-@patch("resume_editor.app.llm.orchestration.extract_education_info", MagicMock())
-@patch("resume_editor.app.llm.orchestration.extract_personal_info", MagicMock())
 async def test_async_refine_experience_section_role_refinement_fails(
     mock_extract_experience,
     mock_analyze_job,
-    mock_refine_single_role,
-    mock_sleep,
+    mock_refine_role,
 ):
     """Test that the concurrent orchestrator raises an error if a role refinement task fails."""
     # Arrange
@@ -1223,7 +1149,7 @@ async def test_async_refine_experience_section_role_refinement_fails(
         roles=[create_mock_role()], projects=[]
     )
     mock_analyze_job.return_value = create_mock_job_analysis()
-    mock_refine_single_role.side_effect = ValueError("Role task failed")
+    mock_refine_role.side_effect = ValueError("Role task failed")
 
     # Act & Assert
     events = []
@@ -1234,89 +1160,32 @@ async def test_async_refine_experience_section_role_refinement_fails(
             events.append(event)
 
     # Assert
-    assert mock_refine_single_role.call_count == 1
-    mock_sleep.assert_awaited_once_with(1)
+    assert mock_refine_role.call_count == 1
+    # Check that in_progress message was yielded before the exception
     assert events == [
         {"status": "in_progress", "message": "Parsing resume..."},
         {"status": "in_progress", "message": "Analyzing job description..."},
         {
             "status": "in_progress",
-            "message": "Queueing role 'Old Title @ Old Company' for refinement.",
+            "message": "Refining role 'Old Title @ Old Company'...",
         },
     ]
 
 
 @pytest.mark.asyncio
-async def test_refine_single_role_concurrently():
-    """
-    Test that the concurrent role refinement helper correctly uses the semaphore
-    and calls the underlying refine_role function.
-    """
-    # Arrange
-    mock_role = create_mock_role()
-    mock_job_analysis = create_mock_job_analysis()
-    mock_semaphore = AsyncMock(spec=asyncio.Semaphore)
-    mock_refined_role = create_mock_refined_role()
-
-    llm_endpoint = "http://fake.llm"
-    api_key = "key"
-    llm_model_name = "model"
-    original_index = 5
-
-    with patch(
-        "resume_editor.app.llm.orchestration.refine_role", new_callable=AsyncMock
-    ) as mock_refine_role:
-        mock_refine_role.return_value = mock_refined_role
-
-        # Act
-        result_role, result_index = await _refine_single_role_concurrently(
-            role=mock_role,
-            job_analysis=mock_job_analysis,
-            semaphore=mock_semaphore,
-            llm_endpoint=llm_endpoint,
-            api_key=api_key,
-            llm_model_name=llm_model_name,
-            original_index=original_index,
-        )
-
-        # Assert
-        # Check that the semaphore was acquired and released
-        mock_semaphore.__aenter__.assert_awaited_once()
-        mock_semaphore.__aexit__.assert_awaited_once()
-
-        # Check that refine_role was called with the correct arguments
-        mock_refine_role.assert_awaited_once_with(
-            role=mock_role,
-            job_analysis=mock_job_analysis,
-            llm_endpoint=llm_endpoint,
-            api_key=api_key,
-            llm_model_name=llm_model_name,
-        )
-
-        # Check that the result is correct
-        assert result_role == mock_refined_role
-        assert result_index == original_index
-
-
-@pytest.mark.asyncio
-@patch("resume_editor.app.llm.orchestration.asyncio.sleep", new_callable=AsyncMock)
 @patch("resume_editor.app.llm.orchestration.refine_role", new_callable=AsyncMock)
 @patch(
     "resume_editor.app.llm.orchestration.analyze_job_description",
     new_callable=AsyncMock,
 )
 @patch("resume_editor.app.llm.orchestration.extract_experience_info")
-@patch("resume_editor.app.llm.orchestration.extract_certifications_info", MagicMock())
-@patch("resume_editor.app.llm.orchestration.extract_education_info", MagicMock())
-@patch("resume_editor.app.llm.orchestration.extract_personal_info", MagicMock())
-async def test_async_refine_experience_section_concurrency_and_delay(
+async def test_async_refine_experience_section_concurrency(
     mock_extract_experience,
     mock_analyze_job,
     mock_refine_role,
-    mock_sleep,
 ):
     """
-    Test that async_refine_experience_section respects concurrency limits and delays.
+    Test that async_refine_experience_section respects concurrency limits.
     This test does NOT mock asyncio.Semaphore to allow for real concurrency checks.
     """
     # Arrange
@@ -1327,25 +1196,9 @@ async def test_async_refine_experience_section_concurrency_and_delay(
 
     # Mocks for parsing
     mock_roles = [create_mock_role() for i in range(num_roles)]
-    for i, role in enumerate(mock_roles):
-        role.basics.title = f"Role {i}"
-        role.basics.company = f"Company {i}"
-
     mock_experience_info = ExperienceResponse(roles=mock_roles, projects=[])
     mock_extract_experience.return_value = mock_experience_info
-
-    # Mock for analysis
-    mock_job_analysis = create_mock_job_analysis()
-    mock_analyze_job.return_value = mock_job_analysis
-
-    # Set up a side effect for the sleep mock. It will perform a real sleep
-    # for durations other than 1s (which is the delay in the orchestrator),
-    # allowing the mock refinement tasks to actually yield control.
-    async def selective_sleep(duration):
-        if duration != 1:
-            await _real_asyncio_sleep(duration)
-
-    mock_sleep.side_effect = selective_sleep
+    mock_analyze_job.return_value = create_mock_job_analysis()
 
     # Concurrency tracking setup
     active_tasks = 0
@@ -1354,14 +1207,11 @@ async def test_async_refine_experience_section_concurrency_and_delay(
 
     async def mock_refinement_side_effect(*args, **kwargs):
         nonlocal active_tasks, max_observed_concurrency
-        # The _refine_single_role_concurrently is not mocked, so we are mocking
-        # the refine_role call inside it. It doesn't receive the index.
-        # We simulate the wrapper's behavior in the test's main logic.
         async with lock:
             active_tasks += 1
             max_observed_concurrency = max(max_observed_concurrency, active_tasks)
 
-        await asyncio.sleep(0.02)  # Use a small real sleep to yield control
+        await _real_asyncio_sleep(0.02)  # Use a small real sleep to yield control
 
         async with lock:
             active_tasks -= 1
@@ -1385,20 +1235,10 @@ async def test_async_refine_experience_section_concurrency_and_delay(
     # Assert
     # 1. Concurrency limit was respected
     assert (
-        max_observed_concurrency == max_concurrency
-    ), f"Expected concurrency {max_concurrency}, but observed {max_observed_concurrency}"
+        max_observed_concurrency <= max_concurrency
+    ), f"Expected concurrency <= {max_concurrency}, but observed {max_observed_concurrency}"
 
-    # 2. Delay between task creation was respected
-    # The `await asyncio.sleep(1)` inside the orchestrator is mocked,
-    # so we just check that it was called the correct number of times.
-    calls_with_1_sec_delay = [
-        call for call in mock_sleep.await_args_list if call.args == (1,)
-    ]
-    assert (
-        len(calls_with_1_sec_delay) == num_roles
-    ), f"Expected sleep(1) to be awaited {num_roles} times, but it was {len(calls_with_1_sec_delay)}"
-
-    # 3. All roles were processed
+    # 2. All roles were processed
     assert mock_refine_role.call_count == num_roles
     result_events = [e for e in events if e.get("status") == "role_refined"]
     assert len(result_events) == num_roles

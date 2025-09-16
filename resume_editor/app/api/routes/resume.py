@@ -209,7 +209,7 @@ async def delete_resume(
         current_user (User): The current authenticated user.
 
     Returns:
-        dict | HTMLResponse: A success message, or HTML for HTMX.
+        dict | Response: A success message, or an empty response with HX-Refresh header for HTMX.
 
     Raises:
         HTTPException: If the resume is not found, doesn't belong to the user, or there's an error deleting.
@@ -219,7 +219,7 @@ async def delete_resume(
         2. If no resume is found, raises a 404 error.
         3. Deletes the resume from the database.
         4. Commits the transaction to save the changes.
-        5. If the request is from HTMX, returns HTML to update the resume list.
+        5. If the request is from HTMX, returns a response with an `HX-Refresh` header to trigger a full page refresh on the client.
         6. Otherwise, returns a success message.
         7. Performs database access: Reads from and writes to the database via db.query, db.delete, db.commit.
         8. Performs network access: None.
@@ -230,10 +230,9 @@ async def delete_resume(
 
     # Check if this is an HTMX request
     if "HX-Request" in http_request.headers:
-        # Return updated resume list
-        resumes = get_user_resumes(db, current_user.id)
-        html_content = _generate_resume_list_html(resumes)
-        return HTMLResponse(content=html_content)
+        # With HTMX, a full page refresh is the simplest way to handle
+        # updating both the list and the detail view.
+        return Response(status_code=200, headers={"HX-Refresh": "true"})
 
     return {"message": "Resume deleted successfully"}
 

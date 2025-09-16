@@ -818,6 +818,55 @@ async def test_refine_resume_stream_empty_generator(
 
 
 @pytest.mark.asyncio
+@patch("resume_editor.app.llm.orchestration.analyze_job_description", new_callable=AsyncMock)
+@patch("resume_editor.app.api.routes.resume_ai.get_user_settings", return_value=None)
+async def test_refine_resume_stream_no_roles_in_resume(
+    mock_get_user_settings,
+    mock_analyze_job,
+    client_with_auth_and_resume,
+    test_resume,
+):
+    """Test SSE stream when the resume has no roles in the experience section."""
+    from resume_editor.app.llm.models import JobAnalysis
+
+    # Arrange
+    resume_with_no_roles = """# Personal
+Name: Test
+
+# Experience
+## Projects
+### Project
+#### Overview
+Title: A project
+#### Description
+A project with no roles.
+"""
+    test_resume.content = resume_with_no_roles
+    mock_analyze_job.return_value = JobAnalysis(key_skills=[], primary_duties=[], themes=[])
+
+    # Act
+    with client_with_auth_and_resume.stream(
+        "GET", "/api/resumes/1/refine/stream?job_description=job"
+    ) as response:
+        assert response.status_code == 200
+        text_content = response.read().decode("utf-8")
+
+    # Assert
+    events = text_content.strip().split("\n\n")
+    assert len(events) == 4, f"Expected 4 events, got {len(events)}: {events}"
+
+    assert "event: progress" in events[0] and "Parsing resume..." in events[0]
+    assert "event: progress" in events[1] and "Analyzing job description..." in events[1]
+    assert "event: error" in events[2]
+    # This message comes from sse_generator when refined_roles is empty.
+    # The orchestrator returns early in this case, leading to an empty refined_roles dict.
+    assert "Refinement finished, but no roles were found to refine" in events[2]
+    assert "text-yellow-500" in events[2]
+    assert "event: close" in events[3]
+    mock_analyze_job.assert_called_once()
+
+
+@pytest.mark.asyncio
 @patch("resume_editor.app.api.routes.resume_ai.async_refine_experience_section")
 @patch("resume_editor.app.api.routes.resume_ai.decrypt_data", side_effect=InvalidToken)
 @patch("resume_editor.app.api.routes.resume_ai.get_user_settings")
@@ -1508,23 +1557,18 @@ def test_accept_refined_resume_invalid_section(
 @patch("resume_editor.app.api.routes.resume_ai.extract_experience_info")
 @patch("resume_editor.app.api.routes.resume_ai.extract_education_info")
 @patch("resume_editor.app.api.routes.resume_ai.extract_personal_info")
-@patch("resume_editor.app.llm.orchestration.extract_certifications_info", MagicMock())
-@patch("resume_editor.app.llm.orchestration.extract_education_info", MagicMock())
-@patch("resume_editor.app.llm.orchestration.extract_personal_info", MagicMock())
-@patch("resume_editor.app.llm.orchestration.extract_experience_info")
-@patch("resume_editor.app.llm.orchestration.asyncio.sleep", new_callable=AsyncMock)
 @patch("resume_editor.app.llm.orchestration.refine_role", new_callable=AsyncMock)
 @patch(
     "resume_editor.app.llm.orchestration.analyze_job_description",
     new_callable=AsyncMock,
 )
+@patch("resume_editor.app.llm.orchestration.extract_experience_info")
 @patch("resume_editor.app.api.routes.resume_ai.get_user_settings", return_value=None)
 async def test_refine_resume_stream_integrated(
     mock_get_user_settings,
+    mock_orch_extract_experience,
     mock_analyze_job,
     mock_refine_role,
-    mock_sleep,
-    mock_orch_extract_experience,
     mock_extract_personal,
     mock_extract_education,
     mock_extract_experience,
@@ -1593,9 +1637,6 @@ async def test_refine_resume_stream_integrated(
 
     mock_refine_role.side_effect = refine_role_side_effect
 
-    # Make sleep a no-op for the orchestrator's delay
-    mock_sleep.return_value = None
-
     # 2. Mock reconstruction dependencies
     mock_extract_personal.return_value = MagicMock()
     mock_extract_education.return_value = MagicMock()
@@ -1621,24 +1662,22 @@ async def test_refine_resume_stream_integrated(
     # Assert
     events = text_content.strip().split("\n\n")
 
-    # Expected events: progress, progress, 2x progress (queuing), done, close
+    # Expected events: progress, progress, 2x progress (refining), done, close
     assert len(events) == 6, f"Expected 6 events, but got {len(events)}: {events}"
 
     assert "event: progress" in events[0] and "Parsing resume" in events[0]
     assert "event: progress" in events[1] and "Analyzing job" in events[1]
-    assert (
-        "event: progress" in events[2]
-        and "Queueing role &#x27;A Role @ A Company&#x27;" in events[2]
-    )
-    assert (
-        "event: progress" in events[3]
-        and "Queueing role &#x27;B Role @ B Company&#x27;" in events[3]
-    )
 
-    assert "event: done" in events[4]
-    assert "data: <html>final refined html</html>" in events[4]
+    refining_events = [e for e in events if "Refining role" in e]
+    assert len(refining_events) == 2
+    assert any("Refining role &#x27;A Role @ A Company&#x27;..." in e for e in refining_events)
+    assert any("Refining role &#x27;B Role @ B Company&#x27;..." in e for e in refining_events)
 
-    assert "event: close" in events[5]
+    done_event = next(e for e in events if "event: done" in e)
+    assert "data: <html>final refined html</html>" in done_event
+
+    close_event = next(e for e in events if "event: close" in e)
+    assert close_event is not None
 
     # Assert mocks
     mock_analyze_job.assert_called_once()
