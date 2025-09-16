@@ -3,6 +3,7 @@ from enum import Enum
 from unittest.mock import ANY, MagicMock, Mock, patch
 
 import pytest
+from bs4 import BeautifulSoup
 from cryptography.fernet import InvalidToken
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.testclient import TestClient
@@ -234,34 +235,33 @@ def test_list_resumes_no_htmx(client_with_auth_and_resume, test_resume):
     assert data[0]["name"] == test_resume.name
 
 
-@patch("resume_editor.app.api.routes.resume._generate_resume_list_html")
-def test_list_resumes_htmx_with_resumes(
-    mock_gen_list_html, client_with_auth_and_resume, test_resume
+def test_list_resumes_htmx_with_resumes_renders_delete_button(
+    client_with_auth_and_resume, test_resume
 ):
-    """Test listing resumes with HTMX when resumes exist."""
-    mock_gen_list_html.return_value = "<html>List</html>"
+    """Test listing resumes with HTMX renders the correct delete button."""
     response = client_with_auth_and_resume.get(
         "/api/resumes/",
         headers={"HX-Request": "true"},
     )
     assert response.status_code == 200
-    assert response.text == "<html>List</html>"
-    mock_gen_list_html.assert_called_once_with([test_resume])
+    soup = BeautifulSoup(response.text, "html.parser")
+    button = soup.find("button", class_="bg-red-500")
+
+    assert button is not None
+    assert button["hx-delete"] == f"/api/resumes/{test_resume.id}"
+    assert button["hx-confirm"] == "Are you sure you want to delete this resume?"
+    assert button["hx-target"] == "body"
+    assert "Delete" in button.text.strip()
 
 
-@patch("resume_editor.app.api.routes.resume._generate_resume_list_html")
-def test_list_resumes_htmx_no_resumes(
-    mock_gen_list_html, client_with_auth_no_resume
-):
+def test_list_resumes_htmx_no_resumes(client_with_auth_no_resume):
     """Test listing resumes with HTMX when no resumes exist."""
-    mock_gen_list_html.return_value = "No resumes"
     response = client_with_auth_no_resume.get(
         "/api/resumes/",
         headers={"HX-Request": "true"},
     )
     assert response.status_code == 200
-    assert response.text == "No resumes"
-    mock_gen_list_html.assert_called_once_with([])
+    assert "No resumes found" in response.text
 
 
 def test_parse_resume_endpoint_success(client):
