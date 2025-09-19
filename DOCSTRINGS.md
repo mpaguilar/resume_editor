@@ -3759,7 +3759,7 @@ Notes:
     2. If no settings are found, creates a new UserSettings object with the provided user_id and adds it to the session.
     3. Updates the llm_endpoint field if settings_data.llm_endpoint is provided and not None.
     4. Updates the llm_model_name field if settings_data.llm_model_name is provided and not None.
-    5. If settings_data.api_key is provided and not empty, encrypts the API key using encrypt_data and stores it in encrypted_api_key; otherwise, sets encrypted_api_key to None.
+    5. If a non-empty `settings_data.api_key` is provided, encrypts the API key using `encrypt_data` and stores it. An empty or `None` API key in the request will not change a pre-existing key.
     6. Commits the transaction to the database.
     7. Refreshes the session to ensure the returned object has the latest data from the database.
     8. This function performs a database read and possibly a write operation.

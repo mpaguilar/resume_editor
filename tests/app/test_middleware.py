@@ -34,7 +34,8 @@ def test_refresh_on_valid_token():
     token = create_access_token(data={"sub": username}, settings=settings)
 
     # Make a request with the valid token in cookies
-    response = client.get("/", cookies={"access_token": token})
+    client.cookies = {"access_token": token}
+    response = client.get("/")
 
     # Check that the response is successful
     assert response.status_code == 200
@@ -75,7 +76,8 @@ def test_no_refresh_on_invalid_token():
     client = TestClient(app)
 
     # Make a request with an invalid token
-    response = client.get("/", cookies={"access_token": "invalidtoken"})
+    client.cookies = {"access_token": "invalidtoken"}
+    response = client.get("/")
 
     # Check that the response is successful
     assert response.status_code == 200
@@ -99,7 +101,8 @@ def test_refresh_preserves_impersonator_claim():
         data={"sub": username}, settings=settings, impersonator=admin_user
     )
 
-    response = client.get("/", cookies={"access_token": token})
+    client.cookies = {"access_token": token}
+    response = client.get("/")
 
     assert response.status_code == 200
     assert "access_token" in response.cookies
@@ -126,7 +129,8 @@ def test_no_refresh_on_valid_token_without_sub():
     to_encode = {"exp": expire, "some_other_claim": "value"}
     token = jwt.encode(to_encode, settings.secret_key, algorithm=settings.algorithm)
 
-    response = client.get("/", cookies={"access_token": token})
+    client.cookies = {"access_token": token}
+    response = client.get("/")
 
     assert response.status_code == 200
     assert "access_token" not in response.cookies

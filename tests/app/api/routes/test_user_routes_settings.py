@@ -97,7 +97,7 @@ def test_user_settings_endpoints(monkeypatch):
         assert mock_settings.encrypted_api_key == "new_encrypted_key"
         mock_encrypt.assert_called_once_with(data="newkey")
 
-    # Test PUT to clear API key
+    # Test PUT to preserve API key when sending empty string
     mock_db.reset_mock()
     mock_settings = UserSettings(
         user_id=1,
@@ -114,7 +114,7 @@ def test_user_settings_endpoints(monkeypatch):
         )
         assert response.status_code == 200
         assert mock_settings.llm_endpoint == "http://existing.com"  # Unchanged
-        assert mock_settings.encrypted_api_key is None
+        assert mock_settings.encrypted_api_key == "existing_key"  # Unchanged
         mock_encrypt.assert_not_called()
 
     # Test PUT to update only endpoint

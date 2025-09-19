@@ -212,9 +212,11 @@ def test_update_user_settings_clear_llm_endpoint(mock_get_settings):
 
 @patch("resume_editor.app.api.routes.route_logic.settings_crud.encrypt_data")
 @patch("resume_editor.app.api.routes.route_logic.settings_crud.get_user_settings")
-def test_update_user_settings_clear_api_key(mock_get_settings, mock_encrypt):
+def test_update_user_settings_preserves_api_key_with_empty_string(
+    mock_get_settings, mock_encrypt
+):
     """
-    Test Case: Clear api_key by providing an empty string.
+    Test Case: Preserve api_key when an empty string is provided, ensuring it is not cleared.
     """
     # Arrange
     db = MagicMock()
@@ -228,7 +230,39 @@ def test_update_user_settings_clear_api_key(mock_get_settings, mock_encrypt):
 
     # Assert
     mock_get_settings.assert_called_once_with(db=db, user_id=user_id)
-    assert existing_settings.encrypted_api_key is None
+    assert existing_settings.encrypted_api_key == "old-key"
+    mock_encrypt.assert_not_called()
+    db.commit.assert_called_once()
+    db.refresh.assert_called_once_with(existing_settings)
+    assert result == existing_settings
+
+
+@patch("resume_editor.app.api.routes.route_logic.settings_crud.encrypt_data")
+@patch("resume_editor.app.api.routes.route_logic.settings_crud.get_user_settings")
+def test_update_user_settings_preserves_api_key_with_none(
+    mock_get_settings, mock_encrypt
+):
+    """
+    Test Case: Preserve api_key when None is provided, ensuring it is not cleared.
+    This happens when the form field is not submitted.
+    """
+    # Arrange
+    db = MagicMock()
+    user_id = 1
+    existing_settings = UserSettings(user_id=user_id, encrypted_api_key="old-key")
+    mock_get_settings.return_value = existing_settings
+    # The Pydantic model defaults api_key to None if not provided
+    settings_data = UserSettingsUpdateRequest(
+        api_key=None, llm_endpoint="some-endpoint"
+    )
+
+    # Act
+    result = update_user_settings(db=db, user_id=user_id, settings_data=settings_data)
+
+    # Assert
+    mock_get_settings.assert_called_once_with(db=db, user_id=user_id)
+    assert existing_settings.encrypted_api_key == "old-key"
+    assert existing_settings.llm_endpoint == "some-endpoint"  # Check other fields update
     mock_encrypt.assert_not_called()
     db.commit.assert_called_once()
     db.refresh.assert_called_once_with(existing_settings)
