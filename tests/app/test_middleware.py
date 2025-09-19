@@ -2,6 +2,7 @@ import jwt
 from datetime import datetime, timedelta, timezone
 from fastapi import FastAPI, Request, Response
 from fastapi.testclient import TestClient
+from starlette.middleware.base import BaseHTTPMiddleware
 
 from resume_editor.app.core.config import get_settings
 from resume_editor.app.core.security import create_access_token
@@ -11,7 +12,7 @@ from resume_editor.app.middleware import refresh_session_middleware
 def create_test_app() -> FastAPI:
     """Create a test FastAPI app with the middleware."""
     app = FastAPI()
-    app.middleware("http")(refresh_session_middleware)
+    app.add_middleware(BaseHTTPMiddleware, dispatch=refresh_session_middleware)
 
     @app.get("/")
     async def read_root(request: Request):

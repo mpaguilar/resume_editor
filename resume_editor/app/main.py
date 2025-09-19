@@ -42,6 +42,8 @@ from resume_editor.app.schemas.user import (
 from resume_editor.app.web.admin import router as admin_web_router
 from resume_editor.app.web.admin_forms import router as admin_forms_router
 from resume_editor.app.api.routes.pages.setup import router as setup_router
+from starlette.middleware.base import BaseHTTPMiddleware
+
 from resume_editor.app.api.routes.resume_ai import router as resume_ai_router
 from resume_editor.app.middleware import refresh_session_middleware
 
@@ -122,6 +124,8 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
+    app.add_middleware(BaseHTTPMiddleware, dispatch=refresh_session_middleware)
 
     # Setup templates
     TEMPLATES_DIR = Path(__file__).resolve().parent / "templates"
