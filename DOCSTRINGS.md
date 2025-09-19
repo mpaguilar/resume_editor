@@ -6398,3 +6398,9 @@ Notes:
 
 ===
 
+===
+# File: `resume_editor/app/middleware.py`
+
+
+===
+

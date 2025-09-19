@@ -43,6 +43,7 @@ from resume_editor.app.web.admin import router as admin_web_router
 from resume_editor.app.web.admin_forms import router as admin_forms_router
 from resume_editor.app.api.routes.pages.setup import router as setup_router
 from resume_editor.app.api.routes.resume_ai import router as resume_ai_router
+from resume_editor.app.middleware import refresh_session_middleware
 
 log = logging.getLogger(__name__)
 
@@ -74,6 +75,8 @@ def create_app() -> FastAPI:
     log.debug(_msg)
 
     app = FastAPI(title="Resume Editor API")
+
+    app.middleware("http")(refresh_session_middleware)
 
     @app.middleware("http")
     async def setup_check_middleware(request: Request, call_next):
@@ -241,6 +244,9 @@ def create_app() -> FastAPI:
             key="access_token",
             value=access_token,
             httponly=True,
+            samesite="lax",
+            path="/",
+            secure=False,  # Should be True in production & depend on settings
         )
         return response
 

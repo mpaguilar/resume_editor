@@ -1922,5 +1922,11 @@
     "filename": "resume_ai.py",
     "functions": [],
     "classes": {}
+  },
+  "resume_editor/app/middleware.py": {
+    "filepath": "resume_editor/app/middleware.py",
+    "filename": "middleware.py",
+    "functions": [],
+    "classes": {}
   }
 }
