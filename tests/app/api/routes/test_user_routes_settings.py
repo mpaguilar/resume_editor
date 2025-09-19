@@ -160,3 +160,74 @@ def test_user_settings_endpoints(monkeypatch):
 
     # Clean up dependency overrides
     app.dependency_overrides.clear()
+
+
+def test_update_settings_preserves_api_key_across_requests(monkeypatch):
+    """
+    Integration test to ensure that the API key is preserved across multiple
+    settings updates when an empty string is provided for the key.
+    """
+    # 1. Setup
+    get_settings.cache_clear()
+    monkeypatch.setenv("ENCRYPTION_KEY", "dGVzdF9rZXlfbXVzdF9iZV8zMl9ieXRlc19sb25n")
+    app = create_app()
+    client = TestClient(app)
+
+    mock_db = MagicMock()
+    mock_user = User(username="testuser", email="test@test.com", hashed_password="pw", id=1)
+
+    def get_mock_db():
+        yield mock_db
+
+    def get_mock_current_user():
+        return mock_user
+
+    app.dependency_overrides[get_db] = get_mock_db
+    app.dependency_overrides[get_current_user] = get_mock_current_user
+
+    with patch(
+        "resume_editor.app.api.routes.route_logic.settings_crud.encrypt_data"
+    ) as mock_encrypt:
+        # Step 2: Create settings and set initial API key.
+        # This simulates the DB call finding nothing.
+        mock_db.query.return_value.filter.return_value.first.return_value = None
+        mock_encrypt.return_value = "encrypted-initial-key"
+
+        response_one = client.put(
+            "/api/users/settings",
+            json={"llm_endpoint": "http://initial.com", "api_key": "initial_key"},
+        )
+        assert response_one.status_code == 200
+
+        # Step 3: Assert that the key was stored in the object passed to `db.add`.
+        mock_encrypt.assert_called_once_with(data="initial_key")
+        mock_db.add.assert_called_once()
+        # Grab the object that was "saved" to the database.
+        saved_settings = mock_db.add.call_args[0][0]
+        assert isinstance(saved_settings, UserSettings)
+        assert saved_settings.encrypted_api_key == "encrypted-initial-key"
+        assert saved_settings.llm_endpoint == "http://initial.com"
+
+        # Step 4: Make a second PUT request to update only the llm_endpoint.
+        mock_db.reset_mock()
+        mock_encrypt.reset_mock()
+
+        # Now, when the endpoint is called again, it should "find" the settings we just created.
+        mock_db.query.return_value.filter.return_value.first.return_value = (
+            saved_settings
+        )
+
+        response_two = client.put(
+            "/api/users/settings",
+            json={"llm_endpoint": "http://updated.com", "api_key": ""},
+        )
+        assert response_two.status_code == 200
+
+        # Step 5: Assert that the key was preserved.
+        mock_encrypt.assert_not_called()
+        mock_db.add.assert_not_called()  # Should not create a new one
+        assert saved_settings.encrypted_api_key == "encrypted-initial-key"
+        assert saved_settings.llm_endpoint == "http://updated.com"
+
+    # Cleanup
+    app.dependency_overrides.clear()

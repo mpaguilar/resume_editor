@@ -16,6 +16,7 @@ These are known mappings:
 - `resume_editor/app/api/routes/resume_edit.py` -> `tests/app/api/routes/test_resume_edit.py`
 - `resume_editor/app/api/routes/resume_export.py` -> `tests/app/api/routes/test_resume_export.py`
 - `resume_editor/app/api/routes/user.py` -> `tests/app/api/routes/test_user_route.py`
+- `resume_editor/app/api/routes/user.py` -> `tests/app/api/routes/test_user_routes_settings.py`
 - `resume_editor/app/main.py` -> `tests/app/web/test_main_web.py`
 - `resume_editor/app/main.py` -> `tests/app/web/test_resume_web.py`
 - `resume_editor/app/api/routes/resume.py` -> `tests/app/api/routes/test_resume.py`
