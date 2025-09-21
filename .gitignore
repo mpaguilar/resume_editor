@@ -33,3 +33,4 @@ linting.sh
 # scratch docs
 /_* 
 !/_*/
+dev_notes/
