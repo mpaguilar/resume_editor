@@ -587,6 +587,9 @@ def test_save_refined_resume_as_new_success(
         user_id=test_user.id,
         name=new_resume_name,
         content=refined_content,
+        is_base=False,
+        parent_id=test_resume.id,
+        job_description=None,
     )
     mock_get_resumes.assert_called_once_with(ANY, test_user.id)
     mock_gen_list_html.assert_called_once_with(
@@ -595,6 +598,7 @@ def test_save_refined_resume_as_new_success(
     mock_gen_detail_html.assert_called_once_with(new_resume)
 
 
+@patch("resume_editor.app.api.routes.resume_ai.build_complete_resume_from_sections")
 @patch("resume_editor.app.api.routes.resume_ai.extract_personal_info")
 @patch("resume_editor.app.api.routes.resume_ai.extract_education_info")
 @patch("resume_editor.app.api.routes.resume_ai.extract_experience_info")
@@ -614,12 +618,17 @@ def test_save_refined_resume_as_new_partial_success(
     mock_extract_exp,
     mock_extract_edu,
     mock_extract_pers,
+    mock_build_sections,
     client_with_auth_and_resume,
     test_resume,
     test_user,
 ):
-    refined_personal_content = "# Personal\n\n## Contact Information\n\nName: Refined Name"
+    refined_personal_content = (
+        "# Personal\n\n## Contact Information\n\nName: Refined Name"
+    )
     new_resume_name = "Refined Resume"
+    reconstructed_content = "reconstructed"
+    mock_build_sections.return_value = reconstructed_content
 
     mock_extract_pers.return_value = PersonalInfoResponse(name="Refined Name")
     mock_extract_edu.return_value = EducationResponse(degrees=[])
@@ -655,13 +664,16 @@ def test_save_refined_resume_as_new_partial_success(
     mock_extract_exp.assert_called_once_with(test_resume.content)
     mock_extract_cert.assert_called_once_with(test_resume.content)
 
-    mock_validate.assert_called_once_with(ANY, test_resume.content)
+    mock_validate.assert_called_once_with(reconstructed_content, test_resume.content)
 
     mock_create.assert_called_once_with(
         db=ANY,
         user_id=test_user.id,
         name=new_resume_name,
-        content=ANY,
+        content=reconstructed_content,
+        is_base=False,
+        parent_id=test_resume.id,
+        job_description=None,
     )
 
     mock_get_resumes.assert_called_once_with(ANY, test_user.id)

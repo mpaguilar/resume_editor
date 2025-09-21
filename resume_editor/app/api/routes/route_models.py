@@ -364,12 +364,14 @@ class RefineAcceptRequest(BaseModel):
         target_section (RefineTargetSection): The section that was refined.
         action (RefineAction): The action to take (overwrite or save as new).
         new_resume_name (str | None): The name for the new resume if action is 'save_as_new'.
+        job_description (str | None): The job description associated with the refinement.
 
     Args:
         refined_content (str): The Markdown content of the refined resume section.
         target_section (RefineTargetSection): The section that was refined.
         action (RefineAction): The action to perform after refinement.
         new_resume_name (str | None): The name for the new resume if action is 'save_as_new'.
+        job_description (str | None): The job description associated with the refinement, used when saving as new.
 
     Returns:
         RefineAcceptRequest: An instance of the model with the refined content, target section, action, and optional new name.
@@ -384,6 +386,7 @@ class RefineAcceptRequest(BaseModel):
     target_section: RefineTargetSection
     action: RefineAction
     new_resume_name: str | None = None
+    job_description: str | None = None
 
 
 # Response models for structured data

@@ -527,6 +527,7 @@ def test_refine_resume_htmx_response(
     assert 'hx-post="/api/resumes/1/refine/accept"' in response.text
     # Ensure the textarea is editable
     assert "readonly" not in response.text
+    assert 'name="job_description" value="job"' in response.text
 
 
 @patch("resume_editor.app.api.routes.resume_ai.refine_resume_section_with_llm")
@@ -688,7 +689,7 @@ async def test_refine_resume_stream_happy_path(
     assert reconstructed_roles[1].summary.text == "Refined Summary 2"
     assert reconstructed_experience.projects == mock_original_experience.projects
     mock_create_refine_result_html.assert_called_once_with(
-        1, "experience", "reconstructed content"
+        1, "experience", "reconstructed content", job_description="a new job"
     )
 
 
@@ -1340,6 +1341,7 @@ def test_save_refined_resume_as_new_full(
             "refined_content": refined_content,
             "target_section": RefineTargetSection.FULL.value,
             "new_resume_name": "New Name",
+            "job_description": "A job description",
         },
     )
 
@@ -1356,6 +1358,9 @@ def test_save_refined_resume_as_new_full(
         user_id=test_user.id,
         name="New Name",
         content=refined_content,
+        is_base=False,
+        parent_id=test_resume.id,
+        job_description="A job description",
     )
     mock_get_resumes.assert_called_once()
     mock_gen_detail_html.assert_called_once_with(new_resume)
@@ -1389,7 +1394,7 @@ def test_save_refined_resume_as_new_full(
 @patch("resume_editor.app.api.routes.resume_ai.extract_experience_info")
 @patch("resume_editor.app.api.routes.resume_ai.extract_education_info")
 @patch("resume_editor.app.api.routes.resume_ai.extract_personal_info")
-def test_save_refined_resume_as_new_partial(
+def test_save_refined_resume_as_new_partial_with_job_desc(
     mock_extract_personal,
     mock_extract_education,
     mock_extract_experience,
@@ -1403,7 +1408,7 @@ def test_save_refined_resume_as_new_partial(
     test_user,
     test_resume,
 ):
-    """Test accepting a partial refinement and saving it as a new resume."""
+    """Test accepting a partial refinement with job desc and saving it as new."""
     from resume_editor.app.api.routes.route_models import (
         PersonalInfoResponse,
         RefineTargetSection,
@@ -1433,6 +1438,7 @@ def test_save_refined_resume_as_new_partial(
             "refined_content": refined_content,
             "target_section": RefineTargetSection.PERSONAL.value,
             "new_resume_name": "New Name",
+            "job_description": "A job description",
         },
     )
 
@@ -1447,6 +1453,87 @@ def test_save_refined_resume_as_new_partial(
         user_id=test_user.id,
         name="New Name",
         content=reconstructed_content,
+        is_base=False,
+        parent_id=test_resume.id,
+        job_description="A job description",
+    )
+    mock_gen_detail_html.assert_called_once_with(new_resume)
+
+    assert '<div id="left-sidebar-content" hx-swap-oob="true">' in response.text
+    assert "<html>New Detail</html>" in response.text
+
+
+@patch("resume_editor.app.api.routes.resume_ai._generate_resume_detail_html")
+@patch("resume_editor.app.api.routes.resume_ai.get_user_resumes")
+@patch("resume_editor.app.api.routes.resume_ai.create_resume_db")
+@patch("resume_editor.app.api.routes.resume_ai.perform_pre_save_validation")
+@patch("resume_editor.app.api.routes.resume_ai.build_complete_resume_from_sections")
+@patch("resume_editor.app.api.routes.resume_ai.extract_certifications_info")
+@patch("resume_editor.app.api.routes.resume_ai.extract_experience_info")
+@patch("resume_editor.app.api.routes.resume_ai.extract_education_info")
+@patch("resume_editor.app.api.routes.resume_ai.extract_personal_info")
+def test_save_refined_resume_as_new_partial_without_job_desc(
+    mock_extract_personal,
+    mock_extract_education,
+    mock_extract_experience,
+    mock_extract_certifications,
+    mock_build_sections,
+    mock_pre_save,
+    mock_create_db,
+    mock_get_resumes,
+    mock_gen_detail_html,
+    client_with_auth_and_resume,
+    test_user,
+    test_resume,
+):
+    """Test accepting a partial refinement without job desc and saving as new."""
+    from resume_editor.app.api.routes.route_models import (
+        PersonalInfoResponse,
+        RefineTargetSection,
+    )
+
+    # Arrange
+    refined_content = "# Personal\nname: Refined New"
+    reconstructed_content = "reconstructed content for new resume"
+
+    mock_extract_personal.return_value = PersonalInfoResponse(name="Refined New")
+    mock_build_sections.return_value = reconstructed_content
+
+    new_resume = DatabaseResume(
+        user_id=test_user.id,
+        name="New Name",
+        content=reconstructed_content,
+    )
+    new_resume.id = 2
+    mock_create_db.return_value = new_resume
+    mock_get_resumes.return_value = [test_resume, new_resume]
+    mock_gen_detail_html.return_value = "<html>New Detail</html>"
+
+    # Act
+    response = client_with_auth_and_resume.post(
+        f"/api/resumes/{test_resume.id}/refine/save_as_new",
+        data={
+            "refined_content": refined_content,
+            "target_section": RefineTargetSection.PERSONAL.value,
+            "new_resume_name": "New Name",
+            # No job_description
+        },
+    )
+
+    # Assert
+    assert response.status_code == 200
+    mock_extract_personal.assert_called_once_with(refined_content)
+    mock_extract_education.assert_called_once_with(test_resume.content)
+    mock_build_sections.assert_called_once()
+    mock_pre_save.assert_called_once_with(reconstructed_content, test_resume.content)
+    mock_create_db.assert_called_once_with(
+        db=ANY,
+        user_id=test_user.id,
+        name="New Name",
+        content=reconstructed_content,
+        is_base=False,
+        parent_id=test_resume.id,
+        job_description=None,  # Expect None
     )
     mock_gen_detail_html.assert_called_once_with(new_resume)
 
@@ -1474,6 +1561,7 @@ def test_save_refined_resume_as_new_reconstruction_error(
             "refined_content": refined_content,
             "target_section": RefineTargetSection.FULL.value,
             "new_resume_name": "New Name",
+            "job_description": "A job description",
         },
     )
 
@@ -1700,5 +1788,24 @@ async def test_refine_resume_stream_integrated(
     )
 
     mock_create_html.assert_called_once_with(
-        1, "experience", "reconstructed content"
+        1, "experience", "reconstructed content", job_description="a new job"
     )
+
+
+@patch("resume_editor.app.api.routes.resume_ai._generate_resume_detail_html")
+def test_discard_refined_resume(
+    mock_generate_html, client_with_auth_and_resume, test_resume
+):
+    """Test the discard endpoint returns the original resume detail HTML."""
+    # Arrange
+    mock_generate_html.return_value = "<div>Original Detail HTML</div>"
+
+    # Act
+    response = client_with_auth_and_resume.post(
+        f"/api/resumes/{test_resume.id}/refine/discard"
+    )
+
+    # Assert
+    assert response.status_code == 200
+    assert response.text == "<div>Original Detail HTML</div>"
+    mock_generate_html.assert_called_once_with(test_resume)

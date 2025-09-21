@@ -3499,7 +3499,7 @@ Notes:
 
 ---
 
-## function: `create_resume(db: Session, user_id: int, name: str, content: str) -> DatabaseResume`
+## function: `create_resume(db: Session, user_id: int, name: str, content: str, is_base: bool, parent_id: int | None, job_description: str | None) -> DatabaseResume`
 
 Create and save a new resume.
 
@@ -3508,12 +3508,15 @@ Args:
     user_id (int): The ID of the user who owns the resume.
     name (str): The name of the resume.
     content (str): The content of the resume.
+    is_base (bool): Whether this is a base resume. Defaults to True.
+    parent_id (int | None): The ID of the parent resume if this is a refined version.
+    job_description (str | None): The job description for a refined resume.
 
 Returns:
     DatabaseResume: The newly created resume object.
 
 Notes:
-    1. Create a new DatabaseResume instance with the provided user_id, name, and content.
+    1. Create a new DatabaseResume instance with all provided details.
     2. Add the instance to the database session.
     3. Commit the transaction to persist the changes.
     4. Refresh the instance to ensure it has the latest state, including the generated ID.
@@ -6379,7 +6382,7 @@ Notes:
 
 ---
 
-## function: `_create_refine_result_html(resume_id: int, target_section_val: str, refined_content: str) -> str`
+## function: `_create_refine_result_html(resume_id: int, target_section_val: str, refined_content: str, job_description: str | None) -> str`
 
 Creates the HTML for the refinement result container with controls.
 
@@ -6387,6 +6390,7 @@ Args:
     resume_id (int): The ID of the resume being refined.
     target_section_val (str): The name of the section that was refined.
     refined_content (str): The new Markdown content for the section.
+    job_description (str | None): The job description used for refinement.
 
 Returns:
     str: An HTML snippet containing a form with the refined content

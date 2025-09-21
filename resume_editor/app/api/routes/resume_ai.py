@@ -131,7 +131,10 @@ async def refine_resume_stream(
                 )
 
                 result_html = _create_refine_result_html(
-                    resume.id, "experience", updated_resume_content
+                    resume.id,
+                    "experience",
+                    updated_resume_content,
+                    job_description=job_description,
                 )
                 data_payload = "\n".join(
                     f"data: {line}" for line in result_html.splitlines()
@@ -243,7 +246,10 @@ async def refine_resume(
 
         if "HX-Request" in http_request.headers:
             html_content = _create_refine_result_html(
-                resume.id, target_section.value, refined_content
+                resume.id,
+                target_section.value,
+                refined_content,
+                job_description=job_description,
             )
             return HTMLResponse(content=html_content)
 
@@ -355,6 +361,7 @@ async def save_refined_resume_as_new(
     refined_content: str = Form(...),
     target_section: RefineTargetSection = Form(...),
     new_resume_name: str | None = Form(None),
+    job_description: str | None = Form(None),
 ):
     """
     Save a refined resume as a new resume.
@@ -420,6 +427,9 @@ async def save_refined_resume_as_new(
         user_id=current_user.id,
         name=new_resume_name,
         content=updated_content,
+        is_base=False,
+        parent_id=resume.id,
+        job_description=job_description,
     )
 
     resumes = get_user_resumes(db, current_user.id)

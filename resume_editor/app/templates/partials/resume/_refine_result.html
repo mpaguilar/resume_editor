@@ -4,6 +4,7 @@
     <p class="text-sm text-gray-600 mb-2">Review the suggestion for the '{{ target_section_val }}' section.</p>
     <form id="accept-overwrite-form-{{ resume_id }}">
         <input type="hidden" name="target_section" value="{{ target_section_val }}">
+        {% if job_description %}<input type="hidden" name="job_description" value="{{ job_description }}">{% endif %}
         <textarea name="refined_content" class="w-full h-48 p-2 border rounded font-mono text-sm">{{ refined_content }}</textarea>
         <div class="mt-4 flex items-center justify-between">
             <div>

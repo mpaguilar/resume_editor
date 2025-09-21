@@ -75,6 +75,9 @@ def test_create_resume(mock_db_resume):
         user_id=1,
         name="Test Resume",
         content="Test Content",
+        is_base=True,
+        parent_id=None,
+        job_description=None,
     )
     mock_db.add.assert_called_once_with(mock_instance)
     mock_db.commit.assert_called_once()

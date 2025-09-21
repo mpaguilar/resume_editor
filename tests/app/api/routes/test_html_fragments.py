@@ -97,11 +97,14 @@ def test_create_refine_result_html_template():
     resume_id = 123
     target_section_val = "experience"
     refined_content = "some <refined> content"
+    job_description = "A great job"
 
     with patch("resume_editor.app.api.routes.html_fragments.env") as mock_env:
         mock_template = MagicMock()
         mock_env.get_template.return_value = mock_template
-        _create_refine_result_html(resume_id, target_section_val, refined_content)
+        _create_refine_result_html(
+            resume_id, target_section_val, refined_content, job_description
+        )
         mock_env.get_template.assert_called_once_with(
             "partials/resume/_refine_result.html"
         )
@@ -109,6 +112,7 @@ def test_create_refine_result_html_template():
             resume_id=resume_id,
             target_section_val=target_section_val,
             refined_content=refined_content,
+            job_description=job_description,
         )
 
 
@@ -117,9 +121,10 @@ def test_create_refine_result_html_output():
     resume_id = 42
     target_section_val = "experience"
     refined_content = "This is *refined* markdown."
+    job_description = "A job description"
 
     html_output = _create_refine_result_html(
-        resume_id, target_section_val, refined_content
+        resume_id, target_section_val, refined_content, job_description=job_description
     )
 
     assert 'id="refine-result"' in html_output
@@ -133,3 +138,4 @@ def test_create_refine_result_html_output():
     assert "Discard" in html_output
     assert "Save as New" in html_output
     assert "Reject" not in html_output
+    assert 'name="job_description" value="A job description"' in html_output

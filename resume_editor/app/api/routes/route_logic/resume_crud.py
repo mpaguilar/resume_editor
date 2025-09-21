@@ -69,7 +69,15 @@ def get_user_resumes(db: Session, user_id: int) -> list[DatabaseResume]:
     return db.query(DatabaseResume).filter(DatabaseResume.user_id == user_id).all()
 
 
-def create_resume(db: Session, user_id: int, name: str, content: str) -> DatabaseResume:
+def create_resume(
+    db: Session,
+    user_id: int,
+    name: str,
+    content: str,
+    is_base: bool = True,
+    parent_id: int | None = None,
+    job_description: str | None = None,
+) -> DatabaseResume:
     """
     Create and save a new resume.
 
@@ -78,12 +86,15 @@ def create_resume(db: Session, user_id: int, name: str, content: str) -> Databas
         user_id (int): The ID of the user who owns the resume.
         name (str): The name of the resume.
         content (str): The content of the resume.
+        is_base (bool): Whether this is a base resume. Defaults to True.
+        parent_id (int | None): The ID of the parent resume if this is a refined version.
+        job_description (str | None): The job description for a refined resume.
 
     Returns:
         DatabaseResume: The newly created resume object.
 
     Notes:
-        1. Create a new DatabaseResume instance with the provided user_id, name, and content.
+        1. Create a new DatabaseResume instance with all provided details.
         2. Add the instance to the database session.
         3. Commit the transaction to persist the changes.
         4. Refresh the instance to ensure it has the latest state, including the generated ID.
@@ -91,7 +102,14 @@ def create_resume(db: Session, user_id: int, name: str, content: str) -> Databas
         6. This function performs a database write operation.
 
     """
-    resume = DatabaseResume(user_id=user_id, name=name, content=content)
+    resume = DatabaseResume(
+        user_id=user_id,
+        name=name,
+        content=content,
+        is_base=is_base,
+        parent_id=parent_id,
+        job_description=job_description,
+    )
     db.add(resume)
     db.commit()
     db.refresh(resume)
