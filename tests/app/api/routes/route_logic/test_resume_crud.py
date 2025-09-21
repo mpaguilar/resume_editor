@@ -58,8 +58,8 @@ def test_get_user_resumes():
 
 
 @patch("resume_editor.app.api.routes.route_logic.resume_crud.DatabaseResume")
-def test_create_resume(mock_db_resume):
-    """Test create_resume."""
+def test_create_resume_base_default(mock_db_resume):
+    """Test create_resume creates a base resume by default."""
     mock_db = Mock(spec=Session)
     mock_instance = Mock()
     mock_db_resume.return_value = mock_instance
@@ -78,6 +78,37 @@ def test_create_resume(mock_db_resume):
         is_base=True,
         parent_id=None,
         job_description=None,
+    )
+    mock_db.add.assert_called_once_with(mock_instance)
+    mock_db.commit.assert_called_once()
+    mock_db.refresh.assert_called_once_with(mock_instance)
+    assert result == mock_instance
+
+
+@patch("resume_editor.app.api.routes.route_logic.resume_crud.DatabaseResume")
+def test_create_resume_refined(mock_db_resume):
+    """Test create_resume for a refined resume."""
+    mock_db = Mock(spec=Session)
+    mock_instance = Mock()
+    mock_db_resume.return_value = mock_instance
+
+    result = create_resume(
+        db=mock_db,
+        user_id=1,
+        name="Refined Resume",
+        content="Refined Content",
+        is_base=False,
+        parent_id=123,
+        job_description="A cool job",
+    )
+
+    mock_db_resume.assert_called_once_with(
+        user_id=1,
+        name="Refined Resume",
+        content="Refined Content",
+        is_base=False,
+        parent_id=123,
+        job_description="A cool job",
     )
     mock_db.add.assert_called_once_with(mock_instance)
     mock_db.commit.assert_called_once()
