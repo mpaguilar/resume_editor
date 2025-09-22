@@ -128,6 +128,20 @@ def test_resume(test_user):
 
 
 @pytest.fixture
+def test_refined_resume(test_user):
+    """Fixture for a test refined resume."""
+    resume = DatabaseResume(
+        user_id=test_user.id,
+        name="Refined Test Resume",
+        content=REFINED_VALID_MINIMAL_RESUME_CONTENT,
+        is_base=False,
+        parent_id=1,
+    )
+    resume.id = 2
+    return resume
+
+
+@pytest.fixture
 def app():
     """Fixture to create a new app for each test."""
     get_settings.cache_clear()
@@ -220,6 +234,51 @@ def test_update_resume_name_only_no_htmx(
     mock_validate.assert_not_called()
 
 
+@patch("resume_editor.app.api.routes.resume.validate_resume_content")
+@patch("resume_editor.app.api.routes.resume.get_user_resumes")
+@patch("resume_editor.app.api.routes.resume._generate_resume_list_html")
+@patch("resume_editor.app.api.routes.resume._generate_resume_detail_html")
+def test_update_resume_htmx(
+    mock_gen_detail_html,
+    mock_gen_list_html,
+    mock_get_resumes,
+    mock_validate,
+    client_with_auth_and_resume,
+    test_resume,
+    test_user,
+):
+    """Test updating a resume with HTMX returns HTML for list and detail."""
+    mock_validate.return_value = None
+    mock_get_resumes.return_value = [test_resume]
+    mock_gen_list_html.return_value = "list_html"
+    mock_gen_detail_html.return_value = "detail_html"
+
+    updated_name = "Updated Resume Name"
+    updated_content = "Updated content"
+
+    response = client_with_auth_and_resume.put(
+        f"/api/resumes/{test_resume.id}",
+        data={"name": updated_name, "content": updated_content},
+        headers={"HX-Request": "true"},
+    )
+
+    assert response.status_code == 200
+    assert 'id="resume-list" hx-swap-oob="true"' in response.text
+    assert "list_html" in response.text
+    assert "detail_html" in response.text
+
+    mock_validate.assert_called_once_with(updated_content)
+
+    mock_get_resumes.assert_called_once_with(ANY, test_user.id)
+
+    mock_gen_list_html.assert_called_once_with(
+        base_resumes=[test_resume],
+        refined_resumes=[],
+        selected_resume_id=test_resume.id,
+    )
+    mock_gen_detail_html.assert_called_once_with(test_resume)
+
+
 
 
 
@@ -235,23 +294,36 @@ def test_list_resumes_no_htmx(client_with_auth_and_resume, test_resume):
     assert data[0]["name"] == test_resume.name
 
 
-def test_list_resumes_htmx_with_resumes_renders_delete_button(
-    client_with_auth_and_resume, test_resume
-):
-    """Test listing resumes with HTMX renders the correct delete button."""
+def test_list_resumes_htmx_with_base_resume(client_with_auth_and_resume, test_resume):
+    """Test listing resumes with HTMX renders correctly with only a base resume."""
     response = client_with_auth_and_resume.get(
         "/api/resumes/",
         headers={"HX-Request": "true"},
     )
     assert response.status_code == 200
     soup = BeautifulSoup(response.text, "html.parser")
-    button = soup.find("button", class_="bg-red-500")
 
+    assert "Base Resumes" in response.text
+    assert "Applied Resumes" in response.text
+    assert "Test Resume" in response.text
+    assert "No applied resumes found" in response.text
+
+    button = soup.find("button", class_="bg-red-500")
     assert button is not None
     assert button["hx-delete"] == f"/api/resumes/{test_resume.id}"
-    assert button["hx-confirm"] == "Are you sure you want to delete this resume?"
-    assert button["hx-target"] == "body"
-    assert "Delete" in button.text.strip()
+
+
+def test_list_resumes_htmx_with_selection(client_with_auth_and_resume, test_resume):
+    """Test listing resumes with HTMX and a selected ID."""
+    response = client_with_auth_and_resume.get(
+        f"/api/resumes/?selected_id={test_resume.id}",
+        headers={"HX-Request": "true"},
+    )
+    assert response.status_code == 200
+    soup = BeautifulSoup(response.text, "html.parser")
+    selected_item = soup.find("div", class_="selected")
+    assert selected_item is not None
+    assert f"ID: {test_resume.id}" in selected_item.text
 
 
 def test_list_resumes_htmx_no_resumes(client_with_auth_no_resume):
@@ -262,6 +334,93 @@ def test_list_resumes_htmx_no_resumes(client_with_auth_no_resume):
     )
     assert response.status_code == 200
     assert "No resumes found" in response.text
+
+
+@pytest.fixture
+def client_with_auth_refined_only(app, client, test_user, test_refined_resume):
+    """Fixture for a test client with an authenticated user and only a refined resume."""
+    mock_db = Mock()
+    query_mock = Mock()
+    filter_mock = Mock()
+    filter_mock.first.return_value = test_refined_resume
+    filter_mock.all.return_value = [test_refined_resume]
+    query_mock.filter.return_value = filter_mock
+    mock_db.query.return_value = query_mock
+
+    def get_mock_db_with_resume():
+        yield mock_db
+
+    app.dependency_overrides[get_db] = get_mock_db_with_resume
+    app.dependency_overrides[get_current_user_from_cookie] = lambda: test_user
+    return client
+
+
+def test_list_resumes_htmx_with_refined_resume(
+    client_with_auth_refined_only, test_refined_resume
+):
+    """Test listing resumes with HTMX renders correctly with only a refined resume."""
+    response = client_with_auth_refined_only.get(
+        "/api/resumes/",
+        headers={"HX-Request": "true"},
+    )
+    assert response.status_code == 200
+
+    assert "Base Resumes" in response.text
+    assert "Applied Resumes" in response.text
+    assert "No base resumes found" in response.text
+    assert "Refined Test Resume" in response.text
+    assert f"Parent: {test_refined_resume.parent_id}" in response.text
+
+    soup = BeautifulSoup(response.text, "html.parser")
+    button = soup.find("button", class_="bg-red-500")
+    assert button is not None
+    assert button["hx-delete"] == f"/api/resumes/{test_refined_resume.id}"
+
+
+@pytest.fixture
+def client_with_auth_both_resumes(
+    app, client, test_user, test_resume, test_refined_resume
+):
+    """Fixture for a test client with an authenticated user and both resume types."""
+    mock_db = Mock()
+    query_mock = Mock()
+    filter_mock = Mock()
+    filter_mock.first.return_value = test_resume
+    filter_mock.all.return_value = [test_resume, test_refined_resume]
+    query_mock.filter.return_value = filter_mock
+    mock_db.query.return_value = query_mock
+
+    def get_mock_db_with_resume():
+        yield mock_db
+
+    app.dependency_overrides[get_db] = get_mock_db_with_resume
+    app.dependency_overrides[get_current_user_from_cookie] = lambda: test_user
+    return client
+
+
+def test_list_resumes_htmx_with_both_resumes(
+    client_with_auth_both_resumes, test_resume, test_refined_resume
+):
+    """Test listing resumes with HTMX renders correctly with both resume types."""
+    response = client_with_auth_both_resumes.get(
+        "/api/resumes/",
+        headers={"HX-Request": "true"},
+    )
+    assert response.status_code == 200
+
+    assert "Base Resumes" in response.text
+    assert "Applied Resumes" in response.text
+    assert "Test Resume" in response.text
+    assert "Refined Test Resume" in response.text
+    assert "No base resumes found" not in response.text
+    assert "No applied resumes found" not in response.text
+
+    soup = BeautifulSoup(response.text, "html.parser")
+    buttons = soup.find_all("button", class_="bg-red-500")
+    assert len(buttons) == 2
+    delete_urls = {b["hx-delete"] for b in buttons}
+    assert f"/api/resumes/{test_resume.id}" in delete_urls
+    assert f"/api/resumes/{test_refined_resume.id}" in delete_urls
 
 
 def test_parse_resume_endpoint_success(client):
@@ -557,7 +716,11 @@ def test_save_refined_resume_as_new_success(
     new_resume_name = "Refined Resume"
 
     new_resume = DatabaseResume(
-        user_id=test_user.id, name=new_resume_name, content=refined_content
+        user_id=test_user.id,
+        name=new_resume_name,
+        content=refined_content,
+        is_base=False,
+        parent_id=test_resume.id,
     )
     new_resume.id = 2
 
@@ -593,7 +756,9 @@ def test_save_refined_resume_as_new_success(
     )
     mock_get_resumes.assert_called_once_with(ANY, test_user.id)
     mock_gen_list_html.assert_called_once_with(
-        [test_resume, new_resume], selected_resume_id=new_resume.id
+        base_resumes=[test_resume],
+        refined_resumes=[new_resume],
+        selected_resume_id=new_resume.id,
     )
     mock_gen_detail_html.assert_called_once_with(new_resume)
 
@@ -636,7 +801,11 @@ def test_save_refined_resume_as_new_partial_success(
     mock_extract_cert.return_value = CertificationsResponse(certifications=[])
 
     new_resume = DatabaseResume(
-        user_id=test_user.id, name=new_resume_name, content="doesn't matter"
+        user_id=test_user.id,
+        name=new_resume_name,
+        content="doesn't matter",
+        is_base=False,
+        parent_id=test_resume.id,
     )
     new_resume.id = 2
 
@@ -678,7 +847,9 @@ def test_save_refined_resume_as_new_partial_success(
 
     mock_get_resumes.assert_called_once_with(ANY, test_user.id)
     mock_gen_list_html.assert_called_once_with(
-        [test_resume, new_resume], selected_resume_id=new_resume.id
+        base_resumes=[test_resume],
+        refined_resumes=[new_resume],
+        selected_resume_id=new_resume.id,
     )
     mock_gen_detail_html.assert_called_once_with(new_resume)
 

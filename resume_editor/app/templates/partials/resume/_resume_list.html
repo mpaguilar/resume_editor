@@ -1,26 +1,60 @@
-{% if not resumes %}
+{% if not base_resumes and not refined_resumes %}
 <div class="text-center py-8">
     <p class="text-gray-500">No resumes found.</p>
     <p class="text-gray-400 text-sm mt-2">Create your first resume using the "+ New Resume" button.</p>
 </div>
 {% else %}
-    {% for r in resumes %}
-    <div class="resume-item p-3 border-b border-gray-200 flex justify-between items-center{% if selected_resume_id and r.id == selected_resume_id %} selected{% endif %}">
-        <div>
-           <div class="font-medium text-gray-800">{{ r.name }}</div>
-           <div class="text-xs text-gray-500">ID: {{ r.id }}</div>
-        </div>
-        <div class="flex items-center space-x-2">
-            <a href="/resumes/{{ r.id }}/edit" class="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-sm">
-                Edit
-            </a>
-            <button hx-delete="/api/resumes/{{ r.id }}"
-                    hx-confirm="Are you sure you want to delete this resume?"
-                    hx-target="body"
-                    class="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded text-sm">
-                Delete
-            </button>
-        </div>
+    <div>
+        <h3 class="text-lg font-semibold text-gray-700 mt-4 mb-2 px-3">Base Resumes</h3>
+        {% if base_resumes %}
+            {% for r in base_resumes %}
+            <div class="resume-item p-3 border-b border-gray-200 flex justify-between items-center{% if selected_resume_id and r.id == selected_resume_id %} selected{% endif %}">
+                <div>
+                   <div class="font-medium text-gray-800">{{ r.name }}</div>
+                   <div class="text-xs text-gray-500">ID: {{ r.id }}</div>
+                </div>
+                <div class="flex items-center space-x-2">
+                    <a href="/resumes/{{ r.id }}/edit" class="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-sm">
+                        Edit
+                    </a>
+                    <button hx-delete="/api/resumes/{{ r.id }}"
+                            hx-confirm="Are you sure you want to delete this resume?"
+                            hx-target="body"
+                            class="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded text-sm">
+                        Delete
+                    </button>
+                </div>
+            </div>
+            {% endfor %}
+        {% else %}
+            <p class="text-gray-500 px-3 py-2">No base resumes found.</p>
+        {% endif %}
     </div>
-    {% endfor %}
+
+    <div class="mt-6">
+        <h3 class="text-lg font-semibold text-gray-700 mt-4 mb-2 px-3">Applied Resumes</h3>
+         {% if refined_resumes %}
+            {% for r in refined_resumes %}
+            <div class="resume-item p-3 border-b border-gray-200 flex justify-between items-center{% if selected_resume_id and r.id == selected_resume_id %} selected{% endif %}">
+                <div>
+                   <div class="font-medium text-gray-800">{{ r.name }}</div>
+                   <div class="text-xs text-gray-500">ID: {{ r.id }} - Parent: {{ r.parent_id }}</div>
+                </div>
+                <div class="flex items-center space-x-2">
+                    <a href="/resumes/{{ r.id }}/edit" class="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-sm">
+                        View
+                    </a>
+                    <button hx-delete="/api/resumes/{{ r.id }}"
+                            hx-confirm="Are you sure you want to delete this resume?"
+                            hx-target="body"
+                            class="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded text-sm">
+                        Delete
+                    </button>
+                </div>
+            </div>
+            {% endfor %}
+        {% else %}
+            <p class="text-gray-500 px-3 py-2">No applied resumes found.</p>
+        {% endif %}
+    </div>
 {% endif %}

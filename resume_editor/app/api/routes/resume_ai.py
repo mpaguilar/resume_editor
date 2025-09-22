@@ -433,7 +433,13 @@ async def save_refined_resume_as_new(
     )
 
     resumes = get_user_resumes(db, current_user.id)
-    sidebar_html = _generate_resume_list_html(resumes, selected_resume_id=new_resume.id)
+    base_resumes = [r for r in resumes if r.is_base]
+    refined_resumes = [r for r in resumes if not r.is_base]
+    sidebar_html = _generate_resume_list_html(
+        base_resumes=base_resumes,
+        refined_resumes=refined_resumes,
+        selected_resume_id=new_resume.id,
+    )
     detail_html = _generate_resume_detail_html(new_resume)
 
     # Use OOB swap to update sidebar, and return main content normally

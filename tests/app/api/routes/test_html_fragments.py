@@ -35,17 +35,31 @@ def test_resume(test_user):
     return resume
 
 
+@pytest.fixture
+def test_refined_resume(test_user):
+    """Fixture for a test refined resume."""
+    resume = DatabaseResume(
+        user_id=test_user.id,
+        name="Refined Resume",
+        content="some refined content",
+        is_base=False,
+        parent_id=1,
+    )
+    resume.id = 2
+    return resume
+
+
 def test_generate_resume_list_html_empty():
     """Test that _generate_resume_list_html returns the correct message for an empty list."""
     with patch("resume_editor.app.api.routes.html_fragments.env") as mock_env:
         mock_template = MagicMock()
         mock_env.get_template.return_value = mock_template
-        _generate_resume_list_html([])
+        _generate_resume_list_html(base_resumes=[], refined_resumes=[])
         mock_env.get_template.assert_called_once_with(
             "partials/resume/_resume_list.html"
         )
         mock_template.render.assert_called_once_with(
-            resumes=[], selected_resume_id=None
+            base_resumes=[], refined_resumes=[], selected_resume_id=None
         )
 
 
@@ -55,12 +69,12 @@ def test_generate_resume_list_html(test_resume):
         mock_template = MagicMock()
         mock_env.get_template.return_value = mock_template
         resumes = [test_resume]
-        _generate_resume_list_html(resumes)
+        _generate_resume_list_html(base_resumes=resumes, refined_resumes=[])
         mock_env.get_template.assert_called_once_with(
             "partials/resume/_resume_list.html"
         )
         mock_template.render.assert_called_once_with(
-            resumes=resumes, selected_resume_id=None
+            base_resumes=resumes, refined_resumes=[], selected_resume_id=None
         )
 
 
@@ -71,12 +85,14 @@ def test_generate_resume_list_html_template(test_resume):
         mock_env.get_template.return_value = mock_template
         resumes = [test_resume]
         selected_id = 1
-        _generate_resume_list_html(resumes, selected_id)
+        _generate_resume_list_html(
+            base_resumes=resumes, refined_resumes=[], selected_resume_id=selected_id
+        )
         mock_env.get_template.assert_called_once_with(
             "partials/resume/_resume_list.html"
         )
         mock_template.render.assert_called_once_with(
-            resumes=resumes, selected_resume_id=selected_id
+            base_resumes=resumes, refined_resumes=[], selected_resume_id=selected_id
         )
 
 
@@ -139,3 +155,38 @@ def test_create_refine_result_html_output():
     assert "Save as New" in html_output
     assert "Reject" not in html_output
     assert 'name="job_description" value="A job description"' in html_output
+
+
+def test_generate_resume_list_html_with_refined(test_refined_resume):
+    """Test that _generate_resume_list_html correctly handles refined resumes."""
+    with patch("resume_editor.app.api.routes.html_fragments.env") as mock_env:
+        mock_template = MagicMock()
+        mock_env.get_template.return_value = mock_template
+        resumes = [test_refined_resume]
+        _generate_resume_list_html(base_resumes=[], refined_resumes=resumes)
+        mock_env.get_template.assert_called_once_with(
+            "partials/resume/_resume_list.html"
+        )
+        mock_template.render.assert_called_once_with(
+            base_resumes=[], refined_resumes=resumes, selected_resume_id=None
+        )
+
+
+def test_generate_resume_list_html_with_both(test_resume, test_refined_resume):
+    """Test that _generate_resume_list_html correctly handles both resume types."""
+    with patch("resume_editor.app.api.routes.html_fragments.env") as mock_env:
+        mock_template = MagicMock()
+        mock_env.get_template.return_value = mock_template
+        base_resumes = [test_resume]
+        refined_resumes = [test_refined_resume]
+        _generate_resume_list_html(
+            base_resumes=base_resumes, refined_resumes=refined_resumes
+        )
+        mock_env.get_template.assert_called_once_with(
+            "partials/resume/_resume_list.html"
+        )
+        mock_template.render.assert_called_once_with(
+            base_resumes=base_resumes,
+            refined_resumes=refined_resumes,
+            selected_resume_id=None,
+        )

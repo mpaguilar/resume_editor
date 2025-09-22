@@ -174,7 +174,8 @@ async def update_resume(
     Notes:
         1. Validates resume content if it is being updated.
         2. Updates the resume's name and/or content.
-        3. For HTMX requests, returns an HTML partial of the updated resume detail view.
+        3. For HTMX requests, returns an HTML response containing both the updated resume
+           list (for OOB swap) and the updated detail view.
         4. For regular API calls, returns a JSON response with the updated resume's ID and name.
         5. Performs database reads and writes.
 
@@ -188,6 +189,23 @@ async def update_resume(
     updated_resume = update_resume_db(
         db=db, resume=resume, name=name, content=content_to_update
     )
+
+    if "HX-Request" in http_request.headers:
+        # After an update, we need to regenerate both the list and the detail view
+        all_resumes = get_user_resumes(db, resume.user_id)
+        base_resumes = [r for r in all_resumes if r.is_base]
+        refined_resumes = [r for r in all_resumes if not r.is_base]
+        list_html = _generate_resume_list_html(
+            base_resumes=base_resumes,
+            refined_resumes=refined_resumes,
+            selected_resume_id=updated_resume.id,
+        )
+        detail_html = _generate_resume_detail_html(updated_resume)
+
+        # Use Out-of-Band swap to update both parts of the page
+        html_content = f"""<div id="resume-list" hx-swap-oob="true">{list_html}</div>
+<div id="resume-detail">{detail_html}</div>"""
+        return HTMLResponse(content=html_content)
 
     return ResumeResponse(id=updated_resume.id, name=updated_resume.name)
 
@@ -241,6 +259,7 @@ async def list_resumes(
     request: Request,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user_from_cookie),
+    selected_id: int | None = None,
 ):
     """
     List all resumes for the current user.
@@ -249,28 +268,35 @@ async def list_resumes(
         request (Request): The HTTP request object.
         db (Session): The database session dependency.
         current_user (User): The current authenticated user.
+        selected_id (int | None): Optional ID of a resume to mark as selected in HTMX responses.
 
     Returns:
-        List[ResumeResponse] | HTMLResponse: A list of resumes with their IDs and names, or HTML for HTMX.
+        list[ResumeResponse] | HTMLResponse: A list of resumes with their IDs and names, or HTML for HTMX.
 
     Raises:
         HTTPException: If there's an error retrieving the resumes from the database.
 
     Notes:
         1. Queries the database for all resumes belonging to the current user.
-        2. Filters results by matching the user_id.
-        3. Converts each resume object into a ResumeResponse.
-        4. If the request is from HTMX, returns HTML for the resume list.
-        5. Otherwise, returns the list of ResumeResponse objects.
-        6. Performs database access: Reads from the database via db.query.
-        7. Performs network access: None.
+        2. Partitions resumes into `base_resumes` and `refined_resumes`.
+        3. For HTMX requests, generates and returns an HTML fragment with separate lists,
+           optionally highlighting a selected resume.
+        4. For standard API calls, returns a flat list of all resumes as `ResumeResponse` objects.
+        5. Performs database access: Reads from the database via `get_user_resumes`.
+        6. Performs network access: None.
 
     """
     resumes = get_user_resumes(db, current_user.id)
+    base_resumes = [r for r in resumes if r.is_base]
+    refined_resumes = [r for r in resumes if not r.is_base]
 
     # Check if this is an HTMX request
     if "HX-Request" in request.headers:
-        html_content = _generate_resume_list_html(resumes)
+        html_content = _generate_resume_list_html(
+            base_resumes=base_resumes,
+            refined_resumes=refined_resumes,
+            selected_resume_id=selected_id,
+        )
         return HTMLResponse(content=html_content)
 
     return [ResumeResponse(id=resume.id, name=resume.name) for resume in resumes]
