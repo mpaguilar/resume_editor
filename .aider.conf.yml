@@ -4,4 +4,5 @@ read:
   - DOCSTRINGS.md
   - resume_writer_docs.md
   - _htmx_sse_docs.html
+  - docstrings_parser.md
 gitignore: false

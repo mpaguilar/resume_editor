@@ -1928,5 +1928,35 @@
     "filename": "middleware.py",
     "functions": [],
     "classes": {}
+  },
+  "resume_editor/app/core/rendering_settings.py": {
+    "filepath": "resume_editor/app/core/rendering_settings.py",
+    "filename": "rendering_settings.py",
+    "functions": [
+      [
+        "get_render_settings(name: str) -> dict",
+        "get_render_settings gets the render settings\n\nArgs:\n    name (str): name of the settings to get\n\nRaises:\n    ValueError: if the name is unknown\n\nReturns:\n    dict: the settings"
+      ]
+    ],
+    "classes": {}
+  },
+  "resume_editor/tests/app/core/test_rendering_settings.py": {
+    "filepath": "resume_editor/tests/app/core/test_rendering_settings.py",
+    "filename": "test_rendering_settings.py",
+    "functions": [
+      [
+        "test_get_render_settings_general() -> UnknownType",
+        "Test get_render_settings for 'general' settings."
+      ],
+      [
+        "test_get_render_settings_exec_summary() -> UnknownType",
+        "Test get_render_settings for 'executive_summary' settings."
+      ],
+      [
+        "test_get_render_settings_invalid_name() -> UnknownType",
+        "Test that get_render_settings raises ValueError for an invalid name."
+      ]
+    ],
+    "classes": {}
   }
 }

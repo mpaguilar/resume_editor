@@ -29,3 +29,4 @@ These are known mappings:
 - `resume_editor/app/api/routes/route_logic/resume_serialization.py` -> `tests/app/api/routes/route_logic/test_resume_serialization.py`
 - `resume_editor/app/api/routes/route_logic/resume_parsing.py` -> `tests/app/api/routes/route_logic/test_resume_parsing.py`
 - `resume_editor/app/middleware.py` -> `tests/app/test_middleware.py`
+- `resume_editor/app/core/rendering_settings.py` -> `resume_editor/tests/app/core/test_rendering_settings.py`

@@ -6417,3 +6417,48 @@ Notes:
 
 ===
 
+===
+# File: `resume_editor/app/core/rendering_settings.py`
+
+## function: `get_render_settings(name: str) -> dict`
+
+get_render_settings gets the render settings
+
+Args:
+    name (str): name of the settings to get
+
+Raises:
+    ValueError: if the name is unknown
+
+Returns:
+    dict: the settings
+
+---
+
+
+===
+
+===
+# File: `resume_editor/tests/app/core/test_rendering_settings.py`
+
+## function: `test_get_render_settings_general() -> UnknownType`
+
+Test get_render_settings for 'general' settings.
+
+---
+
+## function: `test_get_render_settings_exec_summary() -> UnknownType`
+
+Test get_render_settings for 'executive_summary' settings.
+
+---
+
+## function: `test_get_render_settings_invalid_name() -> UnknownType`
+
+Test that get_render_settings raises ValueError for an invalid name.
+
+---
+
+
+===
+
