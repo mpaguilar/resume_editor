@@ -17,6 +17,7 @@ Many routes may point to one file.
 These are the known mappings:
 - `/login->resume_editor/app/main.py`
 - `/resumes/{resume_id}/edit->resume_editor/app/main.py`
+- `/api/resumes/{resume_id}/download->resume_editor/app/api/routes/resume_export.py`
 - `/api/resumes->resume_editor/app/api/routes/resume.py`
 - `/api/resumes/parse->resume_editor/app/api/routes/resume.py`
 - `/api/resumes/{resume_id}/export/markdown->resume_editor/app/api/routes/resume_export.py`

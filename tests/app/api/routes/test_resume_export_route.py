@@ -6,6 +6,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from resume_editor.app.api.dependencies import get_resume_for_user
+from resume_editor.app.api.routes.route_models import RenderFormat, RenderSettingsName
 from resume_editor.app.main import create_app
 from resume_editor.app.models.resume_model import Resume as DatabaseResume
 
@@ -267,3 +268,88 @@ def test_export_resume_docx_filtering_error(
     )
     assert response.status_code == 422
     assert "Failed to generate docx" in response.json()["detail"]
+
+
+@pytest.mark.parametrize(
+    "render_format, settings_name",
+    [
+        (RenderFormat.ATS, RenderSettingsName.GENERAL),
+        (RenderFormat.PLAIN, RenderSettingsName.GENERAL),
+        (RenderFormat.PLAIN, RenderSettingsName.EXECUTIVE_SUMMARY),
+    ],
+)
+@patch("resume_editor.app.api.routes.resume_export.get_render_settings")
+@patch("resume_editor.app.api.routes.resume_export.render_resume_to_docx_stream")
+def test_download_rendered_resume(
+    mock_render_stream,
+    mock_get_settings,
+    client: TestClient,
+    setup_resume_dependency,
+    render_format,
+    settings_name,
+):
+    """Test downloading a rendered resume."""
+    mock_settings_dict = {"some_setting": "some_value"}
+    mock_get_settings.return_value = mock_settings_dict
+    mock_render_stream.return_value = io.BytesIO(b"test download docx")
+
+    response = client.get(
+        f"/api/resumes/1/download?render_format={render_format.value}&settings_name={settings_name.value}"
+    )
+
+    assert response.status_code == 200
+    assert response.content == b"test download docx"
+
+    mock_get_settings.assert_called_once_with(settings_name.value)
+    mock_render_stream.assert_called_once_with(
+        resume_content=VALID_RESUME_CONTENT,
+        render_format=render_format.value,
+        settings_dict=mock_settings_dict,
+    )
+
+    expected_filename = (
+        f"Test_Resume-{render_format.value}-{settings_name.value}.docx"
+    )
+    assert (
+        response.headers["content-disposition"]
+        == f"attachment; filename={expected_filename}"
+    )
+
+
+def test_download_rendered_resume_unauthenticated(client: TestClient):
+    """Test that unauthenticated access to download is forbidden."""
+    response = client.get(
+        "/api/resumes/1/download?render_format=ats&settings_name=general",
+        headers={"Accept": "application/json"},
+    )
+    assert response.status_code == 401
+
+
+@patch(
+    "resume_editor.app.api.routes.resume_export.render_resume_to_docx_stream",
+    side_effect=ValueError("parsing failed"),
+)
+def test_download_rendered_resume_rendering_value_error(
+    mock_render, client: TestClient, setup_resume_dependency
+):
+    """Test error handling during download when rendering raises ValueError."""
+    response = client.get(
+        "/api/resumes/1/download?render_format=ats&settings_name=general"
+    )
+    assert response.status_code == 400
+    assert "parsing failed" in response.json()["detail"]
+
+
+@patch(
+    "resume_editor.app.api.routes.resume_export.render_resume_to_docx_stream",
+    side_effect=Exception("some other error"),
+)
+def test_download_rendered_resume_rendering_other_error(
+    mock_render, client: TestClient, setup_resume_dependency
+):
+    """Test error handling during download when rendering raises any other exception."""
+    response = client.get(
+        "/api/resumes/1/download?render_format=ats&settings_name=general"
+    )
+    assert response.status_code == 500
+    assert "Failed to generate docx during rendering" in response.json()["detail"]

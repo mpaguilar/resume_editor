@@ -21,7 +21,11 @@ from resume_editor.app.api.routes.route_logic.resume_serialization import (
     extract_experience_info,
     extract_personal_info,
 )
-from resume_editor.app.api.routes.route_models import DocxFormat
+from resume_editor.app.api.routes.route_models import (
+    DocxFormat,
+    RenderFormat,
+    RenderSettingsName,
+)
 from resume_editor.app.core.rendering_settings import get_render_settings
 from resume_editor.app.models.resume_model import Resume as DatabaseResume
 
@@ -187,6 +191,67 @@ async def export_resume_docx(
 
     headers = {
         "Content-Disposition": f'attachment; filename="{resume.name}_{format.value}.docx"',
+    }
+    return StreamingResponse(
+        file_stream,
+        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        headers=headers,
+    )
+
+
+@router.get("/{resume_id}/download")
+async def download_rendered_resume(
+    render_format: RenderFormat,
+    settings_name: RenderSettingsName,
+    resume: DatabaseResume = Depends(get_resume_for_user),
+):
+    """
+    Download a rendered resume as a DOCX file.
+
+    This endpoint generates and streams a DOCX file for the specified resume,
+    using the given render format and settings.
+
+    Args:
+        render_format (RenderFormat): The rendering format for the DOCX file.
+        settings_name (RenderSettingsName): The name of the render settings to apply.
+        resume (DatabaseResume): The resume object, injected by dependency.
+
+    Returns:
+        StreamingResponse: A streaming response with the generated DOCX file.
+
+    Raises:
+        HTTPException: If the resume is not found, or if rendering fails.
+    """
+    _msg = (
+        f"download_rendered_resume starting for format {render_format.value}, "
+        f"settings: {settings_name.value}"
+    )
+    log.debug(_msg)
+
+    try:
+        settings_dict = get_render_settings(settings_name.value)
+
+        file_stream = render_resume_to_docx_stream(
+            resume_content=resume.content,
+            render_format=render_format.value,
+            settings_dict=settings_dict,
+        )
+    except ValueError as e:
+        _msg = str(e)
+        log.error(_msg)
+        raise HTTPException(status_code=400, detail=_msg)
+    except Exception as e:
+        _msg = f"Failed to generate docx during rendering: {e}"
+        log.exception(_msg)
+        raise HTTPException(status_code=500, detail=_msg)
+
+    filename = (
+        f"{resume.name.replace(' ', '_')}-"
+        f"{render_format.value}-{settings_name.value}.docx"
+    )
+
+    headers = {
+        "Content-Disposition": f"attachment; filename={filename}",
     }
     return StreamingResponse(
         file_stream,
