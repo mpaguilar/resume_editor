@@ -176,9 +176,7 @@ async def export_resume_docx(
         case DocxFormat.PLAIN:
             plain_render(document, parsed_resume, settings)
         case DocxFormat.EXECUTIVE_SUMMARY:
-            settings.executive_summary = True
-            settings.skills_matrix = True
-            basic_render(document, parsed_resume, settings)
+            plain_render(document, parsed_resume, settings)
         case _:
             # This should be caught by FastAPI's validation, but as a safeguard:
             raise HTTPException(status_code=400, detail="Invalid format specified")

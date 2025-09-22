@@ -139,8 +139,8 @@ def test_export_resume_markdown_parsing_error(
         ("plain", "resume_editor.app.api.routes.resume_export.plain_render", {}),
         (
             "executive_summary",
-            "resume_editor.app.api.routes.resume_export.basic_render",
-            {"executive_summary": True, "skills_matrix": True},
+            "resume_editor.app.api.routes.resume_export.plain_render",
+            {},
         ),
     ],
 )
