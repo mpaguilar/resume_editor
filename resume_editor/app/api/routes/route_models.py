@@ -20,12 +20,12 @@ class DocxFormat(str, Enum):
     Attributes:
         ATS (str): Format optimized for Applicant Tracking Systems.
         PLAIN (str): Standard plain text format.
-        EXECUTIVE (str): Executive-level format with enhanced styling.
+        EXECUTIVE_SUMMARY (str): Executive-level format with enhanced styling.
     """
 
     ATS = "ats"
     PLAIN = "plain"
-    EXECUTIVE = "executive"
+    EXECUTIVE_SUMMARY = "executive_summary"
 
 
 # Request/Response models

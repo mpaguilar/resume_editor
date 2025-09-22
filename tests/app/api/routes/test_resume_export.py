@@ -138,7 +138,7 @@ def test_export_resume_markdown_parsing_error(
         ("ats", "resume_editor.app.api.routes.resume_export.ats_render", {}),
         ("plain", "resume_editor.app.api.routes.resume_export.plain_render", {}),
         (
-            "executive",
+            "executive_summary",
             "resume_editor.app.api.routes.resume_export.basic_render",
             {"executive_summary": True, "skills_matrix": True},
         ),
@@ -267,7 +267,7 @@ def test_export_resume_docx_invalid_format_safeguard(
     class FakeDocxFormat:
         ATS = "not-ats"
         PLAIN = "not-plain"
-        EXECUTIVE = "not-executive"
+        EXECUTIVE_SUMMARY = "not-executive-summary"
 
     with patch(
         "resume_editor.app.api.routes.resume_export.DocxFormat", FakeDocxFormat

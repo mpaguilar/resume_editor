@@ -110,7 +110,7 @@ async def export_resume_docx(
     Export a resume as a DOCX file in the specified format.
 
     Args:
-        format (DocxFormat): The export format ('ats', 'plain', 'executive').
+        format (DocxFormat): The export format ('ats', 'plain', 'executive_summary').
         resume (DatabaseResume): The resume object, injected by dependency.
         start_date (date | None): Optional start date to filter experience.
         end_date (date | None): Optional end date to filter experience.
@@ -128,7 +128,7 @@ async def export_resume_docx(
         4. Initializes a new `docx.Document`.
         5. Initializes `ResumeRenderSettings`.
         6. Based on the requested format, calls the appropriate renderer from `resume_writer`.
-            - For 'executive', enables `executive_summary` and `skills_matrix` in settings.
+            - For 'executive_summary', enables `executive_summary` and `skills_matrix` in settings.
         7. Saves the generated document to a memory stream.
         8. Returns the stream as a downloadable file attachment.
 
@@ -175,7 +175,7 @@ async def export_resume_docx(
             ats_render(document, parsed_resume, settings)
         case DocxFormat.PLAIN:
             plain_render(document, parsed_resume, settings)
-        case DocxFormat.EXECUTIVE:
+        case DocxFormat.EXECUTIVE_SUMMARY:
             settings.executive_summary = True
             settings.skills_matrix = True
             basic_render(document, parsed_resume, settings)
