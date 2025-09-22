@@ -28,6 +28,20 @@ class DocxFormat(str, Enum):
     EXECUTIVE_SUMMARY = "executive_summary"
 
 
+class RenderFormat(str, Enum):
+    """Enum for render formats for download."""
+
+    PLAIN = "plain"
+    ATS = "ats"
+
+
+class RenderSettingsName(str, Enum):
+    """Enum for render settings names for download."""
+
+    GENERAL = "general"
+    EXECUTIVE_SUMMARY = "executive_summary"
+
+
 # Request/Response models
 class ParseRequest(BaseModel):
     """Request model for resume parsing.
