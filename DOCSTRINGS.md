@@ -6462,3 +6462,64 @@ Test that get_render_settings raises ValueError for an invalid name.
 
 ===
 
+===
+# File: `resume_editor/app/api/routes/route_logic/resume_export.py`
+
+## function: `render_resume_to_docx_stream(resume_content: str, render_format: str, settings_dict: dict) -> io.BytesIO`
+
+Renders a resume's markdown content to a DOCX file stream.
+
+This function parses resume markdown, applies render settings, and uses the
+appropriate renderer to generate a DOCX file into an in-memory buffer.
+
+Args:
+    resume_content (str): The markdown content of the resume.
+    render_format (str): The rendering format, either "plain" or "ats".
+    settings_dict (dict): A dictionary of settings to apply to the render.
+
+Returns:
+    io.BytesIO: An in-memory buffer containing the generated DOCX file.
+
+Raises:
+    ValueError: If an unknown render_format is provided.
+
+Notes:
+    1. Parse the `resume_content` into a `resume_writer` `Resume` object.
+    2. Instantiate `ResumeRenderSettings` and update it with `settings_dict`.
+    3. Create an in-memory `io.BytesIO` buffer.
+    4. Create a `docx.Document` object.
+    5. Based on `render_format`, instantiate `AtsRenderResume` or `PlainRenderResume`.
+    6. Invoke the renderer's `render()` method.
+    7. Save the generated document to the buffer.
+    8. Reset the buffer's position to the start.
+    9. Return the buffer.
+
+---
+
+
+===
+
+===
+# File: `resume_editor/tests/app/api/routes/route_logic/test_resume_export.py`
+
+## function: `test_render_resume_to_docx_stream_ats_format(mock_parse: UnknownType, mock_docx_document: UnknownType, mock_ats_renderer: UnknownType) -> UnknownType`
+
+Test render_resume_to_docx_stream with 'ats' format.
+
+---
+
+## function: `test_render_resume_to_docx_stream_plain_based_formats(mock_parse: UnknownType, mock_docx_document: UnknownType, mock_plain_renderer: UnknownType, render_format: UnknownType) -> UnknownType`
+
+Test render_resume_to_docx_stream with plain-based formats.
+
+---
+
+## function: `test_render_resume_to_docx_stream_invalid_format(mock_parse: UnknownType) -> UnknownType`
+
+Test render_resume_to_docx_stream raises ValueError for invalid format.
+
+---
+
+
+===
+

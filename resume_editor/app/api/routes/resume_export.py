@@ -2,18 +2,15 @@ import io
 import logging
 from datetime import date
 
-from docx import Document
 from fastapi import APIRouter, Depends, HTTPException, Response
 from fastapi.responses import StreamingResponse
-from resume_writer.main import ats_render, basic_render, plain_render
-from resume_writer.resume_render.render_settings import ResumeRenderSettings
 
 from resume_editor.app.api.dependencies import get_resume_for_user
+from resume_editor.app.api.routes.route_logic.resume_export import (
+    render_resume_to_docx_stream,
+)
 from resume_editor.app.api.routes.route_logic.resume_filtering import (
     filter_experience_by_date,
-)
-from resume_editor.app.api.routes.route_logic.resume_parsing import (
-    parse_resume_to_writer_object,
 )
 from resume_editor.app.api.routes.route_logic.resume_reconstruction import (
     build_complete_resume_from_sections,
@@ -25,6 +22,7 @@ from resume_editor.app.api.routes.route_logic.resume_serialization import (
     extract_personal_info,
 )
 from resume_editor.app.api.routes.route_models import DocxFormat
+from resume_editor.app.core.rendering_settings import get_render_settings
 from resume_editor.app.models.resume_model import Resume as DatabaseResume
 
 log = logging.getLogger(__name__)
@@ -157,7 +155,6 @@ async def export_resume_docx(
                 certifications=certifications_info,
             )
 
-        parsed_resume = parse_resume_to_writer_object(content_to_parse)
     except (ValueError, TypeError) as e:
         detail = getattr(e, "detail", str(e))
         _msg = (
@@ -166,25 +163,27 @@ async def export_resume_docx(
         log.exception(_msg)
         raise HTTPException(status_code=422, detail=_msg)
 
-    # 2. Render to docx based on format
-    document = Document()
-    settings = ResumeRenderSettings(default_init=True)
+    render_format_str = format.value
+    settings_dict = {}
+    if render_format_str == "executive_summary":
+        settings_dict = get_render_settings(name="executive_summary")
+    else:
+        settings_dict = get_render_settings(name="general")
 
-    match format:
-        case DocxFormat.ATS:
-            ats_render(document, parsed_resume, settings)
-        case DocxFormat.PLAIN:
-            plain_render(document, parsed_resume, settings)
-        case DocxFormat.EXECUTIVE_SUMMARY:
-            plain_render(document, parsed_resume, settings)
-        case _:
-            # This should be caught by FastAPI's validation, but as a safeguard:
-            raise HTTPException(status_code=400, detail="Invalid format specified")
-
-    # 3. Save to memory stream and return
-    file_stream = io.BytesIO()
-    document.save(file_stream)
-    file_stream.seek(0)
+    try:
+        file_stream = render_resume_to_docx_stream(
+            resume_content=content_to_parse,
+            render_format=render_format_str,
+            settings_dict=settings_dict,
+        )
+    except ValueError as e:
+        _msg = str(e)
+        log.error(_msg)
+        raise HTTPException(status_code=400, detail=_msg)
+    except Exception as e:
+        _msg = f"Failed to generate docx during rendering: {e}"
+        log.exception(_msg)
+        raise HTTPException(status_code=500, detail=_msg)
 
     headers = {
         "Content-Disposition": f'attachment; filename="{resume.name}_{format.value}.docx"',

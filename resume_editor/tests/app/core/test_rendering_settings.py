@@ -12,12 +12,16 @@ def test_get_render_settings_general():
     """Test get_render_settings for 'general' settings."""
     settings = get_render_settings(name="general")
     assert settings == GENERAL_SETTINGS
+    assert not settings["executive_summary"]
+    assert not settings["skills_matrix"]
 
 
 def test_get_render_settings_exec_summary():
     """Test get_render_settings for 'executive_summary' settings."""
     settings = get_render_settings(name="executive_summary")
     assert settings == EXEC_SUMMARY_SETTINGS
+    assert settings["executive_summary"]
+    assert settings["skills_matrix"]
 
 
 def test_get_render_settings_invalid_name():

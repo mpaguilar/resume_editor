@@ -32,8 +32,8 @@ GENERAL_SETTINGS = {
             "categories": "Architecture\nConsulting\nDevOps\nDevelopment\nProduct Support\n"
         },
     },
-    "skills_matrix": True,
-    "executive_summary": True,
+    "skills_matrix": False,
+    "executive_summary": False,
     "font_size": "10",
     "margin_width": ".5",
     "top_margin": ".2",
