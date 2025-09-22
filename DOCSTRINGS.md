@@ -6351,12 +6351,13 @@ Notes:
 ===
 # File: `resume_editor/app/api/routes/html_fragments.py`
 
-## function: `_generate_resume_list_html(resumes: list[DatabaseResume], selected_resume_id: int | None) -> str`
+## function: `_generate_resume_list_html(base_resumes: list[DatabaseResume], refined_resumes: list[DatabaseResume], selected_resume_id: int | None) -> str`
 
 Generates HTML for a list of resumes, optionally marking one as selected.
 
 Args:
-    resumes (list[DatabaseResume]): The list of resumes to display.
+    base_resumes (list[DatabaseResume]): The list of base resumes to display.
+    refined_resumes (list[DatabaseResume]): The list of refined resumes to display.
     selected_resume_id (int | None): The ID of the resume to mark as selected.
 
 Returns:

@@ -190,3 +190,44 @@ def test_generate_resume_list_html_with_both(test_resume, test_refined_resume):
             refined_resumes=refined_resumes,
             selected_resume_id=None,
         )
+
+
+def test_generate_resume_detail_html_base_resume(test_resume):
+    """Test detail view for a base resume shows refine UI."""
+    # is_base is True by default in the fixture
+    html_output = _generate_resume_detail_html(test_resume)
+
+    # Check that refine button and form are present
+    assert "Refine with AI" in html_output
+    assert 'id="refine-form-container-1"' in html_output
+
+    # Check that job description details are not present
+    assert "Job Description Used for Refinement" not in html_output
+
+
+def test_generate_resume_detail_html_refined_resume_with_jd(test_refined_resume):
+    """Test detail view for a refined resume with a job description shows the JD."""
+    test_refined_resume.job_description = "A great job description."
+    html_output = _generate_resume_detail_html(test_refined_resume)
+
+    # Check that refine button and form are NOT present
+    assert "Refine with AI" not in html_output
+    assert 'id="refine-form-container-2"' not in html_output
+
+    # Check that job description details are present
+    assert "Job Description Used for Refinement" in html_output
+    assert "<details" in html_output
+    assert "A great job description." in html_output
+
+
+def test_generate_resume_detail_html_refined_resume_no_jd(test_refined_resume):
+    """Test detail view for a refined resume with no JD shows neither UI."""
+    test_refined_resume.job_description = None  # Explicitly set to None
+    html_output = _generate_resume_detail_html(test_refined_resume)
+
+    # Check that refine button and form are NOT present
+    assert "Refine with AI" not in html_output
+    assert 'id="refine-form-container-2"' not in html_output
+
+    # Check that job description details are NOT present
+    assert "Job Description Used for Refinement" not in html_output
