@@ -18,6 +18,7 @@ GENERAL_SETTINGS = {
         },
         "certifications": {"name": True, "issuer": True},
         "experience": {
+            "roles": True,
             "section": {
                 "roles": {
                     "skills": True,
