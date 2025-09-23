@@ -6345,6 +6345,18 @@ Notes:
 ===
 # File: `resume_editor/app/api/routes/resume_export.py`
 
+## function: `_parse_date_range(start_date: str | None, end_date: str | None) -> tuple[date | None, date | None]`
+
+Parses start and end date strings into date objects.
+
+---
+
+## function: `_get_filtered_resume_content(resume_content: str, start_date: date | None, end_date: date | None) -> str`
+
+Filters resume content by date range if dates are provided.
+
+---
+
 
 ===
 

@@ -58,7 +58,7 @@ def render_resume_to_docx_stream(
     )
 
     # 2. Instantiate and update render settings
-    render_settings = ResumeRenderSettings(default_init=True)
+    render_settings = ResumeRenderSettings(default_init=False)
     render_settings.update_from_dict(settings_dict)
 
     # 3. Create buffer

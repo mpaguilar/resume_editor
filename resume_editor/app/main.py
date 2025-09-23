@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 from resume_editor.app.api.routes.admin import router as admin_router
 from resume_editor.app.api.routes.html_fragments import _generate_resume_detail_html
 from resume_editor.app.api.routes.resume import router as resume_router
+from resume_editor.app.api.routes.resume_export import router as resume_export_router
 from resume_editor.app.api.routes.route_logic.resume_crud import (
     create_resume as create_resume_db,
     get_resume_by_id_and_user,
@@ -135,6 +136,7 @@ def create_app() -> FastAPI:
     # Include API routers
     app.include_router(user_router)
     app.include_router(resume_router)
+    app.include_router(resume_export_router, prefix="/api/resumes", tags=["resumes"])
     app.include_router(resume_ai_router, prefix="/api/resumes", tags=["resumes"])
     app.include_router(admin_router)
     app.include_router(admin_web_router)

@@ -1,6 +1,8 @@
 """This module stores the rendering settings for the resume writer."""
 GENERAL_SETTINGS = {
     "personal": True,
+    "certifications": True,
+    "experience": True,
     "section": {
         "personal": {
             "contact_info": True,

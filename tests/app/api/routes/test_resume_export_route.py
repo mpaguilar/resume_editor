@@ -70,6 +70,26 @@ def test_export_resume_markdown_no_filter(client: TestClient, setup_resume_depen
     )
 
 
+@pytest.mark.parametrize(
+    "url, expected_start, expected_end",
+    [
+        (
+            "/api/resumes/1/export/markdown?start_date=2021-01-01",
+            date(2021, 1, 1),
+            None,
+        ),
+        (
+            "/api/resumes/1/export/markdown?end_date=2022-12-31",
+            None,
+            date(2022, 12, 31),
+        ),
+        (
+            "/api/resumes/1/export/markdown?start_date=2021-01-01&end_date=2022-12-31",
+            date(2021, 1, 1),
+            date(2022, 12, 31),
+        ),
+    ],
+)
 @patch(
     "resume_editor.app.api.routes.resume_export.build_complete_resume_from_sections",
     return_value=FILTERED_RESUME_CONTENT,
@@ -88,6 +108,9 @@ def test_export_resume_markdown_with_filter(
     mock_build_sections,
     client: TestClient,
     setup_resume_dependency,
+    url: str,
+    expected_start: date | None,
+    expected_end: date | None,
 ):
     """Test exporting a resume in Markdown format with date filtering."""
     mock_personal = MagicMock()
@@ -102,17 +125,19 @@ def test_export_resume_markdown_with_filter(
     mock_extract_certs.return_value = mock_certs
     mock_filter_experience.return_value = mock_filtered_experience
 
-    response = client.get("/api/resumes/1/export/markdown?start_date=2021-01-01")
+    response = client.get(url)
 
     assert response.status_code == 200
-    mock_extract_personal.assert_called_with(VALID_RESUME_CONTENT)
-    mock_extract_education.assert_called_with(VALID_RESUME_CONTENT)
-    mock_extract_experience.assert_called_with(VALID_RESUME_CONTENT)
-    mock_extract_certs.assert_called_with(VALID_RESUME_CONTENT)
-    mock_filter_experience.assert_called_with(
-        mock_experience, date(2021, 1, 1), None
+
+    mock_extract_personal.assert_called_once_with(VALID_RESUME_CONTENT)
+    mock_extract_education.assert_called_once_with(VALID_RESUME_CONTENT)
+    mock_extract_experience.assert_called_once_with(VALID_RESUME_CONTENT)
+    mock_extract_certs.assert_called_once_with(VALID_RESUME_CONTENT)
+
+    mock_filter_experience.assert_called_once_with(
+        mock_experience, expected_start, expected_end
     )
-    mock_build_sections.assert_called_with(
+    mock_build_sections.assert_called_once_with(
         personal_info=mock_personal,
         education=mock_education,
         experience=mock_filtered_experience,
@@ -122,16 +147,25 @@ def test_export_resume_markdown_with_filter(
 
 
 @patch(
-    "resume_editor.app.api.routes.resume_export.extract_personal_info",
+    "resume_editor.app.api.routes.resume_export._get_filtered_resume_content",
     side_effect=ValueError("parsing failed"),
 )
 def test_export_resume_markdown_parsing_error(
-    mock_extract_personal, client: TestClient, setup_resume_dependency
+    mock_get_filtered_content, client: TestClient, setup_resume_dependency
 ):
     """Test error handling during markdown export when parsing fails."""
     response = client.get("/api/resumes/1/export/markdown?start_date=2021-01-01")
     assert response.status_code == 422
     assert "Failed to filter resume" in response.json()["detail"]
+
+
+def test_export_resume_markdown_invalid_date_format(
+    client: TestClient, setup_resume_dependency
+):
+    """Test that an invalid date format returns a 400 error for markdown export."""
+    response = client.get("/api/resumes/1/export/markdown?start_date=invalid-date")
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Invalid date format. Please use YYYY-MM-DD."
 
 
 
@@ -146,9 +180,7 @@ def test_export_resume_markdown_parsing_error(
 )
 @patch("resume_editor.app.api.routes.resume_export.get_render_settings")
 @patch("resume_editor.app.api.routes.resume_export.render_resume_to_docx_stream")
-@patch("resume_editor.app.api.routes.resume_export.extract_personal_info")
 def test_download_rendered_resume(
-    mock_extract_personal,
     mock_render_stream,
     mock_get_settings,
     client: TestClient,
@@ -168,8 +200,7 @@ def test_download_rendered_resume(
     assert response.status_code == 200
     assert response.content == b"test download docx"
 
-    # Ensure filtering logic was NOT called
-    mock_extract_personal.assert_not_called()
+    # Ensure filtering logic was NOT called - this is now handled inside _get_filtered_resume_content
 
     mock_get_settings.assert_called_once_with(settings_name.value)
     mock_render_stream.assert_called_once_with(
@@ -196,40 +227,23 @@ def test_download_rendered_resume_unauthenticated(client: TestClient):
     assert response.status_code == 401
 
 
+@patch("resume_editor.app.api.routes.resume_export.render_resume_to_docx_stream")
 @patch(
-    "resume_editor.app.api.routes.resume_export.build_complete_resume_from_sections",
+    "resume_editor.app.api.routes.resume_export._get_filtered_resume_content",
     return_value=FILTERED_RESUME_CONTENT,
 )
-@patch("resume_editor.app.api.routes.resume_export.filter_experience_by_date")
-@patch("resume_editor.app.api.routes.resume_export.extract_certifications_info")
-@patch("resume_editor.app.api.routes.resume_export.extract_experience_info")
-@patch("resume_editor.app.api.routes.resume_export.extract_education_info")
-@patch("resume_editor.app.api.routes.resume_export.extract_personal_info")
-@patch("resume_editor.app.api.routes.resume_export.render_resume_to_docx_stream")
+@patch("resume_editor.app.api.routes.resume_export.get_render_settings")
 def test_download_rendered_resume_with_filter(
+    mock_get_settings,
+    mock_get_filtered_content,
     mock_render_stream,
-    mock_extract_personal,
-    mock_extract_education,
-    mock_extract_experience,
-    mock_extract_certs,
-    mock_filter_experience,
-    mock_build_sections,
     client: TestClient,
     setup_resume_dependency,
 ):
     """Test downloading a rendered resume with date filtering."""
     mock_render_stream.return_value = io.BytesIO(b"filtered docx")
-    mock_personal = MagicMock()
-    mock_education = MagicMock()
-    mock_experience = MagicMock()
-    mock_certs = MagicMock()
-    mock_filtered_experience = MagicMock()
-
-    mock_extract_personal.return_value = mock_personal
-    mock_extract_education.return_value = mock_education
-    mock_extract_experience.return_value = mock_experience
-    mock_extract_certs.return_value = mock_certs
-    mock_filter_experience.return_value = mock_filtered_experience
+    mock_settings_dict = {"some_setting": "some_value"}
+    mock_get_settings.return_value = mock_settings_dict
 
     response = client.get(
         "/api/resumes/1/download?render_format=ats&settings_name=general&start_date=2021-01-01"
@@ -237,14 +251,17 @@ def test_download_rendered_resume_with_filter(
 
     assert response.status_code == 200
     assert response.content == b"filtered docx"
-    mock_build_sections.assert_called_once_with(
-        personal_info=mock_personal,
-        education=mock_education,
-        experience=mock_filtered_experience,
-        certifications=mock_certs,
+
+    mock_get_filtered_content.assert_called_once_with(
+        VALID_RESUME_CONTENT, date(2021, 1, 1), None
     )
-    mock_render_stream.assert_called_once()
-    assert mock_render_stream.call_args.kwargs["resume_content"] == FILTERED_RESUME_CONTENT
+
+    mock_get_settings.assert_called_once_with(RenderSettingsName.GENERAL.value)
+    mock_render_stream.assert_called_once_with(
+        resume_content=FILTERED_RESUME_CONTENT,
+        render_format=RenderFormat.ATS.value,
+        settings_dict=mock_settings_dict,
+    )
 
 
 @patch(
@@ -278,11 +295,11 @@ def test_download_rendered_resume_rendering_other_error(
 
 
 @patch(
-    "resume_editor.app.api.routes.resume_export.extract_personal_info",
+    "resume_editor.app.api.routes.resume_export._get_filtered_resume_content",
     side_effect=ValueError("filtering failed"),
 )
 def test_download_rendered_resume_filtering_error(
-    mock_extract_personal,
+    mock_get_filtered_content,
     client: TestClient,
     setup_resume_dependency,
 ):
@@ -292,6 +309,17 @@ def test_download_rendered_resume_filtering_error(
     )
     assert response.status_code == 422
     assert "Failed to generate docx" in response.json()["detail"]
+
+
+def test_download_rendered_resume_invalid_date_format(
+    client: TestClient, setup_resume_dependency
+):
+    """Test that an invalid date format returns a 400 error."""
+    response = client.get(
+        "/api/resumes/1/download?render_format=ats&settings_name=general&start_date=invalid-date"
+    )
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Invalid date format. Please use YYYY-MM-DD."
 
 
 def test_download_rendered_resume_invalid_params(
