@@ -16,7 +16,7 @@ These are known mappings:
 - `resume_editor/app/api/routes/route_models.py` -> `tests/app/api/routes/test_route_models.py`
 - `resume_editor/app/api/routes/resume_edit.py` -> `tests/app/api/routes/test_resume_edit.py`
 - `resume_editor/app/api/routes/resume_export.py` -> `tests/app/api/routes/test_resume_export_route.py`
-- `resume_editor/app/api/routes/route_logic/resume_export.py` -> `resume_editor/tests/app/api/routes/route_logic/test_resume_export.py`
+- `resume_editor/app/api/routes/route_logic/resume_export.py` -> `tests/app/api/routes/route_logic/test_resume_export.py`
 - `resume_editor/app/api/routes/user.py` -> `tests/app/api/routes/test_user_route.py`
 - `resume_editor/app/api/routes/user.py` -> `tests/app/api/routes/test_user_routes_settings.py`
 - `resume_editor/app/main.py` -> `tests/app/web/test_main_web.py`
@@ -30,4 +30,4 @@ These are known mappings:
 - `resume_editor/app/api/routes/route_logic/resume_serialization.py` -> `tests/app/api/routes/route_logic/test_resume_serialization.py`
 - `resume_editor/app/api/routes/route_logic/resume_parsing.py` -> `tests/app/api/routes/route_logic/test_resume_parsing.py`
 - `resume_editor/app/middleware.py` -> `tests/app/test_middleware.py`
-- `resume_editor/app/core/rendering_settings.py` -> `resume_editor/tests/app/core/test_rendering_settings.py`
+- `resume_editor/app/core/rendering_settings.py` -> `tests/app/core/test_rendering_settings.py`

@@ -15,7 +15,6 @@ from resume_editor.app.api.routes.route_models import (
     EducationResponse,
     ExperienceResponse,
     PersonalInfoResponse,
-    RefineAction,
     RefineTargetSection,
 )
 from resume_editor.app.core.auth import get_current_user_from_cookie
@@ -237,9 +236,7 @@ def test_update_resume_name_only_no_htmx(
 @patch("resume_editor.app.api.routes.resume.validate_resume_content")
 @patch("resume_editor.app.api.routes.resume.get_user_resumes")
 @patch("resume_editor.app.api.routes.resume._generate_resume_list_html")
-@patch("resume_editor.app.api.routes.resume._generate_resume_detail_html")
 def test_update_resume_htmx(
-    mock_gen_detail_html,
     mock_gen_list_html,
     mock_get_resumes,
     mock_validate,
@@ -251,7 +248,6 @@ def test_update_resume_htmx(
     mock_validate.return_value = None
     mock_get_resumes.return_value = [test_resume]
     mock_gen_list_html.return_value = "list_html"
-    mock_gen_detail_html.return_value = "detail_html"
 
     updated_name = "Updated Resume Name"
     updated_content = "Updated content"
@@ -263,9 +259,50 @@ def test_update_resume_htmx(
     )
 
     assert response.status_code == 200
-    assert 'id="resume-list" hx-swap-oob="true"' in response.text
-    assert "list_html" in response.text
-    assert "detail_html" in response.text
+    soup = BeautifulSoup(response.content, "html.parser")
+
+    # The OOB swap for the list is still present
+    list_div = soup.find("div", {"id": "resume-list", "hx-swap-oob": "true"})
+    assert list_div
+    assert list_div.text == "list_html"
+
+    # Check the contents of the detail view
+    detail_div = soup.find("div", {"id": "resume-detail"})
+    assert detail_div is not None
+
+    # Check the export form
+    export_form = detail_div.find("form", id=f"export-form-{test_resume.id}")
+    assert export_form is not None
+    assert export_form.get("method") == "GET"
+    assert export_form.get("action") == f"/api/resumes/{test_resume.id}/download"
+
+    # Check for Markdown download button
+    markdown_button = export_form.find(
+        "button", {"formaction": f"/api/resumes/{test_resume.id}/export/markdown"}
+    )
+    assert markdown_button is not None
+    assert markdown_button.text.strip() == "Download Markdown"
+
+    # Check for DOCX download button
+    docx_button = export_form.find("button", string=lambda t: t and "Download DOCX" in t)
+    assert docx_button is not None
+    assert docx_button.get("formaction") is None
+    assert docx_button.text.strip() == "Download DOCX"
+
+    # Check for date inputs
+    assert export_form.find("input", {"name": "start_date"}) is not None
+    assert export_form.find("input", {"name": "end_date"}) is not None
+
+    # Check for select dropdowns
+    render_format_select = export_form.find("select", {"name": "render_format"})
+    assert render_format_select is not None
+    assert render_format_select.find("option", {"value": "plain"})
+    assert render_format_select.find("option", {"value": "ats"})
+
+    settings_name_select = export_form.find("select", {"name": "settings_name"})
+    assert settings_name_select is not None
+    assert settings_name_select.find("option", {"value": "general"})
+    assert settings_name_select.find("option", {"value": "executive_summary"})
 
     mock_validate.assert_called_once_with(updated_content)
 
@@ -276,7 +313,6 @@ def test_update_resume_htmx(
         refined_resumes=[],
         selected_resume_id=test_resume.id,
     )
-    mock_gen_detail_html.assert_called_once_with(test_resume)
 
 
 
@@ -501,6 +537,47 @@ def test_get_resume(client_with_auth_and_resume, test_resume):
     assert json_response["id"] == test_resume.id
     assert json_response["name"] == test_resume.name
     assert json_response["content"] == test_resume.content
+
+    # With HTMX (HTML)
+    response_htmx = client_with_auth_and_resume.get(
+        f"/api/resumes/{test_resume.id}", headers={"HX-Request": "true"}
+    )
+    assert response_htmx.status_code == 200
+    soup = BeautifulSoup(response_htmx.content, "html.parser")
+
+    # Check the export form
+    export_form = soup.find("form", id=f"export-form-{test_resume.id}")
+    assert export_form is not None
+    assert export_form.get("method") == "GET"
+    assert export_form.get("action") == f"/api/resumes/{test_resume.id}/download"
+
+    # Check for Markdown download button
+    markdown_button = export_form.find(
+        "button", {"formaction": f"/api/resumes/{test_resume.id}/export/markdown"}
+    )
+    assert markdown_button is not None
+    assert markdown_button.text.strip() == "Download Markdown"
+
+    # Check for DOCX download button
+    docx_button = export_form.find("button", string=lambda t: t and "Download DOCX" in t)
+    assert docx_button is not None
+    assert docx_button.get("formaction") is None
+    assert docx_button.text.strip() == "Download DOCX"
+
+    # Check for date inputs
+    assert export_form.find("input", {"name": "start_date"}) is not None
+    assert export_form.find("input", {"name": "end_date"}) is not None
+
+    # Check for select dropdowns
+    render_format_select = export_form.find("select", {"name": "render_format"})
+    assert render_format_select is not None
+    assert render_format_select.find("option", {"value": "plain"})
+    assert render_format_select.find("option", {"value": "ats"})
+
+    settings_name_select = export_form.find("select", {"name": "settings_name"})
+    assert settings_name_select is not None
+    assert settings_name_select.find("option", {"value": "general"})
+    assert settings_name_select.find("option", {"value": "executive_summary"})
 
 
 

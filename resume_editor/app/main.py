@@ -11,6 +11,7 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
 from resume_editor.app.api.routes.admin import router as admin_router
+from resume_editor.app.api.routes.html_fragments import _generate_resume_detail_html
 from resume_editor.app.api.routes.resume import router as resume_router
 from resume_editor.app.api.routes.route_logic.resume_crud import (
     create_resume as create_resume_db,
@@ -319,8 +320,15 @@ def create_app() -> FastAPI:
     ):
         """Serve the dedicated editor page for a single resume."""
         resume = get_resume_by_id_and_user(db, resume_id, current_user.id)
+        resume_detail_html = _generate_resume_detail_html(resume=resume)
         return templates.TemplateResponse(
-            request, "editor.html", {"resume": resume, "current_user": current_user}
+            request,
+            "editor.html",
+            {
+                "resume": resume,
+                "current_user": current_user,
+                "resume_detail_html": resume_detail_html,
+            },
         )
 
     @app.get("/resumes/create", response_class=HTMLResponse)

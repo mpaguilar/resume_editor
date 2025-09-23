@@ -331,6 +331,10 @@ async def get_resume(
         6. Performs network access: None.
 
     """
+    if "HX-Request" in request.headers:
+        html_content = _generate_resume_detail_html(resume)
+        return HTMLResponse(content=html_content)
+
     return ResumeDetailResponse(
         id=resume.id,
         name=resume.name,

@@ -1,6 +1,6 @@
 import io
 from datetime import date
-from unittest.mock import MagicMock, patch
+from unittest.mock import ANY, MagicMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
@@ -134,140 +134,6 @@ def test_export_resume_markdown_parsing_error(
     assert "Failed to filter resume" in response.json()["detail"]
 
 
-@pytest.mark.parametrize(
-    "format_enum, render_settings_name",
-    [
-        ("ats", "general"),
-        ("plain", "general"),
-        ("executive_summary", "executive_summary"),
-    ],
-)
-@patch("resume_editor.app.api.routes.resume_export.get_render_settings")
-@patch("resume_editor.app.api.routes.resume_export.render_resume_to_docx_stream")
-def test_export_resume_docx_formats_no_filter(
-    mock_render_stream,
-    mock_get_settings,
-    client: TestClient,
-    setup_resume_dependency,
-    format_enum,
-    render_settings_name,
-):
-    """Test exporting a resume in various DOCX formats without filtering."""
-    mock_settings_dict = {"some_setting": "some_value"}
-    mock_get_settings.return_value = mock_settings_dict
-    mock_render_stream.return_value = io.BytesIO(b"test docx")
-
-    response = client.get(f"/api/resumes/1/export/docx?format={format_enum}")
-
-    assert response.status_code == 200
-    assert response.content == b"test docx"
-
-    mock_get_settings.assert_called_once_with(name=render_settings_name)
-    mock_render_stream.assert_called_once_with(
-        resume_content=VALID_RESUME_CONTENT,
-        render_format=format_enum,
-        settings_dict=mock_settings_dict,
-    )
-    assert (
-        response.headers["content-disposition"]
-        == f'attachment; filename="Test Resume_{format_enum}.docx"'
-    )
-
-
-@patch(
-    "resume_editor.app.api.routes.resume_export.build_complete_resume_from_sections",
-    return_value=FILTERED_RESUME_CONTENT,
-)
-@patch("resume_editor.app.api.routes.resume_export.filter_experience_by_date")
-@patch("resume_editor.app.api.routes.resume_export.extract_certifications_info")
-@patch("resume_editor.app.api.routes.resume_export.extract_experience_info")
-@patch("resume_editor.app.api.routes.resume_export.extract_education_info")
-@patch("resume_editor.app.api.routes.resume_export.extract_personal_info")
-@patch("resume_editor.app.api.routes.resume_export.render_resume_to_docx_stream")
-def test_export_resume_docx_with_filter(
-    mock_render_stream,
-    mock_extract_personal,
-    mock_extract_education,
-    mock_extract_experience,
-    mock_extract_certs,
-    mock_filter_experience,
-    mock_build_sections,
-    client: TestClient,
-    setup_resume_dependency,
-):
-    """Test exporting a resume in DOCX format with date filtering."""
-    mock_stream = io.BytesIO(b"test docx")
-    mock_render_stream.return_value = mock_stream
-    mock_personal = MagicMock()
-    mock_education = MagicMock()
-    mock_experience = MagicMock()
-    mock_certs = MagicMock()
-    mock_filtered_experience = MagicMock()
-
-    mock_extract_personal.return_value = mock_personal
-    mock_extract_education.return_value = mock_education
-    mock_extract_experience.return_value = mock_experience
-    mock_extract_certs.return_value = mock_certs
-    mock_filter_experience.return_value = mock_filtered_experience
-
-    response = client.get(
-        "/api/resumes/1/export/docx?format=ats&start_date=2021-01-01"
-    )
-
-    assert response.status_code == 200
-    mock_build_sections.assert_called_once_with(
-        personal_info=mock_personal,
-        education=mock_education,
-        experience=mock_filtered_experience,
-        certifications=mock_certs,
-    )
-    mock_render_stream.assert_called_once()
-    assert response.content == b"test docx"
-
-
-@patch(
-    "resume_editor.app.api.routes.resume_export.render_resume_to_docx_stream",
-    side_effect=ValueError("parsing failed"),
-)
-def test_export_resume_docx_rendering_value_error(
-    mock_render, client: TestClient, setup_resume_dependency
-):
-    """Test error handling during DOCX export when rendering raises ValueError."""
-    response = client.get("/api/resumes/1/export/docx?format=ats")
-    assert response.status_code == 400
-    assert "parsing failed" in response.json()["detail"]
-
-
-@patch(
-    "resume_editor.app.api.routes.resume_export.render_resume_to_docx_stream",
-    side_effect=Exception("some other error"),
-)
-def test_export_resume_docx_rendering_other_error(
-    mock_render, client: TestClient, setup_resume_dependency
-):
-    """Test error handling during DOCX export when rendering raises any other exception."""
-    response = client.get("/api/resumes/1/export/docx?format=ats")
-    assert response.status_code == 500
-    assert "Failed to generate docx" in response.json()["detail"]
-
-
-@patch(
-    "resume_editor.app.api.routes.resume_export.build_complete_resume_from_sections",
-    side_effect=TypeError("filtering failed"),
-)
-@patch("resume_editor.app.api.routes.resume_export.extract_personal_info")
-def test_export_resume_docx_filtering_error(
-    mock_extract_personal,
-    mock_build_sections,
-    client: TestClient,
-    setup_resume_dependency,
-):
-    """Test error handling during DOCX export when filtering fails."""
-    response = client.get(
-        "/api/resumes/1/export/docx?format=ats&start_date=2021-01-01"
-    )
-    assert response.status_code == 422
-    assert "Failed to generate docx" in response.json()["detail"]
 
 
 @pytest.mark.parametrize(
@@ -280,7 +146,9 @@ def test_export_resume_docx_filtering_error(
 )
 @patch("resume_editor.app.api.routes.resume_export.get_render_settings")
 @patch("resume_editor.app.api.routes.resume_export.render_resume_to_docx_stream")
+@patch("resume_editor.app.api.routes.resume_export.extract_personal_info")
 def test_download_rendered_resume(
+    mock_extract_personal,
     mock_render_stream,
     mock_get_settings,
     client: TestClient,
@@ -288,7 +156,7 @@ def test_download_rendered_resume(
     render_format,
     settings_name,
 ):
-    """Test downloading a rendered resume."""
+    """Test downloading a rendered resume without filtering."""
     mock_settings_dict = {"some_setting": "some_value"}
     mock_get_settings.return_value = mock_settings_dict
     mock_render_stream.return_value = io.BytesIO(b"test download docx")
@@ -299,6 +167,9 @@ def test_download_rendered_resume(
 
     assert response.status_code == 200
     assert response.content == b"test download docx"
+
+    # Ensure filtering logic was NOT called
+    mock_extract_personal.assert_not_called()
 
     mock_get_settings.assert_called_once_with(settings_name.value)
     mock_render_stream.assert_called_once_with(
@@ -323,6 +194,57 @@ def test_download_rendered_resume_unauthenticated(client: TestClient):
         headers={"Accept": "application/json"},
     )
     assert response.status_code == 401
+
+
+@patch(
+    "resume_editor.app.api.routes.resume_export.build_complete_resume_from_sections",
+    return_value=FILTERED_RESUME_CONTENT,
+)
+@patch("resume_editor.app.api.routes.resume_export.filter_experience_by_date")
+@patch("resume_editor.app.api.routes.resume_export.extract_certifications_info")
+@patch("resume_editor.app.api.routes.resume_export.extract_experience_info")
+@patch("resume_editor.app.api.routes.resume_export.extract_education_info")
+@patch("resume_editor.app.api.routes.resume_export.extract_personal_info")
+@patch("resume_editor.app.api.routes.resume_export.render_resume_to_docx_stream")
+def test_download_rendered_resume_with_filter(
+    mock_render_stream,
+    mock_extract_personal,
+    mock_extract_education,
+    mock_extract_experience,
+    mock_extract_certs,
+    mock_filter_experience,
+    mock_build_sections,
+    client: TestClient,
+    setup_resume_dependency,
+):
+    """Test downloading a rendered resume with date filtering."""
+    mock_render_stream.return_value = io.BytesIO(b"filtered docx")
+    mock_personal = MagicMock()
+    mock_education = MagicMock()
+    mock_experience = MagicMock()
+    mock_certs = MagicMock()
+    mock_filtered_experience = MagicMock()
+
+    mock_extract_personal.return_value = mock_personal
+    mock_extract_education.return_value = mock_education
+    mock_extract_experience.return_value = mock_experience
+    mock_extract_certs.return_value = mock_certs
+    mock_filter_experience.return_value = mock_filtered_experience
+
+    response = client.get(
+        "/api/resumes/1/download?render_format=ats&settings_name=general&start_date=2021-01-01"
+    )
+
+    assert response.status_code == 200
+    assert response.content == b"filtered docx"
+    mock_build_sections.assert_called_once_with(
+        personal_info=mock_personal,
+        education=mock_education,
+        experience=mock_filtered_experience,
+        certifications=mock_certs,
+    )
+    mock_render_stream.assert_called_once()
+    assert mock_render_stream.call_args.kwargs["resume_content"] == FILTERED_RESUME_CONTENT
 
 
 @patch(
@@ -353,3 +275,39 @@ def test_download_rendered_resume_rendering_other_error(
     )
     assert response.status_code == 500
     assert "Failed to generate docx during rendering" in response.json()["detail"]
+
+
+@patch(
+    "resume_editor.app.api.routes.resume_export.extract_personal_info",
+    side_effect=ValueError("filtering failed"),
+)
+def test_download_rendered_resume_filtering_error(
+    mock_extract_personal,
+    client: TestClient,
+    setup_resume_dependency,
+):
+    """Test error handling during download when filtering/parsing raises an error."""
+    response = client.get(
+        "/api/resumes/1/download?render_format=ats&settings_name=general&start_date=2021-01-01"
+    )
+    assert response.status_code == 422
+    assert "Failed to generate docx" in response.json()["detail"]
+
+
+def test_download_rendered_resume_invalid_params(
+    client: TestClient, setup_resume_dependency
+):
+    """Test downloading with invalid query parameters."""
+    # Invalid render_format
+    response = client.get(
+        "/api/resumes/1/download?render_format=invalid&settings_name=general"
+    )
+    assert response.status_code == 422
+    assert "Input should be 'plain' or 'ats'" in response.text
+
+    # Invalid settings_name
+    response = client.get(
+        "/api/resumes/1/download?render_format=ats&settings_name=invalid"
+    )
+    assert response.status_code == 422
+    assert "Input should be 'general' or 'executive_summary'" in response.text

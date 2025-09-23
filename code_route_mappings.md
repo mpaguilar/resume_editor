@@ -21,7 +21,6 @@ These are the known mappings:
 - `/api/resumes->resume_editor/app/api/routes/resume.py`
 - `/api/resumes/parse->resume_editor/app/api/routes/resume.py`
 - `/api/resumes/{resume_id}/export/markdown->resume_editor/app/api/routes/resume_export.py`
-- `/api/resumes/{resume_id}/export/docx->resume_editor/app/api/routes/resume_export.py`
 - `/resumes/create->resume_editor/app/main.py`
 - `/api/resumes/{resume_id}/refine->resume_editor/app/api/routes/resume_ai.py`
 - `/api/resumes/{resume_id}/refine/stream->resume_editor/app/api/routes/resume_ai.py`

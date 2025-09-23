@@ -101,18 +101,25 @@ async def export_resume_markdown(
     )
 
 
-@router.get("/{resume_id}/export/docx")
-async def export_resume_docx(
-    format: DocxFormat,
+
+
+@router.get("/{resume_id}/download")
+async def download_rendered_resume(
+    render_format: RenderFormat,
+    settings_name: RenderSettingsName,
     resume: DatabaseResume = Depends(get_resume_for_user),
     start_date: date | None = None,
     end_date: date | None = None,
 ):
     """
-    Export a resume as a DOCX file in the specified format.
+    Download a rendered resume as a DOCX file.
+
+    This endpoint generates and streams a DOCX file for the specified resume,
+    using the given render format and settings.
 
     Args:
-        format (DocxFormat): The export format ('ats', 'plain', 'executive_summary').
+        render_format (RenderFormat): The rendering format for the DOCX file.
+        settings_name (RenderSettingsName): The name of the render settings to apply.
         resume (DatabaseResume): The resume object, injected by dependency.
         start_date (date | None): Optional start date to filter experience.
         end_date (date | None): Optional end date to filter experience.
@@ -121,23 +128,13 @@ async def export_resume_docx(
         StreamingResponse: A streaming response with the generated DOCX file.
 
     Raises:
-        HTTPException: If an invalid format is requested or if rendering fails.
-
-    Notes:
-        1. Fetches resume content from the database.
-        2. If a date range is provided, filters the experience section before parsing.
-        3. Parses the Markdown content into a `resume_writer` Resume object using `parse_resume_to_writer_object`.
-        4. Initializes a new `docx.Document`.
-        5. Initializes `ResumeRenderSettings`.
-        6. Based on the requested format, calls the appropriate renderer from `resume_writer`.
-            - For 'executive_summary', enables `executive_summary` and `skills_matrix` in settings.
-        7. Saves the generated document to a memory stream.
-        8. Returns the stream as a downloadable file attachment.
-
+        HTTPException: If the resume is not found, or if rendering fails.
     """
-    _msg = f"export_resume_docx starting for format {format.value}"
+    _msg = (
+        f"download_rendered_resume starting for format {render_format.value}, "
+        f"settings: {settings_name.value}"
+    )
     log.debug(_msg)
-
     try:
         content_to_parse = resume.content
         if start_date or end_date:
@@ -167,72 +164,11 @@ async def export_resume_docx(
         log.exception(_msg)
         raise HTTPException(status_code=422, detail=_msg)
 
-    render_format_str = format.value
-    settings_dict = {}
-    if render_format_str == "executive_summary":
-        settings_dict = get_render_settings(name="executive_summary")
-    else:
-        settings_dict = get_render_settings(name="general")
-
-    try:
-        file_stream = render_resume_to_docx_stream(
-            resume_content=content_to_parse,
-            render_format=render_format_str,
-            settings_dict=settings_dict,
-        )
-    except ValueError as e:
-        _msg = str(e)
-        log.error(_msg)
-        raise HTTPException(status_code=400, detail=_msg)
-    except Exception as e:
-        _msg = f"Failed to generate docx during rendering: {e}"
-        log.exception(_msg)
-        raise HTTPException(status_code=500, detail=_msg)
-
-    headers = {
-        "Content-Disposition": f'attachment; filename="{resume.name}_{format.value}.docx"',
-    }
-    return StreamingResponse(
-        file_stream,
-        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        headers=headers,
-    )
-
-
-@router.get("/{resume_id}/download")
-async def download_rendered_resume(
-    render_format: RenderFormat,
-    settings_name: RenderSettingsName,
-    resume: DatabaseResume = Depends(get_resume_for_user),
-):
-    """
-    Download a rendered resume as a DOCX file.
-
-    This endpoint generates and streams a DOCX file for the specified resume,
-    using the given render format and settings.
-
-    Args:
-        render_format (RenderFormat): The rendering format for the DOCX file.
-        settings_name (RenderSettingsName): The name of the render settings to apply.
-        resume (DatabaseResume): The resume object, injected by dependency.
-
-    Returns:
-        StreamingResponse: A streaming response with the generated DOCX file.
-
-    Raises:
-        HTTPException: If the resume is not found, or if rendering fails.
-    """
-    _msg = (
-        f"download_rendered_resume starting for format {render_format.value}, "
-        f"settings: {settings_name.value}"
-    )
-    log.debug(_msg)
-
     try:
         settings_dict = get_render_settings(settings_name.value)
 
         file_stream = render_resume_to_docx_stream(
-            resume_content=resume.content,
+            resume_content=content_to_parse,
             render_format=render_format.value,
             settings_dict=settings_dict,
         )

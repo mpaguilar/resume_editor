@@ -21,8 +21,7 @@
         </header>
 
         <div class="bg-white rounded-lg shadow p-6">
-            <h2 class="text-xl font-semibold mb-4">Resume Content</h2>
-            <pre class="bg-gray-50 p-4 rounded-md overflow-x-auto text-sm">{{ resume.content }}</pre>
+            {{ resume_detail_html | safe }}
         </div>
     </div>
 </body>

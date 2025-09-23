@@ -50,7 +50,10 @@ def test_resume_editor_page_loads_correctly():
 
     with patch(
         "resume_editor.app.main.get_resume_by_id_and_user", return_value=mock_resume
-    ) as mock_get_resume:
+    ) as mock_get_resume, patch(
+        "resume_editor.app.main._generate_resume_detail_html",
+        return_value="<div># My Resume Content</div>",
+    ) as mock_generate_html:
         response = client.get("/resumes/1/edit")
         assert response.status_code == 200
 
@@ -58,8 +61,8 @@ def test_resume_editor_page_loads_correctly():
         header = soup.find("h1")
         assert "Editing: My Test Resume" in header.text
 
-        content_pre = soup.find("pre")
-        assert "# My Resume Content" in content_pre.text
+        content_div = soup.find("div", class_="bg-white")
+        assert "# My Resume Content" in content_div.text
 
         refine_link = soup.find("a", href="/resumes/1/refine")
         assert refine_link is not None
@@ -69,6 +72,7 @@ def test_resume_editor_page_loads_correctly():
         assert dashboard_link is not None
 
         mock_get_resume.assert_called_once_with(mock_db_session, 1, 1)
+        mock_generate_html.assert_called_once_with(resume=mock_resume)
 
     app.dependency_overrides.clear()
 
@@ -317,6 +321,111 @@ def test_refine_resume_page_loads_correctly():
         assert form.find("textarea", {"name": "job_description"}) is not None
 
         mock_get_resume.assert_called_once_with(mock_db_session, 1, 1)
+
+    app.dependency_overrides.clear()
+
+
+def test_resume_editor_page_has_correct_export_modal():
+    """
+    GIVEN an authenticated user and a resume
+    WHEN they navigate to the dedicated editor page for that resume
+    THEN the page contains the correct export modal form.
+    """
+    app = create_app()
+    client = TestClient(app)
+    app.dependency_overrides.clear()
+
+    mock_user = User(
+        id=1,
+        username="testuser",
+        email="test@test.com",
+        hashed_password="hashed",
+    )
+    mock_resume = DatabaseResume(
+        user_id=1,
+        name="My Test Resume",
+        content="# My Resume Content",
+    )
+    mock_resume.id = 1
+
+    def get_mock_user():
+        return mock_user
+
+    mock_db_session = MagicMock()
+
+    def get_mock_db():
+        yield mock_db_session
+
+    app.dependency_overrides[get_current_user_from_cookie] = get_mock_user
+    app.dependency_overrides[get_db] = get_mock_db
+
+    with patch(
+        "resume_editor.app.main.get_resume_by_id_and_user", return_value=mock_resume
+    ) as mock_get_resume, patch(
+        "resume_editor.app.main._generate_resume_detail_html"
+    ) as mock_generate_detail_html:
+        mock_generate_detail_html.return_value = f"""
+            <div id="export-modal-{mock_resume.id}">
+                <form id="export-form-{mock_resume.id}" method="GET" action="/api/resumes/{mock_resume.id}/download">
+                    <button formaction="/api/resumes/{mock_resume.id}/export/markdown">Download Markdown</button>
+                    <button>Download DOCX</button>
+                    <input name="start_date">
+                    <input name="end_date">
+                    <select name="render_format">
+                        <option value="plain"></option>
+                        <option value="ats"></option>
+                    </select>
+                    <select name="settings_name">
+                        <option value="general"></option>
+                        <option value="executive_summary"></option>
+                    </select>
+                </form>
+            </div>
+        """
+        response = client.get(f"/resumes/{mock_resume.id}/edit")
+        assert response.status_code == 200
+
+        soup = BeautifulSoup(response.content, "html.parser")
+
+        # Find the export modal and the form inside it
+        modal = soup.find("div", id=f"export-modal-{mock_resume.id}")
+        assert modal is not None
+
+        export_form = modal.find("form", id=f"export-form-{mock_resume.id}")
+        assert export_form is not None
+        assert export_form.get("method") == "GET"
+        assert export_form.get("action") == f"/api/resumes/{mock_resume.id}/download"
+
+        # Check for Markdown download button
+        markdown_button = export_form.find(
+            "button", {"formaction": f"/api/resumes/{mock_resume.id}/export/markdown"}
+        )
+        assert markdown_button is not None
+        assert markdown_button.text.strip() == "Download Markdown"
+
+        # Check for DOCX download button
+        docx_button = export_form.find("button", string=lambda t: t and "Download DOCX" in t)
+        assert docx_button is not None
+        assert docx_button.get("formaction") is None
+        assert docx_button.text.strip() == "Download DOCX"
+
+        # Check for date inputs
+        assert export_form.find("input", {"name": "start_date"}) is not None
+        assert export_form.find("input", {"name": "end_date"}) is not None
+
+        # Check for select dropdowns
+        render_format_select = export_form.find("select", {"name": "render_format"})
+        assert render_format_select is not None
+        assert render_format_select.find("option", {"value": "plain"})
+        assert render_format_select.find("option", {"value": "ats"})
+
+        settings_name_select = export_form.find("select", {"name": "settings_name"})
+        assert settings_name_select is not None
+        assert settings_name_select.find("option", {"value": "general"})
+        assert settings_name_select.find("option", {"value": "executive_summary"})
+
+        mock_get_resume.assert_called_once_with(mock_db_session, 1, 1)
+        mock_generate_detail_html.assert_called_once_with(resume=mock_resume)
 
     app.dependency_overrides.clear()
 
