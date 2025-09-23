@@ -1,5 +1,4 @@
-# Stage 1: Build the dependencies
-FROM python:3.12-slim as builder
+FROM python:3.12-slim AS builder
 
 # Set environment variables for Python
 ENV PYTHONUNBUFFERED=1
@@ -20,6 +19,10 @@ COPY pyproject.toml ./
 RUN uv pip compile pyproject.toml -o requirements.txt && \
     uv pip sync --system requirements.txt
 
+# Download NLTK data
+ENV NLTK_DATA=/usr/local/share/nltk_data
+RUN python -m nltk.downloader -d $NLTK_DATA punkt
+
 # Install gunicorn in the build stage
 RUN uv pip install --system gunicorn
 
@@ -30,9 +33,14 @@ FROM python:3.12-slim
 # Set environment variables
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
+ENV NLTK_DATA=/usr/local/share/nltk_data
 
 # Create a non-root user and group to run the application securely
-RUN addgroup --system app && adduser --system --group app
+# And set a valid home directory
+RUN addgroup --system app && adduser --system --group --home /app app
+
+# Copy NLTK data from the builder stage
+COPY --from=builder ${NLTK_DATA} ${NLTK_DATA}
 
 # Copy the installed Python packages from the builder stage
 COPY --from=builder /usr/local/lib/python3.12/site-packages /usr/local/lib/python3.12/site-packages
