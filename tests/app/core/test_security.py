@@ -23,7 +23,7 @@ def mock_settings():
         _mock_settings = MagicMock()
         _mock_settings.secret_key = "test-secret-key"
         _mock_settings.algorithm = "HS256"
-        _mock_settings.access_token_expire_minutes = 30
+        _mock_settings.access_token_expire_minutes = 120
         _mock_settings.encryption_key = TEST_FERNET_KEY
         mock_get_settings.return_value = _mock_settings
         yield mock_get_settings
