@@ -17,6 +17,7 @@ from resume_editor.app.api.routes.route_models import (
     PersonalInfoResponse,
     RefineTargetSection,
 )
+from resume_editor.app.api.dependencies import get_resume_for_user
 from resume_editor.app.core.auth import get_current_user_from_cookie
 from resume_editor.app.core.config import get_settings
 from resume_editor.app.database.database import get_db
@@ -236,7 +237,9 @@ def test_update_resume_name_only_no_htmx(
 @patch("resume_editor.app.api.routes.resume.validate_resume_content")
 @patch("resume_editor.app.api.routes.resume.get_user_resumes")
 @patch("resume_editor.app.api.routes.resume._generate_resume_list_html")
+@patch("resume_editor.app.api.routes.resume._generate_resume_detail_html")
 def test_update_resume_htmx(
+    mock_gen_detail_html,
     mock_gen_list_html,
     mock_get_resumes,
     mock_validate,
@@ -248,6 +251,7 @@ def test_update_resume_htmx(
     mock_validate.return_value = None
     mock_get_resumes.return_value = [test_resume]
     mock_gen_list_html.return_value = "list_html"
+    mock_gen_detail_html.return_value = "detail_html"
 
     updated_name = "Updated Resume Name"
     updated_content = "Updated content"
@@ -269,40 +273,7 @@ def test_update_resume_htmx(
     # Check the contents of the detail view
     detail_div = soup.find("div", {"id": "resume-detail"})
     assert detail_div is not None
-
-    # Check the export form
-    export_form = detail_div.find("form", id=f"export-form-{test_resume.id}")
-    assert export_form is not None
-    assert export_form.get("method") == "GET"
-    assert export_form.get("action") == f"/api/resumes/{test_resume.id}/download"
-
-    # Check for Markdown download button
-    markdown_button = export_form.find(
-        "button", {"formaction": f"/api/resumes/{test_resume.id}/export/markdown"}
-    )
-    assert markdown_button is not None
-    assert markdown_button.text.strip() == "Download Markdown"
-
-    # Check for DOCX download button
-    docx_button = export_form.find("button", string=lambda t: t and "Download DOCX" in t)
-    assert docx_button is not None
-    assert docx_button.get("formaction") is None
-    assert docx_button.text.strip() == "Download DOCX"
-
-    # Check for date inputs
-    assert export_form.find("input", {"name": "start_date"}) is not None
-    assert export_form.find("input", {"name": "end_date"}) is not None
-
-    # Check for select dropdowns
-    render_format_select = export_form.find("select", {"name": "render_format"})
-    assert render_format_select is not None
-    assert render_format_select.find("option", {"value": "plain"})
-    assert render_format_select.find("option", {"value": "ats"})
-
-    settings_name_select = export_form.find("select", {"name": "settings_name"})
-    assert settings_name_select is not None
-    assert settings_name_select.find("option", {"value": "general"})
-    assert settings_name_select.find("option", {"value": "executive_summary"})
+    assert detail_div.text == "detail_html"
 
     mock_validate.assert_called_once_with(updated_content)
 
@@ -313,6 +284,34 @@ def test_update_resume_htmx(
         refined_resumes=[],
         selected_resume_id=test_resume.id,
     )
+
+    mock_gen_detail_html.assert_called_once_with(
+        resume=test_resume, show_edit_button=True
+    )
+
+
+@patch("resume_editor.app.api.routes.resume.validate_resume_content")
+def test_update_resume_from_editor(
+    mock_validate, client_with_auth_and_resume, test_resume
+):
+    """Test updating a resume with HTMX from the editor page returns 200 OK."""
+    mock_validate.return_value = None
+    updated_name = "Updated From Editor"
+    updated_content = "some new content from editor"
+
+    response = client_with_auth_and_resume.put(
+        f"/api/resumes/{test_resume.id}",
+        data={
+            "name": updated_name,
+            "content": updated_content,
+            "from_editor": "true",
+        },
+        headers={"HX-Request": "true"},
+    )
+
+    assert response.status_code == 200
+    assert response.text == ""
+    mock_validate.assert_called_once_with(updated_content)
 
 
 
@@ -958,12 +957,34 @@ def test_save_refined_resume_as_new_reconstruction_error(
     mock_create.assert_not_called()
 
 
+def test_get_resume_htmx_renders_edit_button_for_all_resumes(
+    app, client, test_user, test_resume, test_refined_resume
+):
+    """
+    Test that the get_resume endpoint, when called via HTMX, renders an 'Edit'
+    button for both base and refined resumes.
+    """
+    resumes = [test_resume, test_refined_resume]
+    app.dependency_overrides[get_current_user_from_cookie] = lambda: test_user
 
+    for resume_obj in resumes:
+        # Mock the dependency to return the specific resume for this iteration.
+        app.dependency_overrides[get_resume_for_user] = lambda: resume_obj
 
+        response = client.get(
+            f"/api/resumes/{resume_obj.id}", headers={"HX-Request": "true"}
+        )
 
+        assert response.status_code == 200
+        soup = BeautifulSoup(response.content, "html.parser")
 
+        # Check for a link with "Edit" text pointing to the correct editor page.
+        edit_link = soup.find("a", string=lambda t: t and "Edit" in t.strip())
 
+        assert edit_link is not None, f"Edit link missing for resume id {resume_obj.id}"
+        assert edit_link.get("href") == f"/resumes/{resume_obj.id}/edit"
 
+    app.dependency_overrides.clear()
 
 
 # --- Tests for form-based submissions from test_resume_route ---

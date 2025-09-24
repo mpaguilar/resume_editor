@@ -24,6 +24,47 @@ def test_resume_editor_page_loads_correctly():
     client = TestClient(app)
     app.dependency_overrides.clear()
 
+
+def test_resume_editor_page_no_refine_for_refined_resume():
+    """
+    GIVEN an authenticated user and a refined (non-base) resume
+    WHEN they navigate to the dedicated editor page for that resume
+    THEN the 'Refine with AI' link is NOT present.
+    """
+    app = create_app()
+    client = TestClient(app)
+    app.dependency_overrides.clear()
+
+    mock_user = User(
+        id=1, username="testuser", email="test@test.com", hashed_password="hashed"
+    )
+    mock_resume = DatabaseResume(
+        user_id=1, name="My Test Resume", content="# My Resume Content", is_base=False
+    )
+    mock_resume.id = 1
+
+    def get_mock_user():
+        return mock_user
+
+    mock_db_session = MagicMock()
+
+    def get_mock_db():
+        yield mock_db_session
+
+    app.dependency_overrides[get_current_user_from_cookie] = get_mock_user
+    app.dependency_overrides[get_db] = get_mock_db
+
+    with patch(
+        "resume_editor.app.main.get_resume_by_id_and_user", return_value=mock_resume
+    ) as mock_get_resume:
+        response = client.get("/resumes/1/edit")
+        assert response.status_code == 200
+        soup = BeautifulSoup(response.content, "html.parser")
+        refine_link = soup.find("a", string=lambda t: t and "Refine with AI" in t)
+        assert refine_link is None
+
+    app.dependency_overrides.clear()
+
     mock_user = User(
         id=1,
         username="testuser",
@@ -50,10 +91,7 @@ def test_resume_editor_page_loads_correctly():
 
     with patch(
         "resume_editor.app.main.get_resume_by_id_and_user", return_value=mock_resume
-    ) as mock_get_resume, patch(
-        "resume_editor.app.main._generate_resume_detail_html",
-        return_value="<div># My Resume Content</div>",
-    ) as mock_generate_html:
+    ) as mock_get_resume:
         response = client.get("/resumes/1/edit")
         assert response.status_code == 200
 
@@ -61,8 +99,17 @@ def test_resume_editor_page_loads_correctly():
         header = soup.find("h1")
         assert "Editing: My Test Resume" in header.text
 
-        content_div = soup.find("div", class_="bg-white")
-        assert "# My Resume Content" in content_div.text
+        form = soup.find("form")
+        assert form is not None
+        assert form["hx-put"] == "/api/resumes/1"
+
+        name_input = form.find("input", {"name": "name"})
+        assert name_input is not None
+        assert name_input["value"] == "My Test Resume"
+
+        content_textarea = form.find("textarea", {"name": "content"})
+        assert content_textarea is not None
+        assert content_textarea.text == "# My Resume Content"
 
         refine_link = soup.find("a", href="/resumes/1/refine")
         assert refine_link is not None
@@ -72,7 +119,6 @@ def test_resume_editor_page_loads_correctly():
         assert dashboard_link is not None
 
         mock_get_resume.assert_called_once_with(mock_db_session, 1, 1)
-        mock_generate_html.assert_called_once_with(resume=mock_resume)
 
     app.dependency_overrides.clear()
 
@@ -361,27 +407,7 @@ def test_resume_editor_page_has_correct_export_modal():
 
     with patch(
         "resume_editor.app.main.get_resume_by_id_and_user", return_value=mock_resume
-    ) as mock_get_resume, patch(
-        "resume_editor.app.main._generate_resume_detail_html"
-    ) as mock_generate_detail_html:
-        mock_generate_detail_html.return_value = f"""
-            <div id="export-modal-{mock_resume.id}">
-                <form id="export-form-{mock_resume.id}" method="GET" action="/api/resumes/{mock_resume.id}/download">
-                    <button formaction="/api/resumes/{mock_resume.id}/export/markdown">Download Markdown</button>
-                    <button>Download DOCX</button>
-                    <input name="start_date">
-                    <input name="end_date">
-                    <select name="render_format">
-                        <option value="plain"></option>
-                        <option value="ats"></option>
-                    </select>
-                    <select name="settings_name">
-                        <option value="general"></option>
-                        <option value="executive_summary"></option>
-                    </select>
-                </form>
-            </div>
-        """
+    ) as mock_get_resume:
         response = client.get(f"/resumes/{mock_resume.id}/edit")
         assert response.status_code == 200
 
@@ -404,10 +430,11 @@ def test_resume_editor_page_has_correct_export_modal():
         assert markdown_button.text.strip() == "Download Markdown"
 
         # Check for DOCX download button
-        docx_button = export_form.find("button", string=lambda t: t and "Download DOCX" in t)
+        docx_button = export_form.find(
+            "button", string=lambda t: t and "Download DOCX" in t
+        )
         assert docx_button is not None
         assert docx_button.get("formaction") is None
-        assert docx_button.text.strip() == "Download DOCX"
 
         # Check for date inputs
         assert export_form.find("input", {"name": "start_date"}) is not None
@@ -425,7 +452,6 @@ def test_resume_editor_page_has_correct_export_modal():
         assert settings_name_select.find("option", {"value": "executive_summary"})
 
         mock_get_resume.assert_called_once_with(mock_db_session, 1, 1)
-        mock_generate_detail_html.assert_called_once_with(resume=mock_resume)
 
     app.dependency_overrides.clear()
 

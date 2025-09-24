@@ -151,6 +151,7 @@ async def update_resume(
     resume: DatabaseResume = Depends(get_resume_for_user),
     name: str = Form(...),
     content: str | None = Form(None),
+    from_editor: str | None = Form(None),
 ):
     """
     Update an existing resume's name and/or content for the current user.
@@ -191,6 +192,11 @@ async def update_resume(
     )
 
     if "HX-Request" in http_request.headers:
+        if from_editor:
+            # When saving from the editor, just return a success status.
+            # The client-side script will show a "Saved!" message.
+            return Response(status_code=200)
+
         # After an update, we need to regenerate both the list and the detail view
         all_resumes = get_user_resumes(db, resume.user_id)
         base_resumes = [r for r in all_resumes if r.is_base]
@@ -200,7 +206,9 @@ async def update_resume(
             refined_resumes=refined_resumes,
             selected_resume_id=updated_resume.id,
         )
-        detail_html = _generate_resume_detail_html(updated_resume)
+        detail_html = _generate_resume_detail_html(
+            resume=updated_resume, show_edit_button=True
+        )
 
         # Use Out-of-Band swap to update both parts of the page
         html_content = f"""<div id="resume-list" hx-swap-oob="true">{list_html}</div>

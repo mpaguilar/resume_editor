@@ -322,14 +322,12 @@ def create_app() -> FastAPI:
     ):
         """Serve the dedicated editor page for a single resume."""
         resume = get_resume_by_id_and_user(db, resume_id, current_user.id)
-        resume_detail_html = _generate_resume_detail_html(resume=resume)
         return templates.TemplateResponse(
             request,
             "editor.html",
             {
                 "resume": resume,
                 "current_user": current_user,
-                "resume_detail_html": resume_detail_html,
             },
         )
 
