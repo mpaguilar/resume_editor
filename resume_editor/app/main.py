@@ -7,6 +7,7 @@ from urllib.parse import quote_plus
 from fastapi import Depends, FastAPI, Form, HTTPException, Request, Response, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
@@ -132,6 +133,10 @@ def create_app() -> FastAPI:
     # Setup templates
     TEMPLATES_DIR = Path(__file__).resolve().parent / "templates"
     templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
+
+    # Mount static files
+    STATIC_DIR = Path(__file__).resolve().parent / "static"
+    app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
     # Include API routers
     app.include_router(user_router)

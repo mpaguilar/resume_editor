@@ -9,6 +9,9 @@ wheels/
 # Virtual environments
 .venv
 
+# nodejs and npm
+node_modules/
+
 # aider
 .aider.chat.history.md
 .aider.input.history

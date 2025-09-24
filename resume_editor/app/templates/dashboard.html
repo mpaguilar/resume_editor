@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Resume Editor Dashboard</title>
     <script src="https://unpkg.com/htmx.org@1.9.10"></script>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="/static/css/output.css" rel="stylesheet">
     <style>
         .resume-item {
             transition: background-color 0.2s;
@@ -21,14 +21,14 @@
 </head>
 <body class="bg-gray-50 min-h-screen">
     <div class="container mx-auto px-4 py-8">
-        <header class="mb-8 flex justify-between items-center">
+        <header class="mb-8 flex flex-col md:flex-row justify-between items-center space-y-4 md:space-y-0">
             <div>
-                <h1 class="text-3xl font-bold text-gray-800">Resume Editor Dashboard</h1>
-                <p class="text-gray-600">Manage and edit your resumes</p>
+                <h1 class="text-3xl font-bold text-gray-800 text-center md:text-left">Resume Editor Dashboard</h1>
+                <p class="text-gray-600 text-center md:text-left">Manage and edit your resumes</p>
             </div>
             <div class="flex items-center space-x-4">
                 {% if current_user and current_user.roles|selectattr('name', 'equalto', 'admin')|list|length > 0 %}
-                <a href="/admin/users/" class="text-sm font-medium text-gray-600 hover:text-blue-600">
+                <a href="/admin/users" class="text-sm font-medium text-gray-600 hover:text-blue-600">
                     Admin
                 </a>
                 {% endif %}
@@ -41,8 +41,8 @@
             </div>
         </header>
 
-        <div class="bg-white rounded-lg shadow p-6">
-            <div class="flex justify-between items-center mb-4">
+        <div class="bg-white rounded-lg shadow p-4 md:p-6">
+            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 space-y-2 sm:space-y-0">
                 <h2 class="text-xl font-semibold">Your Resumes</h2>
                 <a href="/resumes/create" class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-md text-sm font-medium">
                     + New Resume
