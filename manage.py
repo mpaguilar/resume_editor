@@ -3,6 +3,10 @@ import subprocess
 
 import click
 
+from resume_editor.app.api.routes.route_logic.admin_crud import create_initial_admin
+from resume_editor.app.database.database import get_session_local
+
+
 log = logging.getLogger(__name__)
 
 
@@ -95,6 +99,55 @@ def apply_migrations():
         click.echo(_error_msg, err=True)
         log.exception(_error_msg)
     _msg = "apply_migrations returning"
+    log.debug(_msg)
+
+
+@cli.command("create-admin")
+@click.option("--username", required=True, help="Username for the admin user.")
+@click.option(
+    "--password",
+    required=True,
+    prompt=True,
+    hide_input=True,
+    confirmation_prompt=True,
+    help="Password for the admin user.",
+)
+def create_admin(username: str, password: str):
+    """
+    Create an initial administrator account.
+
+    Args:
+        username (str): The username for the new admin user.
+        password (str): The password for the new admin user.
+
+    Returns:
+        None
+
+    Notes:
+        1. Establishes a database connection.
+        2. Calls the `create_initial_admin` function to create the user.
+        3. Prints a success message or an error message.
+
+    """
+    _msg = "create_admin starting"
+    log.debug(_msg)
+    click.echo(f"Creating admin user '{username}'...")
+
+    db_session_local = get_session_local()
+    db = db_session_local()
+    try:
+        user = create_initial_admin(db=db, username=username, password=password)
+        _success_msg = f"Admin user '{user.username}' created successfully."
+        click.echo(_success_msg)
+        log.info(_success_msg)
+    except Exception as e:
+        _error_msg = f"Error creating admin user: {e}"
+        click.echo(_error_msg, err=True)
+        log.exception(_error_msg)
+    finally:
+        db.close()
+
+    _msg = "create_admin returning"
     log.debug(_msg)
 
 
