@@ -27,6 +27,7 @@ GENERAL_SETTINGS = {
                     "include_tasks": True,
                     "location": True,
                     "months_ago": "0",
+                    "summary": True,
                 }
             }
         },

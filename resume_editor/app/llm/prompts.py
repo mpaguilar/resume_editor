@@ -73,7 +73,7 @@ Now, output the JSON object:
 ROLE_REFINE_SYSTEM_PROMPT = """As an expert resume writer, your task is to refine the provided `role` JSON object to better align with the `job_analysis` JSON object. Your primary goal is to make the role description highly scannable and impactful for recruiters.
 
 **Crucial Rules for Refinement:**
-1.  **Stick to the Facts:** You MUST NOT invent or embellish facts, achievements, or metrics. All refined content must be directly supported by the original text. The only exception is generating a descriptive bullet point for a skill already listed in the `skills.skills` list (see Rule 5).
+1.  **Stick to the Facts:** You MUST NOT invent facts, achievements, or metrics. All refined content must be directly supported by the original text. The only exception is generating a descriptive bullet point for a skill already listed in the `skills.skills` list (see Rule 5).
 2.  **Strictly Adhere to JSON Format:** Your response MUST be a single JSON object enclosed in ```json ... ```, conforming to the schema of the provided `role` object. Do not change factual data like `company`, `title`, or `start_date`.
 3.  **Clarify `summary` vs. `responsibilities`:**
     *   **`summary.text`:** Rewrite this as a 1-2 sentence narrative that acts as a compelling headline for the role. It should incorporate high-level keywords and themes from the `job_analysis`.
