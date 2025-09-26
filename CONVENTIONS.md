@@ -46,8 +46,6 @@
 * Blank lines **must** be blank, with no unnecessary spaces or tabs.
 
 # Defensive coding
-* arguments to functions should check for valid inputs using `assert`
-* returned values from called functions should check for validity using `assert`
 * call functions using named arguments
 * Code should be written to be easily mocked and tested
 * No secret keys should be in code, not even defaults. **Always** get secrets from an external source.

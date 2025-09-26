@@ -411,3 +411,289 @@ def test_create_initial_admin_role_not_found(
     mock_get_role_by_name_admin.assert_called_once_with(db=mock_db, name="admin")
     mock_db.add.assert_not_called()
     mock_db.commit.assert_not_called()
+
+
+@patch("resume_editor.app.api.routes.route_logic.admin_crud.get_user_by_id_admin")
+def test_update_user_admin_refetch_fails(mock_get_user_by_id_admin: MagicMock):
+    """Test update_user_admin raises RuntimeError if re-fetch fails."""
+    mock_db = MagicMock(spec=Session)
+    user_to_update = User(username="test", email="test@test.com", hashed_password="pw")
+    user_to_update.id = 1
+    mock_get_user_by_id_admin.return_value = None
+    update_data = AdminUserUpdateRequest()
+
+    with pytest.raises(
+        RuntimeError, match="User with ID 1 not found after update commit."
+    ):
+        update_user_admin(
+            db=mock_db,
+            user=user_to_update,
+            update_data=update_data,
+        )
+
+    mock_db.commit.assert_called_once()
+    mock_get_user_by_id_admin.assert_called_once_with(db=mock_db, user_id=1)
+
+
+@patch("resume_editor.app.api.routes.route_logic.admin_crud.get_user_by_id_admin")
+def test_assign_role_to_user_admin_refetch_fails(
+    mock_get_user_by_id_admin: MagicMock,
+):
+    """Test assign_role_to_user_admin raises RuntimeError if re-fetch fails."""
+    mock_db = MagicMock(spec=Session)
+    mock_role = Role(name="admin")
+    initial_user = User(
+        username="testuser", email="test@test.com", hashed_password="hashed"
+    )
+    initial_user.id = 1
+    initial_user.roles = []  # Role not assigned
+    mock_get_user_by_id_admin.return_value = None
+
+    with pytest.raises(
+        RuntimeError, match="User with ID 1 not found after role assignment commit."
+    ):
+        assign_role_to_user_admin(db=mock_db, user=initial_user, role=mock_role)
+
+    mock_db.commit.assert_called_once()
+    mock_get_user_by_id_admin.assert_called_once_with(db=mock_db, user_id=1)
+
+
+@patch("resume_editor.app.api.routes.route_logic.admin_crud.get_user_by_id_admin")
+def test_remove_role_from_user_admin_refetch_fails(
+    mock_get_user_by_id_admin: MagicMock,
+):
+    """Test remove_role_from_user_admin raises RuntimeError if re-fetch fails."""
+    mock_db = MagicMock(spec=Session)
+    mock_role = Role(name="admin")
+    initial_user = User(
+        username="testuser", email="test@test.com", hashed_password="hashed"
+    )
+    initial_user.id = 1
+    initial_user.roles = [mock_role]  # Role is assigned
+    mock_get_user_by_id_admin.return_value = None
+
+    with pytest.raises(
+        RuntimeError, match="User with ID 1 not found after role removal commit."
+    ):
+        remove_role_from_user_admin(db=mock_db, user=initial_user, role=mock_role)
+
+    mock_db.commit.assert_called_once()
+    mock_get_user_by_id_admin.assert_called_once_with(db=mock_db, user_id=1)
+
+
+@patch("resume_editor.app.api.routes.route_logic.admin_crud.get_user_by_id_admin")
+@patch("resume_editor.app.api.routes.route_logic.admin_crud.get_password_hash")
+def test_create_user_admin_refetch_fails(
+    mock_get_password_hash: MagicMock,
+    mock_get_user_by_id_admin: MagicMock,
+):
+    """Test create_user_admin raises RuntimeError if re-fetch fails."""
+    mock_db = MagicMock(spec=Session)
+    user_data = AdminUserCreate(
+        username="testuser",
+        email="test@example.com",
+        password="password",
+    )
+    mock_get_password_hash.return_value = "hashed_password"
+    mock_user_instance = User(
+        username=user_data.username,
+        email=user_data.email,
+        hashed_password="hashed_password",
+    )
+    mock_user_instance.id = 1
+    mock_get_user_by_id_admin.return_value = None
+
+    with patch(
+        "resume_editor.app.api.routes.route_logic.admin_crud.User",
+        return_value=mock_user_instance,
+    ):
+        with pytest.raises(
+            RuntimeError, match="Failed to re-fetch created user after commit"
+        ):
+            create_user_admin(mock_db, user_data)
+
+        mock_db.add.assert_called_once_with(mock_user_instance)
+        mock_db.commit.assert_called_once()
+        mock_get_user_by_id_admin.assert_called_once_with(db=mock_db, user_id=1)
+
+
+@patch("resume_editor.app.api.routes.route_logic.admin_crud.get_user_by_id_admin")
+@patch("resume_editor.app.api.routes.route_logic.admin_crud.get_role_by_name_admin")
+@patch("resume_editor.app.api.routes.route_logic.admin_crud.get_password_hash")
+def test_create_initial_admin_refetch_fails(
+    mock_get_password_hash: MagicMock,
+    mock_get_role_by_name_admin: MagicMock,
+    mock_get_user_by_id_admin: MagicMock,
+):
+    """Test create_initial_admin raises RuntimeError if re-fetch fails."""
+    mock_db = MagicMock(spec=Session)
+    mock_role = Role(name="admin", id=1)
+    username = "admin"
+    password = "password"
+
+    created_db_user = User(
+        username=username,
+        email=f"{username}@placeholder.email",
+        hashed_password="hashed_password",
+        id=1,
+    )
+
+    mock_get_password_hash.return_value = "hashed_password"
+    mock_get_role_by_name_admin.return_value = mock_role
+    mock_get_user_by_id_admin.return_value = None
+
+    with patch(
+        "resume_editor.app.api.routes.route_logoic.admin_crud.User",
+        return_value=created_db_user,
+    ):
+        with pytest.raises(
+            RuntimeError, match="Failed to re-fetch created initial admin user"
+        ):
+            create_initial_admin(db=mock_db, username=username, password=password)
+
+    mock_db.add.assert_called_once_with(created_db_user)
+    mock_db.commit.assert_called_once()
+    mock_get_user_by_id_admin.assert_called_once_with(db=mock_db, user_id=1)
+
+
+@patch("resume_editor.app.api.routes.route_logic.admin_crud.get_user_by_id_admin")
+def test_update_user_admin_refetch_fails(mock_get_user_by_id_admin: MagicMock):
+    """Test update_user_admin raises RuntimeError if re-fetch fails."""
+    mock_db = MagicMock(spec=Session)
+    user_to_update = User(username="test", email="test@test.com", hashed_password="pw")
+    user_to_update.id = 1
+    mock_get_user_by_id_admin.return_value = None
+    update_data = AdminUserUpdateRequest()
+
+    with pytest.raises(
+        RuntimeError, match="User with ID 1 not found after update commit."
+    ):
+        update_user_admin(
+            db=mock_db,
+            user=user_to_update,
+            update_data=update_data,
+        )
+
+    mock_db.commit.assert_called_once()
+    mock_get_user_by_id_admin.assert_called_once_with(db=mock_db, user_id=1)
+
+
+@patch("resume_editor.app.api.routes.route_logic.admin_crud.get_user_by_id_admin")
+def test_assign_role_to_user_admin_refetch_fails(
+    mock_get_user_by_id_admin: MagicMock,
+):
+    """Test assign_role_to_user_admin raises RuntimeError if re-fetch fails."""
+    mock_db = MagicMock(spec=Session)
+    mock_role = Role(name="admin")
+    initial_user = User(
+        username="testuser", email="test@test.com", hashed_password="hashed"
+    )
+    initial_user.id = 1
+    initial_user.roles = []  # Role not assigned
+    mock_get_user_by_id_admin.return_value = None
+
+    with pytest.raises(
+        RuntimeError, match="User with ID 1 not found after role assignment commit."
+    ):
+        assign_role_to_user_admin(db=mock_db, user=initial_user, role=mock_role)
+
+    mock_db.commit.assert_called_once()
+    mock_get_user_by_id_admin.assert_called_once_with(db=mock_db, user_id=1)
+
+
+@patch("resume_editor.app.api.routes.route_logic.admin_crud.get_user_by_id_admin")
+def test_remove_role_from_user_admin_refetch_fails(
+    mock_get_user_by_id_admin: MagicMock,
+):
+    """Test remove_role_from_user_admin raises RuntimeError if re-fetch fails."""
+    mock_db = MagicMock(spec=Session)
+    mock_role = Role(name="admin")
+    initial_user = User(
+        username="testuser", email="test@test.com", hashed_password="hashed"
+    )
+    initial_user.id = 1
+    initial_user.roles = [mock_role]  # Role is assigned
+    mock_get_user_by_id_admin.return_value = None
+
+    with pytest.raises(
+        RuntimeError, match="User with ID 1 not found after role removal commit."
+    ):
+        remove_role_from_user_admin(db=mock_db, user=initial_user, role=mock_role)
+
+    mock_db.commit.assert_called_once()
+    mock_get_user_by_id_admin.assert_called_once_with(db=mock_db, user_id=1)
+
+
+@patch("resume_editor.app.api.routes.route_logic.admin_crud.get_user_by_id_admin")
+@patch("resume_editor.app.api.routes.route_logic.admin_crud.get_password_hash")
+def test_create_user_admin_refetch_fails(
+    mock_get_password_hash: MagicMock,
+    mock_get_user_by_id_admin: MagicMock,
+):
+    """Test create_user_admin raises RuntimeError if re-fetch fails."""
+    mock_db = MagicMock(spec=Session)
+    user_data = AdminUserCreate(
+        username="testuser",
+        email="test@example.com",
+        password="password",
+    )
+    mock_get_password_hash.return_value = "hashed_password"
+    mock_user_instance = User(
+        username=user_data.username,
+        email=user_data.email,
+        hashed_password="hashed_password",
+    )
+    mock_user_instance.id = 1
+    mock_get_user_by_id_admin.return_value = None
+
+    with patch(
+        "resume_editor.app.api.routes.route_logic.admin_crud.User",
+        return_value=mock_user_instance,
+    ):
+        with pytest.raises(
+            RuntimeError, match="Failed to re-fetch created user after commit"
+        ):
+            create_user_admin(mock_db, user_data)
+
+        mock_db.add.assert_called_once_with(mock_user_instance)
+        mock_db.commit.assert_called_once()
+        mock_get_user_by_id_admin.assert_called_once_with(db=mock_db, user_id=1)
+
+
+@patch("resume_editor.app.api.routes.route_logic.admin_crud.get_user_by_id_admin")
+@patch("resume_editor.app.api.routes.route_logic.admin_crud.get_role_by_name_admin")
+@patch("resume_editor.app.api.routes.route_logic.admin_crud.get_password_hash")
+def test_create_initial_admin_refetch_fails(
+    mock_get_password_hash: MagicMock,
+    mock_get_role_by_name_admin: MagicMock,
+    mock_get_user_by_id_admin: MagicMock,
+):
+    """Test create_initial_admin raises RuntimeError if re-fetch fails."""
+    mock_db = MagicMock(spec=Session)
+    mock_role = Role(name="admin", id=1)
+    username = "admin"
+    password = "password"
+
+    created_db_user = User(
+        username=username,
+        email=f"{username}@placeholder.email",
+        hashed_password="hashed_password",
+        id=1,
+    )
+
+    mock_get_password_hash.return_value = "hashed_password"
+    mock_get_role_by_name_admin.return_value = mock_role
+    mock_get_user_by_id_admin.return_value = None
+
+    with patch(
+        "resume_editor.app.api.routes.route_logic.admin_crud.User",
+        return_value=created_db_user,
+    ):
+        with pytest.raises(
+            RuntimeError, match="Failed to re-fetch created initial admin user"
+        ):
+            create_initial_admin(db=mock_db, username=username, password=password)
+
+    mock_db.add.assert_called_once_with(created_db_user)
+    mock_db.commit.assert_called_once()
+    mock_get_user_by_id_admin.assert_called_once_with(db=mock_db, user_id=1)

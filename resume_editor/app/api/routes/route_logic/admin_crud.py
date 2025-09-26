@@ -59,7 +59,10 @@ def create_user_admin(db: Session, user_data: AdminUserCreate) -> User:
     )
     log.debug(_msg)
     created_user = get_user_by_id_admin(db=db, user_id=db_user.id)
-    assert created_user is not None, "Failed to re-fetch created user"
+    if not created_user:
+        _err_msg = "Failed to re-fetch created user after commit"
+        log.error(_err_msg)
+        raise RuntimeError(_err_msg)
 
     return created_user
 
@@ -139,7 +142,10 @@ def create_initial_admin(db: Session, username: str, password: str) -> User:
     )
     log.debug(_msg)
     created_user = get_user_by_id_admin(db=db, user_id=db_user.id)
-    assert created_user is not None, "Failed to re-fetch created initial admin user"
+    if not created_user:
+        _err_msg = "Failed to re-fetch created initial admin user"
+        log.error(_err_msg)
+        raise RuntimeError(_err_msg)
 
     _msg = "create_initial_admin returning"
     log.debug(_msg)
@@ -305,7 +311,10 @@ def assign_role_to_user_admin(db: Session, user: User, role: Role) -> User:
         user.roles.append(role)
         db.commit()
         refetched_user = get_user_by_id_admin(db=db, user_id=user_id)
-        assert refetched_user is not None, "User should exist after commit"
+        if not refetched_user:
+            _err_msg = f"User with ID {user_id} not found after role assignment commit."
+            log.error(_err_msg)
+            raise RuntimeError(_err_msg)
         user = refetched_user
     else:
         _msg = (
@@ -348,7 +357,10 @@ def remove_role_from_user_admin(db: Session, user: User, role: Role) -> User:
         user.roles.remove(role)
         db.commit()
         refetched_user = get_user_by_id_admin(db=db, user_id=user_id)
-        assert refetched_user is not None, "User should exist after commit"
+        if not refetched_user:
+            _err_msg = f"User with ID {user_id} not found after role removal commit."
+            log.error(_err_msg)
+            raise RuntimeError(_err_msg)
         user = refetched_user
     else:
         _msg = (
@@ -399,7 +411,10 @@ def update_user_admin(
 
     db.commit()
     refetched_user = get_user_by_id_admin(db=db, user_id=user_id)
-    assert refetched_user is not None, "User should exist after commit"
+    if not refetched_user:
+        _err_msg = f"User with ID {user_id} not found after update commit."
+        log.error(_err_msg)
+        raise RuntimeError(_err_msg)
 
     _msg = "update_user_admin returning"
     log.debug(_msg)
