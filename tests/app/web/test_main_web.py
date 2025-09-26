@@ -326,7 +326,7 @@ def test_dashboard_as_non_admin():
 
     soup = BeautifulSoup(response.content, "html.parser")
     assert soup.find(id="resume-detail") is None
-    admin_link = soup.find("a", href="/admin/users/")
+    admin_link = soup.find("a", href="/admin/users")
     assert admin_link is None
 
     new_resume_link = soup.find("a", href="/resumes/create")
@@ -359,7 +359,7 @@ def test_dashboard_as_admin():
 
     soup = BeautifulSoup(response.content, "html.parser")
     assert soup.find(id="resume-detail") is None
-    admin_link = soup.find("a", href="/admin/users/")
+    admin_link = soup.find("a", href="/admin/users")
     assert admin_link is not None
     assert admin_link.text.strip() == "Admin"
 

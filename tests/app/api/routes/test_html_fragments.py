@@ -198,7 +198,7 @@ def test_generate_resume_detail_html_base_resume(test_resume):
     html_output = _generate_resume_detail_html(test_resume)
 
     # Check that refine button and form are present
-    assert "Refine with AI" in html_output
+    assert "AI Refine" in html_output
     assert 'id="refine-form-container-1"' in html_output
 
     # Check that job description details are not present
@@ -211,7 +211,7 @@ def test_generate_resume_detail_html_refined_resume_with_jd(test_refined_resume)
     html_output = _generate_resume_detail_html(test_refined_resume)
 
     # Check that refine button and form are NOT present
-    assert "Refine with AI" not in html_output
+    assert "AI Refine" not in html_output
     assert 'id="refine-form-container-2"' not in html_output
 
     # Check that job description details are present
@@ -226,7 +226,7 @@ def test_generate_resume_detail_html_refined_resume_no_jd(test_refined_resume):
     html_output = _generate_resume_detail_html(test_refined_resume)
 
     # Check that refine button and form are NOT present
-    assert "Refine with AI" not in html_output
+    assert "AI Refine" not in html_output
     assert 'id="refine-form-container-2"' not in html_output
 
     # Check that job description details are NOT present
