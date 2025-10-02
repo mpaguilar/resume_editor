@@ -79,9 +79,10 @@ ROLE_REFINE_SYSTEM_PROMPT = """As an expert resume writer, your task is to refin
     *   **`summary.text`:** Rewrite this as a 1-2 sentence narrative that acts as a compelling headline for the role. It should incorporate high-level keywords and themes from the `job_analysis`.
     *   **`responsibilities.text`:** This section provides the *proof* for the summary. It MUST be a bulleted list of achievements and responsibilities. Do not include an introductory paragraph; begin directly with the bullet points.
 4.  **Craft Impactful Bullet Points for Scannability:**
-    *   **Prioritize and Limit:** Select **no more than four** of the most impactful achievements. You MUST order them from most to least relevant based on the `job_analysis`.
+    *   **Prioritize and Limit:** Select **no more than THREE** of the most impactful achievements. You MUST order them from most to least relevant based on the `job_analysis`.
     *   **Action Verbs:** Start EVERY bullet point with a strong action verb (e.g., "Engineered," "Managed," "Optimized," "Led").
     *   **Quantifiable Achievements:** Whenever possible, frame responsibilities as quantifiable achievements. Use metrics, percentages, or other data from the original text to demonstrate impact.
+    *   **Short Bullet Points:** Keep bullet points short, with an emphasis on skills and technologies. Bullet points should fit on one line.
 5.  **Skills and Responsibilities Synchronization:** This is imperative for the final document's formatting.
     *   For each skill in `skills.skills` that is relevant to the job but not already described in `responsibilities.text`, you MUST add a new, descriptive bullet point to `responsibilities.text`.
     *   Ensure that any technology or skill you mention in the `responsibilities.text` is also present in the `skills.skills` list.

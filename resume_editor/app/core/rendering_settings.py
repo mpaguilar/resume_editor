@@ -19,15 +19,26 @@ GENERAL_SETTINGS = {
         "certifications": {"name": True, "issuer": True},
         "experience": {
             "roles": True,
+            "projects": False,
             "section": {
                 "roles": {
-                    "skills": True,
+                    "skills": False,
                     "responsibilities": True,
                     "include_situation": True,
                     "include_tasks": True,
                     "location": True,
                     "months_ago": "0",
                     "summary": True,
+                },
+                "projects": {
+                    "overview": True,
+                    "description": True,
+                    "skills": False,
+                    "title": True,
+                    "url": True,
+                    "url_description": True,
+                    "start_date": False,
+                    "end_date": False,
                 }
             }
         },
