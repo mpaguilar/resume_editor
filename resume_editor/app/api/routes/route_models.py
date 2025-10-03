@@ -136,10 +136,14 @@ class ResumeResponse(BaseModel):
     Attributes:
         id (int): The unique identifier for the resume.
         name (str): The name of the resume.
+        notes (str | None): User-provided notes for the resume.
+        introduction (str | None): AI-generated introduction for the resume.
 
     Args:
         id (int): The unique database ID assigned to the resume.
         name (str): The name of the resume as provided by the user.
+        notes (str | None): User-provided notes for the resume.
+        introduction (str | None): AI-generated introduction for the resume.
 
     Returns:
         ResumeResponse: An instance of the model containing the resume ID and name.
@@ -151,6 +155,8 @@ class ResumeResponse(BaseModel):
 
     id: int
     name: str
+    notes: str | None = None
+    introduction: str | None = None
 
 
 class ResumeDetailResponse(BaseModel):
@@ -160,11 +166,15 @@ class ResumeDetailResponse(BaseModel):
         id (int): The unique identifier for the resume.
         name (str): The name of the resume.
         content (str): The Markdown content of the resume.
+        notes (str | None): User-provided notes for the resume.
+        introduction (str | None): AI-generated introduction for the resume.
 
     Args:
         id (int): The unique database ID assigned to the resume.
         name (str): The name of the resume.
         content (str): The full Markdown content of the resume.
+        notes (str | None): User-provided notes for the resume.
+        introduction (str | None): AI-generated introduction for the resume.
 
     Returns:
         ResumeDetailResponse: An instance of the model containing the resume ID, name, and content.
@@ -177,6 +187,8 @@ class ResumeDetailResponse(BaseModel):
     id: int
     name: str
     content: str
+    notes: str | None = None
+    introduction: str | None = None
 
 
 class PersonalInfoUpdateRequest(BaseModel):

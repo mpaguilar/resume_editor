@@ -6,6 +6,8 @@ from resume_editor.app.api.routes.route_models import (
     RefineTargetSection,
     RenderFormat,
     RenderSettingsName,
+    ResumeDetailResponse,
+    ResumeResponse,
 )
 
 
@@ -47,3 +49,68 @@ def test_render_settings_name_enum():
     assert RenderSettingsName.GENERAL.value == "general"
     assert RenderSettingsName.EXECUTIVE_SUMMARY.value == "executive_summary"
     assert len(RenderSettingsName) == 2
+
+
+def test_resume_response_with_new_fields():
+    """
+    Test ResumeResponse can be instantiated with the new fields
+    `notes` and `introduction`.
+    """
+    data = {
+        "id": 1,
+        "name": "My Resume",
+        "notes": "Some notes.",
+        "introduction": "An introduction.",
+    }
+    resp = ResumeResponse(**data)
+    assert resp.id == 1
+    assert resp.name == "My Resume"
+    assert resp.notes == "Some notes."
+    assert resp.introduction == "An introduction."
+
+
+def test_resume_response_without_new_fields():
+    """
+    Test ResumeResponse can be instantiated without the new fields,
+    which should default to None.
+    """
+    data = {"id": 1, "name": "My Resume"}
+    resp = ResumeResponse(**data)
+    assert resp.id == 1
+    assert resp.name == "My Resume"
+    assert resp.notes is None
+    assert resp.introduction is None
+
+
+def test_resume_detail_response_with_new_fields():
+    """
+    Test ResumeDetailResponse can be instantiated with the new fields
+    `notes` and `introduction`.
+    """
+    data = {
+        "id": 1,
+        "name": "My Resume",
+        "content": "Resume content.",
+        "notes": "Some notes.",
+        "introduction": "An introduction.",
+    }
+    resp = ResumeDetailResponse(**data)
+    assert resp.id == 1
+    assert resp.name == "My Resume"
+    assert resp.content == "Resume content."
+    assert resp.notes == "Some notes."
+    assert resp.introduction == "An introduction."
+
+
+def test_resume_detail_response_without_new_fields():
+    """
+    Test ResumeDetailResponse can be instantiated without the new fields,
+    which should default to None.
+    """
+    data = {"id": 1, "name": "My Resume", "content": "Resume content."}
+    resp = ResumeDetailResponse(**data)
+    assert resp.id == 1
+    assert resp.name == "My Resume"
+    assert resp.content == "Resume content."
+    assert resp.notes is None
+    assert resp.introduction is None
