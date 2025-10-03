@@ -1034,3 +1034,22 @@ def test_update_experience_extraction_fails_form(
         "Failed to update experience info: Bad experience section"
         in response.json()["detail"]
     )
+
+
+@patch("resume_editor.app.api.routes.resume_edit.update_resume_notes")
+def test_update_resume_notes_endpoint(
+    mock_update_notes,
+    client_with_auth_and_resume: TestClient,
+    test_resume: DatabaseResume,
+):
+    """Test update_resume_notes endpoint."""
+    response = client_with_auth_and_resume.post(
+        f"/api/resumes/{test_resume.id}/notes",
+        data={"notes": "These are updated notes."},
+    )
+
+    assert response.status_code == 200
+    assert response.text == "<div class='text-green-500'>Notes saved!</div>"
+    mock_update_notes.assert_called_once_with(
+        db=ANY, resume=test_resume, notes="These are updated notes."
+    )

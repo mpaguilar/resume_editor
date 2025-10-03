@@ -32,6 +32,24 @@
     </details>
     {% endif %}
 
+    {% if not resume.is_base %}
+    <div class="my-4 p-4 border rounded-lg bg-gray-50">
+        <form hx-post="/api/resumes/{{ resume.id }}/notes"
+              hx-target="#notes-save-status-{{ resume.id }}"
+              hx-swap="innerHTML">
+
+            <h3 class="text-lg leading-6 font-medium text-gray-900 mb-4">Notes</h3>
+
+            <textarea name="notes" class="mt-1 w-full h-24 p-2 border border-gray-300 rounded" placeholder="Add notes here...">{{ resume.notes or '' }}</textarea>
+
+            <div class="mt-4 flex justify-between items-center">
+                <button type="submit" class="bg-blue-500 text-white px-3 py-1 rounded text-sm hover:bg-blue-600">Save Notes</button>
+                <div id="notes-save-status-{{ resume.id }}"></div>
+            </div>
+        </form>
+    </div>
+    {% endif %}
+
     <!-- Refine Form Container (hidden by default) -->
     {% if resume.is_base %}
     <div id="refine-form-container-{{ resume.id }}" class="hidden my-4 p-4 border rounded-lg bg-gray-50">

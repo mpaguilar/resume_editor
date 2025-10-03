@@ -35,5 +35,6 @@ These are the known mappings:
 - `/api/resumes/{resume_id}/edit/projects->resume_editor/app/api/routes/resume_edit.py`
 - `/api/resumes/{resume_id}/certifications->resume_editor/app/api/routes/resume_edit.py`
 - `/api/resumes/{resume_id}/edit/certifications->resume_editor/app/api/routes/resume_edit.py`
+- `/api/resumes/{resume_id}/notes->resume_editor/app/api/routes/resume_edit.py`
 - `/api/resumes/{resume_id}/refine/discard->resume_editor/app/api/routes/resume_ai.py`
 - `/resumes/{resume_id}/refine->resume_editor/app/main.py`

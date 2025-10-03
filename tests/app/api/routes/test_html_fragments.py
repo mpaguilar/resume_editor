@@ -204,6 +204,9 @@ def test_generate_resume_detail_html_base_resume(test_resume):
     # Check that job description details are not present
     assert "Job Description Used for Refinement" not in html_output
 
+    # Check that notes form is NOT present
+    assert '<form hx-post="/api/resumes/1/notes"' not in html_output
+
 
 def test_generate_resume_detail_html_refined_resume_with_jd(test_refined_resume):
     """Test detail view for a refined resume with a job description shows the JD."""
@@ -219,6 +222,15 @@ def test_generate_resume_detail_html_refined_resume_with_jd(test_refined_resume)
     assert "<details" in html_output
     assert "A great job description." in html_output
 
+    # Check that notes form is present
+    assert '<form hx-post="/api/resumes/2/notes"' in html_output
+    assert (
+        '<h3 class="text-lg leading-6 font-medium text-gray-900 mb-4">Notes</h3>'
+        in html_output
+    )
+    assert 'placeholder="Add notes here..."></textarea>' in html_output
+    assert "Save Notes" in html_output
+
 
 def test_generate_resume_detail_html_refined_resume_no_jd(test_refined_resume):
     """Test detail view for a refined resume with no JD shows neither UI."""
@@ -231,3 +243,22 @@ def test_generate_resume_detail_html_refined_resume_no_jd(test_refined_resume):
 
     # Check that job description details are NOT present
     assert "Job Description Used for Refinement" not in html_output
+
+    # Check that notes form is present
+    assert '<form hx-post="/api/resumes/2/notes"' in html_output
+    assert (
+        '<h3 class="text-lg leading-6 font-medium text-gray-900 mb-4">Notes</h3>'
+        in html_output
+    )
+    assert 'placeholder="Add notes here..."></textarea>' in html_output
+    assert "Save Notes" in html_output
+
+
+def test_generate_resume_detail_html_refined_resume_with_notes(test_refined_resume):
+    """Test detail view for a refined resume displays notes in the form."""
+    test_refined_resume.notes = "These are some important notes."
+    html_output = _generate_resume_detail_html(test_refined_resume)
+
+    # Check that notes form is present and contains the notes
+    assert '<form hx-post="/api/resumes/2/notes"' in html_output
+    assert ">These are some important notes.</textarea>" in html_output
