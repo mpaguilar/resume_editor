@@ -5078,9 +5078,11 @@ Attributes:
     parent_id (int | None): A self-referencing foreign key to link a refined resume to its base resume.
     parent (Resume): The parent resume relationship.
     children (list[Resume]): The child resumes relationship.
+    notes (str | None): User-provided notes for the resume.
+    introduction (str | None): AI-generated introduction for the resume.
 
 ---
-## method: `Resume.__init__(self: UnknownType, user_id: int, name: str, content: str, is_active: bool, is_base: bool, job_description: str | None, parent_id: int | None) -> UnknownType`
+## method: `Resume.__init__(self: UnknownType, user_id: int, name: str, content: str, is_active: bool, is_base: bool, job_description: str | None, parent_id: int | None, notes: str | None, introduction: str | None) -> UnknownType`
 
 Initialize a Resume instance.
 
@@ -5092,6 +5094,8 @@ Args:
     is_base (bool): Whether this is a base resume. Defaults to True.
     job_description (str | None): The job description for a refined resume.
     parent_id (int | None): The ID of the parent resume if this is a refined resume.
+    notes (str | None): User-provided notes for the resume.
+    introduction (str | None): AI-generated introduction for the resume.
 
 Returns:
     None
@@ -5104,7 +5108,7 @@ Notes:
     2. Validate that name is a non-empty string.
     3. Validate that content is a non-empty string.
     4. Validate that is_active is a boolean.
-    5. Assign user_id, name, content, is_active, is_base, job_description, and parent_id to instance attributes.
+    5. Assign user_id, name, content, is_active, is_base, job_description, parent_id, notes, and introduction to instance attributes.
     6. Log the initialization of the resume with its name.
     7. This function performs no database access.
 

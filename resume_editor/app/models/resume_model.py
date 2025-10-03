@@ -26,6 +26,8 @@ class Resume(Base):
         parent_id (int | None): A self-referencing foreign key to link a refined resume to its base resume.
         parent (Resume): The parent resume relationship.
         children (list[Resume]): The child resumes relationship.
+        notes (str | None): User-provided notes for the resume.
+        introduction (str | None): AI-generated introduction for the resume.
     """
 
     __tablename__ = "resumes"
@@ -47,6 +49,8 @@ class Resume(Base):
     is_base = Column(Boolean, default=True, nullable=False)
     job_description = Column(Text, nullable=True)
     parent_id = Column(Integer, ForeignKey("resumes.id"), nullable=True)
+    notes = Column(Text, nullable=True)
+    introduction = Column(Text, nullable=True)
 
     # Relationship to User
     user = relationship("User", back_populates="resumes")
@@ -66,6 +70,8 @@ class Resume(Base):
         is_base: bool = True,
         job_description: str | None = None,
         parent_id: int | None = None,
+        notes: str | None = None,
+        introduction: str | None = None,
     ):
         """
         Initialize a Resume instance.
@@ -78,6 +84,8 @@ class Resume(Base):
             is_base (bool): Whether this is a base resume. Defaults to True.
             job_description (str | None): The job description for a refined resume.
             parent_id (int | None): The ID of the parent resume if this is a refined resume.
+            notes (str | None): User-provided notes for the resume.
+            introduction (str | None): AI-generated introduction for the resume.
 
         Returns:
             None
@@ -90,7 +98,7 @@ class Resume(Base):
             2. Validate that name is a non-empty string.
             3. Validate that content is a non-empty string.
             4. Validate that is_active is a boolean.
-            5. Assign user_id, name, content, is_active, is_base, job_description, and parent_id to instance attributes.
+            5. Assign user_id, name, content, is_active, is_base, job_description, parent_id, notes, and introduction to instance attributes.
             6. Log the initialization of the resume with its name.
             7. This function performs no database access.
 
@@ -105,3 +113,5 @@ class Resume(Base):
         self.is_base = is_base
         self.job_description = job_description
         self.parent_id = parent_id
+        self.notes = notes
+        self.introduction = introduction
