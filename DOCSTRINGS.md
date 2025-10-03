@@ -6389,6 +6389,12 @@ Filters resume content by date range if dates are provided.
 ===
 # File: `resume_editor/app/api/routes/html_fragments.py`
 
+## function: `_date_format_filter(value: datetime | None, format_string: str) -> str`
+
+Jinja2 filter to format a datetime object as a string.
+
+---
+
 ## function: `_generate_resume_list_html(base_resumes: list[DatabaseResume], refined_resumes: list[DatabaseResume], selected_resume_id: int | None) -> str`
 
 Generates HTML for a list of resumes, optionally marking one as selected.

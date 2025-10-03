@@ -2,6 +2,7 @@ import html
 import logging
 import re
 import runpy
+from datetime import datetime
 from unittest.mock import ANY, MagicMock, patch
 
 from bs4 import BeautifulSoup
@@ -390,6 +391,8 @@ def test_list_resumes_htmx_request(mock_get_user_resumes):
 
     mock_resume = DatabaseResume(user_id=1, name="Test Resume", content="...")
     mock_resume.id = 1
+    mock_resume.created_at = datetime(2023, 1, 1)
+    mock_resume.updated_at = datetime(2023, 1, 2)
     mock_resumes = [mock_resume]
     mock_get_user_resumes.return_value = mock_resumes
 
@@ -410,6 +413,8 @@ def test_list_resumes_htmx_request(mock_get_user_resumes):
     resume_item = soup.find("div", class_="resume-item")
     assert resume_item is not None
     assert "Test Resume" in resume_item.text
+    assert "Created: 2023-01-01" in resume_item.text
+    assert "Updated: 2023-01-02" in resume_item.text
 
     edit_link = resume_item.find("a", {"href": "/resumes/1/edit"})
     assert edit_link is not None

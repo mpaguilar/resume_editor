@@ -1916,6 +1916,10 @@
     "filename": "html_fragments.py",
     "functions": [
       [
+        "_date_format_filter(value: datetime | None, format_string: str) -> str",
+        "Jinja2 filter to format a datetime object as a string."
+      ],
+      [
         "_generate_resume_list_html(base_resumes: list[DatabaseResume], refined_resumes: list[DatabaseResume], selected_resume_id: int | None) -> str",
         "Generates HTML for a list of resumes, optionally marking one as selected.\n\nArgs:\n    base_resumes (list[DatabaseResume]): The list of base resumes to display.\n    refined_resumes (list[DatabaseResume]): The list of refined resumes to display.\n    selected_resume_id (int | None): The ID of the resume to mark as selected.\n\nReturns:\n    str: HTML string for the resume list.\n\nNotes:\n    1. Renders the `partials/resume/_resume_list.html` template."
       ],

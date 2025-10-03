@@ -1,4 +1,5 @@
 import logging
+from datetime import datetime
 from pathlib import Path
 
 from jinja2 import Environment, FileSystemLoader
@@ -9,6 +10,16 @@ log = logging.getLogger(__name__)
 
 TEMPLATES_DIR = Path(__file__).resolve().parent.parent.parent / "templates"
 env = Environment(loader=FileSystemLoader(str(TEMPLATES_DIR)), autoescape=True)
+
+
+def _date_format_filter(value: datetime | None, format_string: str = "%Y-%m-%d") -> str:
+    """Jinja2 filter to format a datetime object as a string."""
+    if value is None:
+        return ""
+    return value.strftime(format_string)
+
+
+env.filters["strftime"] = _date_format_filter
 
 
 def _generate_resume_list_html(

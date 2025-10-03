@@ -1,9 +1,11 @@
+from datetime import datetime
 from unittest.mock import MagicMock, patch
 
 import pytest
 
 from resume_editor.app.api.routes.html_fragments import (
     _create_refine_result_html,
+    _date_format_filter,
     _generate_resume_detail_html,
     _generate_resume_list_html,
 )
@@ -32,6 +34,8 @@ def test_resume(test_user):
         content="some content",
     )
     resume.id = 1
+    resume.created_at = datetime(2023, 1, 15)
+    resume.updated_at = datetime(2023, 1, 16)
     return resume
 
 
@@ -46,7 +50,17 @@ def test_refined_resume(test_user):
         parent_id=1,
     )
     resume.id = 2
+    resume.created_at = datetime(2023, 2, 20)
+    resume.updated_at = datetime(2023, 2, 21)
     return resume
+
+
+def test_date_format_filter():
+    """Test the _date_format_filter for correct date formatting."""
+    dt = datetime(2025, 10, 3)
+    assert _date_format_filter(value=dt) == "2025-10-03"
+    assert _date_format_filter(value=dt, format_string="%d-%m-%Y") == "03-10-2025"
+    assert _date_format_filter(value=None) == ""
 
 
 def test_generate_resume_list_html_empty():
@@ -54,7 +68,9 @@ def test_generate_resume_list_html_empty():
     with patch("resume_editor.app.api.routes.html_fragments.env") as mock_env:
         mock_template = MagicMock()
         mock_env.get_template.return_value = mock_template
-        _generate_resume_list_html(base_resumes=[], refined_resumes=[])
+        _generate_resume_list_html(
+            base_resumes=[], refined_resumes=[], selected_resume_id=None
+        )
         mock_env.get_template.assert_called_once_with(
             "partials/resume/_resume_list.html"
         )
@@ -69,7 +85,9 @@ def test_generate_resume_list_html(test_resume):
         mock_template = MagicMock()
         mock_env.get_template.return_value = mock_template
         resumes = [test_resume]
-        _generate_resume_list_html(base_resumes=resumes, refined_resumes=[])
+        _generate_resume_list_html(
+            base_resumes=resumes, refined_resumes=[], selected_resume_id=None
+        )
         mock_env.get_template.assert_called_once_with(
             "partials/resume/_resume_list.html"
         )
@@ -94,6 +112,52 @@ def test_generate_resume_list_html_template(test_resume):
         mock_template.render.assert_called_once_with(
             base_resumes=resumes, refined_resumes=[], selected_resume_id=selected_id
         )
+
+
+def test_generate_resume_list_html_output(test_resume, test_refined_resume):
+    """Test that _generate_resume_list_html renders with date stamps."""
+    # This test uses the actual template, no mocking of jinja env.
+    base_resumes = [test_resume]
+    refined_resumes = [test_refined_resume]
+    html_output = _generate_resume_list_html(
+        base_resumes=base_resumes,
+        refined_resumes=refined_resumes,
+        selected_resume_id=None,
+    )
+
+    # Base resume assertions
+    assert "Test Resume" in html_output
+    assert "Created: 2023-01-15" in html_output
+    assert "Updated: 2023-01-16" in html_output
+    assert "&bull;" in html_output
+
+    # Refined resume assertions
+    assert "Refined Resume" in html_output
+    assert "Created: 2023-02-20" in html_output
+    assert "Updated: 2023-02-21" in html_output
+
+
+def test_generate_resume_list_html_output_no_dates(test_user):
+    """Test that _generate_resume_list_html renders correctly with no date stamps."""
+    base_resume_no_dates = DatabaseResume(
+        user_id=test_user.id,
+        name="Test Resume No Dates",
+        content="some content",
+    )
+    base_resume_no_dates.id = 3
+    base_resume_no_dates.created_at = None
+    base_resume_no_dates.updated_at = None
+
+    html_output = _generate_resume_list_html(
+        base_resumes=[base_resume_no_dates],
+        refined_resumes=[],
+        selected_resume_id=None,
+    )
+
+    assert "Test Resume No Dates" in html_output
+    assert "Created:" not in html_output
+    assert "Updated:" not in html_output
+    assert "&bull;" not in html_output
 
 
 def test_generate_resume_detail_html_template_usage(test_resume):
@@ -163,7 +227,9 @@ def test_generate_resume_list_html_with_refined(test_refined_resume):
         mock_template = MagicMock()
         mock_env.get_template.return_value = mock_template
         resumes = [test_refined_resume]
-        _generate_resume_list_html(base_resumes=[], refined_resumes=resumes)
+        _generate_resume_list_html(
+            base_resumes=[], refined_resumes=resumes, selected_resume_id=None
+        )
         mock_env.get_template.assert_called_once_with(
             "partials/resume/_resume_list.html"
         )
@@ -180,7 +246,9 @@ def test_generate_resume_list_html_with_both(test_resume, test_refined_resume):
         base_resumes = [test_resume]
         refined_resumes = [test_refined_resume]
         _generate_resume_list_html(
-            base_resumes=base_resumes, refined_resumes=refined_resumes
+            base_resumes=base_resumes,
+            refined_resumes=refined_resumes,
+            selected_resume_id=None,
         )
         mock_env.get_template.assert_called_once_with(
             "partials/resume/_resume_list.html"

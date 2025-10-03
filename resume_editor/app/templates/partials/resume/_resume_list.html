@@ -12,6 +12,9 @@
                 <div>
                    <div class="font-medium text-gray-800">{{ r.name }}</div>
                    <div class="text-xs text-gray-500">ID: {{ r.id }}</div>
+                   <div class="text-xs text-gray-400 mt-1">
+                       {% if r.created_at %}Created: {{ r.created_at | strftime('%Y-%m-%d') }}{% endif %}{% if r.created_at and r.updated_at %} &bull; {% endif %}{% if r.updated_at %}Updated: {{ r.updated_at | strftime('%Y-%m-%d') }}{% endif %}
+                   </div>
                 </div>
                 <div class="flex items-center space-x-2">
                     <a href="/resumes/{{ r.id }}/edit" class="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-sm">
@@ -39,6 +42,9 @@
                 <div>
                    <div class="font-medium text-gray-800">{{ r.name }}</div>
                    <div class="text-xs text-gray-500">ID: {{ r.id }} - Parent: {{ r.parent_id }}</div>
+                   <div class="text-xs text-gray-400 mt-1">
+                       {% if r.created_at %}Created: {{ r.created_at | strftime('%Y-%m-%d') }}{% endif %}{% if r.created_at and r.updated_at %} &bull; {% endif %}{% if r.updated_at %}Updated: {{ r.updated_at | strftime('%Y-%m-%d') }}{% endif %}
+                   </div>
                 </div>
                 <div class="flex items-center space-x-2">
                     <a href="/resumes/{{ r.id }}/edit" class="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-sm">
