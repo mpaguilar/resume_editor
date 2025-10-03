@@ -155,6 +155,34 @@ def update_resume(
     return resume
 
 
+def update_resume_notes(
+    db: Session, resume: DatabaseResume, notes: str | None
+) -> DatabaseResume:
+    """
+    Update a resume's notes.
+
+    Args:
+        db (Session): The database session.
+        resume (DatabaseResume): The resume to update.
+        notes (str | None): The new notes for the resume. Can be None.
+
+    Returns:
+        DatabaseResume: The updated resume object.
+
+    Notes:
+        1. Update the resume's notes attribute with the provided value.
+        2. Commit the transaction to save the changes to the database.
+        3. Refresh the resume object to ensure it reflects the latest state.
+        4. Return the updated resume.
+        5. This function performs a database write operation.
+
+    """
+    resume.notes = notes
+    db.commit()
+    db.refresh(resume)
+    return resume
+
+
 def delete_resume(db: Session, resume: DatabaseResume) -> None:
     """
     Delete a resume.

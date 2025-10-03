@@ -11,6 +11,7 @@ from resume_editor.app.api.routes.route_logic.resume_crud import (
     get_resume_by_id_and_user,
     get_user_resumes,
     update_resume,
+    update_resume_notes,
 )
 from resume_editor.app.models.resume_model import Resume as DatabaseResume
 
@@ -207,3 +208,24 @@ def test_delete_resume():
 
     mock_db.delete.assert_called_once_with(mock_resume)
     mock_db.commit.assert_called_once()
+
+
+@pytest.mark.parametrize(
+    "new_notes",
+    [
+        ("These are some new notes."),
+        (None),
+    ],
+)
+def test_update_resume_notes(new_notes):
+    """Test update_resume_notes correctly updates notes."""
+    mock_db = Mock(spec=Session)
+    mock_resume = Mock(spec=DatabaseResume)
+    mock_resume.notes = "Initial notes."
+
+    result = update_resume_notes(db=mock_db, resume=mock_resume, notes=new_notes)
+
+    assert mock_resume.notes == new_notes
+    mock_db.commit.assert_called_once()
+    mock_db.refresh.assert_called_once_with(mock_resume)
+    assert result == mock_resume

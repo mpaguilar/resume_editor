@@ -1033,6 +1033,10 @@
         "Update a resume's name and/or content.\n\nArgs:\n    db (Session): The database session.\n    resume (DatabaseResume): The resume to update.\n    name (str, optional): The new name for the resume. If None, the name is not updated.\n    content (str, optional): The new content for the resume. If None, the content is not updated.\n\nReturns:\n    DatabaseResume: The updated resume object.\n\nNotes:\n    1. If a new name is provided (not None), update the resume's name attribute.\n    2. If new content is provided (not None), update the resume's content attribute.\n    3. Commit the transaction to save the changes to the database.\n    4. Refresh the resume object to ensure it reflects the latest state from the database.\n    5. Return the updated resume.\n    6. This function performs a database write operation."
       ],
       [
+        "update_resume_notes(db: Session, resume: DatabaseResume, notes: str | None) -> DatabaseResume",
+        "Update a resume's notes.\n\nArgs:\n    db (Session): The database session.\n    resume (DatabaseResume): The resume to update.\n    notes (str | None): The new notes for the resume. Can be None.\n\nReturns:\n    DatabaseResume: The updated resume object.\n\nNotes:\n    1. Update the resume's notes attribute with the provided value.\n    2. Commit the transaction to save the changes to the database.\n    3. Refresh the resume object to ensure it reflects the latest state.\n    4. Return the updated resume.\n    5. This function performs a database write operation."
+      ],
+      [
         "delete_resume(db: Session, resume: DatabaseResume) -> None",
         "Delete a resume.\n\nArgs:\n    db (Session): The database session.\n    resume (DatabaseResume): The resume to delete.\n\nReturns:\n    None\n\nNotes:\n    1. Delete the resume object from the database session.\n    2. Commit the transaction to persist the deletion.\n    3. This function performs a database write operation."
       ]
