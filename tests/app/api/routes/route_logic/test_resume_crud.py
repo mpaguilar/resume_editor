@@ -78,6 +78,7 @@ def test_create_resume_base_default(mock_db_resume):
         is_base=True,
         parent_id=None,
         job_description=None,
+        introduction=None,
     )
     mock_db.add.assert_called_once_with(mock_instance)
     mock_db.commit.assert_called_once()
@@ -109,6 +110,38 @@ def test_create_resume_refined(mock_db_resume):
         is_base=False,
         parent_id=123,
         job_description="A cool job",
+        introduction=None,
+    )
+    mock_db.add.assert_called_once_with(mock_instance)
+    mock_db.commit.assert_called_once()
+    mock_db.refresh.assert_called_once_with(mock_instance)
+    assert result == mock_instance
+
+
+@patch("resume_editor.app.api.routes.route_logic.resume_crud.DatabaseResume")
+def test_create_resume_with_introduction(mock_db_resume):
+    """Test create_resume with an introduction."""
+    mock_db = Mock(spec=Session)
+    mock_instance = Mock()
+    mock_db_resume.return_value = mock_instance
+
+    intro_text = "This is a great introduction."
+    result = create_resume(
+        db=mock_db,
+        user_id=1,
+        name="Resume With Intro",
+        content="Some content",
+        introduction=intro_text,
+    )
+
+    mock_db_resume.assert_called_once_with(
+        user_id=1,
+        name="Resume With Intro",
+        content="Some content",
+        is_base=True,
+        parent_id=None,
+        job_description=None,
+        introduction=intro_text,
     )
     mock_db.add.assert_called_once_with(mock_instance)
     mock_db.commit.assert_called_once()

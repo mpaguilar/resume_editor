@@ -77,6 +77,7 @@ def create_resume(
     is_base: bool = True,
     parent_id: int | None = None,
     job_description: str | None = None,
+    introduction: str | None = None,
 ) -> DatabaseResume:
     """
     Create and save a new resume.
@@ -89,6 +90,7 @@ def create_resume(
         is_base (bool): Whether this is a base resume. Defaults to True.
         parent_id (int | None): The ID of the parent resume if this is a refined version.
         job_description (str | None): The job description for a refined resume.
+        introduction (str | None): AI-generated introduction for the resume.
 
     Returns:
         DatabaseResume: The newly created resume object.
@@ -109,6 +111,7 @@ def create_resume(
         is_base=is_base,
         parent_id=parent_id,
         job_description=job_description,
+        introduction=introduction,
     )
     db.add(resume)
     db.commit()

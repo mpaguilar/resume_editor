@@ -3499,7 +3499,7 @@ Notes:
 
 ---
 
-## function: `create_resume(db: Session, user_id: int, name: str, content: str, is_base: bool, parent_id: int | None, job_description: str | None) -> DatabaseResume`
+## function: `create_resume(db: Session, user_id: int, name: str, content: str, is_base: bool, parent_id: int | None, job_description: str | None, introduction: str | None) -> DatabaseResume`
 
 Create and save a new resume.
 
@@ -3511,6 +3511,7 @@ Args:
     is_base (bool): Whether this is a base resume. Defaults to True.
     parent_id (int | None): The ID of the parent resume if this is a refined version.
     job_description (str | None): The job description for a refined resume.
+    introduction (str | None): AI-generated introduction for the resume.
 
 Returns:
     DatabaseResume: The newly created resume object.
