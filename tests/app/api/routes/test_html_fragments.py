@@ -222,14 +222,15 @@ def test_generate_resume_detail_html_refined_resume_with_jd(test_refined_resume)
     assert "<details" in html_output
     assert "A great job description." in html_output
 
-    # Check that notes form is present
-    assert '<form hx-post="/api/resumes/2/notes"' in html_output
-    assert (
-        '<h3 class="text-lg leading-6 font-medium text-gray-900 mb-4">Notes</h3>'
-        in html_output
-    )
-    assert 'placeholder="Add notes here..."></textarea>' in html_output
-    assert "Save Notes" in html_output
+    # Check notes form for auto-save functionality
+    assert '<form hx-post="/api/resumes/2/notes"' not in html_output
+    assert '<textarea name="notes"' in html_output
+    assert 'hx-post="/api/resumes/2/notes"' in html_output
+    assert 'hx-trigger="keyup changed delay:500ms"' in html_output
+    assert 'hx-target="#notes-save-status-2"' in html_output
+    assert 'hx-swap="innerHTML"' in html_output
+    assert "Save Notes" not in html_output
+    assert 'id="notes-save-status-2"' in html_output
 
 
 def test_generate_resume_detail_html_refined_resume_no_jd(test_refined_resume):
@@ -244,14 +245,15 @@ def test_generate_resume_detail_html_refined_resume_no_jd(test_refined_resume):
     # Check that job description details are NOT present
     assert "Job Description Used for Refinement" not in html_output
 
-    # Check that notes form is present
-    assert '<form hx-post="/api/resumes/2/notes"' in html_output
-    assert (
-        '<h3 class="text-lg leading-6 font-medium text-gray-900 mb-4">Notes</h3>'
-        in html_output
-    )
-    assert 'placeholder="Add notes here..."></textarea>' in html_output
-    assert "Save Notes" in html_output
+    # Check notes form for auto-save functionality
+    assert '<form hx-post="/api/resumes/2/notes"' not in html_output
+    assert '<textarea name="notes"' in html_output
+    assert 'hx-post="/api/resumes/2/notes"' in html_output
+    assert 'hx-trigger="keyup changed delay:500ms"' in html_output
+    assert 'hx-target="#notes-save-status-2"' in html_output
+    assert 'hx-swap="innerHTML"' in html_output
+    assert "Save Notes" not in html_output
+    assert 'id="notes-save-status-2"' in html_output
 
 
 def test_generate_resume_detail_html_refined_resume_with_notes(test_refined_resume):
@@ -260,5 +262,11 @@ def test_generate_resume_detail_html_refined_resume_with_notes(test_refined_resu
     html_output = _generate_resume_detail_html(test_refined_resume)
 
     # Check that notes form is present and contains the notes
-    assert '<form hx-post="/api/resumes/2/notes"' in html_output
+    assert '<form hx-post="/api/resumes/2/notes"' not in html_output
     assert ">These are some important notes.</textarea>" in html_output
+    assert 'hx-post="/api/resumes/2/notes"' in html_output
+    assert 'hx-trigger="keyup changed delay:500ms"' in html_output
+    assert 'hx-target="#notes-save-status-2"' in html_output
+    assert 'hx-swap="innerHTML"' in html_output
+    assert "Save Notes" not in html_output
+    assert 'id="notes-save-status-2"' in html_output
