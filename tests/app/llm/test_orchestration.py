@@ -291,6 +291,7 @@ def test_refine_resume_section_with_llm_dispatcher():
             llm_endpoint=None,
             api_key=None,
             llm_model_name=None,
+            generate_introduction=True,
         )
         assert result == "refined content from helper"
         mock_chat_openai_class.assert_called_once()
@@ -514,6 +515,7 @@ def test_refine_resume_section_with_llm_initialization(
             llm_endpoint=llm_endpoint,
             api_key=api_key,
             llm_model_name=llm_model_name,
+            generate_introduction=True,
         )
 
         # Assert ChatOpenAI was initialized correctly
@@ -681,6 +683,7 @@ def test_refine_resume_section_with_llm_experience_raises_error():
             llm_endpoint=None,
             api_key=None,
             llm_model_name=None,
+            generate_introduction=True,
         )
 
 
@@ -1002,6 +1005,7 @@ async def test_async_refine_experience_section_execution(
         llm_endpoint=llm_endpoint,
         api_key=api_key,
         llm_model_name=llm_model_name,
+        generate_introduction=True,
         max_concurrency=max_concurrency,
     ):
         events.append(event)
@@ -1088,6 +1092,7 @@ async def test_async_refine_experience_section_execution_no_roles(
         llm_endpoint=llm_endpoint,
         api_key=api_key,
         llm_model_name=llm_model_name,
+        generate_introduction=True,
         max_concurrency=max_concurrency,
     ):
         events.append(event)
@@ -1121,7 +1126,12 @@ async def test_async_refine_experience_section_job_analysis_fails(
     events = []
     with pytest.raises(ValueError, match="Job analysis failed"):
         async for event in async_refine_experience_section(
-            "resume", "job", None, None, None
+            resume_content="resume",
+            job_description="job",
+            llm_endpoint=None,
+            api_key=None,
+            llm_model_name=None,
+            generate_introduction=True,
         ):
             events.append(event)
 
@@ -1155,7 +1165,12 @@ async def test_async_refine_experience_section_role_refinement_fails(
     events = []
     with pytest.raises(ValueError, match="Role task failed"):
         async for event in async_refine_experience_section(
-            "resume", "job", None, None, None
+            resume_content="resume",
+            job_description="job",
+            llm_endpoint=None,
+            api_key=None,
+            llm_model_name=None,
+            generate_introduction=True,
         ):
             events.append(event)
 
@@ -1228,6 +1243,7 @@ async def test_async_refine_experience_section_concurrency(
         llm_endpoint=None,
         api_key=None,
         llm_model_name=None,
+        generate_introduction=True,
         max_concurrency=max_concurrency,
     ):
         events.append(event)

@@ -6305,7 +6305,7 @@ Notes:
 
 ---
 
-## function: `refine_resume_section_with_llm(resume_content: str, job_description: str, target_section: str, llm_endpoint: str | None, api_key: str | None, llm_model_name: str | None) -> str`
+## function: `refine_resume_section_with_llm(resume_content: str, job_description: str, target_section: str, llm_endpoint: str | None, api_key: str | None, llm_model_name: str | None, generate_introduction: bool) -> str`
 
 Uses an LLM to refine a specific non-experience section of a resume.
 
@@ -6320,6 +6320,7 @@ Args:
     llm_endpoint (str | None): The custom LLM endpoint URL.
     api_key (str | None): The user's decrypted LLM API key.
     llm_model_name (str | None): The user-specified LLM model name.
+    generate_introduction (bool): Whether to generate an introduction.
 
 Returns:
     str: The refined Markdown content for the target section. Returns an empty

@@ -335,6 +335,7 @@ async def async_refine_experience_section(
     llm_endpoint: str | None,
     api_key: str | None,
     llm_model_name: str | None,
+    generate_introduction: bool,
     max_concurrency: int = 5,
 ) -> AsyncGenerator[dict[str, Any], None]:
     """
@@ -346,6 +347,7 @@ async def async_refine_experience_section(
         llm_endpoint (str | None): The custom LLM endpoint URL.
         api_key (str | None): The user's decrypted LLM API key.
         llm_model_name (str | None): The user-specified LLM model name.
+        generate_introduction (bool): Whether to generate an introduction.
         max_concurrency (int): The maximum number of roles to refine in parallel.
 
     Yields:
@@ -426,6 +428,7 @@ def refine_resume_section_with_llm(
     llm_endpoint: str | None,
     api_key: str | None,
     llm_model_name: str | None,
+    generate_introduction: bool,
 ) -> str:
     """Uses an LLM to refine a specific non-experience section of a resume.
 
@@ -440,6 +443,7 @@ def refine_resume_section_with_llm(
         llm_endpoint (str | None): The custom LLM endpoint URL.
         api_key (str | None): The user's decrypted LLM API key.
         llm_model_name (str | None): The user-specified LLM model name.
+        generate_introduction (bool): Whether to generate an introduction.
 
     Returns:
         str: The refined Markdown content for the target section. Returns an empty

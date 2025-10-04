@@ -3,6 +3,7 @@ import pytest
 from resume_editor.app.api.routes.route_models import (
     RefineAcceptRequest,
     RefineAction,
+    RefineRequest,
     RefineTargetSection,
     RenderFormat,
     RenderSettingsName,
@@ -35,6 +36,32 @@ def test_refine_accept_request_without_job_description():
     req = RefineAcceptRequest(**data)
     assert req.job_description is None
     assert req.new_resume_name is None
+
+
+def test_refine_request_model_with_generate_introduction():
+    """Test RefineRequest model with generate_introduction field."""
+    # Test with default value (not provided)
+    data_default = {"job_description": "job", "target_section": "personal"}
+    req_default = RefineRequest(**data_default)
+    assert req_default.generate_introduction is True
+
+    # Test with explicit True
+    data_true = {
+        "job_description": "job",
+        "target_section": "personal",
+        "generate_introduction": True,
+    }
+    req_true = RefineRequest(**data_true)
+    assert req_true.generate_introduction is True
+
+    # Test with explicit False
+    data_false = {
+        "job_description": "job",
+        "target_section": "personal",
+        "generate_introduction": False,
+    }
+    req_false = RefineRequest(**data_false)
+    assert req_false.generate_introduction is False
 
 
 def test_render_format_enum():

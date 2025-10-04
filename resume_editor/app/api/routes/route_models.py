@@ -342,10 +342,12 @@ class RefineRequest(BaseModel):
     Attributes:
         job_description (str): The job description to align the resume with.
         target_section (RefineTargetSection): The section of the resume to refine.
+        generate_introduction (bool): Whether to generate an introduction. Defaults to True.
 
     Args:
         job_description (str): The full text of the job description to use as a reference for refinement.
         target_section (RefineTargetSection): The specific section of the resume to refine.
+        generate_introduction (bool): Whether to generate an introductory paragraph.
 
     Returns:
         RefineRequest: An instance of the model with the job description and target section.
@@ -357,6 +359,7 @@ class RefineRequest(BaseModel):
 
     job_description: str
     target_section: RefineTargetSection
+    generate_introduction: bool = True
 
 
 class RefineResponse(BaseModel):

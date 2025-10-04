@@ -68,6 +68,7 @@ async def refine_resume_stream(
     current_user: User = Depends(get_current_user_from_cookie),
     resume: DatabaseResume = Depends(get_resume_for_user),
     job_description: str = "",
+    generate_introduction: bool = True,
 ) -> StreamingResponse:
     """
     Refine the experience section of a resume using an LLM stream.
@@ -95,6 +96,7 @@ async def refine_resume_stream(
                 llm_endpoint=llm_endpoint,
                 api_key=api_key,
                 llm_model_name=llm_model_name,
+                generate_introduction=generate_introduction,
             ):
                 if isinstance(event, dict) and event.get("status") == "in_progress":
                     progress_html = f"<li>{html.escape(event.get('message', ''))}</li>"
@@ -183,6 +185,7 @@ async def refine_resume(
     resume: DatabaseResume = Depends(get_resume_for_user),
     job_description: str = Form(...),
     target_section: RefineTargetSection = Form(...),
+    generate_introduction: bool = Form(False),
 ):
     """
     Refine a resume section using an LLM to align with a job description.
@@ -212,6 +215,7 @@ async def refine_resume(
             {
                 "resume_id": resume.id,
                 "job_description": job_description,
+                "generate_introduction": generate_introduction,
             },
         )
 
@@ -242,6 +246,7 @@ async def refine_resume(
             llm_endpoint=llm_endpoint,
             api_key=api_key,
             llm_model_name=llm_model_name,
+            generate_introduction=generate_introduction,
         )
 
         if "HX-Request" in http_request.headers:

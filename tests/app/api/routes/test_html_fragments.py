@@ -343,6 +343,16 @@ def test_generate_resume_detail_html_base_resume(test_resume):
     assert "AI Refine" in html_output
     assert 'id="refine-form-container-1"' in html_output
 
+    # Check refine form for "Generate Introduction" checkbox
+    assert (
+        '<label for="generate_introduction" class="font-medium text-gray-700">Generate Introduction</label>'
+        in html_output
+    )
+    assert (
+        '<input id="generate_introduction" name="generate_introduction" type="checkbox" value="true" checked'
+        in html_output
+    )
+
     # Check that job description details are not present
     assert "Job Description Used for Refinement" not in html_output
 

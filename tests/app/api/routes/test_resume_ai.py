@@ -194,7 +194,11 @@ def test_refine_resume_success_with_key(
     # Act
     response = client_with_auth_and_resume.post(
         "/api/resumes/1/refine",
-        data={"job_description": "job", "target_section": "personal"},
+        data={
+            "job_description": "job",
+            "target_section": "personal",
+            "generate_introduction": "true",
+        },
     )
 
     # Assert
@@ -209,6 +213,7 @@ def test_refine_resume_success_with_key(
         llm_endpoint="http://llm.test",
         api_key="decrypted_key",
         llm_model_name="test-model",
+        generate_introduction=True,
     )
 
 
@@ -231,7 +236,11 @@ def test_refine_resume_no_settings(
     # Act
     response = client_with_auth_and_resume.post(
         "/api/resumes/1/refine",
-        data={"job_description": "job", "target_section": "personal"},
+        data={
+            "job_description": "job",
+            "target_section": "personal",
+            "generate_introduction": "true",
+        },
     )
 
     # Assert
@@ -245,6 +254,7 @@ def test_refine_resume_no_settings(
         llm_endpoint=None,
         api_key=None,
         llm_model_name=None,
+        generate_introduction=True,
     )
 
 
@@ -270,7 +280,11 @@ def test_refine_resume_no_api_key(
     # Act
     response = client_with_auth_and_resume.post(
         "/api/resumes/1/refine",
-        data={"job_description": "job", "target_section": "personal"},
+        data={
+            "job_description": "job",
+            "target_section": "personal",
+            "generate_introduction": "true",
+        },
     )
 
     # Assert
@@ -283,6 +297,43 @@ def test_refine_resume_no_api_key(
         llm_endpoint="http://llm.test",
         api_key=None,
         llm_model_name="test-model",
+        generate_introduction=True,
+    )
+
+
+@patch("resume_editor.app.api.routes.resume_ai.refine_resume_section_with_llm")
+@patch("resume_editor.app.api.routes.resume_ai.get_user_settings", return_value=None)
+def test_refine_resume_success_with_gen_intro_unchecked(
+    mock_get_user_settings,
+    mock_refine_llm,
+    client_with_auth_and_resume,
+    test_user,
+):
+    """Test successful resume refinement when generate_introduction is unchecked (not sent)."""
+    # Arrange
+    mock_db_session = next(
+        client_with_auth_and_resume.app.dependency_overrides[get_db](),
+    )
+    mock_refine_llm.return_value = "refined"
+
+    # Act
+    response = client_with_auth_and_resume.post(
+        "/api/resumes/1/refine",
+        data={"job_description": "job", "target_section": "personal"},
+    )
+
+    # Assert
+    assert response.status_code == 200
+    assert response.json() == {"refined_content": "refined"}
+    mock_get_user_settings.assert_called_once_with(mock_db_session, test_user.id)
+    mock_refine_llm.assert_called_once_with(
+        resume_content=VALID_MINIMAL_RESUME_CONTENT,
+        job_description="job",
+        target_section="personal",
+        llm_endpoint=None,
+        api_key=None,
+        llm_model_name=None,
+        generate_introduction=False,
     )
 
 
@@ -300,7 +351,11 @@ def test_refine_resume_llm_failure(
     # Act
     response = client_with_auth_and_resume.post(
         "/api/resumes/1/refine",
-        data={"job_description": "job", "target_section": "personal"},
+        data={
+            "job_description": "job",
+            "target_section": "personal",
+            "generate_introduction": "true",
+        },
     )
 
     # Assert
@@ -322,7 +377,11 @@ def test_refine_resume_llm_failure_htmx(
     # Act
     response = client_with_auth_and_resume.post(
         "/api/resumes/1/refine",
-        data={"job_description": "job", "target_section": "personal"},
+        data={
+            "job_description": "job",
+            "target_section": "personal",
+            "generate_introduction": "true",
+        },
         headers={"HX-Request": "true"},
     )
 
@@ -351,7 +410,11 @@ def test_refine_resume_llm_auth_failure(
     # Act
     response = client_with_auth_and_resume.post(
         "/api/resumes/1/refine",
-        data={"job_description": "job", "target_section": "personal"},
+        data={
+            "job_description": "job",
+            "target_section": "personal",
+            "generate_introduction": "true",
+        },
     )
 
     # Assert
@@ -377,7 +440,11 @@ def test_refine_resume_llm_auth_failure_htmx(
     # Act
     response = client_with_auth_and_resume.post(
         "/api/resumes/1/refine",
-        data={"job_description": "job", "target_section": "personal"},
+        data={
+            "job_description": "job",
+            "target_section": "personal",
+            "generate_introduction": "true",
+        },
         headers={"HX-Request": "true"},
     )
 
@@ -414,7 +481,11 @@ def test_refine_resume_decryption_failure(
     # Act
     response = client_with_auth_and_resume.post(
         "/api/resumes/1/refine",
-        data={"job_description": "job", "target_section": target_section},
+        data={
+            "job_description": "job",
+            "target_section": target_section,
+            "generate_introduction": "true",
+        },
     )
 
     # Assert
@@ -426,16 +497,50 @@ def test_refine_resume_decryption_failure(
     mock_decrypt_data.assert_called_once_with("key")
 
 
-@patch("resume_editor.app.api.routes.resume_ai.refine_resume_section_with_llm")
 @patch("resume_editor.app.api.routes.resume_ai.templates.TemplateResponse")
 @patch("resume_editor.app.api.routes.resume_ai.get_user_settings", return_value=None)
 def test_refine_resume_post_for_experience_returns_sse_loader(
     mock_get_user_settings,
     mock_template_response,
-    mock_refine_llm,
     client_with_auth_and_resume,
 ):
     """Test that POST /refine for 'experience' returns the SSE loader partial."""
+    # Arrange
+    job_desc = "A cool job"
+    mock_template_response.return_value = "sse loader html"
+
+    # Act
+    response = client_with_auth_and_resume.post(
+        "/api/resumes/1/refine",
+        data={
+            "job_description": job_desc,
+            "target_section": "experience",
+            "generate_introduction": "true",
+        },
+    )
+
+    # Assert
+    assert response.status_code == 200
+    assert response.text == '"sse loader html"'
+    mock_template_response.assert_called_once_with(
+        ANY,
+        "partials/resume/_refine_sse_loader.html",
+        {
+            "resume_id": 1,
+            "job_description": job_desc,
+            "generate_introduction": True,
+        },
+    )
+
+
+@patch("resume_editor.app.api.routes.resume_ai.templates.TemplateResponse")
+@patch("resume_editor.app.api.routes.resume_ai.get_user_settings", return_value=None)
+def test_refine_resume_post_for_experience_gen_intro_false(
+    mock_get_user_settings,
+    mock_template_response,
+    client_with_auth_and_resume,
+):
+    """Test POST /refine for 'experience' with generate_introduction false."""
     # Arrange
     job_desc = "A cool job"
     mock_template_response.return_value = "sse loader html"
@@ -455,6 +560,7 @@ def test_refine_resume_post_for_experience_returns_sse_loader(
         {
             "resume_id": 1,
             "job_description": job_desc,
+            "generate_introduction": False,
         },
     )
 
@@ -478,7 +584,11 @@ def test_refine_resume_decryption_failure_htmx(
     # Act
     response = client_with_auth_and_resume.post(
         "/api/resumes/1/refine",
-        data={"job_description": "job", "target_section": target_section},
+        data={
+            "job_description": "job",
+            "target_section": target_section,
+            "generate_introduction": "true",
+        },
         headers={"HX-Request": "true"},
     )
 
@@ -515,7 +625,11 @@ def test_refine_resume_htmx_response(
     # Act
     response = client_with_auth_and_resume.post(
         "/api/resumes/1/refine",
-        data={"job_description": "job", "target_section": "personal"},
+        data={
+            "job_description": "job",
+            "target_section": "personal",
+            "generate_introduction": "true",
+        },
         headers={"HX-Request": "true"},
     )
 
@@ -544,7 +658,11 @@ def test_refine_resume_no_htmx_response(
     # Act
     response = client_with_auth_and_resume.post(
         "/api/resumes/1/refine",
-        data={"job_description": "job", "target_section": "personal"},
+        data={
+            "job_description": "job",
+            "target_section": "personal",
+            "generate_introduction": "true",
+        },
     )
 
     # Assert
@@ -650,7 +768,8 @@ async def test_refine_resume_stream_happy_path(
 
     # Act
     with client_with_auth_and_resume.stream(
-        "GET", "/api/resumes/1/refine/stream?job_description=a%20new%20job"
+        "GET",
+        "/api/resumes/1/refine/stream?job_description=a%20new%20job&generate_introduction=true",
     ) as response:
         assert response.status_code == 200
         assert "text/event-stream" in response.headers["content-type"]
@@ -674,6 +793,7 @@ async def test_refine_resume_stream_happy_path(
         llm_endpoint="http://llm.test",
         api_key="decrypted_key",
         llm_model_name="test-model",
+        generate_introduction=True,
     )
     mock_extract_personal.assert_called_once_with(VALID_RESUME_TWO_ROLES)
     mock_extract_education.assert_called_once_with(VALID_RESUME_TWO_ROLES)
@@ -690,6 +810,94 @@ async def test_refine_resume_stream_happy_path(
     assert reconstructed_experience.projects == mock_original_experience.projects
     mock_create_refine_result_html.assert_called_once_with(
         1, "experience", "reconstructed content", job_description="a new job"
+    )
+
+
+@pytest.mark.asyncio
+@patch("resume_editor.app.api.routes.resume_ai._create_refine_result_html")
+@patch("resume_editor.app.api.routes.resume_ai.build_complete_resume_from_sections")
+@patch("resume_editor.app.api.routes.resume_ai.extract_certifications_info")
+@patch("resume_editor.app.api.routes.resume_ai.extract_experience_info")
+@patch("resume_editor.app.api.routes.resume_ai.extract_education_info")
+@patch("resume_editor.app.api.routes.resume_ai.extract_personal_info")
+@patch("resume_editor.app.api.routes.resume_ai.async_refine_experience_section")
+@patch(
+    "resume_editor.app.api.routes.resume_ai.decrypt_data",
+    return_value="decrypted_key",
+)
+@patch("resume_editor.app.api.routes.resume_ai.get_user_settings")
+async def test_refine_resume_stream_happy_path_gen_intro_false(
+    mock_get_user_settings,
+    mock_decrypt_data,
+    mock_async_refine_experience,
+    mock_extract_personal,
+    mock_extract_education,
+    mock_extract_experience,
+    mock_extract_certifications,
+    mock_build_sections,
+    mock_create_refine_result_html,
+    client_with_auth_and_resume,
+    test_user,
+    test_resume,
+):
+    """Test successful SSE refinement when generate_introduction is false."""
+    test_resume.content = VALID_RESUME_TWO_ROLES
+
+    from resume_editor.app.api.routes.route_models import ExperienceResponse
+    from resume_editor.app.models.resume.experience import (
+        Project,
+        ProjectOverview,
+        Role,
+        RoleBasics,
+        RoleSummary,
+    )
+
+    mock_settings = UserSettings(
+        user_id=test_user.id,
+        llm_endpoint="http://llm.test",
+        encrypted_api_key="key",
+        llm_model_name="test-model",
+    )
+    mock_get_user_settings.return_value = mock_settings
+
+    mock_project = Project(overview=ProjectOverview(title="A Cool Project"))
+    mock_original_experience = ExperienceResponse(roles=[], projects=[mock_project])
+    mock_extract_experience.return_value = mock_original_experience
+    mock_build_sections.return_value = "reconstructed content"
+
+    refined_role1 = Role(
+        basics=RoleBasics(
+            company="Refined Company 1",
+            title="Refined Role 1",
+            start_date="2024-01-01",
+        ),
+        summary=RoleSummary(text="Refined Summary 1"),
+    )
+    refined_role1_data = refined_role1.model_dump(mode="json")
+
+    async def mock_async_generator():
+        yield {
+            "status": "role_refined",
+            "data": refined_role1_data,
+            "original_index": 0,
+        }
+
+    mock_async_refine_experience.return_value = mock_async_generator()
+    mock_create_refine_result_html.return_value = "<html>final refined html</html>"
+
+    with client_with_auth_and_resume.stream(
+        "GET",
+        "/api/resumes/1/refine/stream?job_description=a%20new%20job&generate_introduction=false",
+    ) as response:
+        assert response.status_code == 200
+
+    mock_async_refine_experience.assert_called_once_with(
+        resume_content=VALID_RESUME_TWO_ROLES,
+        job_description="a new job",
+        llm_endpoint="http://llm.test",
+        api_key="decrypted_key",
+        llm_model_name="test-model",
+        generate_introduction=False,
     )
 
 
@@ -1012,7 +1220,11 @@ def test_refine_resume_json_decode_error_htmx(
     # Act
     response = client_with_auth_and_resume.post(
         "/api/resumes/1/refine",
-        data={"job_description": "job", "target_section": "personal"},
+        data={
+            "job_description": "job",
+            "target_section": "personal",
+            "generate_introduction": "true",
+        },
         headers={"HX-Request": "true"},
     )
 
@@ -1041,7 +1253,11 @@ def test_refine_resume_json_decode_error_non_htmx(
     # Act
     response = client_with_auth_and_resume.post(
         "/api/resumes/1/refine",
-        data={"job_description": "job", "target_section": "personal"},
+        data={
+            "job_description": "job",
+            "target_section": "personal",
+            "generate_introduction": "true",
+        },
     )
 
     # Assert
