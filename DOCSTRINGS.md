@@ -3530,15 +3530,16 @@ Notes:
 
 ---
 
-## function: `update_resume(db: Session, resume: DatabaseResume, name: str | None, content: str | None) -> DatabaseResume`
+## function: `update_resume(db: Session, resume: DatabaseResume, name: str | None, content: str | None, introduction: str | None) -> DatabaseResume`
 
-Update a resume's name and/or content.
+Update a resume's name, content, and/or introduction.
 
 Args:
     db (Session): The database session.
     resume (DatabaseResume): The resume to update.
-    name (str, optional): The new name for the resume. If None, the name is not updated.
-    content (str, optional): The new content for the resume. If None, the content is not updated.
+    name (str | None): The new name for the resume. If None, the name is not updated.
+    content (str | None): The new content for the resume. If None, the content is not updated.
+    introduction (str | None): The new introduction for the resume. If None, it is not updated.
 
 Returns:
     DatabaseResume: The updated resume object.
@@ -3546,10 +3547,11 @@ Returns:
 Notes:
     1. If a new name is provided (not None), update the resume's name attribute.
     2. If new content is provided (not None), update the resume's content attribute.
-    3. Commit the transaction to save the changes to the database.
-    4. Refresh the resume object to ensure it reflects the latest state from the database.
-    5. Return the updated resume.
-    6. This function performs a database write operation.
+    3. If an introduction is provided (not None), update the resume's introduction attribute.
+    4. Commit the transaction to save the changes to the database.
+    5. Refresh the resume object to ensure it reflects the latest state from the database.
+    6. Return the updated resume.
+    7. This function performs a database write operation.
 
 ---
 
@@ -6275,7 +6277,7 @@ Notes:
 
 ---
 
-## function: `_refine_generic_section(resume_content: str, job_description: str, target_section: str, llm: ChatOpenAI) -> str`
+## function: `_refine_generic_section(resume_content: str, job_description: str, target_section: str, llm: ChatOpenAI, generate_introduction: bool) -> tuple[str, str | None]`
 
 Uses a generic LLM chain to refine a non-experience section of the resume.
 
@@ -6284,28 +6286,32 @@ Args:
     job_description (str): The job description to align the resume with.
     target_section (str): The section of the resume to refine.
     llm (ChatOpenAI): An initialized ChatOpenAI client instance.
+    generate_introduction (bool): Whether to request an introduction.
 
 Returns:
-    str: The refined Markdown content for the target section. Returns an empty
-         string if the target section is empty.
+    tuple[str, str | None]: A tuple containing the refined Markdown content
+         for the target section and an optional introduction. Returns an empty
+         string and None if the target section is empty.
 
 Raises:
     ValueError: If the LLM response is not valid JSON or fails Pydantic validation.
 
 Notes:
     1. Extracts the target section content from the resume using `_get_section_content`.
-    2. If the extracted content is empty, returns an empty string.
+    2. If the extracted content is empty, returns an empty string and None.
     3. Sets up a `PydanticOutputParser` for structured output based on the `RefinedSection` model.
-    4. Creates a `ChatPromptTemplate` with instructions for the LLM.
-    5. Creates a chain combining the prompt, LLM, and a `StrOutputParser`.
-    6. Streams the response from the chain and joins the chunks.
-    7. Parses the LLM's JSON-Markdown output using `parse_json_markdown`.
-    8. Validates the parsed JSON against the `RefinedSection` model.
-    9. Returns the `refined_markdown` field from the validated result.
+    4. Conditionally modifies the prompt's goal to request an introduction if `generate_introduction` is True.
+    5. Creates a `ChatPromptTemplate` with instructions for the LLM.
+    6. Creates a chain combining the prompt, LLM, and a `StrOutputParser`.
+    7. Streams the response from the chain and joins the chunks.
+    8. Parses the LLM's JSON-Markdown output using `parse_json_markdown`.
+    9. Validates the parsed JSON against the `RefinedSection` model.
+    10. Extracts the `refined_markdown` and optionally the `introduction` from the validated result.
+    11. Returns a tuple of `(refined_markdown, introduction)`.
 
 ---
 
-## function: `refine_resume_section_with_llm(resume_content: str, job_description: str, target_section: str, llm_endpoint: str | None, api_key: str | None, llm_model_name: str | None, generate_introduction: bool) -> str`
+## function: `refine_resume_section_with_llm(resume_content: str, job_description: str, target_section: str, llm_endpoint: str | None, api_key: str | None, llm_model_name: str | None, generate_introduction: bool) -> tuple[str, str | None]`
 
 Uses an LLM to refine a specific non-experience section of a resume.
 
@@ -6323,8 +6329,9 @@ Args:
     generate_introduction (bool): Whether to generate an introduction.
 
 Returns:
-    str: The refined Markdown content for the target section. Returns an empty
-         string if the target section is empty.
+    tuple[str, str | None]: A tuple containing the refined Markdown content for
+         the target section and an optional introduction. Returns an empty
+         string and None if the target section is empty.
 
 Raises:
     ValueError: If `target_section` is 'experience'.
@@ -6342,7 +6349,7 @@ Notes:
     4. Initializes the `ChatOpenAI` client.
     5. Calls `_refine_generic_section` with the resume content, job description,
        target section, and the initialized LLM client.
-    6. Returns the refined content from the helper function.
+    6. Returns the tuple of refined content and introduction from the helper function.
 
 ---
 
@@ -6432,7 +6439,7 @@ Notes:
 
 ---
 
-## function: `_create_refine_result_html(resume_id: int, target_section_val: str, refined_content: str, job_description: str | None) -> str`
+## function: `_create_refine_result_html(resume_id: int, target_section_val: str, refined_content: str, job_description: str | None, introduction: str | None) -> str`
 
 Creates the HTML for the refinement result container with controls.
 
@@ -6441,6 +6448,7 @@ Args:
     target_section_val (str): The name of the section that was refined.
     refined_content (str): The new Markdown content for the section.
     job_description (str | None): The job description used for refinement.
+    introduction (str | None): An optional AI-generated introduction.
 
 Returns:
     str: An HTML snippet containing a form with the refined content

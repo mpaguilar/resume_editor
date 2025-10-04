@@ -233,10 +233,12 @@ def test_update_resume():
         resume=mock_resume,
         name="New Name",
         content="New Content",
+        introduction="New Intro",
     )
 
     assert mock_resume.name == "New Name"
     assert mock_resume.content == "New Content"
+    assert mock_resume.introduction == "New Intro"
     mock_db.commit.assert_called_once()
     mock_db.refresh.assert_called_once_with(mock_resume)
     assert result == mock_resume
@@ -281,6 +283,23 @@ def test_delete_resume():
 
     mock_db.delete.assert_called_once_with(mock_resume)
     mock_db.commit.assert_called_once()
+
+
+def test_update_resume_only_introduction():
+    """Test update_resume with only introduction."""
+    mock_db = Mock(spec=Session)
+    mock_resume = Mock(spec=DatabaseResume)
+    mock_resume.name = "Initial Name"
+    mock_resume.content = "Initial Content"
+
+    result = update_resume(db=mock_db, resume=mock_resume, introduction="New Intro")
+
+    assert result.name == "Initial Name"
+    assert result.content == "Initial Content"
+    assert result.introduction == "New Intro"
+    mock_db.commit.assert_called_once()
+    mock_db.refresh.assert_called_once_with(mock_resume)
+    assert result == mock_resume
 
 
 @pytest.mark.parametrize(

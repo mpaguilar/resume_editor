@@ -143,15 +143,17 @@ def update_resume(
     resume: DatabaseResume,
     name: str | None = None,
     content: str | None = None,
+    introduction: str | None = None,
 ) -> DatabaseResume:
     """
-    Update a resume's name and/or content.
+    Update a resume's name, content, and/or introduction.
 
     Args:
         db (Session): The database session.
         resume (DatabaseResume): The resume to update.
-        name (str, optional): The new name for the resume. If None, the name is not updated.
-        content (str, optional): The new content for the resume. If None, the content is not updated.
+        name (str | None): The new name for the resume. If None, the name is not updated.
+        content (str | None): The new content for the resume. If None, the content is not updated.
+        introduction (str | None): The new introduction for the resume. If None, it is not updated.
 
     Returns:
         DatabaseResume: The updated resume object.
@@ -159,16 +161,19 @@ def update_resume(
     Notes:
         1. If a new name is provided (not None), update the resume's name attribute.
         2. If new content is provided (not None), update the resume's content attribute.
-        3. Commit the transaction to save the changes to the database.
-        4. Refresh the resume object to ensure it reflects the latest state from the database.
-        5. Return the updated resume.
-        6. This function performs a database write operation.
+        3. If an introduction is provided (not None), update the resume's introduction attribute.
+        4. Commit the transaction to save the changes to the database.
+        5. Refresh the resume object to ensure it reflects the latest state from the database.
+        6. Return the updated resume.
+        7. This function performs a database write operation.
 
     """
     if name is not None:
         resume.name = name
     if content is not None:
         resume.content = content
+    if introduction is not None:
+        resume.introduction = introduction
     db.commit()
     db.refresh(resume)
     return resume

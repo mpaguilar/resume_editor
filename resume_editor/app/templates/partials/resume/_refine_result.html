@@ -1,10 +1,19 @@
 <div id="resume-content">
 <div id="refine-result" class="mt-4 p-4 border rounded-lg bg-gray-50">
     <h4 class="font-semibold text-lg mb-2">AI Refinement Suggestion</h4>
-    <p class="text-sm text-gray-600 mb-2">Review the suggestion for the '{{ target_section_val }}' section.</p>
     <form id="accept-overwrite-form-{{ resume_id }}">
         <input type="hidden" name="target_section" value="{{ target_section_val }}">
         {% if job_description %}<input type="hidden" name="job_description" value="{{ job_description }}">{% endif %}
+
+        {% if introduction %}
+        <div class="mb-4">
+            <h4 class="font-semibold text-md mb-1">Introduction</h4>
+            <div class="prose prose-sm max-w-none p-2 border rounded bg-white"><p>{{ introduction }}</p></div>
+            <input type="hidden" name="introduction" value="{{ introduction }}">
+        </div>
+        {% endif %}
+
+        <h4 class="font-semibold text-md mb-1">Refined '{{ target_section_val }}' section</h4>
         <textarea name="refined_content" class="w-full h-48 p-2 border rounded font-mono text-sm">{{ refined_content }}</textarea>
         <div class="mt-4 flex items-center justify-between">
             <div>
@@ -27,7 +36,7 @@
             </div>
             <div class="flex items-center">
                 <input type="text" name="new_resume_name" placeholder="Name for new resume" class="border rounded px-2 py-1 text-sm">
-                <button type="button" 
+                <button type="button"
                         hx-post="/api/resumes/{{ resume_id }}/refine/save_as_new"
                         hx-include="closest form"
                         hx-target="#resume-content"

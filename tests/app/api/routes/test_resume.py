@@ -717,7 +717,7 @@ def test_accept_refined_resume_full(
     assert response.text == "<div>Updated</div>"
     mock_validate.assert_called_once_with(refined_content, test_resume.content)
     mock_update.assert_called_once_with(
-        db=ANY, resume=test_resume, content=refined_content
+        db=ANY, resume=test_resume, content=refined_content, introduction=None
     )
     mock_gen_html.assert_called_once_with(test_resume)
 
@@ -765,7 +765,7 @@ def test_accept_refined_resume_personal(
     mock_extract_cert.assert_called_once_with(test_resume.content)
 
     mock_validate.assert_called_once_with(ANY, test_resume.content)
-    mock_update.assert_called_once_with(db=ANY, resume=test_resume, content=ANY)
+    mock_update.assert_called_once_with(db=ANY, resume=test_resume, content=ANY, introduction=None)
     mock_gen_html.assert_called_once_with(test_resume)
 
 
@@ -865,6 +865,7 @@ def test_save_refined_resume_as_new_success(
         is_base=False,
         parent_id=test_resume.id,
         job_description=None,
+        introduction=None,
     )
     mock_get_resumes.assert_called_once_with(ANY, test_user.id)
     mock_gen_list_html.assert_called_once_with(
@@ -955,6 +956,7 @@ def test_save_refined_resume_as_new_partial_success(
         is_base=False,
         parent_id=test_resume.id,
         job_description=None,
+        introduction=None,
     )
 
     mock_get_resumes.assert_called_once_with(ANY, test_user.id)

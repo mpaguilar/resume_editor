@@ -247,7 +247,11 @@ def test_create_refine_result_html_template():
         mock_template = MagicMock()
         mock_env.get_template.return_value = mock_template
         _create_refine_result_html(
-            resume_id, target_section_val, refined_content, job_description
+            resume_id,
+            target_section_val,
+            refined_content,
+            job_description,
+            introduction=None,
         )
         mock_env.get_template.assert_called_once_with(
             "partials/resume/_refine_result.html"
@@ -257,6 +261,7 @@ def test_create_refine_result_html_template():
             target_section_val=target_section_val,
             refined_content=refined_content,
             job_description=job_description,
+            introduction=None,
         )
 
 
@@ -266,12 +271,21 @@ def test_create_refine_result_html_output():
     target_section_val = "experience"
     refined_content = "This is *refined* markdown."
     job_description = "A job description"
+    introduction = "This is an intro."
 
     html_output = _create_refine_result_html(
-        resume_id, target_section_val, refined_content, job_description=job_description
+        resume_id,
+        target_section_val,
+        refined_content,
+        job_description=job_description,
+        introduction=introduction,
     )
 
     assert 'id="refine-result"' in html_output
+    assert 'introduction' in html_output
+    assert 'This is an intro.' in html_output
+    assert '<input type="hidden" name="introduction"' in html_output
+    assert 'value="This is an intro."' in html_output
     assert 'hx-post="/api/resumes/42/refine/accept"' in html_output
     assert 'name="target_section" value="experience"' in html_output
     assert '<textarea name="refined_content"' in html_output

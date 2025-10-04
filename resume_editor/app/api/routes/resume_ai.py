@@ -2,6 +2,7 @@ import html
 import json
 import logging
 from typing import AsyncGenerator
+import asyncio
 
 from cryptography.fernet import InvalidToken
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
@@ -132,11 +133,29 @@ async def refine_resume_stream(
                     certifications=certifications_info,
                 )
 
+                introduction = None
+                if generate_introduction:
+                    yield "event: progress\ndata: <li>Generating introduction...</li>\n\n"
+                    # Run the sync function in a thread pool to avoid blocking
+                    loop = asyncio.get_running_loop()
+                    _, introduction = await loop.run_in_executor(
+                        None,  # Use default executor
+                        refine_resume_section_with_llm,
+                        resume.content,
+                        job_description,
+                        "full",
+                        llm_endpoint,
+                        api_key,
+                        llm_model_name,
+                        True,
+                    )
+
                 result_html = _create_refine_result_html(
                     resume.id,
                     "experience",
                     updated_resume_content,
                     job_description=job_description,
+                    introduction=introduction,
                 )
                 data_payload = "\n".join(
                     f"data: {line}" for line in result_html.splitlines()
@@ -239,7 +258,7 @@ async def refine_resume(
 
     try:
         # Handle other sections synchronously
-        refined_content = refine_resume_section_with_llm(
+        refined_content, introduction = refine_resume_section_with_llm(
             resume_content=resume.content,
             job_description=job_description,
             target_section=target_section.value,
@@ -251,14 +270,17 @@ async def refine_resume(
 
         if "HX-Request" in http_request.headers:
             html_content = _create_refine_result_html(
-                resume.id,
-                target_section.value,
-                refined_content,
+                resume_id=resume.id,
+                target_section_val=target_section.value,
+                refined_content=refined_content,
                 job_description=job_description,
+                introduction=introduction,
             )
             return HTMLResponse(content=html_content)
 
-        return RefineResponse(refined_content=refined_content)
+        return RefineResponse(
+            refined_content=refined_content, introduction=introduction
+        )
     except AuthenticationError as e:
         detail = "LLM authentication failed. Please check your API key in settings."
         _msg = f"LLM authentication failed for user {current_user.id}: {e!s}"
@@ -297,6 +319,7 @@ async def accept_refined_resume(
     db: Session = Depends(get_db),
     refined_content: str = Form(...),
     target_section: RefineTargetSection = Form(...),
+    introduction: str | None = Form(None),
 ):
     """
     Accept a refined resume section and persist the changes by overwriting.
@@ -352,7 +375,9 @@ async def accept_refined_resume(
         log.exception(_msg)
         raise HTTPException(status_code=422, detail=_msg)
 
-    update_resume_db(db=db, resume=resume, content=updated_content)
+    update_resume_db(
+        db=db, resume=resume, content=updated_content, introduction=introduction
+    )
     # For HTMX, return the detail view for the main content area
     detail_html = _generate_resume_detail_html(resume)
     return HTMLResponse(content=detail_html)
@@ -367,6 +392,7 @@ async def save_refined_resume_as_new(
     target_section: RefineTargetSection = Form(...),
     new_resume_name: str | None = Form(None),
     job_description: str | None = Form(None),
+    introduction: str | None = Form(None),
 ):
     """
     Save a refined resume as a new resume.
@@ -435,6 +461,7 @@ async def save_refined_resume_as_new(
         is_base=False,
         parent_id=resume.id,
         job_description=job_description,
+        introduction=introduction,
     )
 
     resumes = get_user_resumes(db, current_user.id)

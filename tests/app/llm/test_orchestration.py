@@ -210,10 +210,11 @@ def test_refine_generic_section_empty_section(mock_get_section):
     mock_get_section.return_value = "  "
     # We pass a mock LLM because the function being tested doesn't create one.
     mock_llm = MagicMock()
-    result = _refine_generic_section(
-        "resume", "job desc", "personal", llm=mock_llm
+    result_content, result_intro = _refine_generic_section(
+        "resume", "job desc", "personal", llm=mock_llm, generate_introduction=False
     )
-    assert result == ""
+    assert result_content == ""
+    assert result_intro is None
     mock_get_section.assert_called_once_with("resume", "personal")
     # The LLM's chain should not be invoked.
     mock_llm.stream.assert_not_called()
@@ -283,8 +284,8 @@ def test_refine_resume_section_with_llm_dispatcher():
     ) as mock_refine_generic, patch(
         "resume_editor.app.llm.orchestration.ChatOpenAI"
     ) as mock_chat_openai_class:
-        mock_refine_generic.return_value = "refined content from helper"
-        result = refine_resume_section_with_llm(
+        mock_refine_generic.return_value = ("refined content from helper", "intro")
+        result_content, result_intro = refine_resume_section_with_llm(
             resume_content="resume",
             job_description="job desc",
             target_section="personal",
@@ -293,9 +294,11 @@ def test_refine_resume_section_with_llm_dispatcher():
             llm_model_name=None,
             generate_introduction=True,
         )
-        assert result == "refined content from helper"
+        assert result_content == "refined content from helper"
+        assert result_intro == "intro"
         mock_chat_openai_class.assert_called_once()
         mock_refine_generic.assert_called_once()
+        assert mock_refine_generic.call_args.kwargs["generate_introduction"] is True
 
 
 @pytest.mark.parametrize("llm_endpoint, api_key, llm_model_name, expected_call_args", LLM_INIT_PARAMS)
@@ -507,6 +510,7 @@ def test_refine_resume_section_with_llm_initialization(
         # Mock the LLM object that will be created
         mock_llm_instance = MagicMock()
         mock_chat_openai_class.return_value = mock_llm_instance
+        mock_refine_helper.return_value = ("refined", None)
 
         refine_resume_section_with_llm(
             resume_content="resume",
@@ -527,6 +531,7 @@ def test_refine_resume_section_with_llm_initialization(
             job_description="job desc",
             target_section="personal",
             llm=mock_llm_instance,
+            generate_introduction=True,
         )
 
 
@@ -552,6 +557,7 @@ def test_refine_generic_section_json_decode_error(
             job_description="job desc",
             target_section="personal",
             llm=mock_llm,
+            generate_introduction=False,
         )
 
 
@@ -578,6 +584,7 @@ def test_refine_generic_section_validation_error(
             job_description="job desc",
             target_section="personal",
             llm=mock_llm,
+            generate_introduction=False,
         )
 
 
@@ -601,6 +608,7 @@ def test_refine_generic_section_authentication_error(
             job_description="job desc",
             target_section="personal",
             llm=mock_llm,
+            generate_introduction=False,
         )
 
 
@@ -631,6 +639,7 @@ def test_refine_generic_section_prompt_content(
         job_description="job desc",
         target_section=target_section,
         llm=mock_llm,
+        generate_introduction=False,
     )
 
     # Assert
@@ -660,12 +669,67 @@ def test_refine_generic_section_prompt_content(
     mock_prompt_from_messages.partial.assert_called_once()
     partial_kwargs = mock_prompt_from_messages.partial.call_args.kwargs
     assert "Rephrase and restructure" in partial_kwargs["goal"]
+    assert "Additionally, write a brief" not in partial_kwargs["goal"]
 
     if expect_guidelines:
         assert "**Processing Guidelines:**" in partial_kwargs["processing_guidelines"]
         assert "For each `### Role`" in partial_kwargs["processing_guidelines"]
     else:
         assert partial_kwargs["processing_guidelines"] == ""
+
+
+def test_refine_generic_section_with_introduction(
+    mock_chain_invocations, mock_get_section_content
+):
+    """Test _refine_generic_section when introduction generation is requested."""
+    # Arrange
+    mock_llm = mock_chain_invocations["chat_openai"].return_value
+    final_chain = mock_chain_invocations["final_chain"]
+    mock_refined_section_json = '{"refined_markdown": "new content", "introduction": "new intro"}'
+    final_chain.stream.return_value = iter([f"```json\n{mock_refined_section_json}\n```"])
+
+    # Act
+    content, intro = _refine_generic_section(
+        resume_content="resume",
+        job_description="job desc",
+        target_section="personal",
+        llm=mock_llm,
+        generate_introduction=True,
+    )
+
+    # Assert
+    assert content == "new content"
+    assert intro == "new intro"
+
+    # Check that the goal statement was modified
+    partial_kwargs = mock_chain_invocations[
+        "prompt_from_messages"
+    ].partial.call_args.kwargs
+    assert "Additionally, write a brief" in partial_kwargs["goal"]
+
+
+def test_refine_generic_section_with_introduction_not_returned(
+    mock_chain_invocations, mock_get_section_content
+):
+    """Test _refine_generic_section when intro is requested but not returned by LLM."""
+    # Arrange
+    mock_llm = mock_chain_invocations["chat_openai"].return_value
+    final_chain = mock_chain_invocations["final_chain"]
+    mock_refined_section_json = '{"refined_markdown": "new content"}' # No intro
+    final_chain.stream.return_value = iter([f"```json\n{mock_refined_section_json}\n```"])
+
+    # Act
+    content, intro = _refine_generic_section(
+        resume_content="resume",
+        job_description="job desc",
+        target_section="personal",
+        llm=mock_llm,
+        generate_introduction=True,
+    )
+
+    # Assert
+    assert content == "new content"
+    assert intro is None # Should be gracefully handled
 
 
 def test_refine_resume_section_with_llm_experience_raises_error():

@@ -189,7 +189,7 @@ def test_refine_resume_success_with_key(
     )
     mock_get_user_settings.return_value = mock_settings
     mock_decrypt_data.return_value = "decrypted_key"
-    mock_refine_llm.return_value = "refined"
+    mock_refine_llm.return_value = ("refined content", "this is an intro")
 
     # Act
     response = client_with_auth_and_resume.post(
@@ -203,7 +203,10 @@ def test_refine_resume_success_with_key(
 
     # Assert
     assert response.status_code == 200
-    assert response.json() == {"refined_content": "refined"}
+    assert response.json() == {
+        "refined_content": "refined content",
+        "introduction": "this is an intro",
+    }
     mock_get_user_settings.assert_called_once_with(mock_db_session, test_user.id)
     mock_decrypt_data.assert_called_once_with("key")
     mock_refine_llm.assert_called_once_with(
@@ -231,7 +234,7 @@ def test_refine_resume_no_settings(
         client_with_auth_and_resume.app.dependency_overrides[get_db](),
     )
     mock_get_user_settings.return_value = None
-    mock_refine_llm.return_value = "refined"
+    mock_refine_llm.return_value = ("refined content", "this is an intro")
 
     # Act
     response = client_with_auth_and_resume.post(
@@ -245,7 +248,10 @@ def test_refine_resume_no_settings(
 
     # Assert
     assert response.status_code == 200
-    assert response.json() == {"refined_content": "refined"}
+    assert response.json() == {
+        "refined_content": "refined content",
+        "introduction": "this is an intro",
+    }
     mock_get_user_settings.assert_called_once_with(mock_db_session, test_user.id)
     mock_refine_llm.assert_called_once_with(
         resume_content=VALID_MINIMAL_RESUME_CONTENT,
@@ -275,7 +281,7 @@ def test_refine_resume_no_api_key(
     )
     mock_settings.encrypted_api_key = None
     mock_get_user_settings.return_value = mock_settings
-    mock_refine_llm.return_value = "refined"
+    mock_refine_llm.return_value = ("refined content", "this is an intro")
 
     # Act
     response = client_with_auth_and_resume.post(
@@ -289,7 +295,10 @@ def test_refine_resume_no_api_key(
 
     # Assert
     assert response.status_code == 200
-    assert response.json() == {"refined_content": "refined"}
+    assert response.json() == {
+        "refined_content": "refined content",
+        "introduction": "this is an intro",
+    }
     mock_refine_llm.assert_called_once_with(
         resume_content=VALID_MINIMAL_RESUME_CONTENT,
         job_description="job",
@@ -314,7 +323,7 @@ def test_refine_resume_success_with_gen_intro_unchecked(
     mock_db_session = next(
         client_with_auth_and_resume.app.dependency_overrides[get_db](),
     )
-    mock_refine_llm.return_value = "refined"
+    mock_refine_llm.return_value = ("refined content", None)
 
     # Act
     response = client_with_auth_and_resume.post(
@@ -324,7 +333,7 @@ def test_refine_resume_success_with_gen_intro_unchecked(
 
     # Assert
     assert response.status_code == 200
-    assert response.json() == {"refined_content": "refined"}
+    assert response.json() == {"refined_content": "refined content", "introduction": None}
     mock_get_user_settings.assert_called_once_with(mock_db_session, test_user.id)
     mock_refine_llm.assert_called_once_with(
         resume_content=VALID_MINIMAL_RESUME_CONTENT,
@@ -611,16 +620,19 @@ def test_refine_resume_invalid_section(client_with_auth_and_resume, test_resume)
     assert "Input should be" in body["detail"][0]["msg"]
 
 
+@patch("resume_editor.app.api.routes.resume_ai._create_refine_result_html")
 @patch("resume_editor.app.api.routes.resume_ai.refine_resume_section_with_llm")
 @patch("resume_editor.app.api.routes.resume_ai.get_user_settings", return_value=None)
 def test_refine_resume_htmx_response(
     mock_get_user_settings,
     mock_refine_llm,
+    mock_create_result_html,
     client_with_auth_and_resume,
 ):
     """Test that the /refine endpoint returns HTML for an HTMX request."""
     # Arrange
-    mock_refine_llm.return_value = "## <Refined> Experience"
+    mock_refine_llm.return_value = ("refined content", "this is an intro")
+    mock_create_result_html.return_value = "<html>refine result</html>"
 
     # Act
     response = client_with_auth_and_resume.post(
@@ -636,12 +648,14 @@ def test_refine_resume_htmx_response(
     # Assert
     assert response.status_code == 200
     assert "text/html" in response.headers["content-type"]
-    assert "AI Refinement Suggestion" in response.text
-    assert "## &lt;Refined&gt; Experience" in response.text
-    assert 'hx-post="/api/resumes/1/refine/accept"' in response.text
-    # Ensure the textarea is editable
-    assert "readonly" not in response.text
-    assert 'name="job_description" value="job"' in response.text
+    assert response.text == "<html>refine result</html>"
+    mock_create_result_html.assert_called_once_with(
+        resume_id=1,
+        target_section_val="personal",
+        refined_content="refined content",
+        job_description="job",
+        introduction="this is an intro",
+    )
 
 
 @patch("resume_editor.app.api.routes.resume_ai.refine_resume_section_with_llm")
@@ -653,7 +667,7 @@ def test_refine_resume_no_htmx_response(
 ):
     """Test that the /refine endpoint returns JSON for a non-HTMX request."""
     # Arrange
-    mock_refine_llm.return_value = "## Refined Experience"
+    mock_refine_llm.return_value = ("## Refined Experience", "intro")
 
     # Act
     response = client_with_auth_and_resume.post(
@@ -668,10 +682,14 @@ def test_refine_resume_no_htmx_response(
     # Assert
     assert response.status_code == 200
     assert response.headers["content-type"] == "application/json"
-    assert response.json() == {"refined_content": "## Refined Experience"}
+    assert response.json() == {
+        "refined_content": "## Refined Experience",
+        "introduction": "intro",
+    }
 
 
 @pytest.mark.asyncio
+@patch("resume_editor.app.api.routes.resume_ai.refine_resume_section_with_llm")
 @patch("resume_editor.app.api.routes.resume_ai._create_refine_result_html")
 @patch("resume_editor.app.api.routes.resume_ai.build_complete_resume_from_sections")
 @patch("resume_editor.app.api.routes.resume_ai.extract_certifications_info")
@@ -694,6 +712,7 @@ async def test_refine_resume_stream_happy_path(
     mock_extract_certifications,
     mock_build_sections,
     mock_create_refine_result_html,
+    mock_refine_sync,
     client_with_auth_and_resume,
     test_user,
     test_resume,
@@ -765,6 +784,7 @@ async def test_refine_resume_stream_happy_path(
 
     mock_async_refine_experience.return_value = mock_async_generator()
     mock_create_refine_result_html.return_value = "<html>final refined html</html>"
+    mock_refine_sync.return_value = ("discarded content", "Generated Intro")
 
     # Act
     with client_with_auth_and_resume.stream(
@@ -777,14 +797,16 @@ async def test_refine_resume_stream_happy_path(
 
     # Assert
     events = text_content.strip().split("\n\n")
-    # Expected: progress, done, close
-    assert len(events) == 3, f"Expected 3 events, got {len(events)}: {events}"
+    # Expected: progress, introduction progress, done, close
+    assert len(events) == 4, f"Expected 4 events, got {len(events)}: {events}"
 
     assert "event: progress" in events[0]
     assert "data: <li>doing stuff</li>" in events[0]
-    assert "event: done" in events[1]
-    assert "data: <html>final refined html</html>" in events[1]
-    assert "event: close" in events[2]
+    assert "event: progress" in events[1]
+    assert "data: <li>Generating introduction...</li>" in events[1]
+    assert "event: done" in events[2]
+    assert "data: <html>final refined html</html>" in events[2]
+    assert "event: close" in events[3]
 
     # Assert mocks
     mock_async_refine_experience.assert_called_once_with(
@@ -808,12 +830,28 @@ async def test_refine_resume_stream_happy_path(
     assert reconstructed_roles[0].summary.text == "Refined Summary 1"
     assert reconstructed_roles[1].summary.text == "Refined Summary 2"
     assert reconstructed_experience.projects == mock_original_experience.projects
+
+    mock_refine_sync.assert_called_once_with(
+        VALID_RESUME_TWO_ROLES,
+        "a new job",
+        "full",
+        mock_settings.llm_endpoint,
+        "decrypted_key",
+        mock_settings.llm_model_name,
+        True,
+    )
+
     mock_create_refine_result_html.assert_called_once_with(
-        1, "experience", "reconstructed content", job_description="a new job"
+        1,
+        "experience",
+        "reconstructed content",
+        job_description="a new job",
+        introduction="Generated Intro",
     )
 
 
 @pytest.mark.asyncio
+@patch("resume_editor.app.api.routes.resume_ai.refine_resume_section_with_llm")
 @patch("resume_editor.app.api.routes.resume_ai._create_refine_result_html")
 @patch("resume_editor.app.api.routes.resume_ai.build_complete_resume_from_sections")
 @patch("resume_editor.app.api.routes.resume_ai.extract_certifications_info")
@@ -836,6 +874,7 @@ async def test_refine_resume_stream_happy_path_gen_intro_false(
     mock_extract_certifications,
     mock_build_sections,
     mock_create_refine_result_html,
+    mock_refine_sync,
     client_with_auth_and_resume,
     test_user,
     test_resume,
@@ -899,6 +938,18 @@ async def test_refine_resume_stream_happy_path_gen_intro_false(
         llm_model_name="test-model",
         generate_introduction=False,
     )
+
+    mock_refine_sync.assert_not_called()
+
+    mock_create_refine_result_html.assert_called_once_with(
+        1,
+        "experience",
+        "reconstructed content",
+        job_description="a new job",
+        introduction=None,
+    )
+
+
 
 
 @pytest.mark.asyncio
@@ -1295,6 +1346,7 @@ def test_accept_refined_resume_overwrite_personal(
 
     # Arrange
     refined_content = "# Personal\nname: Refined"
+    intro_text = "This is an introduction."
     mock_extract_personal.return_value = PersonalInfoResponse(name="Refined")
     mock_build_sections.return_value = "reconstructed content"
     mock_gen_detail_html.return_value = "<html>Detail View</html>"
@@ -1306,6 +1358,7 @@ def test_accept_refined_resume_overwrite_personal(
         data={
             "refined_content": refined_content,
             "target_section": RefineTargetSection.PERSONAL.value,
+            "introduction": intro_text,
         },
     )
 
@@ -1321,6 +1374,7 @@ def test_accept_refined_resume_overwrite_personal(
     mock_pre_save.assert_called_once_with("reconstructed content", test_resume.content)
     mock_update_db.assert_called_once()
     assert mock_update_db.call_args.kwargs["content"] == "reconstructed content"
+    assert mock_update_db.call_args.kwargs["introduction"] == intro_text
     mock_gen_detail_html.assert_called_once_with(test_resume)
 
 
@@ -1542,12 +1596,14 @@ def test_save_refined_resume_as_new_full(
 
     # Arrange
     refined_content = "# Personal\n..."
+    intro_text = "This is a new introduction."
     new_resume = DatabaseResume(
         user_id=test_user.id,
         name="New Name",
         content=refined_content,
         is_base=False,
         parent_id=test_resume.id,
+        introduction=intro_text,
     )
     new_resume.id = 2
     mock_create_db.return_value = new_resume
@@ -1563,6 +1619,7 @@ def test_save_refined_resume_as_new_full(
             "target_section": RefineTargetSection.FULL.value,
             "new_resume_name": "New Name",
             "job_description": "A job description",
+            "introduction": intro_text,
         },
     )
 
@@ -1582,6 +1639,7 @@ def test_save_refined_resume_as_new_full(
         is_base=False,
         parent_id=test_resume.id,
         job_description="A job description",
+        introduction=intro_text,
     )
     mock_get_resumes.assert_called_once()
     mock_gen_detail_html.assert_called_once_with(new_resume)
@@ -1630,6 +1688,7 @@ def test_save_refined_resume_as_new_partial_with_job_desc(
     # Arrange
     refined_content = "# Personal\nname: Refined New"
     reconstructed_content = "reconstructed content for new resume"
+    intro_text = "The new intro."
 
     mock_extract_personal.return_value = PersonalInfoResponse(name="Refined New")
     mock_build_sections.return_value = reconstructed_content
@@ -1640,6 +1699,7 @@ def test_save_refined_resume_as_new_partial_with_job_desc(
         content=reconstructed_content,
         is_base=False,
         parent_id=test_resume.id,
+        introduction=intro_text,
     )
     new_resume.id = 2
     mock_create_db.return_value = new_resume
@@ -1655,6 +1715,7 @@ def test_save_refined_resume_as_new_partial_with_job_desc(
             "target_section": RefineTargetSection.PERSONAL.value,
             "new_resume_name": "New Name",
             "job_description": "A job description",
+            "introduction": intro_text,
         },
     )
 
@@ -1672,6 +1733,7 @@ def test_save_refined_resume_as_new_partial_with_job_desc(
         is_base=False,
         parent_id=test_resume.id,
         job_description="A job description",
+        introduction=intro_text,
     )
     mock_gen_detail_html.assert_called_once_with(new_resume)
     mock_gen_list_html.assert_called_once_with(
@@ -1761,6 +1823,7 @@ def test_save_refined_resume_as_new_partial_without_job_desc(
         is_base=False,
         parent_id=test_resume.id,
         job_description=None,  # Expect None
+        introduction=None,
     )
     mock_gen_detail_html.assert_called_once_with(new_resume)
     mock_gen_list_html.assert_called_once_with(
@@ -1872,6 +1935,7 @@ def test_accept_refined_resume_invalid_section(
 
 
 @pytest.mark.asyncio
+@patch("resume_editor.app.api.routes.resume_ai.refine_resume_section_with_llm")
 @patch("resume_editor.app.api.routes.resume_ai._create_refine_result_html")
 @patch("resume_editor.app.api.routes.resume_ai.build_complete_resume_from_sections")
 @patch("resume_editor.app.api.routes.resume_ai.extract_certifications_info")
@@ -1896,6 +1960,7 @@ async def test_refine_resume_stream_integrated(
     mock_extract_certifications,
     mock_build_sections,
     mock_create_html,
+    mock_refine_sync,
     client_with_auth_and_resume,
     test_resume,
 ):
@@ -1972,10 +2037,12 @@ async def test_refine_resume_stream_integrated(
     mock_extract_certifications.return_value = MagicMock()
     mock_build_sections.return_value = "reconstructed content"
     mock_create_html.return_value = "<html>final refined html</html>"
+    mock_refine_sync.return_value = ("", "Generated Intro From Sync Call")
 
     # Act
     with client_with_auth_and_resume.stream(
-        "GET", "/api/resumes/1/refine/stream?job_description=a%20new%20job"
+        "GET",
+        "/api/resumes/1/refine/stream?job_description=a%20new%20job&generate_introduction=true",
     ) as response:
         assert response.status_code == 200
         text_content = response.read().decode("utf-8")
@@ -1983,8 +2050,8 @@ async def test_refine_resume_stream_integrated(
     # Assert
     events = text_content.strip().split("\n\n")
 
-    # Expected events: progress, progress, 2x progress (refining), done, close
-    assert len(events) == 6, f"Expected 6 events, but got {len(events)}: {events}"
+    # Expected events: progress, progress, 2x progress (refining), intro progress, done, close
+    assert len(events) == 7, f"Expected 7 events, but got {len(events)}: {events}"
 
     assert "event: progress" in events[0] and "Parsing resume" in events[0]
     assert "event: progress" in events[1] and "Analyzing job" in events[1]
@@ -1993,6 +2060,9 @@ async def test_refine_resume_stream_integrated(
     assert len(refining_events) == 2
     assert any("Refining role &#x27;A Role @ A Company&#x27;..." in e for e in refining_events)
     assert any("Refining role &#x27;B Role @ B Company&#x27;..." in e for e in refining_events)
+
+    intro_event = next(e for e in events if "Generating introduction" in e)
+    assert "event: progress" in intro_event
 
     done_event = next(e for e in events if "event: done" in e)
     assert "data: <html>final refined html</html>" in done_event
@@ -2020,8 +2090,13 @@ async def test_refine_resume_stream_integrated(
         == mock_original_experience.projects
     )
 
+    mock_refine_sync.assert_called_once()
     mock_create_html.assert_called_once_with(
-        1, "experience", "reconstructed content", job_description="a new job"
+        1,
+        "experience",
+        "reconstructed content",
+        job_description="a new job",
+        introduction="Generated Intro From Sync Call",
     )
 
 

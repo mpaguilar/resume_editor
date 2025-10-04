@@ -79,6 +79,7 @@ def _create_refine_result_html(
     target_section_val: str,
     refined_content: str,
     job_description: str | None = None,
+    introduction: str | None = None,
 ) -> str:
     """
     Creates the HTML for the refinement result container with controls.
@@ -88,6 +89,7 @@ def _create_refine_result_html(
         target_section_val (str): The name of the section that was refined.
         refined_content (str): The new Markdown content for the section.
         job_description (str | None): The job description used for refinement.
+        introduction (str | None): An optional AI-generated introduction.
 
     Returns:
         str: An HTML snippet containing a form with the refined content
@@ -103,4 +105,5 @@ def _create_refine_result_html(
         target_section_val=target_section_val,
         refined_content=refined_content,
         job_description=job_description,
+        introduction=introduction,
     )
