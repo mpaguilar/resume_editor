@@ -201,17 +201,19 @@ async def update_resume(
 
         # After an update, we need to regenerate both the list and the detail view
         sort_by_val = sort_by.value if sort_by else None
-        all_resumes = get_user_resumes(db, resume.user_id, sort_by=sort_by_val)
+        all_resumes = get_user_resumes(
+            db=db, user_id=resume.user_id, sort_by=sort_by_val
+        )
         base_resumes = [r for r in all_resumes if r.is_base]
         refined_resumes = [r for r in all_resumes if not r.is_base]
         list_html = _generate_resume_list_html(
             base_resumes=base_resumes,
             refined_resumes=refined_resumes,
             selected_resume_id=updated_resume.id,
+            sort_by=sort_by_val,
+            wrap_in_div=False,
         )
-        detail_html = _generate_resume_detail_html(
-            resume=updated_resume, show_edit_button=True
-        )
+        detail_html = _generate_resume_detail_html(resume=updated_resume)
 
         # Use Out-of-Band swap to update both parts of the page
         html_content = f"""<div id="resume-list" hx-swap-oob="true">{list_html}</div>
@@ -300,17 +302,20 @@ async def list_resumes(
 
     """
     resumes = get_user_resumes(
-        db, current_user.id, sort_by=sort_by.value if sort_by else None
+        db=db, user_id=current_user.id, sort_by=sort_by.value if sort_by else None
     )
     base_resumes = [r for r in resumes if r.is_base]
     refined_resumes = [r for r in resumes if not r.is_base]
 
     # Check if this is an HTMX request
     if "HX-Request" in request.headers:
+        sort_by_val = sort_by.value if sort_by else "updated_at_desc"
         html_content = _generate_resume_list_html(
             base_resumes=base_resumes,
             refined_resumes=refined_resumes,
             selected_resume_id=selected_id,
+            sort_by=sort_by_val,
+            wrap_in_div=True,
         )
         return HTMLResponse(content=html_content)
 

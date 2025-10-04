@@ -1,3 +1,27 @@
+<div class="p-4 border-b border-gray-200 bg-gray-50 flex justify-between items-center">
+    <div class="flex items-center space-x-4">
+        <span class="text-sm font-medium text-gray-600">Sort by:</span>
+        <a hx-get="/api/resumes?sort_by={% if sort_by == 'name_asc' %}name_desc{% else %}name_asc{% endif %}"
+           hx-target="#resume-list"
+           hx-swap="outerHTML"
+           class="text-sm cursor-pointer {% if sort_by.startswith('name') %}font-bold text-blue-700{% else %}text-blue-600 hover:underline{% endif %}">
+            Name {% if sort_by == 'name_asc' %}&uarr;{% elif sort_by == 'name_desc' %}&darr;{% endif %}
+        </a>
+        <a hx-get="/api/resumes?sort_by={% if sort_by == 'created_at_desc' %}created_at_asc{% else %}created_at_desc{% endif %}"
+           hx-target="#resume-list"
+           hx-swap="outerHTML"
+           class="text-sm cursor-pointer {% if sort_by.startswith('created_at') %}font-bold text-blue-700{% else %}text-blue-600 hover:underline{% endif %}">
+            Created {% if sort_by == 'created_at_desc' %}&darr;{% elif sort_by == 'created_at_asc' %}&uarr;{% endif %}
+        </a>
+        <a hx-get="/api/resumes?sort_by={% if sort_by == 'updated_at_desc' %}updated_at_asc{% else %}updated_at_desc{% endif %}"
+           hx-target="#resume-list"
+           hx-swap="outerHTML"
+           class="text-sm cursor-pointer {% if sort_by.startswith('updated_at') %}font-bold text-blue-700{% else %}text-blue-600 hover:underline{% endif %}">
+            Modified {% if sort_by == 'updated_at_desc' %}&darr;{% elif sort_by == 'updated_at_asc' %}&uarr;{% endif %}
+        </a>
+    </div>
+</div>
+
 {% if not base_resumes and not refined_resumes %}
 <div class="text-center py-8">
     <p class="text-gray-500">No resumes found.</p>

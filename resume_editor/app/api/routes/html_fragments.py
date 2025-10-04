@@ -26,6 +26,8 @@ def _generate_resume_list_html(
     base_resumes: list[DatabaseResume],
     refined_resumes: list[DatabaseResume],
     selected_resume_id: int | None = None,
+    sort_by: str | None = None,
+    wrap_in_div: bool = False,
 ) -> str:
     """
     Generates HTML for a list of resumes, optionally marking one as selected.
@@ -43,11 +45,15 @@ def _generate_resume_list_html(
 
     """
     template = env.get_template("partials/resume/_resume_list.html")
-    return template.render(
+    rendered_html = template.render(
         base_resumes=base_resumes,
         refined_resumes=refined_resumes,
         selected_resume_id=selected_resume_id,
+        sort_by=sort_by,
     )
+    if wrap_in_div:
+        return f'<div id="resume-list">{rendered_html}</div>'
+    return rendered_html
 
 
 def _generate_resume_detail_html(resume: DatabaseResume) -> str:

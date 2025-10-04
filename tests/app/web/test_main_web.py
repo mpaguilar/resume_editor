@@ -408,6 +408,7 @@ def test_list_resumes_htmx_request(mock_get_user_resumes):
 
     assert response.status_code == 200
     assert "text/html" in response.headers["content-type"]
+    mock_get_user_resumes.assert_called_once_with(db=mock_db, user_id=1, sort_by=None)
     soup = BeautifulSoup(response.content, "html.parser")
 
     resume_item = soup.find("div", class_="resume-item")
@@ -491,6 +492,41 @@ def test_settings_page_displays_model_name():
     model_name_input = soup.find("input", {"name": "llm_model_name"})
     assert model_name_input is not None
     assert model_name_input.get("value") == ""
+
+    app.dependency_overrides.clear()
+
+
+@patch("resume_editor.app.api.routes.resume.get_user_resumes")
+def test_dashboard_uses_sort_by(mock_get_user_resumes):
+    """
+    GIVEN an htmx request to /api/resumes with a sort_by parameter
+    WHEN the endpoint is called
+    THEN get_user_resumes is called with the correct sort_by value.
+    """
+    app = create_app()
+    client = TestClient(app)
+    app.dependency_overrides.clear()
+
+    mock_user = User(
+        id=1, username="testuser", email="test@test.com", hashed_password="hashed"
+    )
+
+    def get_mock_user():
+        return mock_user
+
+    mock_db = MagicMock()
+
+    def get_mock_db():
+        yield mock_db
+
+    mock_get_user_resumes.return_value = []
+
+    app.dependency_overrides[get_current_user_from_cookie] = get_mock_user
+    app.dependency_overrides[get_db] = get_mock_db
+
+    client.get("/api/resumes?sort_by=name_asc", headers={"HX-Request": "true"})
+
+    mock_get_user_resumes.assert_called_with(db=mock_db, user_id=1, sort_by="name_asc")
 
     app.dependency_overrides.clear()
 

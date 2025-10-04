@@ -69,13 +69,20 @@ def test_generate_resume_list_html_empty():
         mock_template = MagicMock()
         mock_env.get_template.return_value = mock_template
         _generate_resume_list_html(
-            base_resumes=[], refined_resumes=[], selected_resume_id=None
+            base_resumes=[],
+            refined_resumes=[],
+            selected_resume_id=None,
+            sort_by="name_asc",
+            wrap_in_div=False,
         )
         mock_env.get_template.assert_called_once_with(
             "partials/resume/_resume_list.html"
         )
         mock_template.render.assert_called_once_with(
-            base_resumes=[], refined_resumes=[], selected_resume_id=None
+            base_resumes=[],
+            refined_resumes=[],
+            selected_resume_id=None,
+            sort_by="name_asc",
         )
 
 
@@ -86,13 +93,20 @@ def test_generate_resume_list_html(test_resume):
         mock_env.get_template.return_value = mock_template
         resumes = [test_resume]
         _generate_resume_list_html(
-            base_resumes=resumes, refined_resumes=[], selected_resume_id=None
+            base_resumes=resumes,
+            refined_resumes=[],
+            selected_resume_id=None,
+            sort_by="name_asc",
+            wrap_in_div=False,
         )
         mock_env.get_template.assert_called_once_with(
             "partials/resume/_resume_list.html"
         )
         mock_template.render.assert_called_once_with(
-            base_resumes=resumes, refined_resumes=[], selected_resume_id=None
+            base_resumes=resumes,
+            refined_resumes=[],
+            selected_resume_id=None,
+            sort_by="name_asc",
         )
 
 
@@ -104,26 +118,52 @@ def test_generate_resume_list_html_template(test_resume):
         resumes = [test_resume]
         selected_id = 1
         _generate_resume_list_html(
-            base_resumes=resumes, refined_resumes=[], selected_resume_id=selected_id
+            base_resumes=resumes,
+            refined_resumes=[],
+            selected_resume_id=selected_id,
+            sort_by="name_asc",
+            wrap_in_div=False,
         )
         mock_env.get_template.assert_called_once_with(
             "partials/resume/_resume_list.html"
         )
         mock_template.render.assert_called_once_with(
-            base_resumes=resumes, refined_resumes=[], selected_resume_id=selected_id
+            base_resumes=resumes,
+            refined_resumes=[],
+            selected_resume_id=selected_id,
+            sort_by="name_asc",
         )
 
 
 def test_generate_resume_list_html_output(test_resume, test_refined_resume):
-    """Test that _generate_resume_list_html renders with date stamps."""
+    """Test that _generate_resume_list_html renders with date stamps and correct wrapping."""
     # This test uses the actual template, no mocking of jinja env.
     base_resumes = [test_resume]
     refined_resumes = [test_refined_resume]
-    html_output = _generate_resume_list_html(
+
+    # Test without the wrapper div
+    html_output_no_wrap = _generate_resume_list_html(
         base_resumes=base_resumes,
         refined_resumes=refined_resumes,
         selected_resume_id=None,
+        sort_by="name_asc",
+        wrap_in_div=False,
     )
+    assert not html_output_no_wrap.startswith('<div id="resume-list">')
+
+    # Test with the wrapper div
+    html_output_with_wrap = _generate_resume_list_html(
+        base_resumes=base_resumes,
+        refined_resumes=refined_resumes,
+        selected_resume_id=None,
+        sort_by="name_asc",
+        wrap_in_div=True,
+    )
+    assert html_output_with_wrap.startswith('<div id="resume-list">')
+    assert html_output_with_wrap.endswith("</div>")
+
+    # Use the wrapped output for content assertions
+    html_output = html_output_with_wrap
 
     # Base resume assertions
     assert "Test Resume" in html_output
@@ -135,6 +175,15 @@ def test_generate_resume_list_html_output(test_resume, test_refined_resume):
     assert "Refined Resume" in html_output
     assert "Created: 2023-02-20" in html_output
     assert "Updated: 2023-02-21" in html_output
+
+    # Sorting controls assertions
+    assert "Sort by:" in html_output
+    assert 'hx-get="/api/resumes?sort_by=name_desc"' in html_output
+    assert "Name &uarr;" in html_output
+    assert 'hx-get="/api/resumes?sort_by=created_at_desc"' in html_output
+    assert "Created" in html_output
+    assert 'hx-get="/api/resumes?sort_by=updated_at_desc"' in html_output
+    assert "Modified" in html_output
 
 
 def test_generate_resume_list_html_output_no_dates(test_user):
@@ -152,6 +201,8 @@ def test_generate_resume_list_html_output_no_dates(test_user):
         base_resumes=[base_resume_no_dates],
         refined_resumes=[],
         selected_resume_id=None,
+        sort_by="updated_at_desc",
+        wrap_in_div=False,
     )
 
     assert "Test Resume No Dates" in html_output
@@ -228,13 +279,20 @@ def test_generate_resume_list_html_with_refined(test_refined_resume):
         mock_env.get_template.return_value = mock_template
         resumes = [test_refined_resume]
         _generate_resume_list_html(
-            base_resumes=[], refined_resumes=resumes, selected_resume_id=None
+            base_resumes=[],
+            refined_resumes=resumes,
+            selected_resume_id=None,
+            sort_by="name_asc",
+            wrap_in_div=False,
         )
         mock_env.get_template.assert_called_once_with(
             "partials/resume/_resume_list.html"
         )
         mock_template.render.assert_called_once_with(
-            base_resumes=[], refined_resumes=resumes, selected_resume_id=None
+            base_resumes=[],
+            refined_resumes=resumes,
+            selected_resume_id=None,
+            sort_by="name_asc",
         )
 
 
@@ -249,6 +307,8 @@ def test_generate_resume_list_html_with_both(test_resume, test_refined_resume):
             base_resumes=base_resumes,
             refined_resumes=refined_resumes,
             selected_resume_id=None,
+            sort_by="name_asc",
+            wrap_in_div=False,
         )
         mock_env.get_template.assert_called_once_with(
             "partials/resume/_resume_list.html"
@@ -257,6 +317,7 @@ def test_generate_resume_list_html_with_both(test_resume, test_refined_resume):
             base_resumes=base_resumes,
             refined_resumes=refined_resumes,
             selected_resume_id=None,
+            sort_by="name_asc",
         )
 
 

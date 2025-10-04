@@ -6399,7 +6399,7 @@ Jinja2 filter to format a datetime object as a string.
 
 ---
 
-## function: `_generate_resume_list_html(base_resumes: list[DatabaseResume], refined_resumes: list[DatabaseResume], selected_resume_id: int | None) -> str`
+## function: `_generate_resume_list_html(base_resumes: list[DatabaseResume], refined_resumes: list[DatabaseResume], selected_resume_id: int | None, sort_by: str | None, wrap_in_div: bool) -> str`
 
 Generates HTML for a list of resumes, optionally marking one as selected.
 

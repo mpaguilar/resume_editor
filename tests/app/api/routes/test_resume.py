@@ -281,18 +281,18 @@ def test_update_resume_htmx(
     mock_validate.assert_called_once_with(updated_content)
 
     mock_get_resumes.assert_called_once_with(
-        ANY, test_user.id, sort_by=expected_sort_by_val
+        db=ANY, user_id=test_user.id, sort_by=expected_sort_by_val
     )
 
     mock_gen_list_html.assert_called_once_with(
         base_resumes=[test_resume],
         refined_resumes=[],
         selected_resume_id=test_resume.id,
+        sort_by=expected_sort_by_val,
+        wrap_in_div=False,
     )
 
-    mock_gen_detail_html.assert_called_once_with(
-        resume=test_resume, show_edit_button=True
-    )
+    mock_gen_detail_html.assert_called_once_with(resume=test_resume)
 
 
 @patch("resume_editor.app.api.routes.resume.validate_resume_content")
@@ -471,7 +471,7 @@ def test_list_resumes_with_sort_by(
 
     assert response.status_code == 200
     mock_get_user_resumes.assert_called_once_with(
-        ANY, test_user.id, sort_by="name_asc"
+        db=ANY, user_id=test_user.id, sort_by="name_asc"
     )
 
 
@@ -485,7 +485,7 @@ def test_list_resumes_with_default_sort(
     response = client_with_auth_no_resume.get("/api/resumes/")
 
     assert response.status_code == 200
-    mock_get_user_resumes.assert_called_once_with(ANY, test_user.id, sort_by=None)
+    mock_get_user_resumes.assert_called_once_with(db=ANY, user_id=test_user.id, sort_by=None)
 
 
 def test_list_resumes_invalid_sort_by(client_with_auth_no_resume):
