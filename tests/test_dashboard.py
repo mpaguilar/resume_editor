@@ -1,7 +1,9 @@
+import datetime
 from unittest.mock import Mock
 
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy.orm import Session
 
 from resume_editor.app.core.auth import get_current_user, get_current_user_from_cookie
 from resume_editor.app.database.database import get_db
@@ -19,7 +21,7 @@ def api_authenticated_client():
     mock_user.id = 1
     mock_user.roles = []
 
-    mock_db = Mock()
+    mock_db = Mock(spec=Session)
 
     def get_mock_current_user():
         return mock_user
@@ -79,7 +81,12 @@ def test_list_resumes_html_response(api_authenticated_client):
     mock_resume = Mock()
     mock_resume.id = 1
     mock_resume.name = "Test Resume"
-    mock_db.query.return_value.filter.return_value.all.return_value = [mock_resume]
+    mock_resume.is_base = True
+    mock_resume.created_at = datetime.datetime.now(datetime.UTC)
+    mock_resume.updated_at = datetime.datetime.now(datetime.UTC)
+    mock_db.query.return_value.filter.return_value.order_by.return_value.all.return_value = [
+        mock_resume
+    ]
 
     # Make request with HTMX header
     response = client.get("/api/resumes", headers={"HX-Request": "true"})

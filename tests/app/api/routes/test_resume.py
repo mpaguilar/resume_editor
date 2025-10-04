@@ -161,12 +161,9 @@ def client(app):
 def client_with_auth_and_resume(app, client, test_user, test_resume):
     """Fixture for a test client with an authenticated user and a resume."""
     mock_db = Mock()
-    query_mock = Mock()
-    filter_mock = Mock()
+    filter_mock = mock_db.query.return_value.filter.return_value
     filter_mock.first.return_value = test_resume
-    filter_mock.all.return_value = [test_resume]
-    query_mock.filter.return_value = filter_mock
-    mock_db.query.return_value = query_mock
+    filter_mock.order_by.return_value.all.return_value = [test_resume]
 
     def get_mock_db_with_resume():
         yield mock_db
@@ -180,12 +177,9 @@ def client_with_auth_and_resume(app, client, test_user, test_resume):
 def client_with_auth_no_resume(app, client, test_user):
     """Fixture for a test client with an authenticated user but no resume."""
     mock_db = Mock()
-    query_mock = Mock()
-    filter_mock = Mock()
+    filter_mock = mock_db.query.return_value.filter.return_value
     filter_mock.first.return_value = None
-    filter_mock.all.return_value = []
-    query_mock.filter.return_value = filter_mock
-    mock_db.query.return_value = query_mock
+    filter_mock.order_by.return_value.all.return_value = []
 
     def get_mock_db_no_resume():
         yield mock_db
@@ -238,6 +232,10 @@ def test_update_resume_name_only_no_htmx(
 @patch("resume_editor.app.api.routes.resume.get_user_resumes")
 @patch("resume_editor.app.api.routes.resume._generate_resume_list_html")
 @patch("resume_editor.app.api.routes.resume._generate_resume_detail_html")
+@pytest.mark.parametrize(
+    "sort_by_param, expected_sort_by_val",
+    [(None, None), ("name_desc", "name_desc")],
+)
 def test_update_resume_htmx(
     mock_gen_detail_html,
     mock_gen_list_html,
@@ -246,6 +244,8 @@ def test_update_resume_htmx(
     client_with_auth_and_resume,
     test_resume,
     test_user,
+    sort_by_param,
+    expected_sort_by_val,
 ):
     """Test updating a resume with HTMX returns HTML for list and detail."""
     mock_validate.return_value = None
@@ -255,10 +255,13 @@ def test_update_resume_htmx(
 
     updated_name = "Updated Resume Name"
     updated_content = "Updated content"
+    form_data = {"name": updated_name, "content": updated_content}
+    if sort_by_param:
+        form_data["sort_by"] = sort_by_param
 
     response = client_with_auth_and_resume.put(
         f"/api/resumes/{test_resume.id}",
-        data={"name": updated_name, "content": updated_content},
+        data=form_data,
         headers={"HX-Request": "true"},
     )
 
@@ -277,7 +280,9 @@ def test_update_resume_htmx(
 
     mock_validate.assert_called_once_with(updated_content)
 
-    mock_get_resumes.assert_called_once_with(ANY, test_user.id)
+    mock_get_resumes.assert_called_once_with(
+        ANY, test_user.id, sort_by=expected_sort_by_val
+    )
 
     mock_gen_list_html.assert_called_once_with(
         base_resumes=[test_resume],
@@ -375,12 +380,9 @@ def test_list_resumes_htmx_no_resumes(client_with_auth_no_resume):
 def client_with_auth_refined_only(app, client, test_user, test_refined_resume):
     """Fixture for a test client with an authenticated user and only a refined resume."""
     mock_db = Mock()
-    query_mock = Mock()
-    filter_mock = Mock()
+    filter_mock = mock_db.query.return_value.filter.return_value
     filter_mock.first.return_value = test_refined_resume
-    filter_mock.all.return_value = [test_refined_resume]
-    query_mock.filter.return_value = filter_mock
-    mock_db.query.return_value = query_mock
+    filter_mock.order_by.return_value.all.return_value = [test_refined_resume]
 
     def get_mock_db_with_resume():
         yield mock_db
@@ -418,12 +420,12 @@ def client_with_auth_both_resumes(
 ):
     """Fixture for a test client with an authenticated user and both resume types."""
     mock_db = Mock()
-    query_mock = Mock()
-    filter_mock = Mock()
+    filter_mock = mock_db.query.return_value.filter.return_value
     filter_mock.first.return_value = test_resume
-    filter_mock.all.return_value = [test_resume, test_refined_resume]
-    query_mock.filter.return_value = filter_mock
-    mock_db.query.return_value = query_mock
+    filter_mock.order_by.return_value.all.return_value = [
+        test_resume,
+        test_refined_resume,
+    ]
 
     def get_mock_db_with_resume():
         yield mock_db
@@ -456,6 +458,40 @@ def test_list_resumes_htmx_with_both_resumes(
     delete_urls = {b["hx-delete"] for b in buttons}
     assert f"/api/resumes/{test_resume.id}" in delete_urls
     assert f"/api/resumes/{test_refined_resume.id}" in delete_urls
+
+
+@patch("resume_editor.app.api.routes.resume.get_user_resumes")
+def test_list_resumes_with_sort_by(
+    mock_get_user_resumes, client_with_auth_no_resume, test_user
+):
+    """Test that list_resumes passes the sort_by parameter correctly."""
+    mock_get_user_resumes.return_value = []
+
+    response = client_with_auth_no_resume.get("/api/resumes/?sort_by=name_asc")
+
+    assert response.status_code == 200
+    mock_get_user_resumes.assert_called_once_with(
+        ANY, test_user.id, sort_by="name_asc"
+    )
+
+
+@patch("resume_editor.app.api.routes.resume.get_user_resumes")
+def test_list_resumes_with_default_sort(
+    mock_get_user_resumes, client_with_auth_no_resume, test_user
+):
+    """Test that list_resumes uses default sorting when sort_by is not provided."""
+    mock_get_user_resumes.return_value = []
+
+    response = client_with_auth_no_resume.get("/api/resumes/")
+
+    assert response.status_code == 200
+    mock_get_user_resumes.assert_called_once_with(ANY, test_user.id, sort_by=None)
+
+
+def test_list_resumes_invalid_sort_by(client_with_auth_no_resume):
+    """Test that list_resumes returns 422 for invalid sort_by."""
+    response = client_with_auth_no_resume.get("/api/resumes/?sort_by=invalid_sort")
+    assert response.status_code == 422
 
 
 def test_parse_resume_endpoint_success(client):

@@ -3481,21 +3481,25 @@ Notes:
 
 ---
 
-## function: `get_user_resumes(db: Session, user_id: int) -> list[DatabaseResume]`
+## function: `get_user_resumes(db: Session, user_id: int, sort_by: str | None) -> list[DatabaseResume]`
 
-Retrieve all resumes associated with a specific user.
+Retrieve all resumes associated with a specific user, with optional sorting.
 
 Args:
     db (Session): The SQLAlchemy database session used to query the database.
     user_id (int): The unique identifier for the user whose resumes are to be retrieved.
+    sort_by (str | None): The sorting criterion. Defaults to 'updated_at_desc'.
 
 Returns:
-    list[DatabaseResume]: A list of DatabaseResume objects belonging to the specified user.
+    list[DatabaseResume]: A sorted list of DatabaseResume objects belonging to the specified user.
 
 Notes:
-    1. Query the DatabaseResume table for all records where the user_id matches the provided user_id.
-    2. Return the list of matching DatabaseResume objects.
-    3. This function performs a single database query to retrieve all resumes for a user.
+    1. Build a query for records in the DatabaseResume table where the user_id matches.
+    2. Determine the sorting column and direction from the `sort_by` parameter.
+    3. Default to sorting by `updated_at` in descending order if `sort_by` is not provided.
+    4. Apply the sorting to the query.
+    5. Execute the query and return the list of matching DatabaseResume objects.
+    6. This function performs a single database query.
 
 ---
 

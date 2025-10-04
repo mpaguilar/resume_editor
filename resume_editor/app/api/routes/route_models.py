@@ -42,6 +42,17 @@ class RenderSettingsName(str, Enum):
     EXECUTIVE_SUMMARY = "executive_summary"
 
 
+class ResumeSortBy(str, Enum):
+    """Enum for resume sorting options."""
+
+    NAME_ASC = "name_asc"
+    NAME_DESC = "name_desc"
+    CREATED_AT_ASC = "created_at_asc"
+    CREATED_AT_DESC = "created_at_desc"
+    UPDATED_AT_ASC = "updated_at_asc"
+    UPDATED_AT_DESC = "updated_at_desc"
+
+
 # Request/Response models
 class ParseRequest(BaseModel):
     """Request model for resume parsing.

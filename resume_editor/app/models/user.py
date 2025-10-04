@@ -1,7 +1,16 @@
 import logging
 from typing import Any
 
-from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String, Table
+from sqlalchemy import (
+    JSON,
+    Boolean,
+    Column,
+    DateTime,
+    ForeignKey,
+    Integer,
+    String,
+    Table,
+)
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship, validates
 
@@ -46,7 +55,7 @@ class User(Base):
     is_active = Column(Boolean, default=True, nullable=False)
     last_login_at = Column(DateTime, nullable=True)
     force_password_change = Column(Boolean, default=False, nullable=False)
-    attributes = Column(JSONB, nullable=True)
+    attributes = Column(JSONB().with_variant(JSON, "sqlite"), nullable=True)
 
     # Relationship to Role
     roles = relationship(

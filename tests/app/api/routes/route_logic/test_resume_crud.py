@@ -44,18 +44,91 @@ def test_get_resume_by_id_and_user_not_found():
     assert exc_info.value.detail == "Resume not found"
 
 
-def test_get_user_resumes():
-    """Test get_user_resumes."""
-    mock_db = Mock(spec=Session)
-    mock_resumes = [Mock(spec=DatabaseResume), Mock(spec=DatabaseResume)]
-    mock_db.query.return_value.filter.return_value.all.return_value = mock_resumes
+import datetime
 
-    result = get_user_resumes(db=mock_db, user_id=1)
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
 
-    assert result == mock_resumes
-    mock_db.query.assert_called_once_with(DatabaseResume)
-    assert mock_db.query.return_value.filter.call_count == 1
-    mock_db.query.return_value.filter.return_value.all.assert_called_once()
+
+@pytest.fixture(scope="module")
+def db_session_and_engine():
+    """Create an in-memory SQLite database session for tests."""
+    engine = create_engine("sqlite:///:memory:")
+    DatabaseResume.metadata.create_all(bind=engine)
+    SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+    yield SessionLocal, engine
+
+    DatabaseResume.metadata.drop_all(bind=engine)
+
+
+@pytest.fixture
+def db_with_resumes(db_session_and_engine):
+    """Fixture to provide a db session with pre-populated resumes."""
+    SessionLocal, _ = db_session_and_engine
+    db = SessionLocal()
+
+    now = datetime.datetime.now(datetime.UTC)
+    user_id = 1
+
+    # Create resumes with different timestamps and names
+    r_gamma = DatabaseResume(user_id=user_id, name="gamma", content="c")
+    r_beta = DatabaseResume(user_id=user_id, name="beta", content="c")
+    r_alpha = DatabaseResume(user_id=user_id, name="alpha", content="c")
+    # Resume for another user to ensure filtering works
+    r_delta = DatabaseResume(user_id=2, name="delta", content="c")
+
+    db.add_all([r_gamma, r_beta, r_alpha, r_delta])
+    db.commit()  # Committing assigns IDs and default timestamps
+
+    # Manually set timestamps for predictable sorting
+    r_gamma.created_at = now
+    r_gamma.updated_at = now - datetime.timedelta(days=1)
+
+    r_beta.created_at = now - datetime.timedelta(days=1)
+    r_beta.updated_at = now
+
+    r_alpha.created_at = now - datetime.timedelta(days=2)
+    r_alpha.updated_at = now - datetime.timedelta(days=2)
+
+    db.commit()
+
+    ids = {"alpha": r_alpha.id, "beta": r_beta.id, "gamma": r_gamma.id}
+
+    try:
+        yield db, ids
+    finally:
+        db.query(DatabaseResume).delete()
+        db.commit()
+        db.close()
+
+
+@pytest.mark.parametrize(
+    "sort_by, expected_order_names",
+    [
+        (None, ["beta", "gamma", "alpha"]),  # default updated_at_desc
+        ("updated_at_desc", ["beta", "gamma", "alpha"]),
+        ("updated_at_asc", ["alpha", "gamma", "beta"]),
+        ("name_asc", ["alpha", "beta", "gamma"]),
+        ("name_desc", ["gamma", "beta", "alpha"]),
+        ("created_at_asc", ["alpha", "beta", "gamma"]),
+        ("created_at_desc", ["gamma", "beta", "alpha"]),
+    ],
+)
+def test_get_user_resumes_sorting_integration(
+    db_with_resumes, sort_by, expected_order_names
+):
+    """Test get_user_resumes with sorting against a database session."""
+    db, ids = db_with_resumes
+    expected_order_ids = [ids[name] for name in expected_order_names]
+    user_id = 1
+
+    resumes = get_user_resumes(db=db, user_id=user_id, sort_by=sort_by)
+
+    assert len(resumes) == 3
+    assert [r.id for r in resumes] == expected_order_ids
+    for resume in resumes:
+        assert resume.user_id == user_id
 
 
 @patch("resume_editor.app.api.routes.route_logic.resume_crud.DatabaseResume")

@@ -43,6 +43,7 @@ from resume_editor.app.api.routes.route_models import (
     ResumeCreateRequest,
     ResumeDetailResponse,
     ResumeResponse,
+    ResumeSortBy,
 )
 from resume_editor.app.api.routes.html_fragments import (
     _generate_resume_detail_html,
@@ -152,6 +153,7 @@ async def update_resume(
     name: str = Form(...),
     content: str | None = Form(None),
     from_editor: str | None = Form(None),
+    sort_by: ResumeSortBy | None = Form(None),
 ):
     """
     Update an existing resume's name and/or content for the current user.
@@ -198,7 +200,8 @@ async def update_resume(
             return Response(status_code=200)
 
         # After an update, we need to regenerate both the list and the detail view
-        all_resumes = get_user_resumes(db, resume.user_id)
+        sort_by_val = sort_by.value if sort_by else None
+        all_resumes = get_user_resumes(db, resume.user_id, sort_by=sort_by_val)
         base_resumes = [r for r in all_resumes if r.is_base]
         refined_resumes = [r for r in all_resumes if not r.is_base]
         list_html = _generate_resume_list_html(
@@ -268,6 +271,7 @@ async def list_resumes(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user_from_cookie),
     selected_id: int | None = None,
+    sort_by: ResumeSortBy | None = None,
 ):
     """
     List all resumes for the current user.
@@ -277,6 +281,7 @@ async def list_resumes(
         db (Session): The database session dependency.
         current_user (User): The current authenticated user.
         selected_id (int | None): Optional ID of a resume to mark as selected in HTMX responses.
+        sort_by (ResumeSortBy | None): The sorting criterion for the resume list.
 
     Returns:
         list[ResumeResponse] | HTMLResponse: A list of resumes with their IDs and names, or HTML for HTMX.
@@ -285,7 +290,7 @@ async def list_resumes(
         HTTPException: If there's an error retrieving the resumes from the database.
 
     Notes:
-        1. Queries the database for all resumes belonging to the current user.
+        1. Queries the database for all resumes belonging to the current user, applying sorting if specified.
         2. Partitions resumes into `base_resumes` and `refined_resumes`.
         3. For HTMX requests, generates and returns an HTML fragment with separate lists,
            optionally highlighting a selected resume.
@@ -294,7 +299,9 @@ async def list_resumes(
         6. Performs network access: None.
 
     """
-    resumes = get_user_resumes(db, current_user.id)
+    resumes = get_user_resumes(
+        db, current_user.id, sort_by=sort_by.value if sort_by else None
+    )
     base_resumes = [r for r in resumes if r.is_base]
     refined_resumes = [r for r in resumes if not r.is_base]
 
