@@ -60,6 +60,13 @@
 
     <div class="mt-6">
         <h3 class="text-lg font-semibold text-gray-700 mt-4 mb-2 px-3">Applied Resumes</h3>
+        <div class="px-3 mb-2">
+            <input type="text"
+                   id="refined-resume-search"
+                   placeholder="Filter applied resumes..."
+                   class="w-full p-2 border border-gray-300 rounded"
+                   _="">
+        </div>
          {% if refined_resumes %}
             {% for r in refined_resumes %}
             <div class="resume-item p-3 border-b border-gray-200 flex justify-between items-center{% if selected_resume_id and r.id == selected_resume_id %} selected{% endif %}">

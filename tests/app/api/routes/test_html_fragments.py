@@ -175,6 +175,9 @@ def test_generate_resume_list_html_output(test_resume, test_refined_resume):
     assert "Refined Resume" in html_output
     assert "Created: 2023-02-20" in html_output
     assert "Updated: 2023-02-21" in html_output
+    assert '<input type="text"' in html_output
+    assert 'id="refined-resume-search"' in html_output
+    assert 'placeholder="Filter applied resumes..."' in html_output
 
     # Sorting controls assertions
     assert "Sort by:" in html_output
