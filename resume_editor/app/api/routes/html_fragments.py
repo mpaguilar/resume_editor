@@ -19,6 +19,7 @@ def _date_format_filter(value: datetime | None, format_string: str = "%Y-%m-%d")
     return value.strftime(format_string)
 
 
+env.filters["date_format"] = _date_format_filter
 env.filters["strftime"] = _date_format_filter
 
 

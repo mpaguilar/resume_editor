@@ -63,6 +63,16 @@ def test_date_format_filter():
     assert _date_format_filter(value=None) == ""
 
 
+def test_date_format_filter_registration():
+    """Test that the date format filters are registered in the Jinja env."""
+    from resume_editor.app.api.routes.html_fragments import env
+
+    assert "date_format" in env.filters
+    assert "strftime" in env.filters
+    assert env.filters["date_format"] is _date_format_filter
+    assert env.filters["strftime"] is _date_format_filter
+
+
 def test_generate_resume_list_html_empty():
     """Test that _generate_resume_list_html returns the correct message for an empty list."""
     with patch("resume_editor.app.api.routes.html_fragments.env") as mock_env:
@@ -338,6 +348,33 @@ def test_generate_resume_detail_html_base_resume(test_resume):
 
     # Check that notes form is NOT present
     assert '<form hx-post="/api/resumes/1/notes"' not in html_output
+
+
+def test_generate_resume_detail_html_base_with_children(
+    test_resume, test_refined_resume
+):
+    """Test detail view for a base resume with children includes refined search."""
+    # Add child to the base resume
+    test_resume.children = [test_refined_resume]
+
+    html_output = _generate_resume_detail_html(test_resume)
+
+    # Check for Refined Versions section
+    assert "Refined Versions" in html_output
+
+    # Check for search input
+    assert 'id="refined-search-1"' in html_output
+    assert 'onkeyup="filterRefinedResumes(1)"' in html_output
+    assert 'placeholder="Search refined versions by name..."' in html_output
+
+    # Check for list of refined resumes
+    assert 'id="refined-list-1"' in html_output
+    assert "Refined Resume" in html_output
+    assert 'hx-get="/api/resumes/2/html"' in html_output
+    assert 'class="text-blue-600 hover:underline resume-name"' in html_output
+
+    # Check for javascript function
+    assert "function filterRefinedResumes(resumeId)" in html_output
 
 
 def test_generate_resume_detail_html_refined_resume_with_jd(test_refined_resume):

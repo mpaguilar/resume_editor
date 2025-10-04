@@ -23,6 +23,21 @@
         </div>
     </div>
 
+    {% if resume.is_base and resume.children %}
+    <div class="my-4 p-4 border rounded-lg bg-gray-50">
+        <h3 class="text-lg font-medium text-gray-900 mb-2">Refined Versions</h3>
+        <input type="text" id="refined-search-{{ resume.id }}" onkeyup="filterRefinedResumes({{ resume.id }})" placeholder="Search refined versions by name..." class="w-full p-2 mb-2 border border-gray-300 rounded">
+        <ul id="refined-list-{{ resume.id }}">
+            {% for child in resume.children %}
+            <li class="refined-resume-item p-2 border-b hover:bg-gray-100 flex justify-between items-center">
+                <a href="#" hx-get="/api/resumes/{{ child.id }}/html" hx-target="#resume-detail-container" hx-swap="innerHTML" class="text-blue-600 hover:underline resume-name">{{ child.name }}</a>
+                <span class="text-xs text-gray-500">Updated: {{ child.updated_at | date_format('%Y-%m-%d %H:%M') }}</span>
+            </li>
+            {% endfor %}
+        </ul>
+    </div>
+    {% endif %}
+
     {% if not resume.is_base and resume.job_description %}
     <details class="my-4 p-4 border rounded-lg bg-gray-50">
         <summary class="cursor-pointer font-medium text-gray-900">Job Description Used for Refinement</summary>
@@ -169,6 +184,26 @@ function handleAbort(event, resumeId) {
     const sseContainer = document.getElementById('refine-sse-container');
     if (sseContainer) {
         sseContainer.innerHTML = "<div role='alert' class='text-yellow-500 p-2'>Refinement cancelled by user.</div>";
+    }
+}
+
+function filterRefinedResumes(resumeId) {
+    const input = document.getElementById(`refined-search-${resumeId}`);
+    const filter = input.value.toLowerCase();
+    const list = document.getElementById(`refined-list-${resumeId}`);
+    const items = list.getElementsByClassName('refined-resume-item');
+
+    for (let i = 0; i < items.length; i++) {
+        const item = items[i];
+        const nameEl = item.querySelector('.resume-name');
+        if (nameEl) {
+            const name = nameEl.textContent || nameEl.innerText;
+            if (name.toLowerCase().includes(filter)) {
+                item.style.display = 'flex';
+            } else {
+                item.style.display = 'none';
+            }
+        }
     }
 }
 </script>
