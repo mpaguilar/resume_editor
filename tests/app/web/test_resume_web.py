@@ -24,47 +24,6 @@ def test_resume_editor_page_loads_correctly():
     client = TestClient(app)
     app.dependency_overrides.clear()
 
-
-def test_resume_editor_page_no_refine_for_refined_resume():
-    """
-    GIVEN an authenticated user and a refined (non-base) resume
-    WHEN they navigate to the dedicated editor page for that resume
-    THEN the 'Refine with AI' link is NOT present.
-    """
-    app = create_app()
-    client = TestClient(app)
-    app.dependency_overrides.clear()
-
-    mock_user = User(
-        id=1, username="testuser", email="test@test.com", hashed_password="hashed"
-    )
-    mock_resume = DatabaseResume(
-        user_id=1, name="My Test Resume", content="# My Resume Content", is_base=False
-    )
-    mock_resume.id = 1
-
-    def get_mock_user():
-        return mock_user
-
-    mock_db_session = MagicMock()
-
-    def get_mock_db():
-        yield mock_db_session
-
-    app.dependency_overrides[get_current_user_from_cookie] = get_mock_user
-    app.dependency_overrides[get_db] = get_mock_db
-
-    with patch(
-        "resume_editor.app.main.get_resume_by_id_and_user", return_value=mock_resume
-    ) as mock_get_resume:
-        response = client.get("/resumes/1/edit")
-        assert response.status_code == 200
-        soup = BeautifulSoup(response.content, "html.parser")
-        refine_link = soup.find("a", string=lambda t: t and "Refine with AI" in t)
-        assert refine_link is None
-
-    app.dependency_overrides.clear()
-
     mock_user = User(
         id=1,
         username="testuser",
@@ -118,9 +77,195 @@ def test_resume_editor_page_no_refine_for_refined_resume():
         dashboard_link = soup.find("a", href="/dashboard")
         assert dashboard_link is not None
 
-        mock_get_resume.assert_called_once_with(mock_db_session, 1, 1)
+        mock_get_resume.assert_called_once_with(
+            db=mock_db_session, resume_id=1, user_id=1
+        )
 
     app.dependency_overrides.clear()
+
+
+def test_resume_editor_page_no_refine_for_refined_resume():
+    """
+    GIVEN an authenticated user and a refined (non-base) resume
+    WHEN they navigate to the dedicated editor page for that resume
+    THEN the 'Refine with AI' link is NOT present.
+    """
+    app = create_app()
+    client = TestClient(app)
+    app.dependency_overrides.clear()
+
+    mock_user = User(
+        id=1, username="testuser", email="test@test.com", hashed_password="hashed"
+    )
+    mock_resume = DatabaseResume(
+        user_id=1, name="My Test Resume", content="# My Resume Content", is_base=False
+    )
+    mock_resume.id = 1
+
+    def get_mock_user():
+        return mock_user
+
+    mock_db_session = MagicMock()
+
+    def get_mock_db():
+        yield mock_db_session
+
+    app.dependency_overrides[get_current_user_from_cookie] = get_mock_user
+    app.dependency_overrides[get_db] = get_mock_db
+
+    with patch(
+        "resume_editor.app.main.get_resume_by_id_and_user", return_value=mock_resume
+    ) as mock_get_resume:
+        response = client.get("/resumes/1/edit")
+        assert response.status_code == 200
+        soup = BeautifulSoup(response.content, "html.parser")
+        refine_link = soup.find("a", string=lambda t: t and "Refine with AI" in t)
+        assert refine_link is None
+        mock_get_resume.assert_called_once_with(
+            db=mock_db_session, resume_id=1, user_id=1
+        )
+
+    app.dependency_overrides.clear()
+
+
+def test_get_resume_view_page_loads_correctly():
+    """
+    GIVEN an authenticated user and a resume
+    WHEN they navigate to the view page for that resume
+    THEN the page loads with the correct resume content.
+    """
+    app = create_app()
+    client = TestClient(app)
+    app.dependency_overrides.clear()
+
+    mock_user = User(
+        id=1,
+        username="testuser",
+        email="test@test.com",
+        hashed_password="hashed",
+    )
+    mock_resume = DatabaseResume(
+        user_id=1,
+        name="My Test Resume",
+        content="# My Resume Content",
+        job_description="Sample job description",
+        introduction="Sample AI introduction",
+        notes="Sample user notes",
+    )
+    mock_resume.id = 1
+
+    def get_mock_user():
+        return mock_user
+
+    mock_db_session = MagicMock()
+
+    def get_mock_db():
+        yield mock_db_session
+
+    app.dependency_overrides[get_current_user_from_cookie] = get_mock_user
+    app.dependency_overrides[get_db] = get_mock_db
+
+    with patch(
+        "resume_editor.app.main.get_resume_by_id_and_user", return_value=mock_resume
+    ) as mock_get_resume:
+        response = client.get("/resumes/1/view")
+        assert response.status_code == 200
+
+        soup = BeautifulSoup(response.content, "html.parser")
+        # Check page title
+        assert "Viewing Resume: My Test Resume" in soup.title.string
+
+        # Check header
+        header = soup.find("h1")
+        assert "Viewing Resume: My Test Resume" in header.text
+
+        # Check read-only fields
+        content_ta = soup.find("textarea", {"id": "content"})
+        assert content_ta is not None
+        assert content_ta.text == "# My Resume Content"
+        assert content_ta.has_attr("disabled")
+
+        jd_ta = soup.find("textarea", {"id": "job_description"})
+        assert jd_ta is not None
+        assert jd_ta.text == "Sample job description"
+        assert jd_ta.has_attr("disabled")
+
+        # Check form and editable fields
+        form = soup.find("form")
+        assert form is not None
+
+        intro_ta = form.find("textarea", {"name": "introduction"})
+        assert intro_ta is not None
+        assert intro_ta.text == "Sample AI introduction"
+
+        notes_ta = form.find("textarea", {"name": "notes"})
+        assert notes_ta is not None
+        assert notes_ta.text == "Sample user notes"
+
+        save_button = form.find("button", {"type": "submit"})
+        assert save_button is not None
+        assert "Save" in save_button.text
+
+        mock_get_resume.assert_called_once_with(
+            db=mock_db_session, resume_id=1, user_id=1
+        )
+
+    app.dependency_overrides.clear()
+
+
+def test_resume_view_page_not_found():
+    """
+    GIVEN an authenticated user
+    WHEN they navigate to a view page for a non-existent resume
+    THEN a 404 error is returned.
+    """
+    app = create_app()
+    client = TestClient(app)
+    app.dependency_overrides.clear()
+
+    mock_user = User(
+        id=1,
+        username="testuser",
+        email="test@test.com",
+        hashed_password="hashed",
+    )
+
+    def get_mock_user():
+        return mock_user
+
+    app.dependency_overrides[get_current_user_from_cookie] = get_mock_user
+
+    mock_db_session = MagicMock()
+
+    def get_mock_db():
+        yield mock_db_session
+
+    app.dependency_overrides[get_db] = get_mock_db
+
+    with patch("resume_editor.app.main.get_resume_by_id_and_user") as mock_get_resume:
+        mock_get_resume.side_effect = HTTPException(
+            status_code=404, detail="Resume not found"
+        )
+        response = client.get("/resumes/999/view")
+        assert response.status_code == 404
+        assert response.json()["detail"] == "Resume not found"
+        mock_get_resume.assert_called_once_with(
+            db=mock_db_session, resume_id=999, user_id=1
+        )
+
+    app.dependency_overrides.clear()
+
+
+def test_resume_view_page_unauthenticated():
+    """Test that an unauthenticated user is redirected to the login page."""
+    app = create_app()
+    client = TestClient(app)
+    app.dependency_overrides.clear()
+
+    response = client.get("/resumes/1/view", follow_redirects=False)
+
+    assert response.status_code == 307
+    assert response.headers["location"] == "http://testserver/login"
 
 
 
@@ -160,7 +305,9 @@ def test_resume_editor_page_not_found():
         response = client.get("/resumes/999/edit")
         assert response.status_code == 404
         assert response.json()["detail"] == "Resume not found"
-        mock_get_resume.assert_called_once_with(mock_db_session, 999, 1)
+        mock_get_resume.assert_called_once_with(
+            db=mock_db_session, resume_id=999, user_id=1
+        )
 
     app.dependency_overrides.clear()
 
@@ -451,7 +598,9 @@ def test_resume_editor_page_has_correct_export_modal():
         assert settings_name_select.find("option", {"value": "general"})
         assert settings_name_select.find("option", {"value": "executive_summary"})
 
-        mock_get_resume.assert_called_once_with(mock_db_session, 1, 1)
+        mock_get_resume.assert_called_once_with(
+            db=mock_db_session, resume_id=1, user_id=1
+        )
 
     app.dependency_overrides.clear()
 

@@ -326,10 +326,32 @@ def create_app() -> FastAPI:
         current_user: User = Depends(get_current_user_from_cookie),
     ):
         """Serve the dedicated editor page for a single resume."""
-        resume = get_resume_by_id_and_user(db, resume_id, current_user.id)
+        resume = get_resume_by_id_and_user(
+            db=db, resume_id=resume_id, user_id=current_user.id
+        )
         return templates.TemplateResponse(
             request,
             "editor.html",
+            {
+                "resume": resume,
+                "current_user": current_user,
+            },
+        )
+
+    @app.get("/resumes/{resume_id}/view", response_class=HTMLResponse)
+    async def get_resume_view_page(
+        request: Request,
+        resume_id: int,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_user_from_cookie),
+    ):
+        """Serve the dedicated view page for a single resume."""
+        resume = get_resume_by_id_and_user(
+            db=db, resume_id=resume_id, user_id=current_user.id
+        )
+        return templates.TemplateResponse(
+            request,
+            "pages/resume_view.html",
             {
                 "resume": resume,
                 "current_user": current_user,

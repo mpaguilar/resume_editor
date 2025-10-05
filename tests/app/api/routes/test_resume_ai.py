@@ -1637,9 +1637,6 @@ def test_accept_refined_resume_overwrite_full_no_intro(
     assert mock_update_db.call_args.kwargs["introduction"] == expected_intro
 
 
-@patch("resume_editor.app.api.routes.resume_ai._generate_resume_list_html")
-@patch("resume_editor.app.api.routes.resume_ai._generate_resume_detail_html")
-@patch("resume_editor.app.api.routes.resume_ai.get_user_resumes")
 @patch("resume_editor.app.api.routes.resume_ai.create_resume_db")
 @patch("resume_editor.app.api.routes.resume_ai.perform_pre_save_validation")
 @patch("resume_editor.app.api.routes.resume_ai.build_complete_resume_from_sections")
@@ -1659,9 +1656,6 @@ def test_save_refined_resume_as_new_full(
     mock_build_sections,
     mock_pre_save,
     mock_create_db,
-    mock_get_resumes,
-    mock_gen_detail_html,
-    mock_gen_list_html,
     intro_value,
     expected_intro,
     client_with_auth_and_resume,
@@ -1673,19 +1667,7 @@ def test_save_refined_resume_as_new_full(
 
     # Arrange
     refined_content = "# Personal\n..."
-    new_resume = DatabaseResume(
-        user_id=test_user.id,
-        name="New Name",
-        content=refined_content,
-        is_base=False,
-        parent_id=test_resume.id,
-        introduction=expected_intro,
-    )
-    new_resume.id = 2
-    mock_create_db.return_value = new_resume
-    mock_get_resumes.return_value = [test_resume, new_resume]
-    mock_gen_detail_html.return_value = "<html>New Detail</html>"
-    mock_gen_list_html.return_value = "<html>Sidebar</html>"
+    mock_create_db.return_value = None  # Not used
 
     form_data = {
         "refined_content": refined_content,
@@ -1704,6 +1686,9 @@ def test_save_refined_resume_as_new_full(
 
     # Assert
     assert response.status_code == 200
+    assert response.headers["HX-Redirect"] == "/dashboard"
+    assert not response.content
+
     mock_pre_save.assert_called_once_with(refined_content, test_resume.content)
     mock_build_sections.assert_not_called()
     mock_extract_personal.assert_not_called()
@@ -1720,22 +1705,8 @@ def test_save_refined_resume_as_new_full(
         job_description="A job description",
         introduction=expected_intro,
     )
-    mock_get_resumes.assert_called_once()
-    mock_gen_detail_html.assert_called_once_with(new_resume)
-    mock_gen_list_html.assert_called_once_with(
-        base_resumes=[test_resume],
-        refined_resumes=[new_resume],
-        selected_resume_id=new_resume.id,
-    )
-
-    assert '<div id="left-sidebar-content" hx-swap-oob="true">' in response.text
-    assert "<html>Sidebar</html>" in response.text
-    assert "<html>New Detail</html>" in response.text
 
 
-@patch("resume_editor.app.api.routes.resume_ai._generate_resume_list_html")
-@patch("resume_editor.app.api.routes.resume_ai._generate_resume_detail_html")
-@patch("resume_editor.app.api.routes.resume_ai.get_user_resumes")
 @patch("resume_editor.app.api.routes.resume_ai.create_resume_db")
 @patch("resume_editor.app.api.routes.resume_ai.perform_pre_save_validation")
 @patch("resume_editor.app.api.routes.resume_ai.build_complete_resume_from_sections")
@@ -1755,9 +1726,6 @@ def test_save_refined_resume_as_new_partial_with_job_desc(
     mock_build_sections,
     mock_pre_save,
     mock_create_db,
-    mock_get_resumes,
-    mock_gen_detail_html,
-    mock_gen_list_html,
     intro_value,
     expected_intro,
     client_with_auth_and_resume,
@@ -1777,19 +1745,7 @@ def test_save_refined_resume_as_new_partial_with_job_desc(
     mock_extract_personal.return_value = PersonalInfoResponse(name="Refined New")
     mock_build_sections.return_value = reconstructed_content
 
-    new_resume = DatabaseResume(
-        user_id=test_user.id,
-        name="New Name",
-        content=reconstructed_content,
-        is_base=False,
-        parent_id=test_resume.id,
-        introduction=expected_intro,
-    )
-    new_resume.id = 2
-    mock_create_db.return_value = new_resume
-    mock_get_resumes.return_value = [test_resume, new_resume]
-    mock_gen_detail_html.return_value = "<html>New Detail</html>"
-    mock_gen_list_html.return_value = "<html>Sidebar</html>"
+    mock_create_db.return_value = None  # Not used
 
     form_data = {
         "refined_content": refined_content,
@@ -1808,6 +1764,8 @@ def test_save_refined_resume_as_new_partial_with_job_desc(
 
     # Assert
     assert response.status_code == 200
+    assert response.headers["HX-Redirect"] == "/dashboard"
+    assert not response.content
     mock_extract_personal.assert_called_once_with(refined_content)
     mock_extract_education.assert_called_once_with(test_resume.content)
     mock_build_sections.assert_called_once()
@@ -1822,21 +1780,8 @@ def test_save_refined_resume_as_new_partial_with_job_desc(
         job_description="A job description",
         introduction=expected_intro,
     )
-    mock_gen_detail_html.assert_called_once_with(new_resume)
-    mock_gen_list_html.assert_called_once_with(
-        base_resumes=[test_resume],
-        refined_resumes=[new_resume],
-        selected_resume_id=new_resume.id,
-    )
-
-    assert '<div id="left-sidebar-content" hx-swap-oob="true">' in response.text
-    assert "<html>Sidebar</html>" in response.text
-    assert "<html>New Detail</html>" in response.text
 
 
-@patch("resume_editor.app.api.routes.resume_ai._generate_resume_list_html")
-@patch("resume_editor.app.api.routes.resume_ai._generate_resume_detail_html")
-@patch("resume_editor.app.api.routes.resume_ai.get_user_resumes")
 @patch("resume_editor.app.api.routes.resume_ai.create_resume_db")
 @patch("resume_editor.app.api.routes.resume_ai.perform_pre_save_validation")
 @patch("resume_editor.app.api.routes.resume_ai.build_complete_resume_from_sections")
@@ -1853,9 +1798,6 @@ def test_save_refined_resume_as_new_no_intro_no_jd(
     mock_build_sections,
     mock_pre_save,
     mock_create_db,
-    mock_get_resumes,
-    mock_gen_detail_html,
-    mock_gen_list_html,
     intro_value,
     expected_intro,
     client_with_auth_and_resume,
@@ -1875,18 +1817,7 @@ def test_save_refined_resume_as_new_no_intro_no_jd(
     mock_extract_personal.return_value = PersonalInfoResponse(name="Refined New")
     mock_build_sections.return_value = reconstructed_content
 
-    new_resume = DatabaseResume(
-        user_id=test_user.id,
-        name="New Name",
-        content=reconstructed_content,
-        is_base=False,
-        parent_id=test_resume.id,
-    )
-    new_resume.id = 2
-    mock_create_db.return_value = new_resume
-    mock_get_resumes.return_value = [test_resume, new_resume]
-    mock_gen_detail_html.return_value = "<html>New Detail</html>"
-    mock_gen_list_html.return_value = "<html>Sidebar</html>"
+    mock_create_db.return_value = None  # Not used
 
     form_data = {
         "refined_content": refined_content,
@@ -1905,6 +1836,8 @@ def test_save_refined_resume_as_new_no_intro_no_jd(
 
     # Assert
     assert response.status_code == 200
+    assert response.headers["HX-Redirect"] == "/dashboard"
+    assert not response.content
     mock_extract_personal.assert_called_once_with(refined_content)
     mock_extract_education.assert_called_once_with(test_resume.content)
     mock_build_sections.assert_called_once()
@@ -1919,16 +1852,6 @@ def test_save_refined_resume_as_new_no_intro_no_jd(
         job_description=None,  # Expect None
         introduction=expected_intro,
     )
-    mock_gen_detail_html.assert_called_once_with(new_resume)
-    mock_gen_list_html.assert_called_once_with(
-        base_resumes=[test_resume],
-        refined_resumes=[new_resume],
-        selected_resume_id=new_resume.id,
-    )
-
-    assert '<div id="left-sidebar-content" hx-swap-oob="true">' in response.text
-    assert "<html>Sidebar</html>" in response.text
-    assert "<html>New Detail</html>" in response.text
 
 
 @patch("resume_editor.app.api.routes.resume_ai.perform_pre_save_validation")

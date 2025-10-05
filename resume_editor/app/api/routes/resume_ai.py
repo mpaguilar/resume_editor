@@ -379,7 +379,7 @@ async def accept_refined_resume(
     return Response(headers={"HX-Redirect": "/dashboard"})
 
 
-@router.post("/{resume_id}/refine/save_as_new", response_class=HTMLResponse)
+@router.post("/{resume_id}/refine/save_as_new")
 async def save_refined_resume_as_new(
     resume: DatabaseResume = Depends(get_resume_for_user),
     db: Session = Depends(get_db),
@@ -402,8 +402,7 @@ async def save_refined_resume_as_new(
         new_resume_name (str | None): The name for the new resume.
 
     Returns:
-        HTMLResponse: An HTML partial containing both the new resume detail view
-                      and an out-of-band swap for the sidebar resume list.
+        Response: A response with an `HX-Redirect` header to the dashboard.
     """
     if not new_resume_name:
         raise HTTPException(
@@ -449,7 +448,7 @@ async def save_refined_resume_as_new(
         log.exception(_msg)
         raise HTTPException(status_code=422, detail=_msg)
 
-    new_resume = create_resume_db(
+    create_resume_db(
         db=db,
         user_id=current_user.id,
         name=new_resume_name,
@@ -460,24 +459,7 @@ async def save_refined_resume_as_new(
         introduction=introduction,
     )
 
-    resumes = get_user_resumes(db, current_user.id)
-    base_resumes = [r for r in resumes if r.is_base]
-    refined_resumes = [r for r in resumes if not r.is_base]
-    sidebar_html = _generate_resume_list_html(
-        base_resumes=base_resumes,
-        refined_resumes=refined_resumes,
-        selected_resume_id=new_resume.id,
-    )
-    detail_html = _generate_resume_detail_html(new_resume)
-
-    # Use OOB swap to update sidebar, and return main content normally
-    response_html = f"""
-    <div id="left-sidebar-content" hx-swap-oob="true">
-        {sidebar_html}
-    </div>
-    {detail_html}
-    """
-    return HTMLResponse(content=response_html)
+    return Response(headers={"HX-Redirect": "/dashboard"})
 
 
 @router.post("/{resume_id}/refine/discard", response_class=HTMLResponse)
