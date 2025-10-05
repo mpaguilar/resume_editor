@@ -12,6 +12,7 @@ These are known mappings:
 
 - `resume_editor/app/api/dependencies.py` -> `tests/app/api/test_dependencies.py`
 - `resume_editor/app/api/routes/html_fragments.py` -> `tests/app/api/routes/test_html_fragments.py`
+- `resume_editor/app/api/routes/resume.py` -> `tests/app/api/routes/test_resume.py`
 - `resume_editor/app/api/routes/resume_ai.py` -> `tests/app/api/routes/test_resume_ai.py`
 - `resume_editor/app/api/routes/route_models.py` -> `tests/app/api/routes/test_route_models.py`
 - `resume_editor/app/api/routes/resume_edit.py` -> `tests/app/api/routes/test_resume_edit.py`

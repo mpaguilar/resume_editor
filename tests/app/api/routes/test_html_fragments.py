@@ -1,5 +1,6 @@
 from datetime import datetime
 from unittest.mock import MagicMock, patch
+import textwrap
 
 import pytest
 
@@ -497,3 +498,57 @@ def test_generate_resume_detail_html_refined_resume_with_notes(test_refined_resu
     assert 'hx-swap="innerHTML"' in html_output
     assert "Save Notes" not in html_output
     assert 'id="notes-save-status-2"' in html_output
+
+
+@pytest.mark.parametrize(
+    "intro_text, should_be_present",
+    [
+        ("This is a saved introduction.", True),
+        (None, False),
+        ("", False),
+    ],
+)
+def test_generate_resume_detail_html_with_introduction(
+    test_refined_resume, intro_text, should_be_present
+):
+    """Test detail view for a refined resume displays introduction when present."""
+    test_refined_resume.introduction = intro_text
+    html_output = _generate_resume_detail_html(test_refined_resume)
+
+    intro_heading = (
+        '<h3 class="text-lg font-medium text-gray-900 mb-2">Introduction</h3>'
+    )
+    if should_be_present:
+        # Check for the whole structure to be more robust, as per testing notes.
+        expected_structure = textwrap.dedent(
+            f"""\
+            <div class="my-4 p-4 border rounded-lg bg-gray-50">
+                <h3 class="text-lg font-medium text-gray-900 mb-2">Introduction</h3>
+                <div class="mt-2 prose max-w-none">
+                    <pre class="whitespace-pre-wrap bg-gray-100 p-2 rounded text-sm">{intro_text}</pre>
+                </div>
+            </div>"""
+        )
+        # Normalize whitespace in both actual and expected to make comparison robust
+        html_output_normalized = " ".join(html_output.split())
+        expected_structure_normalized = " ".join(expected_structure.split())
+
+        assert expected_structure_normalized in html_output_normalized
+    else:
+        assert intro_heading not in html_output
+        assert "whitespace-pre-wrap" not in html_output
+
+
+def test_generate_resume_detail_html_base_resume_does_not_show_introduction(
+    test_resume,
+):
+    """Test detail view for a base resume does not show introduction even if present."""
+    test_resume.introduction = "This is an introduction on a base resume."
+    html_output = _generate_resume_detail_html(test_resume)
+
+    intro_heading = (
+        '<h3 class="text-lg font-medium text-gray-900 mb-2">Introduction</h3>'
+    )
+    assert intro_heading not in html_output
+    assert "whitespace-pre-wrap" not in html_output
+    assert "This is an introduction on a base resume." not in html_output
