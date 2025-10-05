@@ -984,6 +984,8 @@ async def test_refine_resume_stream_introduction_is_none(
     assert "event: close" in events[2]
 
 
+
+
 @pytest.mark.asyncio
 @patch("resume_editor.app.api.routes.resume_ai.async_refine_experience_section")
 @patch("resume_editor.app.api.routes.resume_ai.get_user_settings", return_value=None)
