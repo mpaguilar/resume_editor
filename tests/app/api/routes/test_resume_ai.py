@@ -1363,6 +1363,10 @@ def test_refine_resume_json_decode_error_non_htmx(
 @patch("resume_editor.app.api.routes.resume_ai.extract_experience_info")
 @patch("resume_editor.app.api.routes.resume_ai.extract_education_info")
 @patch("resume_editor.app.api.routes.resume_ai.extract_personal_info")
+@pytest.mark.parametrize(
+    "intro_value, expected_intro",
+    [(None, None), ("", ""), ("This is an introduction.", "This is an introduction.")],
+)
 def test_accept_refined_resume_overwrite_personal(
     mock_extract_personal,
     mock_extract_education,
@@ -1372,6 +1376,8 @@ def test_accept_refined_resume_overwrite_personal(
     mock_pre_save,
     mock_update_db,
     mock_gen_detail_html,
+    intro_value,
+    expected_intro,
     client_with_auth_and_resume,
     test_resume,
 ):
@@ -1383,20 +1389,22 @@ def test_accept_refined_resume_overwrite_personal(
 
     # Arrange
     refined_content = "# Personal\nname: Refined"
-    intro_text = "This is an introduction."
     mock_extract_personal.return_value = PersonalInfoResponse(name="Refined")
     mock_build_sections.return_value = "reconstructed content"
     mock_gen_detail_html.return_value = "<html>Detail View</html>"
     mock_update_db.return_value = test_resume
 
+    form_data = {
+        "refined_content": refined_content,
+        "target_section": RefineTargetSection.PERSONAL.value,
+    }
+    if intro_value is not None:
+        form_data["introduction"] = intro_value
+
     # Act
     response = client_with_auth_and_resume.post(
         f"/api/resumes/{test_resume.id}/refine/accept",
-        data={
-            "refined_content": refined_content,
-            "target_section": RefineTargetSection.PERSONAL.value,
-            "introduction": intro_text,
-        },
+        data=form_data,
     )
 
     # Assert
@@ -1411,7 +1419,7 @@ def test_accept_refined_resume_overwrite_personal(
     mock_pre_save.assert_called_once_with("reconstructed content", test_resume.content)
     mock_update_db.assert_called_once()
     assert mock_update_db.call_args.kwargs["content"] == "reconstructed content"
-    assert mock_update_db.call_args.kwargs["introduction"] == intro_text
+    assert mock_update_db.call_args.kwargs["introduction"] == expected_intro
     mock_gen_detail_html.assert_called_once_with(test_resume)
 
 
@@ -1423,7 +1431,8 @@ def test_accept_refined_resume_overwrite_personal(
 @patch("resume_editor.app.api.routes.resume_ai.extract_experience_info")
 @patch("resume_editor.app.api.routes.resume_ai.extract_education_info")
 @patch("resume_editor.app.api.routes.resume_ai.extract_personal_info")
-def test_accept_refined_resume_overwrite_education(
+@pytest.mark.parametrize("intro_value, expected_intro", [(None, None), ("", "")])
+def test_accept_refined_resume_overwrite_education_no_intro(
     mock_extract_personal,
     mock_extract_education,
     mock_extract_experience,
@@ -1432,10 +1441,12 @@ def test_accept_refined_resume_overwrite_education(
     mock_pre_save,
     mock_update_db,
     mock_gen_detail_html,
+    intro_value,
+    expected_intro,
     client_with_auth_and_resume,
     test_resume,
 ):
-    """Test accepting an 'education' refinement and overwriting the resume."""
+    """Test accepting 'education' refinement with no introduction or empty introduction."""
     from resume_editor.app.api.routes.route_models import (
         EducationResponse,
         RefineTargetSection,
@@ -1446,17 +1457,25 @@ def test_accept_refined_resume_overwrite_education(
     mock_gen_detail_html.return_value = "<html>Detail View</html>"
     mock_update_db.return_value = test_resume
 
+    form_data = {
+        "refined_content": refined_content,
+        "target_section": RefineTargetSection.EDUCATION.value,
+    }
+    if intro_value is not None:
+        form_data["introduction"] = intro_value
+
     response = client_with_auth_and_resume.post(
         f"/api/resumes/{test_resume.id}/refine/accept",
-        data={
-            "refined_content": refined_content,
-            "target_section": RefineTargetSection.EDUCATION.value,
-        },
+        data=form_data,
     )
     assert response.status_code == 200
     assert response.text == "<html>Detail View</html>"
     mock_extract_education.assert_called_once_with(refined_content)
     mock_extract_personal.assert_called_once_with(test_resume.content)
+    mock_build_sections.assert_called_once()
+    mock_pre_save.assert_called_once()
+    mock_update_db.assert_called_once()
+    assert mock_update_db.call_args.kwargs["introduction"] == expected_intro
     mock_gen_detail_html.assert_called_once_with(test_resume)
 
 
@@ -1468,7 +1487,8 @@ def test_accept_refined_resume_overwrite_education(
 @patch("resume_editor.app.api.routes.resume_ai.extract_experience_info")
 @patch("resume_editor.app.api.routes.resume_ai.extract_education_info")
 @patch("resume_editor.app.api.routes.resume_ai.extract_personal_info")
-def test_accept_refined_resume_overwrite_experience(
+@pytest.mark.parametrize("intro_value, expected_intro", [(None, None), ("", "")])
+def test_accept_refined_resume_overwrite_experience_no_intro(
     mock_extract_personal,
     mock_extract_education,
     mock_extract_experience,
@@ -1477,10 +1497,12 @@ def test_accept_refined_resume_overwrite_experience(
     mock_pre_save,
     mock_update_db,
     mock_gen_detail_html,
+    intro_value,
+    expected_intro,
     client_with_auth_and_resume,
     test_resume,
 ):
-    """Test accepting an 'experience' refinement and overwriting the resume."""
+    """Test accepting an 'experience' refinement with no introduction."""
     from resume_editor.app.api.routes.route_models import (
         ExperienceResponse,
         RefineTargetSection,
@@ -1491,18 +1513,26 @@ def test_accept_refined_resume_overwrite_experience(
     mock_gen_detail_html.return_value = "<html>Detail View</html>"
     mock_update_db.return_value = test_resume
 
+    form_data = {
+        "refined_content": refined_content,
+        "target_section": RefineTargetSection.EXPERIENCE.value,
+    }
+    if intro_value is not None:
+        form_data["introduction"] = intro_value
+
     response = client_with_auth_and_resume.post(
         f"/api/resumes/{test_resume.id}/refine/accept",
-        data={
-            "refined_content": refined_content,
-            "target_section": RefineTargetSection.EXPERIENCE.value,
-        },
+        data=form_data,
     )
 
     assert response.status_code == 200
     assert response.text == "<html>Detail View</html>"
     mock_extract_experience.assert_called_once_with(refined_content)
     mock_extract_personal.assert_called_once_with(test_resume.content)
+    mock_build_sections.assert_called_once()
+    mock_pre_save.assert_called_once()
+    mock_update_db.assert_called_once()
+    assert mock_update_db.call_args.kwargs["introduction"] == expected_intro
     mock_gen_detail_html.assert_called_once_with(test_resume)
 
 
@@ -1514,7 +1544,8 @@ def test_accept_refined_resume_overwrite_experience(
 @patch("resume_editor.app.api.routes.resume_ai.extract_experience_info")
 @patch("resume_editor.app.api.routes.resume_ai.extract_education_info")
 @patch("resume_editor.app.api.routes.resume_ai.extract_personal_info")
-def test_accept_refined_resume_overwrite_certifications(
+@pytest.mark.parametrize("intro_value, expected_intro", [(None, None), ("", "")])
+def test_accept_refined_resume_overwrite_certifications_no_intro(
     mock_extract_personal,
     mock_extract_education,
     mock_extract_experience,
@@ -1523,10 +1554,12 @@ def test_accept_refined_resume_overwrite_certifications(
     mock_pre_save,
     mock_update_db,
     mock_gen_detail_html,
+    intro_value,
+    expected_intro,
     client_with_auth_and_resume,
     test_resume,
 ):
-    """Test accepting a 'certifications' refinement and overwriting the resume."""
+    """Test 'certifications' refinement with no or empty introduction."""
     from resume_editor.app.api.routes.route_models import (
         CertificationsResponse,
         RefineTargetSection,
@@ -1537,17 +1570,25 @@ def test_accept_refined_resume_overwrite_certifications(
     mock_gen_detail_html.return_value = "<html>Detail View</html>"
     mock_update_db.return_value = test_resume
 
+    form_data = {
+        "refined_content": refined_content,
+        "target_section": RefineTargetSection.CERTIFICATIONS.value,
+    }
+    if intro_value is not None:
+        form_data["introduction"] = intro_value
+
     response = client_with_auth_and_resume.post(
         f"/api/resumes/{test_resume.id}/refine/accept",
-        data={
-            "refined_content": refined_content,
-            "target_section": RefineTargetSection.CERTIFICATIONS.value,
-        },
+        data=form_data,
     )
     assert response.status_code == 200
     assert response.text == "<html>Detail View</html>"
     mock_extract_certifications.assert_called_once_with(refined_content)
     mock_extract_personal.assert_called_once_with(test_resume.content)
+    mock_build_sections.assert_called_once()
+    mock_pre_save.assert_called_once()
+    mock_update_db.assert_called_once()
+    assert mock_update_db.call_args.kwargs["introduction"] == expected_intro
     mock_gen_detail_html.assert_called_once_with(test_resume)
 
 
@@ -1559,7 +1600,8 @@ def test_accept_refined_resume_overwrite_certifications(
 @patch("resume_editor.app.api.routes.resume_ai.extract_experience_info")
 @patch("resume_editor.app.api.routes.resume_ai.extract_education_info")
 @patch("resume_editor.app.api.routes.resume_ai.extract_personal_info")
-def test_accept_refined_resume_overwrite_full(
+@pytest.mark.parametrize("intro_value, expected_intro", [(None, None), ("", "")])
+def test_accept_refined_resume_overwrite_full_no_intro(
     mock_extract_personal,
     mock_extract_education,
     mock_extract_experience,
@@ -1568,10 +1610,12 @@ def test_accept_refined_resume_overwrite_full(
     mock_pre_save,
     mock_update_db,
     mock_gen_detail_html,
+    intro_value,
+    expected_intro,
     client_with_auth_and_resume,
     test_resume,
 ):
-    """Test accepting a 'full' refinement and overwriting the existing resume."""
+    """Test 'full' refinement with no or empty introduction."""
     from resume_editor.app.api.routes.route_models import RefineTargetSection
 
     # Arrange
@@ -1579,13 +1623,17 @@ def test_accept_refined_resume_overwrite_full(
     mock_gen_detail_html.return_value = "<html>Detail View</html>"
     mock_update_db.return_value = test_resume
 
+    form_data = {
+        "refined_content": refined_content,
+        "target_section": RefineTargetSection.FULL.value,
+    }
+    if intro_value is not None:
+        form_data["introduction"] = intro_value
+
     # Act
     response = client_with_auth_and_resume.post(
         f"/api/resumes/{test_resume.id}/refine/accept",
-        data={
-            "refined_content": refined_content,
-            "target_section": RefineTargetSection.FULL.value,
-        },
+        data=form_data,
     )
 
     # Assert
@@ -1600,6 +1648,7 @@ def test_accept_refined_resume_overwrite_full(
     mock_pre_save.assert_called_once_with(refined_content, test_resume.content)
     mock_update_db.assert_called_once()
     assert mock_update_db.call_args.kwargs["content"] == refined_content
+    assert mock_update_db.call_args.kwargs["introduction"] == expected_intro
     mock_gen_detail_html.assert_called_once_with(test_resume)
 
 
@@ -1613,6 +1662,10 @@ def test_accept_refined_resume_overwrite_full(
 @patch("resume_editor.app.api.routes.resume_ai.extract_experience_info")
 @patch("resume_editor.app.api.routes.resume_ai.extract_education_info")
 @patch("resume_editor.app.api.routes.resume_ai.extract_personal_info")
+@pytest.mark.parametrize(
+    "intro_value, expected_intro",
+    [(None, None), ("", ""), ("This is a new introduction.", "This is a new introduction.")],
+)
 def test_save_refined_resume_as_new_full(
     mock_extract_personal,
     mock_extract_education,
@@ -1624,6 +1677,8 @@ def test_save_refined_resume_as_new_full(
     mock_get_resumes,
     mock_gen_detail_html,
     mock_gen_list_html,
+    intro_value,
+    expected_intro,
     client_with_auth_and_resume,
     test_user,
     test_resume,
@@ -1633,14 +1688,13 @@ def test_save_refined_resume_as_new_full(
 
     # Arrange
     refined_content = "# Personal\n..."
-    intro_text = "This is a new introduction."
     new_resume = DatabaseResume(
         user_id=test_user.id,
         name="New Name",
         content=refined_content,
         is_base=False,
         parent_id=test_resume.id,
-        introduction=intro_text,
+        introduction=expected_intro,
     )
     new_resume.id = 2
     mock_create_db.return_value = new_resume
@@ -1648,16 +1702,19 @@ def test_save_refined_resume_as_new_full(
     mock_gen_detail_html.return_value = "<html>New Detail</html>"
     mock_gen_list_html.return_value = "<html>Sidebar</html>"
 
+    form_data = {
+        "refined_content": refined_content,
+        "target_section": RefineTargetSection.FULL.value,
+        "new_resume_name": "New Name",
+        "job_description": "A job description",
+    }
+    if intro_value is not None:
+        form_data["introduction"] = intro_value
+
     # Act
     response = client_with_auth_and_resume.post(
         f"/api/resumes/{test_resume.id}/refine/save_as_new",
-        data={
-            "refined_content": refined_content,
-            "target_section": RefineTargetSection.FULL.value,
-            "new_resume_name": "New Name",
-            "job_description": "A job description",
-            "introduction": intro_text,
-        },
+        data=form_data,
     )
 
     # Assert
@@ -1676,7 +1733,7 @@ def test_save_refined_resume_as_new_full(
         is_base=False,
         parent_id=test_resume.id,
         job_description="A job description",
-        introduction=intro_text,
+        introduction=expected_intro,
     )
     mock_get_resumes.assert_called_once()
     mock_gen_detail_html.assert_called_once_with(new_resume)
@@ -1701,6 +1758,10 @@ def test_save_refined_resume_as_new_full(
 @patch("resume_editor.app.api.routes.resume_ai.extract_experience_info")
 @patch("resume_editor.app.api.routes.resume_ai.extract_education_info")
 @patch("resume_editor.app.api.routes.resume_ai.extract_personal_info")
+@pytest.mark.parametrize(
+    "intro_value, expected_intro",
+    [(None, None), ("", ""), ("The new intro.", "The new intro.")],
+)
 def test_save_refined_resume_as_new_partial_with_job_desc(
     mock_extract_personal,
     mock_extract_education,
@@ -1712,6 +1773,8 @@ def test_save_refined_resume_as_new_partial_with_job_desc(
     mock_get_resumes,
     mock_gen_detail_html,
     mock_gen_list_html,
+    intro_value,
+    expected_intro,
     client_with_auth_and_resume,
     test_user,
     test_resume,
@@ -1725,7 +1788,6 @@ def test_save_refined_resume_as_new_partial_with_job_desc(
     # Arrange
     refined_content = "# Personal\nname: Refined New"
     reconstructed_content = "reconstructed content for new resume"
-    intro_text = "The new intro."
 
     mock_extract_personal.return_value = PersonalInfoResponse(name="Refined New")
     mock_build_sections.return_value = reconstructed_content
@@ -1736,7 +1798,7 @@ def test_save_refined_resume_as_new_partial_with_job_desc(
         content=reconstructed_content,
         is_base=False,
         parent_id=test_resume.id,
-        introduction=intro_text,
+        introduction=expected_intro,
     )
     new_resume.id = 2
     mock_create_db.return_value = new_resume
@@ -1744,16 +1806,19 @@ def test_save_refined_resume_as_new_partial_with_job_desc(
     mock_gen_detail_html.return_value = "<html>New Detail</html>"
     mock_gen_list_html.return_value = "<html>Sidebar</html>"
 
+    form_data = {
+        "refined_content": refined_content,
+        "target_section": RefineTargetSection.PERSONAL.value,
+        "new_resume_name": "New Name",
+        "job_description": "A job description",
+    }
+    if intro_value is not None:
+        form_data["introduction"] = intro_value
+
     # Act
     response = client_with_auth_and_resume.post(
         f"/api/resumes/{test_resume.id}/refine/save_as_new",
-        data={
-            "refined_content": refined_content,
-            "target_section": RefineTargetSection.PERSONAL.value,
-            "new_resume_name": "New Name",
-            "job_description": "A job description",
-            "introduction": intro_text,
-        },
+        data=form_data,
     )
 
     # Assert
@@ -1770,7 +1835,7 @@ def test_save_refined_resume_as_new_partial_with_job_desc(
         is_base=False,
         parent_id=test_resume.id,
         job_description="A job description",
-        introduction=intro_text,
+        introduction=expected_intro,
     )
     mock_gen_detail_html.assert_called_once_with(new_resume)
     mock_gen_list_html.assert_called_once_with(
@@ -1794,7 +1859,8 @@ def test_save_refined_resume_as_new_partial_with_job_desc(
 @patch("resume_editor.app.api.routes.resume_ai.extract_experience_info")
 @patch("resume_editor.app.api.routes.resume_ai.extract_education_info")
 @patch("resume_editor.app.api.routes.resume_ai.extract_personal_info")
-def test_save_refined_resume_as_new_partial_without_job_desc(
+@pytest.mark.parametrize("intro_value, expected_intro", [(None, None), ("", "")])
+def test_save_refined_resume_as_new_no_intro_no_jd(
     mock_extract_personal,
     mock_extract_education,
     mock_extract_experience,
@@ -1805,11 +1871,13 @@ def test_save_refined_resume_as_new_partial_without_job_desc(
     mock_get_resumes,
     mock_gen_detail_html,
     mock_gen_list_html,
+    intro_value,
+    expected_intro,
     client_with_auth_and_resume,
     test_user,
     test_resume,
 ):
-    """Test accepting a partial refinement without job desc and saving as new."""
+    """Test saving as new with no/empty intro and no job description."""
     from resume_editor.app.api.routes.route_models import (
         PersonalInfoResponse,
         RefineTargetSection,
@@ -1835,15 +1903,19 @@ def test_save_refined_resume_as_new_partial_without_job_desc(
     mock_gen_detail_html.return_value = "<html>New Detail</html>"
     mock_gen_list_html.return_value = "<html>Sidebar</html>"
 
+    form_data = {
+        "refined_content": refined_content,
+        "target_section": RefineTargetSection.PERSONAL.value,
+        "new_resume_name": "New Name",
+        # No job_description
+    }
+    if intro_value is not None:
+        form_data["introduction"] = intro_value
+
     # Act
     response = client_with_auth_and_resume.post(
         f"/api/resumes/{test_resume.id}/refine/save_as_new",
-        data={
-            "refined_content": refined_content,
-            "target_section": RefineTargetSection.PERSONAL.value,
-            "new_resume_name": "New Name",
-            # No job_description
-        },
+        data=form_data,
     )
 
     # Assert
@@ -1860,7 +1932,7 @@ def test_save_refined_resume_as_new_partial_without_job_desc(
         is_base=False,
         parent_id=test_resume.id,
         job_description=None,  # Expect None
-        introduction=None,
+        introduction=expected_intro,
     )
     mock_gen_detail_html.assert_called_once_with(new_resume)
     mock_gen_list_html.assert_called_once_with(
