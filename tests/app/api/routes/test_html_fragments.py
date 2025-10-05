@@ -282,10 +282,14 @@ def test_create_refine_result_html_output():
     )
 
     assert 'id="refine-result"' in html_output
-    assert 'introduction' in html_output
-    assert 'This is an intro.' in html_output
-    assert '<input type="hidden" name="introduction"' in html_output
-    assert 'value="This is an intro."' in html_output
+    assert (
+        '<label for="introduction" class="block font-semibold text-md mb-1">Introduction</label>'
+        in html_output
+    )
+    assert '<textarea id="introduction" name="introduction"' in html_output
+    assert 'class="prose prose-sm' not in html_output
+    assert ">This is an intro.</textarea>" in html_output
+    assert '<input type="hidden" name="introduction"' not in html_output
     assert 'hx-post="/api/resumes/42/refine/accept"' in html_output
     assert 'name="target_section" value="experience"' in html_output
     assert '<textarea name="refined_content"' in html_output
@@ -424,6 +428,36 @@ def test_generate_resume_detail_html_refined_resume_with_jd(test_refined_resume)
     assert 'hx-swap="innerHTML"' in html_output
     assert "Save Notes" not in html_output
     assert 'id="notes-save-status-2"' in html_output
+
+
+@pytest.mark.parametrize("intro", [None, ""])
+def test_create_refine_result_html_output_no_introduction(intro):
+    """Test that the rendered HTML from _create_refine_result_html is correct when no introduction is provided."""
+    resume_id = 42
+    target_section_val = "experience"
+    refined_content = "This is *refined* markdown."
+    job_description = "A job description"
+
+    html_output = _create_refine_result_html(
+        resume_id,
+        target_section_val,
+        refined_content,
+        job_description=job_description,
+        introduction=intro,
+    )
+
+    assert 'id="refine-result"' in html_output
+
+    # Check that introduction elements are not present
+    assert '<label for="introduction"' not in html_output
+    assert '<textarea id="introduction" name="introduction"' not in html_output
+    assert "Introduction</h4>" not in html_output
+
+    # Check that other elements are present
+    assert 'hx-post="/api/resumes/42/refine/accept"' in html_output
+    assert 'name="target_section" value="experience"' in html_output
+    assert '<textarea name="refined_content"' in html_output
+    assert ">This is *refined* markdown.</textarea>" in html_output
 
 
 def test_generate_resume_detail_html_refined_resume_no_jd(test_refined_resume):

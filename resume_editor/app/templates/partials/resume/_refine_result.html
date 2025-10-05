@@ -7,9 +7,8 @@
 
         {% if introduction %}
         <div class="mb-4">
-            <h4 class="font-semibold text-md mb-1">Introduction</h4>
-            <div class="prose prose-sm max-w-none p-2 border rounded bg-white"><p>{{ introduction }}</p></div>
-            <input type="hidden" name="introduction" value="{{ introduction }}">
+            <label for="introduction" class="block font-semibold text-md mb-1">Introduction</label>
+            <textarea id="introduction" name="introduction" class="w-full h-32 p-2 border rounded font-mono text-sm">{{ introduction }}</textarea>
         </div>
         {% endif %}
 
