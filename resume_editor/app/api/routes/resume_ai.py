@@ -5,7 +5,7 @@ from typing import AsyncGenerator
 import asyncio
 
 from cryptography.fernet import InvalidToken
-from fastapi import APIRouter, Depends, Form, HTTPException, Request
+from fastapi import APIRouter, Depends, Form, HTTPException, Request, Response
 from fastapi.templating import Jinja2Templates
 from openai import AuthenticationError
 from sqlalchemy.orm import Session
@@ -311,7 +311,7 @@ async def refine_resume(
         raise HTTPException(status_code=500, detail=f"LLM refinement failed: {e!s}")
 
 
-@router.post("/{resume_id}/refine/accept", response_class=HTMLResponse)
+@router.post("/{resume_id}/refine/accept", status_code=200)
 async def accept_refined_resume(
     resume: DatabaseResume = Depends(get_resume_for_user),
     db: Session = Depends(get_db),
@@ -376,9 +376,7 @@ async def accept_refined_resume(
     update_resume_db(
         db=db, resume=resume, content=updated_content, introduction=introduction
     )
-    # For HTMX, return the detail view for the main content area
-    detail_html = _generate_resume_detail_html(resume)
-    return HTMLResponse(content=detail_html)
+    return Response(headers={"HX-Redirect": "/dashboard"})
 
 
 @router.post("/{resume_id}/refine/save_as_new", response_class=HTMLResponse)

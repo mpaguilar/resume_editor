@@ -1355,7 +1355,6 @@ def test_refine_resume_json_decode_error_non_htmx(
 
 
 
-@patch("resume_editor.app.api.routes.resume_ai._generate_resume_detail_html")
 @patch("resume_editor.app.api.routes.resume_ai.update_resume_db")
 @patch("resume_editor.app.api.routes.resume_ai.perform_pre_save_validation")
 @patch("resume_editor.app.api.routes.resume_ai.build_complete_resume_from_sections")
@@ -1375,7 +1374,6 @@ def test_accept_refined_resume_overwrite_personal(
     mock_build_sections,
     mock_pre_save,
     mock_update_db,
-    mock_gen_detail_html,
     intro_value,
     expected_intro,
     client_with_auth_and_resume,
@@ -1391,7 +1389,6 @@ def test_accept_refined_resume_overwrite_personal(
     refined_content = "# Personal\nname: Refined"
     mock_extract_personal.return_value = PersonalInfoResponse(name="Refined")
     mock_build_sections.return_value = "reconstructed content"
-    mock_gen_detail_html.return_value = "<html>Detail View</html>"
     mock_update_db.return_value = test_resume
 
     form_data = {
@@ -1409,7 +1406,8 @@ def test_accept_refined_resume_overwrite_personal(
 
     # Assert
     assert response.status_code == 200
-    assert response.text == "<html>Detail View</html>"
+    assert response.headers["HX-Redirect"] == "/dashboard"
+    assert not response.content
     mock_extract_personal.assert_called_once_with(refined_content)
     mock_extract_education.assert_called_once_with(test_resume.content)
     mock_extract_experience.assert_called_once_with(test_resume.content)
@@ -1420,10 +1418,8 @@ def test_accept_refined_resume_overwrite_personal(
     mock_update_db.assert_called_once()
     assert mock_update_db.call_args.kwargs["content"] == "reconstructed content"
     assert mock_update_db.call_args.kwargs["introduction"] == expected_intro
-    mock_gen_detail_html.assert_called_once_with(test_resume)
 
 
-@patch("resume_editor.app.api.routes.resume_ai._generate_resume_detail_html")
 @patch("resume_editor.app.api.routes.resume_ai.update_resume_db")
 @patch("resume_editor.app.api.routes.resume_ai.perform_pre_save_validation")
 @patch("resume_editor.app.api.routes.resume_ai.build_complete_resume_from_sections")
@@ -1440,7 +1436,6 @@ def test_accept_refined_resume_overwrite_education_no_intro(
     mock_build_sections,
     mock_pre_save,
     mock_update_db,
-    mock_gen_detail_html,
     intro_value,
     expected_intro,
     client_with_auth_and_resume,
@@ -1454,7 +1449,6 @@ def test_accept_refined_resume_overwrite_education_no_intro(
 
     refined_content = "# Education\n..."
     mock_extract_education.return_value = EducationResponse(degrees=[])
-    mock_gen_detail_html.return_value = "<html>Detail View</html>"
     mock_update_db.return_value = test_resume
 
     form_data = {
@@ -1469,17 +1463,16 @@ def test_accept_refined_resume_overwrite_education_no_intro(
         data=form_data,
     )
     assert response.status_code == 200
-    assert response.text == "<html>Detail View</html>"
+    assert response.headers["HX-Redirect"] == "/dashboard"
+    assert not response.content
     mock_extract_education.assert_called_once_with(refined_content)
     mock_extract_personal.assert_called_once_with(test_resume.content)
     mock_build_sections.assert_called_once()
     mock_pre_save.assert_called_once()
     mock_update_db.assert_called_once()
     assert mock_update_db.call_args.kwargs["introduction"] == expected_intro
-    mock_gen_detail_html.assert_called_once_with(test_resume)
 
 
-@patch("resume_editor.app.api.routes.resume_ai._generate_resume_detail_html")
 @patch("resume_editor.app.api.routes.resume_ai.update_resume_db")
 @patch("resume_editor.app.api.routes.resume_ai.perform_pre_save_validation")
 @patch("resume_editor.app.api.routes.resume_ai.build_complete_resume_from_sections")
@@ -1496,7 +1489,6 @@ def test_accept_refined_resume_overwrite_experience_no_intro(
     mock_build_sections,
     mock_pre_save,
     mock_update_db,
-    mock_gen_detail_html,
     intro_value,
     expected_intro,
     client_with_auth_and_resume,
@@ -1510,7 +1502,6 @@ def test_accept_refined_resume_overwrite_experience_no_intro(
 
     refined_content = "# Experience\n..."
     mock_extract_experience.return_value = ExperienceResponse(roles=[], projects=[])
-    mock_gen_detail_html.return_value = "<html>Detail View</html>"
     mock_update_db.return_value = test_resume
 
     form_data = {
@@ -1526,17 +1517,16 @@ def test_accept_refined_resume_overwrite_experience_no_intro(
     )
 
     assert response.status_code == 200
-    assert response.text == "<html>Detail View</html>"
+    assert response.headers["HX-Redirect"] == "/dashboard"
+    assert not response.content
     mock_extract_experience.assert_called_once_with(refined_content)
     mock_extract_personal.assert_called_once_with(test_resume.content)
     mock_build_sections.assert_called_once()
     mock_pre_save.assert_called_once()
     mock_update_db.assert_called_once()
     assert mock_update_db.call_args.kwargs["introduction"] == expected_intro
-    mock_gen_detail_html.assert_called_once_with(test_resume)
 
 
-@patch("resume_editor.app.api.routes.resume_ai._generate_resume_detail_html")
 @patch("resume_editor.app.api.routes.resume_ai.update_resume_db")
 @patch("resume_editor.app.api.routes.resume_ai.perform_pre_save_validation")
 @patch("resume_editor.app.api.routes.resume_ai.build_complete_resume_from_sections")
@@ -1553,7 +1543,6 @@ def test_accept_refined_resume_overwrite_certifications_no_intro(
     mock_build_sections,
     mock_pre_save,
     mock_update_db,
-    mock_gen_detail_html,
     intro_value,
     expected_intro,
     client_with_auth_and_resume,
@@ -1567,7 +1556,6 @@ def test_accept_refined_resume_overwrite_certifications_no_intro(
 
     refined_content = "# Certifications\n..."
     mock_extract_certifications.return_value = CertificationsResponse(certifications=[])
-    mock_gen_detail_html.return_value = "<html>Detail View</html>"
     mock_update_db.return_value = test_resume
 
     form_data = {
@@ -1582,17 +1570,16 @@ def test_accept_refined_resume_overwrite_certifications_no_intro(
         data=form_data,
     )
     assert response.status_code == 200
-    assert response.text == "<html>Detail View</html>"
+    assert response.headers["HX-Redirect"] == "/dashboard"
+    assert not response.content
     mock_extract_certifications.assert_called_once_with(refined_content)
     mock_extract_personal.assert_called_once_with(test_resume.content)
     mock_build_sections.assert_called_once()
     mock_pre_save.assert_called_once()
     mock_update_db.assert_called_once()
     assert mock_update_db.call_args.kwargs["introduction"] == expected_intro
-    mock_gen_detail_html.assert_called_once_with(test_resume)
 
 
-@patch("resume_editor.app.api.routes.resume_ai._generate_resume_detail_html")
 @patch("resume_editor.app.api.routes.resume_ai.update_resume_db")
 @patch("resume_editor.app.api.routes.resume_ai.perform_pre_save_validation")
 @patch("resume_editor.app.api.routes.resume_ai.build_complete_resume_from_sections")
@@ -1609,7 +1596,6 @@ def test_accept_refined_resume_overwrite_full_no_intro(
     mock_build_sections,
     mock_pre_save,
     mock_update_db,
-    mock_gen_detail_html,
     intro_value,
     expected_intro,
     client_with_auth_and_resume,
@@ -1620,7 +1606,6 @@ def test_accept_refined_resume_overwrite_full_no_intro(
 
     # Arrange
     refined_content = "# Personal\nname: Full Refined"
-    mock_gen_detail_html.return_value = "<html>Detail View</html>"
     mock_update_db.return_value = test_resume
 
     form_data = {
@@ -1638,7 +1623,8 @@ def test_accept_refined_resume_overwrite_full_no_intro(
 
     # Assert
     assert response.status_code == 200
-    assert response.text == "<html>Detail View</html>"
+    assert response.headers["HX-Redirect"] == "/dashboard"
+    assert not response.content
     mock_extract_personal.assert_not_called()
     mock_extract_education.assert_not_called()
     mock_extract_experience.assert_not_called()
@@ -1649,7 +1635,6 @@ def test_accept_refined_resume_overwrite_full_no_intro(
     mock_update_db.assert_called_once()
     assert mock_update_db.call_args.kwargs["content"] == refined_content
     assert mock_update_db.call_args.kwargs["introduction"] == expected_intro
-    mock_gen_detail_html.assert_called_once_with(test_resume)
 
 
 @patch("resume_editor.app.api.routes.resume_ai._generate_resume_list_html")

@@ -1,8 +1,7 @@
 import logging
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, Form, HTTPException, Request
-from fastapi.responses import HTMLResponse
+from fastapi import APIRouter, Depends, Form, HTTPException, Request, Response
 from sqlalchemy.orm import Session
 
 from resume_editor.app.api.dependencies import get_resume_for_user
@@ -73,7 +72,7 @@ async def get_personal_info(
     return extract_personal_info(resume.content)
 
 
-@router.put("/{resume_id}/personal", response_model=PersonalInfoResponse)
+@router.put("/{resume_id}/personal", status_code=200)
 async def update_personal_info_structured(
     request: PersonalInfoUpdateRequest,
     db: Session = Depends(get_db),
@@ -121,7 +120,7 @@ async def update_personal_info_structured(
         # Save updated content to database
         update_resume_db(db, resume, content=updated_content)
 
-        return updated_info
+        return Response(headers={"HX-Redirect": "/dashboard"})
     except (ValueError, TypeError, HTTPException) as e:
         detail = getattr(e, "detail", str(e))
         _msg = (
@@ -131,7 +130,7 @@ async def update_personal_info_structured(
         raise HTTPException(status_code=422, detail=_msg)
 
 
-@router.post("/{resume_id}/notes", response_class=HTMLResponse)
+@router.post("/{resume_id}/notes", status_code=200)
 async def update_notes(
     resume: DatabaseResume = Depends(get_resume_for_user),
     db: Session = Depends(get_db),
@@ -154,10 +153,10 @@ async def update_notes(
 
     """
     update_resume_notes(db=db, resume=resume, notes=notes)
-    return HTMLResponse(content="<div class='text-green-500'>Notes saved!</div>")
+    return Response(headers={"HX-Redirect": "/dashboard"})
 
 
-@router.post("/{resume_id}/edit/projects")
+@router.post("/{resume_id}/edit/projects", status_code=200)
 async def update_projects(
     http_request: Request,
     db: Session = Depends(get_db),
@@ -219,9 +218,9 @@ async def update_projects(
         )
 
         perform_pre_save_validation(updated_content, resume.content)
-        updated_resume = update_resume_db(db, resume=resume, content=updated_content)
+        update_resume_db(db, resume=resume, content=updated_content)
 
-        return HTMLResponse(content=_generate_resume_detail_html(updated_resume))
+        return Response(headers={"HX-Redirect": "/dashboard"})
     except (ValueError, TypeError, HTTPException) as e:
         detail = getattr(e, "detail", str(e))
         _msg = f"Failed to update projects info: {detail}"
@@ -229,7 +228,7 @@ async def update_projects(
         raise HTTPException(status_code=422, detail=_msg)
 
 
-@router.post("/{resume_id}/edit/certifications")
+@router.post("/{resume_id}/edit/certifications", status_code=200)
 async def update_certifications(
     http_request: Request,
     db: Session = Depends(get_db),
@@ -289,9 +288,9 @@ async def update_certifications(
         )
 
         perform_pre_save_validation(updated_content, resume.content)
-        updated_resume = update_resume_db(db, resume=resume, content=updated_content)
+        update_resume_db(db, resume=resume, content=updated_content)
 
-        return HTMLResponse(content=_generate_resume_detail_html(updated_resume))
+        return Response(headers={"HX-Redirect": "/dashboard"})
     except (ValueError, TypeError, HTTPException) as e:
         detail = getattr(e, "detail", str(e))
         _msg = f"Failed to update certifications info: {detail}"
@@ -330,7 +329,7 @@ async def get_projects_info(
     return ProjectsResponse(projects=experience.projects)
 
 
-@router.put("/{resume_id}/projects", response_model=ProjectsResponse)
+@router.put("/{resume_id}/projects", status_code=200)
 async def update_projects_info_structured(
     request: ExperienceUpdateRequest,
     db: Session = Depends(get_db),
@@ -364,7 +363,6 @@ async def update_projects_info_structured(
     """
     try:
         projects_to_update = request.projects or []
-        updated_projects = ProjectsResponse(projects=projects_to_update)
 
         current_experience = extract_experience_info(resume.content)
 
@@ -383,7 +381,7 @@ async def update_projects_info_structured(
 
         update_resume_db(db, resume, content=updated_content)
 
-        return updated_projects
+        return Response(headers={"HX-Redirect": "/dashboard"})
     except (ValueError, TypeError, HTTPException) as e:
         detail = getattr(e, "detail", str(e))
         _msg = (
@@ -423,7 +421,7 @@ async def get_certifications_info(
     return extract_certifications_info(resume.content)
 
 
-@router.put("/{resume_id}/certifications", response_model=CertificationsResponse)
+@router.put("/{resume_id}/certifications", status_code=200)
 async def update_certifications_info_structured(
     request: CertificationUpdateRequest,
     db: Session = Depends(get_db),
@@ -470,7 +468,7 @@ async def update_certifications_info_structured(
 
         update_resume_db(db, resume, content=updated_content)
 
-        return updated_certifications
+        return Response(headers={"HX-Redirect": "/dashboard"})
     except (ValueError, TypeError, HTTPException) as e:
         detail = getattr(e, "detail", str(e))
         _msg = (
@@ -482,7 +480,7 @@ async def update_certifications_info_structured(
 
 
 
-@router.post("/{resume_id}/edit/experience")
+@router.post("/{resume_id}/edit/experience", status_code=200)
 async def update_experience(
     http_request: Request,
     db: Session = Depends(get_db),
@@ -542,9 +540,9 @@ async def update_experience(
         )
 
         perform_pre_save_validation(updated_content, resume.content)
-        updated_resume = update_resume_db(db, resume=resume, content=updated_content)
+        update_resume_db(db, resume=resume, content=updated_content)
 
-        return HTMLResponse(content=_generate_resume_detail_html(updated_resume))
+        return Response(headers={"HX-Redirect": "/dashboard"})
     except (ValueError, TypeError, HTTPException) as e:
         detail = getattr(e, "detail", str(e))
         _msg = f"Failed to update experience info: {detail}"
@@ -582,7 +580,7 @@ async def get_experience_info(
     return extract_experience_info(resume.content)
 
 
-@router.put("/{resume_id}/experience", response_model=ExperienceResponse)
+@router.put("/{resume_id}/experience", status_code=200)
 async def update_experience_info_structured(
     request: ExperienceUpdateRequest,
     db: Session = Depends(get_db),
@@ -640,7 +638,7 @@ async def update_experience_info_structured(
         # Save updated content to database
         update_resume_db(db, resume, content=updated_content)
 
-        return updated_experience
+        return Response(headers={"HX-Redirect": "/dashboard"})
     except (ValueError, TypeError, HTTPException) as e:
         detail = getattr(e, "detail", str(e))
         _msg = (
@@ -650,7 +648,7 @@ async def update_experience_info_structured(
         raise HTTPException(status_code=422, detail=_msg)
 
 
-@router.post("/{resume_id}/edit/education")
+@router.post("/{resume_id}/edit/education", status_code=200)
 async def update_education(
     http_request: Request,
     db: Session = Depends(get_db),
@@ -711,9 +709,9 @@ async def update_education(
         )
 
         perform_pre_save_validation(updated_content, resume.content)
-        updated_resume = update_resume_db(db, resume=resume, content=updated_content)
+        update_resume_db(db, resume=resume, content=updated_content)
 
-        return HTMLResponse(content=_generate_resume_detail_html(updated_resume))
+        return Response(headers={"HX-Redirect": "/dashboard"})
     except (ValueError, TypeError, HTTPException) as e:
         detail = getattr(e, "detail", str(e))
         _msg = f"Failed to update education info: {detail}"
@@ -751,7 +749,7 @@ async def get_education_info(
     return extract_education_info(resume.content)
 
 
-@router.put("/{resume_id}/education", response_model=EducationResponse)
+@router.put("/{resume_id}/education", status_code=200)
 async def update_education_info_structured(
     request: EducationUpdateRequest,
     db: Session = Depends(get_db),
@@ -799,7 +797,7 @@ async def update_education_info_structured(
         # Save updated content to database
         update_resume_db(db, resume, content=updated_content)
 
-        return updated_info
+        return Response(headers={"HX-Redirect": "/dashboard"})
     except (ValueError, TypeError, HTTPException) as e:
         detail = getattr(e, "detail", str(e))
         _msg = (

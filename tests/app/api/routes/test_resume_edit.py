@@ -217,9 +217,8 @@ def test_update_personal_info_structured_success(
     )
 
     assert response.status_code == 200
-    response_data = response.json()
-    assert response_data["name"] == "new name"
-    assert response_data["email"] == "new@email.com"
+    assert response.headers["HX-Redirect"] == "/dashboard"
+    assert not response.content
 
     mock_update_content.assert_called_once()
     call_kwargs = mock_update_content.call_args.kwargs
@@ -315,8 +314,8 @@ def test_update_education_info_structured_success(
     )
 
     assert response.status_code == 200
-    response_data = response.json()
-    assert response_data["degrees"][0]["school"] == "new school"
+    assert response.headers["HX-Redirect"] == "/dashboard"
+    assert not response.content
 
     mock_update_content.assert_called_once()
     call_kwargs = mock_update_content.call_args.kwargs
@@ -359,14 +358,9 @@ def test_update_education_info_reconstruction_error(
 
 
 # Tests for update_education form
-from resume_editor.app.api.routes.html_fragments import _generate_resume_detail_html
 
 
 @patch("resume_editor.app.api.routes.resume_edit.extract_education_info")
-@patch(
-    "resume_editor.app.api.routes.resume_edit._generate_resume_detail_html",
-    return_value="<html>Updated</html>",
-)
 @patch(
     "resume_editor.app.api.routes.resume_edit.update_resume_db",
 )
@@ -380,7 +374,6 @@ def test_update_education_success_form(
     mock_reconstruct,
     mock_validate,
     mock_update_db,
-    mock_gen_html,
     mock_extract,
     client_with_auth_and_resume: TestClient,
     test_resume,
@@ -389,7 +382,6 @@ def test_update_education_success_form(
     from datetime import datetime
 
     mock_extract.return_value = EducationResponse(degrees=[])
-    mock_update_db.return_value = test_resume
 
     form_data = {
         "school": "New School",
@@ -402,6 +394,8 @@ def test_update_education_success_form(
     )
 
     assert response.status_code == 200
+    assert response.headers["HX-Redirect"] == "/dashboard"
+    assert not response.content
     mock_extract.assert_called_once_with(test_resume.content)
 
     mock_reconstruct.assert_called_once()
@@ -501,9 +495,8 @@ def test_update_projects_info_structured_success(
     )
 
     assert response.status_code == 200
-    response_data = response.json()
-    assert response_data["projects"][0]["overview"]["title"] == "new title"
-    assert response_data["projects"][0]["description"]["text"] == "A new project."
+    assert response.headers["HX-Redirect"] == "/dashboard"
+    assert not response.content
 
     mock_update_content.assert_called_once()
     call_kwargs = mock_update_content.call_args.kwargs
@@ -608,8 +601,8 @@ def test_update_certifications_info_structured_success(
     )
 
     assert response.status_code == 200
-    response_data = response.json()
-    assert response_data["certifications"][0]["name"] == "new cert"
+    assert response.headers["HX-Redirect"] == "/dashboard"
+    assert not response.content
 
     mock_update_content.assert_called_once()
     call_kwargs = mock_update_content.call_args.kwargs
@@ -678,10 +671,6 @@ form_update_patches = [
         return_value=None,
     ),
     patch("resume_editor.app.api.routes.resume_edit.update_resume_db"),
-    patch(
-        "resume_editor.app.api.routes.resume_edit._generate_resume_detail_html",
-        return_value="<html>Updated</html>",
-    ),
 ]
 
 
@@ -696,7 +685,6 @@ def apply_form_update_patches(func):
 @patch("resume_editor.app.api.routes.resume_edit.extract_experience_info")
 @apply_form_update_patches
 def test_update_projects_success(
-    mock_gen_html,
     mock_update_db,
     mock_validate,
     mock_reconstruct,
@@ -706,7 +694,6 @@ def test_update_projects_success(
 ):
     """Test successful update of projects info."""
     mock_extract.return_value = ExperienceResponse(roles=[], projects=[])
-    mock_update_db.return_value = test_resume
 
     form_data = {
         "title": "New Project",
@@ -718,6 +705,8 @@ def test_update_projects_success(
     )
 
     assert response.status_code == 200
+    assert response.headers["HX-Redirect"] == "/dashboard"
+    assert not response.content
     mock_extract.assert_called_once_with(test_resume.content)
 
     mock_reconstruct.assert_called_once()
@@ -771,7 +760,6 @@ def test_update_projects_extraction_fails(
 @patch("resume_editor.app.api.routes.resume_edit.extract_certifications_info")
 @apply_form_update_patches
 def test_update_certifications_success(
-    mock_gen_html,
     mock_update_db,
     mock_validate,
     mock_reconstruct,
@@ -781,7 +769,6 @@ def test_update_certifications_success(
 ):
     """Test successful update of certifications info."""
     mock_extract.return_value = CertificationsResponse(certifications=[])
-    mock_update_db.return_value = test_resume
 
     form_data = {
         "name": "New Cert",
@@ -795,6 +782,8 @@ def test_update_certifications_success(
     )
 
     assert response.status_code == 200
+    assert response.headers["HX-Redirect"] == "/dashboard"
+    assert not response.content
     mock_extract.assert_called_once_with(test_resume.content)
 
     mock_reconstruct.assert_called_once()
@@ -894,8 +883,8 @@ def test_update_experience_info_structured_success(
     )
 
     assert response.status_code == 200
-    response_data = response.json()
-    assert response_data["roles"][0]["basics"]["company"] == "new co"
+    assert response.headers["HX-Redirect"] == "/dashboard"
+    assert not response.content
 
     mock_update_content.assert_called_once()
     call_kwargs = mock_update_content.call_args.kwargs
@@ -949,10 +938,6 @@ def test_update_experience_info_reconstruction_error(
 
 @patch("resume_editor.app.api.routes.resume_edit.extract_experience_info")
 @patch(
-    "resume_editor.app.api.routes.resume_edit._generate_resume_detail_html",
-    return_value="<html>Updated</html>",
-)
-@patch(
     "resume_editor.app.api.routes.resume_edit.update_resume_db",
 )
 @patch(
@@ -965,7 +950,6 @@ def test_update_experience_success_form(
     mock_reconstruct,
     mock_validate,
     mock_update_db,
-    mock_gen_html,
     mock_extract,
     client_with_auth_and_resume: TestClient,
     test_resume,
@@ -974,7 +958,6 @@ def test_update_experience_success_form(
     from resume_editor.app.api.routes.route_models import ExperienceResponse
 
     mock_extract.return_value = ExperienceResponse(roles=[], projects=[])
-    mock_update_db.return_value = test_resume
 
     form_data = {
         "company": "New Company",
@@ -987,6 +970,8 @@ def test_update_experience_success_form(
     )
 
     assert response.status_code == 200
+    assert response.headers["HX-Redirect"] == "/dashboard"
+    assert not response.content
     mock_extract.assert_called_once_with(test_resume.content)
 
     mock_reconstruct.assert_called_once()
@@ -1049,7 +1034,8 @@ def test_update_resume_notes_endpoint(
     )
 
     assert response.status_code == 200
-    assert response.text == "<div class='text-green-500'>Notes saved!</div>"
+    assert response.headers["HX-Redirect"] == "/dashboard"
+    assert not response.content
     mock_update_notes.assert_called_once_with(
         db=ANY, resume=test_resume, notes="These are updated notes."
     )
