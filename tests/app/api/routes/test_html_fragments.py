@@ -3,6 +3,7 @@ from unittest.mock import MagicMock, patch
 import textwrap
 
 import pytest
+from bs4 import BeautifulSoup
 
 from resume_editor.app.api.routes.html_fragments import (
     _create_refine_result_html,
@@ -198,6 +199,29 @@ def test_generate_resume_list_html_output(test_resume, test_refined_resume):
     assert "Created" in html_output
     assert 'hx-get="/api/resumes?sort_by=updated_at_desc"' in html_output
     assert "Modified" in html_output
+
+    # Link assertions
+    soup = BeautifulSoup(html_output, "html.parser")
+    resume_items = soup.find_all("div", class_="resume-item")
+    assert len(resume_items) == 2
+
+    # First item is base resume
+    base_resume_item = resume_items[0]
+    assert "Test Resume" in base_resume_item.text
+    edit_link = base_resume_item.find(
+        "a", string=lambda s: s and s.strip() == "Edit"
+    )
+    assert edit_link is not None
+    assert edit_link["href"] == f"/resumes/{test_resume.id}/edit"
+
+    # Second item is refined resume
+    refined_resume_item = resume_items[1]
+    assert "Refined Resume" in refined_resume_item.text
+    view_link = refined_resume_item.find(
+        "a", string=lambda s: s and s.strip() == "View"
+    )
+    assert view_link is not None
+    assert view_link["href"] == f"/resumes/{test_refined_resume.id}/view"
 
 
 def test_generate_resume_list_html_output_no_dates(test_user):
