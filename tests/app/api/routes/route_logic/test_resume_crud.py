@@ -11,7 +11,6 @@ from resume_editor.app.api.routes.route_logic.resume_crud import (
     get_resume_by_id_and_user,
     get_user_resumes,
     update_resume,
-    update_resume_notes,
 )
 from resume_editor.app.models.resume_model import Resume as DatabaseResume
 
@@ -224,7 +223,7 @@ def test_create_resume_with_introduction(mock_db_resume):
 
 
 def test_update_resume():
-    """Test update_resume."""
+    """Test update_resume for all updateable fields."""
     mock_db = Mock(spec=Session)
     mock_resume = Mock(spec=DatabaseResume)
 
@@ -234,11 +233,33 @@ def test_update_resume():
         name="New Name",
         content="New Content",
         introduction="New Intro",
+        notes="New Notes",
     )
 
     assert mock_resume.name == "New Name"
     assert mock_resume.content == "New Content"
     assert mock_resume.introduction == "New Intro"
+    assert mock_resume.notes == "New Notes"
+    mock_db.commit.assert_called_once()
+    mock_db.refresh.assert_called_once_with(mock_resume)
+    assert result == mock_resume
+
+
+def test_update_resume_no_changes():
+    """Test update_resume with no new data does not change anything."""
+    mock_db = Mock(spec=Session)
+    mock_resume = Mock(spec=DatabaseResume)
+    mock_resume.name = "Initial Name"
+    mock_resume.content = "Initial Content"
+    mock_resume.introduction = "Initial Intro"
+    mock_resume.notes = "Initial notes"
+
+    result = update_resume(db=mock_db, resume=mock_resume)
+
+    assert result.name == "Initial Name"
+    assert result.content == "Initial Content"
+    assert result.introduction == "Initial Intro"
+    assert result.notes == "Initial notes"
     mock_db.commit.assert_called_once()
     mock_db.refresh.assert_called_once_with(mock_resume)
     assert result == mock_resume
@@ -249,11 +270,15 @@ def test_update_resume_only_name():
     mock_db = Mock(spec=Session)
     mock_resume = Mock(spec=DatabaseResume)
     mock_resume.content = "Initial Content"
+    mock_resume.introduction = "Initial Intro"
+    mock_resume.notes = "Initial notes"
 
     result = update_resume(db=mock_db, resume=mock_resume, name="New Name")
 
     assert result.name == "New Name"
     assert result.content == "Initial Content"
+    assert result.introduction == "Initial Intro"
+    assert result.notes == "Initial notes"
     mock_db.commit.assert_called_once()
     mock_db.refresh.assert_called_once_with(mock_resume)
     assert result == mock_resume
@@ -264,11 +289,53 @@ def test_update_resume_only_content():
     mock_db = Mock(spec=Session)
     mock_resume = Mock(spec=DatabaseResume)
     mock_resume.name = "Initial Name"
+    mock_resume.introduction = "Initial Intro"
+    mock_resume.notes = "Initial notes"
 
     result = update_resume(db=mock_db, resume=mock_resume, content="New Content")
 
     assert result.name == "Initial Name"
     assert result.content == "New Content"
+    assert result.introduction == "Initial Intro"
+    assert result.notes == "Initial notes"
+    mock_db.commit.assert_called_once()
+    mock_db.refresh.assert_called_once_with(mock_resume)
+    assert result == mock_resume
+
+
+def test_update_resume_only_introduction():
+    """Test update_resume with only introduction."""
+    mock_db = Mock(spec=Session)
+    mock_resume = Mock(spec=DatabaseResume)
+    mock_resume.name = "Initial Name"
+    mock_resume.content = "Initial Content"
+    mock_resume.notes = "Initial notes"
+
+    result = update_resume(db=mock_db, resume=mock_resume, introduction="New Intro")
+
+    assert result.name == "Initial Name"
+    assert result.content == "Initial Content"
+    assert result.introduction == "New Intro"
+    assert result.notes == "Initial notes"
+    mock_db.commit.assert_called_once()
+    mock_db.refresh.assert_called_once_with(mock_resume)
+    assert result == mock_resume
+
+
+def test_update_resume_only_notes():
+    """Test update_resume with only notes."""
+    mock_db = Mock(spec=Session)
+    mock_resume = Mock(spec=DatabaseResume)
+    mock_resume.name = "Initial Name"
+    mock_resume.content = "Initial Content"
+    mock_resume.introduction = "Initial Intro"
+
+    result = update_resume(db=mock_db, resume=mock_resume, notes="New Notes")
+
+    assert result.name == "Initial Name"
+    assert result.content == "Initial Content"
+    assert result.introduction == "Initial Intro"
+    assert result.notes == "New Notes"
     mock_db.commit.assert_called_once()
     mock_db.refresh.assert_called_once_with(mock_resume)
     assert result == mock_resume
@@ -283,41 +350,3 @@ def test_delete_resume():
 
     mock_db.delete.assert_called_once_with(mock_resume)
     mock_db.commit.assert_called_once()
-
-
-def test_update_resume_only_introduction():
-    """Test update_resume with only introduction."""
-    mock_db = Mock(spec=Session)
-    mock_resume = Mock(spec=DatabaseResume)
-    mock_resume.name = "Initial Name"
-    mock_resume.content = "Initial Content"
-
-    result = update_resume(db=mock_db, resume=mock_resume, introduction="New Intro")
-
-    assert result.name == "Initial Name"
-    assert result.content == "Initial Content"
-    assert result.introduction == "New Intro"
-    mock_db.commit.assert_called_once()
-    mock_db.refresh.assert_called_once_with(mock_resume)
-    assert result == mock_resume
-
-
-@pytest.mark.parametrize(
-    "new_notes",
-    [
-        ("These are some new notes."),
-        (None),
-    ],
-)
-def test_update_resume_notes(new_notes):
-    """Test update_resume_notes correctly updates notes."""
-    mock_db = Mock(spec=Session)
-    mock_resume = Mock(spec=DatabaseResume)
-    mock_resume.notes = "Initial notes."
-
-    result = update_resume_notes(db=mock_db, resume=mock_resume, notes=new_notes)
-
-    assert mock_resume.notes == new_notes
-    mock_db.commit.assert_called_once()
-    mock_db.refresh.assert_called_once_with(mock_resume)
-    assert result == mock_resume

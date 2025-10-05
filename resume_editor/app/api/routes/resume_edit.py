@@ -7,7 +7,6 @@ from sqlalchemy.orm import Session
 from resume_editor.app.api.dependencies import get_resume_for_user
 from resume_editor.app.api.routes.route_logic.resume_crud import (
     update_resume as update_resume_db,
-    update_resume_notes,
 )
 from resume_editor.app.api.routes.html_fragments import _generate_resume_detail_html
 from resume_editor.app.api.routes.route_logic.resume_serialization import (
@@ -129,31 +128,6 @@ async def update_personal_info_structured(
         log.exception(_msg)
         raise HTTPException(status_code=422, detail=_msg)
 
-
-@router.post("/{resume_id}/notes", status_code=200)
-async def update_notes(
-    resume: DatabaseResume = Depends(get_resume_for_user),
-    db: Session = Depends(get_db),
-    notes: str = Form(...),
-):
-    """
-    Update notes for a resume.
-
-    Args:
-        resume (DatabaseResume): The resume object.
-        db (Session): The database session.
-        notes (str): The notes from the form.
-
-    Returns:
-        HTMLResponse: A success message.
-
-    Notes:
-        1. Calls update_resume_notes to save the notes.
-        2. Returns an HTML snippet with a success message for HTMX.
-
-    """
-    update_resume_notes(db=db, resume=resume, notes=notes)
-    return Response(headers={"HX-Redirect": "/dashboard"})
 
 
 @router.post("/{resume_id}/edit/projects", status_code=200)

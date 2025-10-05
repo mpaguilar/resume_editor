@@ -3530,9 +3530,9 @@ Notes:
 
 ---
 
-## function: `update_resume(db: Session, resume: DatabaseResume, name: str | None, content: str | None, introduction: str | None) -> DatabaseResume`
+## function: `update_resume(db: Session, resume: DatabaseResume, name: str | None, content: str | None, introduction: str | None, notes: str | None) -> DatabaseResume`
 
-Update a resume's name, content, and/or introduction.
+Update a resume's name, content, introduction, and/or notes.
 
 Args:
     db (Session): The database session.
@@ -3540,6 +3540,7 @@ Args:
     name (str | None): The new name for the resume. If None, the name is not updated.
     content (str | None): The new content for the resume. If None, the content is not updated.
     introduction (str | None): The new introduction for the resume. If None, it is not updated.
+    notes (str | None): The new notes for the resume. If None, the notes are not updated.
 
 Returns:
     DatabaseResume: The updated resume object.
@@ -3548,31 +3549,11 @@ Notes:
     1. If a new name is provided (not None), update the resume's name attribute.
     2. If new content is provided (not None), update the resume's content attribute.
     3. If an introduction is provided (not None), update the resume's introduction attribute.
-    4. Commit the transaction to save the changes to the database.
-    5. Refresh the resume object to ensure it reflects the latest state from the database.
-    6. Return the updated resume.
-    7. This function performs a database write operation.
-
----
-
-## function: `update_resume_notes(db: Session, resume: DatabaseResume, notes: str | None) -> DatabaseResume`
-
-Update a resume's notes.
-
-Args:
-    db (Session): The database session.
-    resume (DatabaseResume): The resume to update.
-    notes (str | None): The new notes for the resume. Can be None.
-
-Returns:
-    DatabaseResume: The updated resume object.
-
-Notes:
-    1. Update the resume's notes attribute with the provided value.
-    2. Commit the transaction to save the changes to the database.
-    3. Refresh the resume object to ensure it reflects the latest state.
-    4. Return the updated resume.
-    5. This function performs a database write operation.
+    4. If new notes are provided (not None), update the resume's notes attribute.
+    5. Commit the transaction to save the changes to the database.
+    6. Refresh the resume object to ensure it reflects the latest state from the database.
+    7. Return the updated resume.
+    8. This function performs a database write operation.
 
 ---
 
