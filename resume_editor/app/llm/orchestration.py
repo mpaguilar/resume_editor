@@ -96,26 +96,30 @@ async def analyze_job_description(
     llm_endpoint: str | None,
     api_key: str | None,
     llm_model_name: str | None,
-) -> JobAnalysis:
-    """Uses an LLM to analyze a job description and extract key information.
+    resume_content_for_intro: str | None = None,
+) -> tuple[JobAnalysis, str | None]:
+    """Uses an LLM to analyze a job description and optionally generate a resume introduction.
 
     Args:
         job_description (str): The job description to analyze.
         llm_endpoint (str | None): The custom LLM endpoint URL.
         api_key (str | None): The user's decrypted LLM API key.
         llm_model_name (str | None): The user-specified LLM model name.
+        resume_content_for_intro (str | None): Optional full resume content to be used for generating an introduction.
 
     Returns:
-        JobAnalysis: A pydantic object containing the structured analysis of the job description.
+        tuple[JobAnalysis, str | None]: A tuple containing the structured analysis of the job description and an optional introduction string.
 
     Notes:
-        1. Set up a PydanticOutputParser for structured output based on the JobAnalysis model.
-        2. Create a PromptTemplate with instructions for the LLM.
-        3. Determine the model name, using the provided `llm_model_name` or falling back to a default.
-        4. Initialize the ChatOpenAI client.
-        5. Create a chain combining the prompt, LLM, and parser.
-        6. Asynchronously invoke the chain with the job description.
-        7. Return the `JobAnalysis` object.
+        1. Set up a `PydanticOutputParser` for structured output based on the `JobAnalysis` model.
+        2. Conditionally prepare prompt components for introduction generation if `resume_content_for_intro` is provided.
+        3. Create a `ChatPromptTemplate` with instructions for the LLM.
+        4. Determine the model name, using the provided `llm_model_name` or falling back to a default.
+        5. Initialize the `ChatOpenAI` client.
+        6. Create a chain combining the prompt, LLM, and a `StrOutputParser`.
+        7. Asynchronously invoke the chain with the job description and optional resume content.
+        8. Parse the JSON response and validate it against the `JobAnalysis` model.
+        9. Return the `JobAnalysis` object and the generated `introduction`.
 
     Network access:
         - This function makes a network request to the LLM endpoint specified by llm_endpoint.
@@ -128,12 +132,25 @@ async def analyze_job_description(
 
     parser = PydanticOutputParser(pydantic_object=JobAnalysis)
 
+    # Conditionally prepare prompt components for introduction generation
+    if resume_content_for_intro:
+        introduction_instructions = "\n\n**Instructions for Introduction Generation (only perform if `Resume Content` is provided):**\n4.  Based on the `Resume Content`, write a brief (1-2 paragraph) professional introduction for the resume. Place it in the 'introduction' field of the JSON output."
+        resume_content_block = (
+            f"Resume Content:\n---\n{resume_content_for_intro}\n---\n\n"
+        )
+    else:
+        introduction_instructions = ""
+        resume_content_block = ""
+
     prompt = ChatPromptTemplate.from_messages(
         [
             ("system", JOB_ANALYSIS_SYSTEM_PROMPT),
             ("human", JOB_ANALYSIS_HUMAN_PROMPT),
         ]
-    ).partial(format_instructions=parser.get_format_instructions())
+    ).partial(
+        format_instructions=parser.get_format_instructions(),
+        introduction_instructions=introduction_instructions,
+    )
 
     model_name = llm_model_name if llm_model_name else "gpt-4o"
 
@@ -159,7 +176,12 @@ async def analyze_job_description(
     # Use StrOutputParser to get the raw string, then manually parse
     chain = prompt | llm | StrOutputParser()
     try:
-        response_str = await chain.ainvoke({"job_description": job_description})
+        response_str = await chain.ainvoke(
+            {
+                "job_description": job_description,
+                "resume_content_block": resume_content_block,
+            }
+        )
 
         parsed_json = parse_json_markdown(response_str)
         analysis = JobAnalysis.model_validate(parsed_json)
@@ -173,7 +195,7 @@ async def analyze_job_description(
 
     _msg = "analyze_job_description returning"
     log.debug(_msg)
-    return analysis
+    return analysis, analysis.introduction
 
 
 def _refine_generic_section(
@@ -366,11 +388,12 @@ async def async_refine_experience_section(
         1. Yields a progress message for parsing the resume.
         2. Extracts the experience section from the resume content.
         3. Yields a progress message for analyzing the job description.
-        4. Calls `analyze_job_description` to get a structured analysis.
-        5. If roles are found, creates an `asyncio.Queue` for events and a `Semaphore` for concurrency control.
-        6. For each role, creates a concurrent task using `_refine_role_and_put_on_queue`.
-        7. Enters a loop to consume events from the queue until all roles are processed.
-        8. For each event, if it's an exception, it is raised. Otherwise, it is yielded to the caller.
+        4. Calls `analyze_job_description` to get a structured analysis. If `generate_introduction` is `True`, it also requests an introduction.
+        5. If an introduction is generated, it is immediately yielded via an `introduction_generated` event.
+        6. If roles are found, creates an `asyncio.Queue` for events and a `Semaphore` for concurrency control.
+        7. For each role, creates a concurrent task using `_refine_role_and_put_on_queue`.
+        8. Enters a loop to consume events from the queue until all roles are processed.
+        9. For each event, if it's an exception, it is raised. Otherwise, it is yielded to the caller.
     """
     log.debug("async_refine_experience_section starting")
 
@@ -382,12 +405,21 @@ async def async_refine_experience_section(
     # 2. Analyze the job description
     yield {"status": "in_progress", "message": "Analyzing job description..."}
     log.debug("Analyzing job description...")
-    job_analysis = await analyze_job_description(
+
+    resume_content_for_intro = None
+    if generate_introduction:
+        resume_content_for_intro = resume_content
+
+    job_analysis, introduction = await analyze_job_description(
         job_description=job_description,
         llm_endpoint=llm_endpoint,
         api_key=api_key,
         llm_model_name=llm_model_name,
+        resume_content_for_intro=resume_content_for_intro,
     )
+
+    if introduction:
+        yield {"status": "introduction_generated", "data": introduction}
 
     # 3. Create and dispatch tasks for role refinement
     num_roles = len(experience_info.roles) if experience_info.roles else 0

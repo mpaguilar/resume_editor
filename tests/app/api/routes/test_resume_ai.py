@@ -689,7 +689,6 @@ def test_refine_resume_no_htmx_response(
 
 
 @pytest.mark.asyncio
-@patch("resume_editor.app.api.routes.resume_ai.refine_resume_section_with_llm")
 @patch("resume_editor.app.api.routes.resume_ai._create_refine_result_html")
 @patch("resume_editor.app.api.routes.resume_ai.build_complete_resume_from_sections")
 @patch("resume_editor.app.api.routes.resume_ai.extract_certifications_info")
@@ -712,7 +711,6 @@ async def test_refine_resume_stream_happy_path(
     mock_extract_certifications,
     mock_build_sections,
     mock_create_refine_result_html,
-    mock_refine_sync,
     client_with_auth_and_resume,
     test_user,
     test_resume,
@@ -770,6 +768,7 @@ async def test_refine_resume_stream_happy_path(
 
     async def mock_async_generator():
         yield {"status": "in_progress", "message": "doing stuff"}
+        yield {"status": "introduction_generated", "data": "Generated Intro"}
         # Yield out of order to ensure sorting logic is tested
         yield {
             "status": "role_refined",
@@ -784,7 +783,6 @@ async def test_refine_resume_stream_happy_path(
 
     mock_async_refine_experience.return_value = mock_async_generator()
     mock_create_refine_result_html.return_value = "<html>final refined html</html>"
-    mock_refine_sync.return_value = ("discarded content", "Generated Intro")
 
     # Act
     with client_with_auth_and_resume.stream(
@@ -797,13 +795,13 @@ async def test_refine_resume_stream_happy_path(
 
     # Assert
     events = text_content.strip().split("\n\n")
-    # Expected: progress, introduction progress, done, close
+    # Expected: progress, introduction, done, close
     assert len(events) == 4, f"Expected 4 events, got {len(events)}: {events}"
 
     assert "event: progress" in events[0]
     assert "data: <li>doing stuff</li>" in events[0]
-    assert "event: progress" in events[1]
-    assert "data: <li>Generating introduction...</li>" in events[1]
+    assert "event: introduction_generated" in events[1]
+    assert 'id="introduction-container"' in events[1]
     assert "event: done" in events[2]
     assert "data: <html>final refined html</html>" in events[2]
     assert "event: close" in events[3]
@@ -831,14 +829,12 @@ async def test_refine_resume_stream_happy_path(
     assert reconstructed_roles[1].summary.text == "Refined Summary 2"
     assert reconstructed_experience.projects == mock_original_experience.projects
 
-    mock_refine_sync.assert_called_once_with(
-        VALID_RESUME_TWO_ROLES,
-        "a new job",
-        "full",
-        mock_settings.llm_endpoint,
-        "decrypted_key",
-        mock_settings.llm_model_name,
-        True,
+    mock_create_refine_result_html.assert_called_once_with(
+        1,
+        "experience",
+        "reconstructed content",
+        job_description="a new job",
+        introduction="Generated Intro",
     )
 
     mock_create_refine_result_html.assert_called_once_with(
@@ -851,7 +847,6 @@ async def test_refine_resume_stream_happy_path(
 
 
 @pytest.mark.asyncio
-@patch("resume_editor.app.api.routes.resume_ai.refine_resume_section_with_llm")
 @patch("resume_editor.app.api.routes.resume_ai._create_refine_result_html")
 @patch("resume_editor.app.api.routes.resume_ai.build_complete_resume_from_sections")
 @patch("resume_editor.app.api.routes.resume_ai.extract_certifications_info")
@@ -874,7 +869,6 @@ async def test_refine_resume_stream_happy_path_gen_intro_false(
     mock_extract_certifications,
     mock_build_sections,
     mock_create_refine_result_html,
-    mock_refine_sync,
     client_with_auth_and_resume,
     test_user,
     test_resume,
@@ -939,8 +933,6 @@ async def test_refine_resume_stream_happy_path_gen_intro_false(
         generate_introduction=False,
     )
 
-    mock_refine_sync.assert_not_called()
-
     mock_create_refine_result_html.assert_called_once_with(
         1,
         "experience",
@@ -950,6 +942,46 @@ async def test_refine_resume_stream_happy_path_gen_intro_false(
     )
 
 
+
+
+
+
+
+
+@pytest.mark.asyncio
+@patch("resume_editor.app.api.routes.resume_ai.async_refine_experience_section")
+@patch("resume_editor.app.api.routes.resume_ai.get_user_settings", return_value=None)
+async def test_refine_resume_stream_introduction_is_none(
+    mock_get_user_settings,
+    mock_async_refine_experience,
+    client_with_auth_and_resume,
+):
+    """Test that an introduction_generated event with None data is handled."""
+
+    async def mock_generator():
+        yield {"status": "introduction_generated", "data": None}
+        yield {"status": "in_progress", "message": "doing stuff"}
+
+    mock_async_refine_experience.return_value = mock_generator()
+
+    with client_with_auth_and_resume.stream(
+        "GET",
+        "/api/resumes/1/refine/stream?job_description=job&generate_introduction=true",
+    ) as response:
+        assert response.status_code == 200
+        text_content = response.read().decode("utf-8")
+
+    events = text_content.strip().split("\n\n")
+
+    # The empty introduction event should be ignored.
+    # The stream continues and since no roles are refined, it sends an error.
+    # Expected events: progress, error (since no roles are refined), and close.
+    assert len(events) == 3
+    assert "event: progress" in events[0]
+    assert "data: <li>doing stuff</li>" in events[0]
+    assert "event: error" in events[1]
+    assert "Refinement finished, but no roles were found to refine." in events[1]
+    assert "event: close" in events[2]
 
 
 @pytest.mark.asyncio
@@ -1102,7 +1134,10 @@ Title: A project
 A project with no roles.
 """
     test_resume.content = resume_with_no_roles
-    mock_analyze_job.return_value = JobAnalysis(key_skills=[], primary_duties=[], themes=[])
+    mock_analyze_job.return_value = (
+        JobAnalysis(key_skills=[], primary_duties=[], themes=[]),
+        None,
+    )
 
     # Act
     with client_with_auth_and_resume.stream(
@@ -1935,7 +1970,6 @@ def test_accept_refined_resume_invalid_section(
 
 
 @pytest.mark.asyncio
-@patch("resume_editor.app.api.routes.resume_ai.refine_resume_section_with_llm")
 @patch("resume_editor.app.api.routes.resume_ai._create_refine_result_html")
 @patch("resume_editor.app.api.routes.resume_ai.build_complete_resume_from_sections")
 @patch("resume_editor.app.api.routes.resume_ai.extract_certifications_info")
@@ -1960,7 +1994,6 @@ async def test_refine_resume_stream_integrated(
     mock_extract_certifications,
     mock_build_sections,
     mock_create_html,
-    mock_refine_sync,
     client_with_auth_and_resume,
     test_resume,
 ):
@@ -1994,8 +2027,12 @@ async def test_refine_resume_stream_integrated(
         roles=[mock_role_a, mock_role_b], projects=[]
     )
 
-    mock_analyze_job.return_value = JobAnalysis(
+    mock_job_analysis = JobAnalysis(
         key_skills=["a", "b"], primary_duties=["c"], themes=["d"]
+    )
+    mock_analyze_job.return_value = (
+        mock_job_analysis,
+        "Generated intro from orchestration",
     )
 
     mock_refined_role1 = RefinedRole(
@@ -2037,7 +2074,6 @@ async def test_refine_resume_stream_integrated(
     mock_extract_certifications.return_value = MagicMock()
     mock_build_sections.return_value = "reconstructed content"
     mock_create_html.return_value = "<html>final refined html</html>"
-    mock_refine_sync.return_value = ("", "Generated Intro From Sync Call")
 
     # Act
     with client_with_auth_and_resume.stream(
@@ -2050,19 +2086,19 @@ async def test_refine_resume_stream_integrated(
     # Assert
     events = text_content.strip().split("\n\n")
 
-    # Expected events: progress, progress, 2x progress (refining), intro progress, done, close
+    # Expected events: progress, progress, intro, 2x progress (refining), done, close
     assert len(events) == 7, f"Expected 7 events, but got {len(events)}: {events}"
 
     assert "event: progress" in events[0] and "Parsing resume" in events[0]
     assert "event: progress" in events[1] and "Analyzing job" in events[1]
 
+    intro_event = next(e for e in events if "event: introduction_generated" in e)
+    assert 'id="introduction-container"' in intro_event
+
     refining_events = [e for e in events if "Refining role" in e]
     assert len(refining_events) == 2
     assert any("Refining role &#x27;A Role @ A Company&#x27;..." in e for e in refining_events)
     assert any("Refining role &#x27;B Role @ B Company&#x27;..." in e for e in refining_events)
-
-    intro_event = next(e for e in events if "Generating introduction" in e)
-    assert "event: progress" in intro_event
 
     done_event = next(e for e in events if "event: done" in e)
     assert "data: <html>final refined html</html>" in done_event
@@ -2090,13 +2126,12 @@ async def test_refine_resume_stream_integrated(
         == mock_original_experience.projects
     )
 
-    mock_refine_sync.assert_called_once()
     mock_create_html.assert_called_once_with(
         1,
         "experience",
         "reconstructed content",
         job_description="a new job",
-        introduction="Generated Intro From Sync Call",
+        introduction="Generated intro from orchestration",
     )
 
 

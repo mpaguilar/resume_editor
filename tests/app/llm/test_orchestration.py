@@ -264,17 +264,66 @@ def mock_chain_invocations_for_analysis():
 
 @pytest.mark.asyncio
 async def test_analyze_job_description(mock_chain_invocations_for_analysis):
-    """Test that analyze_job_description returns a valid JobAnalysis object."""
-    result = await analyze_job_description(
+    """Test that analyze_job_description returns a JobAnalysis object and no introduction."""
+    # Act
+    job_analysis, introduction = await analyze_job_description(
         job_description="some job description",
         llm_endpoint=None,
         api_key=None,
         llm_model_name=None,
+        resume_content_for_intro=None,  # Explicitly None
     )
-    assert isinstance(result, JobAnalysis)
-    assert result.key_skills == ["python", "fastapi"]
-    assert result.primary_duties == ["develop things"]
-    assert result.themes == ["agile"]
+
+    # Assert results
+    assert isinstance(job_analysis, JobAnalysis)
+    assert job_analysis.key_skills == ["python", "fastapi"]
+    assert introduction is None
+
+    # Assert prompt construction
+    final_chain = mock_chain_invocations_for_analysis["final_chain"]
+    final_chain.ainvoke.assert_called_once()
+    invoke_args = final_chain.ainvoke.call_args.args[0]
+    assert invoke_args["resume_content_block"] == ""
+
+    partial_kwargs = mock_chain_invocations_for_analysis[
+        "prompt_from_messages"
+    ].partial.call_args.kwargs
+    assert partial_kwargs["introduction_instructions"] == ""
+
+
+@pytest.mark.asyncio
+async def test_analyze_job_description_with_introduction(
+    mock_chain_invocations_for_analysis,
+):
+    """Test that analyze_job_description returns a JobAnalysis and an an introduction when requested."""
+    # Arrange: modify the mock to return an introduction
+    final_chain = mock_chain_invocations_for_analysis["final_chain"]
+    final_chain.ainvoke.return_value = '```json\n{"key_skills": ["python", "fastapi"], "primary_duties": ["develop things"], "themes": ["agile"], "introduction": "This is an intro."}\n```'
+
+    # Act
+    job_analysis, introduction = await analyze_job_description(
+        job_description="some job description",
+        llm_endpoint=None,
+        api_key=None,
+        llm_model_name=None,
+        resume_content_for_intro="some resume content",
+    )
+
+    # Assert
+    assert isinstance(job_analysis, JobAnalysis)
+    assert job_analysis.key_skills == ["python", "fastapi"]
+    assert introduction == "This is an intro."
+    assert job_analysis.introduction == "This is an intro."
+
+    # Assert prompt construction
+    final_chain.ainvoke.assert_called_once()
+    invoke_args = final_chain.ainvoke.call_args.args[0]
+    assert "some resume content" in invoke_args["resume_content_block"]
+
+    partial_kwargs = mock_chain_invocations_for_analysis[
+        "prompt_from_messages"
+    ].partial.call_args.kwargs
+    assert "Instructions for Introduction Generation" in partial_kwargs["introduction_instructions"]
 
 
 def test_refine_resume_section_with_llm_dispatcher():
@@ -1046,7 +1095,7 @@ async def test_async_refine_experience_section_execution(
     mock_experience_info = ExperienceResponse(roles=mock_roles, projects=[])
     mock_extract_experience.return_value = mock_experience_info
     mock_job_analysis = create_mock_job_analysis()
-    mock_analyze_job.return_value = mock_job_analysis
+    mock_analyze_job.return_value = (mock_job_analysis, None)
 
     # Mock for refinement results
     mock_refined_role1 = create_mock_refined_role()
@@ -1069,7 +1118,7 @@ async def test_async_refine_experience_section_execution(
         llm_endpoint=llm_endpoint,
         api_key=api_key,
         llm_model_name=llm_model_name,
-        generate_introduction=True,
+        generate_introduction=False,
         max_concurrency=max_concurrency,
     ):
         events.append(event)
@@ -1082,6 +1131,7 @@ async def test_async_refine_experience_section_execution(
         llm_endpoint=llm_endpoint,
         api_key=api_key,
         llm_model_name=llm_model_name,
+        resume_content_for_intro=None,
     )
     assert mock_refine_role.call_count == len(mock_roles)
 
@@ -1127,6 +1177,67 @@ async def test_async_refine_experience_section_execution(
     new_callable=AsyncMock,
 )
 @patch("resume_editor.app.llm.orchestration.extract_experience_info")
+async def test_async_refine_experience_section_with_introduction(
+    mock_extract_experience,
+    mock_analyze_job,
+    mock_refine_role,
+):
+    """
+    Test async_refine_experience_section with introduction generation.
+    """
+    # Arrange
+    resume_content = "some resume"
+    job_description = "some job"
+
+    mock_role = create_mock_role()
+    mock_extract_experience.return_value = ExperienceResponse(
+        roles=[mock_role], projects=[]
+    )
+
+    mock_job_analysis = create_mock_job_analysis()
+    # Mock analyze_job_description to return an introduction
+    mock_analyze_job.return_value = (mock_job_analysis, "This is the intro.")
+
+    mock_refine_role.return_value = create_mock_refined_role()
+
+    # Act
+    events = []
+    async for event in async_refine_experience_section(
+        resume_content=resume_content,
+        job_description=job_description,
+        llm_endpoint=None,
+        api_key=None,
+        llm_model_name=None,
+        generate_introduction=True,
+    ):
+        events.append(event)
+
+    # Assert
+    # Check that analyze_job_description was called correctly
+    mock_analyze_job.assert_awaited_once()
+    call_kwargs = mock_analyze_job.call_args.kwargs
+    assert call_kwargs["resume_content_for_intro"] == resume_content
+
+    # Check yielded events
+    assert len(events) == 5
+    assert events[0] == {"status": "in_progress", "message": "Parsing resume..."}
+    assert events[1] == {
+        "status": "in_progress",
+        "message": "Analyzing job description...",
+    }
+    assert events[2] == {"status": "introduction_generated", "data": "This is the intro."}
+    # Then progress for role, then result for role
+    assert "Refining role" in events[3]["message"]
+    assert events[4]["status"] == "role_refined"
+
+
+@pytest.mark.asyncio
+@patch("resume_editor.app.llm.orchestration.refine_role", new_callable=AsyncMock)
+@patch(
+    "resume_editor.app.llm.orchestration.analyze_job_description",
+    new_callable=AsyncMock,
+)
+@patch("resume_editor.app.llm.orchestration.extract_experience_info")
 async def test_async_refine_experience_section_execution_no_roles(
     mock_extract_experience,
     mock_analyze_job,
@@ -1146,7 +1257,7 @@ async def test_async_refine_experience_section_execution_no_roles(
     mock_experience_info = ExperienceResponse(roles=[], projects=[])
     mock_extract_experience.return_value = mock_experience_info
     mock_job_analysis = create_mock_job_analysis()
-    mock_analyze_job.return_value = mock_job_analysis
+    mock_analyze_job.return_value = (mock_job_analysis, None)
 
     # Act
     events = []
@@ -1222,7 +1333,7 @@ async def test_async_refine_experience_section_role_refinement_fails(
     mock_extract_experience.return_value = ExperienceResponse(
         roles=[create_mock_role()], projects=[]
     )
-    mock_analyze_job.return_value = create_mock_job_analysis()
+    mock_analyze_job.return_value = (create_mock_job_analysis(), None)
     mock_refine_role.side_effect = ValueError("Role task failed")
 
     # Act & Assert
@@ -1277,7 +1388,7 @@ async def test_async_refine_experience_section_concurrency(
     mock_roles = [create_mock_role() for i in range(num_roles)]
     mock_experience_info = ExperienceResponse(roles=mock_roles, projects=[])
     mock_extract_experience.return_value = mock_experience_info
-    mock_analyze_job.return_value = create_mock_job_analysis()
+    mock_analyze_job.return_value = (create_mock_job_analysis(), None)
 
     # Concurrency tracking setup
     active_tasks = 0

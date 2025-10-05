@@ -91,6 +91,7 @@ async def refine_resume_stream(
                 api_key = decrypt_data(settings.encrypted_api_key)
 
             refined_roles = {}
+            introduction = None
             async for event in async_refine_experience_section(
                 resume_content=resume.content,
                 job_description=job_description,
@@ -102,6 +103,20 @@ async def refine_resume_stream(
                 if isinstance(event, dict) and event.get("status") == "in_progress":
                     progress_html = f"<li>{html.escape(event.get('message', ''))}</li>"
                     yield f"event: progress\ndata: {progress_html}\n\n"
+                elif (
+                    isinstance(event, dict)
+                    and event.get("status") == "introduction_generated"
+                ):
+                    introduction = event.get("data")
+                    if introduction:
+                        intro_html = f"""<div id="introduction-container" hx-swap-oob="true">
+    <h4 class="text-lg font-semibold text-gray-700">Suggested Introduction:</h4>
+    <p class="mt-1 text-sm text-gray-600 bg-gray-50 p-3 rounded-md border">{html.escape(introduction)}</p>
+</div>"""
+                        data_payload = "\n".join(
+                            f"data: {line}" for line in intro_html.splitlines()
+                        )
+                        yield f"event: introduction_generated\n{data_payload}\n\n"
                 elif isinstance(event, dict) and event.get("status") == "role_refined":
                     index = event.get("original_index")
                     data = event.get("data")
@@ -132,23 +147,6 @@ async def refine_resume_stream(
                     experience=refined_experience,
                     certifications=certifications_info,
                 )
-
-                introduction = None
-                if generate_introduction:
-                    yield "event: progress\ndata: <li>Generating introduction...</li>\n\n"
-                    # Run the sync function in a thread pool to avoid blocking
-                    loop = asyncio.get_running_loop()
-                    _, introduction = await loop.run_in_executor(
-                        None,  # Use default executor
-                        refine_resume_section_with_llm,
-                        resume.content,
-                        job_description,
-                        "full",
-                        llm_endpoint,
-                        api_key,
-                        llm_model_name,
-                        True,
-                    )
 
                 result_html = _create_refine_result_html(
                     resume.id,

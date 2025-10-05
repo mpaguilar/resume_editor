@@ -43,6 +43,10 @@ class JobAnalysis(BaseModel):
         ...,
         description="A list of high-level themes, company culture points, or recurring keywords (e.g., 'fast-paced environment,' 'data-driven decisions').",
     )
+    introduction: str | None = Field(
+        default=None,
+        description="An optional AI-generated introductory paragraph for the resume.",
+    )
 
 
 class RefinedRole(BaseModel):
