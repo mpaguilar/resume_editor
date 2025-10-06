@@ -206,6 +206,21 @@ def test_get_resume_view_page_loads_correctly():
         assert save_button is not None
         assert "Save" in save_button.text
 
+        # Check for export button
+        export_button = soup.find(
+            "button", string=lambda t: t and "Export" in t.strip()
+        )
+        assert export_button is not None
+        assert (
+            export_button["onclick"]
+            == "document.getElementById('export-modal-1').classList.remove('hidden')"
+        )
+
+        # Check for export modal
+        modal = soup.find("div", id="export-modal-1")
+        assert modal is not None
+        assert modal.find("form", id="export-form-1") is not None
+
         mock_get_resume.assert_called_once_with(
             db=mock_db_session, resume_id=1, user_id=1
         )
