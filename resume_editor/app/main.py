@@ -358,6 +358,33 @@ def create_app() -> FastAPI:
             },
         )
 
+    @app.post("/resumes/{resume_id}/view")
+    async def handle_resume_view_update(
+        request: Request,
+        resume_id: int,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_user_from_cookie),
+    ):
+        """Handle updates to the resume view page."""
+        resume = get_resume_by_id_and_user(
+            db=db, resume_id=resume_id, user_id=current_user.id
+        )
+
+        form_data = await request.form()
+        introduction = form_data.get("introduction")
+        notes = form_data.get("notes")
+
+        update_resume(
+            db=db,
+            resume=resume,
+            introduction=introduction,
+            notes=notes,
+        )
+        return RedirectResponse(
+            url=f"/resumes/{resume_id}/view",
+            status_code=status.HTTP_303_SEE_OTHER,
+        )
+
     @app.get("/resumes/create", response_class=HTMLResponse)
     async def create_resume_page(
         request: Request,

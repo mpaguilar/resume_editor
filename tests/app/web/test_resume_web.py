@@ -268,6 +268,67 @@ def test_resume_view_page_unauthenticated():
     assert response.headers["location"] == "http://testserver/login"
 
 
+def test_update_resume_view_page_post():
+    """
+    GIVEN an authenticated user and a resume
+    WHEN they submit the form on the view page
+    THEN the resume is updated and they are redirected back to the view page.
+    """
+    app = create_app()
+    client = TestClient(app)
+    app.dependency_overrides.clear()
+
+    mock_user = User(
+        id=1,
+        username="testuser",
+        email="test@test.com",
+        hashed_password="hashed",
+    )
+    mock_resume = DatabaseResume(
+        user_id=1,
+        name="My Test Resume",
+        content="# My Resume Content",
+    )
+    mock_resume.id = 1
+
+    def get_mock_user():
+        return mock_user
+
+    mock_db_session = MagicMock()
+
+    def get_mock_db():
+        yield mock_db_session
+
+    app.dependency_overrides[get_current_user_from_cookie] = get_mock_user
+    app.dependency_overrides[get_db] = get_mock_db
+
+    with patch(
+        "resume_editor.app.main.get_resume_by_id_and_user", return_value=mock_resume
+    ) as mock_get_resume, patch(
+        "resume_editor.app.main.update_resume"
+    ) as mock_update_resume:
+        response = client.post(
+            "/resumes/1/view",
+            data={"introduction": "New Intro", "notes": "New Notes"},
+            follow_redirects=False,
+        )
+
+        assert response.status_code == 303
+        assert response.headers["location"] == "/resumes/1/view"
+
+        mock_get_resume.assert_called_once_with(
+            db=mock_db_session, resume_id=1, user_id=1
+        )
+        mock_update_resume.assert_called_once_with(
+            db=mock_db_session,
+            resume=mock_resume,
+            introduction="New Intro",
+            notes="New Notes",
+        )
+
+    app.dependency_overrides.clear()
+
+
 
 def test_resume_editor_page_not_found():
     """

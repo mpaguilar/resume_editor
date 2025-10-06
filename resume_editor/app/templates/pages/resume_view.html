@@ -20,7 +20,7 @@
         </div>
     </div>
 
-    <form class="mt-6">
+    <form class="mt-6" method="POST" action="/resumes/{{ resume.id }}/view">
         <div class="mb-4">
             <label for="introduction" class="block text-sm font-medium text-gray-700">AI-Generated Introduction</label>
             <textarea id="introduction" name="introduction" rows="5" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">{{ resume.introduction or '' }}</textarea>
