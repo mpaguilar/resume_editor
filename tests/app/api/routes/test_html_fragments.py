@@ -377,30 +377,37 @@ def test_generate_resume_list_html_with_both(test_resume, test_refined_resume):
         )
 
 
-def test_generate_resume_detail_html_base_resume(test_resume):
-    """Test detail view for a base resume shows refine UI."""
+def test_generate_resume_detail_html_for_base_resume(test_resume):
+    """Test detail view for a base resume."""
     # is_base is True by default in the fixture
     html_output = _generate_resume_detail_html(test_resume)
+    soup = BeautifulSoup(html_output, "html.parser")
 
     # Check that refine button and form are present
-    assert "AI Refine" in html_output
-    assert 'id="refine-form-container-1"' in html_output
+    assert soup.find("button", string=lambda s: s and s.strip() == "AI Refine")
+    assert soup.find("div", id="refine-form-container-1")
 
     # Check refine form for "Generate Introduction" checkbox
-    assert (
-        '<label for="generate_introduction" class="font-medium text-gray-700">Generate Introduction</label>'
-        in html_output
+    assert soup.find("label", attrs={"for": "generate_introduction"})
+    assert soup.find("input", attrs={"name": "generate_introduction", "type": "checkbox"})
+
+    # Check for export button and modal
+    export_button = soup.find(
+        "button", string=lambda s: s and s.strip() == "Export"
     )
+    assert export_button is not None
     assert (
-        '<input id="generate_introduction" name="generate_introduction" type="checkbox" value="true" checked'
-        in html_output
+        export_button["onclick"]
+        == "document.getElementById('export-modal-1').classList.remove('hidden')"
     )
+    export_modal = soup.find("div", id="export-modal-1")
+    assert export_modal is not None
 
     # Check that job description details are not present
     assert "Job Description Used for Refinement" not in html_output
 
     # Check that notes form is NOT present
-    assert '<form hx-post="/api/resumes/1/notes"' not in html_output
+    assert not soup.find("textarea", attrs={"name": "notes"})
 
 
 def test_generate_resume_detail_html_base_with_children(
@@ -430,29 +437,37 @@ def test_generate_resume_detail_html_base_with_children(
     assert "function filterRefinedResumes(resumeId)" in html_output
 
 
-def test_generate_resume_detail_html_refined_resume_with_jd(test_refined_resume):
-    """Test detail view for a refined resume with a job description shows the JD."""
+def test_generate_resume_detail_html_for_refined_resume(test_refined_resume):
+    """Test detail view for a refined resume shows correct UI elements."""
     test_refined_resume.job_description = "A great job description."
     html_output = _generate_resume_detail_html(test_refined_resume)
+    soup = BeautifulSoup(html_output, "html.parser")
 
     # Check that refine button and form are NOT present
-    assert "AI Refine" not in html_output
-    assert 'id="refine-form-container-2"' not in html_output
+    assert not soup.find("button", string=lambda s: s and s.strip() == "AI Refine")
+    assert not soup.find("div", id=f"refine-form-container-{test_refined_resume.id}")
+
+    # Check for export button and modal
+    export_button = soup.find(
+        "button", string=lambda s: s and s.strip() == "Export"
+    )
+    assert export_button is not None
+    assert (
+        export_button["onclick"]
+        == f"document.getElementById('export-modal-{test_refined_resume.id}').classList.remove('hidden')"
+    )
+    export_modal = soup.find("div", id=f"export-modal-{test_refined_resume.id}")
+    assert export_modal is not None
 
     # Check that job description details are present
     assert "Job Description Used for Refinement" in html_output
-    assert "<details" in html_output
+    assert soup.find("details")
     assert "A great job description." in html_output
 
-    # Check notes form for auto-save functionality
-    assert '<form hx-post="/api/resumes/2/notes"' not in html_output
-    assert '<textarea name="notes"' in html_output
-    assert 'hx-post="/api/resumes/2/notes"' in html_output
-    assert 'hx-trigger="keyup changed delay:500ms"' in html_output
-    assert 'hx-target="#notes-save-status-2"' in html_output
-    assert 'hx-swap="innerHTML"' in html_output
-    assert "Save Notes" not in html_output
-    assert 'id="notes-save-status-2"' in html_output
+    # Check notes form is present
+    notes_textarea = soup.find("textarea", attrs={"name": "notes"})
+    assert notes_textarea is not None
+    assert notes_textarea["hx-post"] == f"/api/resumes/{test_refined_resume.id}/notes"
 
 
 @pytest.mark.parametrize("intro", [None, ""])

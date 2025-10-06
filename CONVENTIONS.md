@@ -111,6 +111,7 @@
 # Unit tests
 * Unit tests are run with `pytest`.
 * Tests are located in `./tests` and its subdirectories.
+    * NEVER create a directory named `./resume_editor/tests`
 * Tests should be written as functions, do **not** use test classes.
 * Each `*.py` file should have its own test file.
 * Unit tests should be run with a logging level of DEBUG
