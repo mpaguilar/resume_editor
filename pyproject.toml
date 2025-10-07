@@ -46,4 +46,4 @@ addopts = "-rx"
 log_cli_level = "DEBUG"
 
 [tool.uv.sources]
-resume-writer = { git = "https://github.com/mpaguilar/resume_writer.git", rev = "4d7fad1" }
+resume-writer = { git = "https://github.com/mpaguilar/resume_writer.git", rev = "d08b1bf" }
