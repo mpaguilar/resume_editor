@@ -19,7 +19,7 @@ GENERAL_SETTINGS = {
         "certifications": {"name": True, "issuer": True},
         "experience": {
             "roles": True,
-            "projects": False,
+            "projects": True,
             "section": {
                 "roles": {
                     "skills": False,
