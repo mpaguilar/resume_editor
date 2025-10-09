@@ -20,6 +20,7 @@ GENERAL_SETTINGS = {
         "experience": {
             "roles": True,
             "projects": True,
+            "render_projects_first": True,
             "section": {
                 "roles": {
                     "skills": False,
