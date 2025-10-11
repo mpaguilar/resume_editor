@@ -1,14 +1,11 @@
-import sys
 from unittest.mock import MagicMock, patch
 
 import pytest
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
 
-# Add the resume_editor directory to the path
-sys.path.insert(0, "resume_editor")
-
-
-def update_sys_path():
-    sys.path.insert(0, "resume_editor")
+from resume_editor.app.core.config import get_settings
+from resume_editor.app.main import create_app
 
 
 @pytest.fixture
@@ -70,3 +67,21 @@ def mock_database_imports():
         mock_get_settings_security.return_value = mock_settings
         mock_get_settings_auth.return_value = mock_settings
         yield
+
+
+@pytest.fixture
+def app() -> FastAPI:
+    """Fixture to create a new app for each test."""
+    # To ensure settings are fresh for each test, we clear the cache.
+    get_settings.cache_clear()
+    _app = create_app()
+    yield _app
+    # Clear dependency overrides after test
+    _app.dependency_overrides.clear()
+
+
+@pytest.fixture
+def client(app: FastAPI) -> TestClient:
+    """Fixture to create a test client for each test."""
+    with TestClient(app) as c:
+        yield c

@@ -164,3 +164,37 @@ Start date: 01/2018
 
 """
     assert markdown == expected
+
+def test_serialize_education_with_all_fields():
+    """Test serializing an education section with all possible fields."""
+    education = EducationResponse(
+        degrees=[
+            {
+                "school": "University of All Fields",
+                "degree": "PhD",
+                "major": "Comprehensiveness",
+                "start_date": "2018-09-01",
+                "end_date": "2022-05-01",
+                "gpa": "4.0",
+            }
+        ]
+    )
+    result = serialize_education_to_markdown(education)
+    expected = textwrap.dedent(
+        """\
+        # Education
+
+        ## Degrees
+
+        ### Degree
+
+        School: University of All Fields
+        Degree: PhD
+        Major: Comprehensiveness
+        Start date: 09/2018
+        End date: 05/2022
+        GPA: 4.0
+
+        """
+    )
+    assert result == expected

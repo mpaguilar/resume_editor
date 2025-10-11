@@ -1,39 +1,32 @@
 import logging
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
-from fastapi.testclient import TestClient
+import pytest
 
 from resume_editor.app.api.routes.user import get_current_user
-from resume_editor.app.core.config import get_settings
-from resume_editor.app.database.database import get_db
-from resume_editor.app.main import create_app
-from resume_editor.app.models.user import User
 from resume_editor.app.models.user_settings import UserSettings
 
 log = logging.getLogger(__name__)
 
 
-def test_user_settings_endpoints(monkeypatch):
-    """Test user settings endpoints."""
-    get_settings.cache_clear()
+@pytest.fixture
+def settings_client(monkeypatch, client_with_db, test_user):
+    """Fixture for user settings API tests."""
     monkeypatch.setenv("ENCRYPTION_KEY", "dGVzdF9rZXlfbXVzdF9iZV8zMl9ieXRlc19sb25n")
-    app = create_app()
-    client = TestClient(app)
-
-    mock_db = MagicMock()
-
-    def get_mock_db():
-        yield mock_db
-
-    app.dependency_overrides[get_db] = get_mock_db
-
-    mock_user = User(username="testuser", email="test@test.com", hashed_password="pw")
-    mock_user.id = 1
+    client, mock_db = client_with_db
+    app = client.app
 
     def get_mock_current_user():
-        return mock_user
+        return test_user
 
     app.dependency_overrides[get_current_user] = get_mock_current_user
+
+    yield client, mock_db
+
+
+def test_get_user_settings_when_no_settings_exist(settings_client):
+    """Test GET user settings when no settings exist."""
+    client, mock_db = settings_client
 
     # Test GET when no settings exist
     mock_db.reset_mock()
@@ -41,6 +34,11 @@ def test_user_settings_endpoints(monkeypatch):
     response = client.get("/api/users/settings")
     assert response.status_code == 200
     assert response.json() == {"llm_endpoint": None, "api_key_is_set": False}
+
+
+def test_put_to_create_user_settings(settings_client):
+    """Test PUT user settings to create new settings."""
+    client, mock_db = settings_client
 
     # Test PUT to create settings
     mock_db.reset_mock()
@@ -61,6 +59,11 @@ def test_user_settings_endpoints(monkeypatch):
         assert added_instance.llm_endpoint == "http://test.com"
         assert added_instance.encrypted_api_key == "encrypted_key"
 
+
+def test_get_user_settings_when_settings_exist(settings_client):
+    """Test GET user settings when settings exist."""
+    client, mock_db = settings_client
+
     # Test GET when settings exist
     mock_db.reset_mock()
     mock_settings = UserSettings(
@@ -75,6 +78,11 @@ def test_user_settings_endpoints(monkeypatch):
         "llm_endpoint": "http://existing.com",
         "api_key_is_set": True,
     }
+
+
+def test_put_to_update_user_settings_both_fields(settings_client):
+    """Test PUT to update both fields of user settings."""
+    client, mock_db = settings_client
 
     # Test PUT to update both fields
     mock_db.reset_mock()
@@ -97,6 +105,11 @@ def test_user_settings_endpoints(monkeypatch):
         assert mock_settings.encrypted_api_key == "new_encrypted_key"
         mock_encrypt.assert_called_once_with(data="newkey")
 
+
+def test_put_to_preserve_api_key_on_empty_string(settings_client):
+    """Test PUT to preserve API key when sending empty string."""
+    client, mock_db = settings_client
+
     # Test PUT to preserve API key when sending empty string
     mock_db.reset_mock()
     mock_settings = UserSettings(
@@ -117,6 +130,11 @@ def test_user_settings_endpoints(monkeypatch):
         assert mock_settings.encrypted_api_key == "existing_key"  # Unchanged
         mock_encrypt.assert_not_called()
 
+
+def test_put_to_update_only_endpoint(settings_client):
+    """Test PUT to update only the endpoint in user settings."""
+    client, mock_db = settings_client
+
     # Test PUT to update only endpoint
     mock_db.reset_mock()
     mock_settings = UserSettings(
@@ -136,6 +154,11 @@ def test_user_settings_endpoints(monkeypatch):
         assert mock_settings.llm_endpoint == "http://only-endpoint.com"
         assert mock_settings.encrypted_api_key == "existing_key"  # Unchanged
         mock_encrypt.assert_not_called()
+
+
+def test_put_to_update_only_api_key(settings_client):
+    """Test PUT to update only the API key in user settings."""
+    client, mock_db = settings_client
 
     # Test PUT to update only API key
     mock_db.reset_mock()
@@ -158,32 +181,13 @@ def test_user_settings_endpoints(monkeypatch):
         assert mock_settings.encrypted_api_key == "only-key-encrypted"
         mock_encrypt.assert_called_once_with(data="only-key")
 
-    # Clean up dependency overrides
-    app.dependency_overrides.clear()
 
-
-def test_update_settings_preserves_api_key_across_requests(monkeypatch):
+def test_update_settings_preserves_api_key_across_requests(settings_client):
     """
     Integration test to ensure that the API key is preserved across multiple
     settings updates when an empty string is provided for the key.
     """
-    # 1. Setup
-    get_settings.cache_clear()
-    monkeypatch.setenv("ENCRYPTION_KEY", "dGVzdF9rZXlfbXVzdF9iZV8zMl9ieXRlc19sb25n")
-    app = create_app()
-    client = TestClient(app)
-
-    mock_db = MagicMock()
-    mock_user = User(username="testuser", email="test@test.com", hashed_password="pw", id=1)
-
-    def get_mock_db():
-        yield mock_db
-
-    def get_mock_current_user():
-        return mock_user
-
-    app.dependency_overrides[get_db] = get_mock_db
-    app.dependency_overrides[get_current_user] = get_mock_current_user
+    client, mock_db = settings_client
 
     with patch(
         "resume_editor.app.api.routes.route_logic.settings_crud.encrypt_data"
@@ -228,6 +232,3 @@ def test_update_settings_preserves_api_key_across_requests(monkeypatch):
         mock_db.add.assert_not_called()  # Should not create a new one
         assert saved_settings.encrypted_api_key == "encrypted-initial-key"
         assert saved_settings.llm_endpoint == "http://updated.com"
-
-    # Cleanup
-    app.dependency_overrides.clear()
