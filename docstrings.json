@@ -1190,7 +1190,7 @@
     "functions": [
       [
         "extract_personal_info(resume_content: str) -> PersonalInfoResponse",
-        "Extract personal information from resume content.\n\nArgs:\n    resume_content (str): The Markdown content of the resume to parse.\n\nReturns:\n    PersonalInfoResponse: Extracted personal information containing name, email, phone, location, and website.\n\nRaises:\n    ValueError: If parsing fails due to invalid or malformed resume content.\n\nNotes:\n    1. Splits the resume content into lines.\n    2. Creates a ParseContext for parsing.\n    3. Parses the resume using the resume_writer module.\n    4. Retrieves the personal section from the parsed resume.\n    5. Checks if contact information is present; if not, returns an empty response.\n    6. Extracts contact info and websites from the parsed personal section.\n    7. Maps the extracted data to the PersonalInfoResponse fields.\n    8. Returns the populated response or an empty one if parsing fails.\n    9. No network, disk, or database access is performed during this function."
+        "Extract personal information from resume content.\n\nArgs:\n    resume_content (str): The Markdown content of the resume to parse.\n\nReturns:\n    PersonalInfoResponse: Extracted personal information containing name, email, phone, location, and website.\n\nRaises:\n    ValueError: If parsing fails due to invalid or malformed resume content.\n\nNotes:\n    1. Parses the resume content using `_parse_resume`.\n    2. Checks for unparsed content in the \"personal\" section using `_check_for_unparsed_content`.\n    3. If no personal section was parsed, an empty response is returned.\n    4. Extracts data from the parsed personal section using `_extract_data_from_personal_section`.\n    5. Constructs and returns a `PersonalInfoResponse` with the extracted data."
       ],
       [
         "extract_education_info(resume_content: str) -> EducationResponse",
@@ -1198,15 +1198,15 @@
       ],
       [
         "extract_experience_info(resume_content: str) -> ExperienceResponse",
-        "Extract experience information from resume content.\n\nArgs:\n    resume_content (str): The Markdown content of the resume to parse.\n\nReturns:\n    ExperienceResponse: Extracted experience information containing a list of roles and projects.\n\nRaises:\n    ValueError: If parsing fails due to invalid or malformed resume content.\n\nNotes:\n    1. Splits the resume content into lines.\n    2. Creates a ParseContext for parsing.\n    3. Parses the resume using the resume_writer module.\n    4. Retrieves the experience section from the parsed resume.\n    5. Checks if experience data is present; if not, returns an empty response.\n    6. Loops through each role and extracts basics, summary, responsibilities and skills.\n    7. Loops through each project and extracts overview, description, and skills.\n    8. Maps the extracted data into a dictionary with nested structure.\n    9. Returns a list of dictionaries wrapped in the ExperienceResponse model.\n    10. If parsing fails, returns an empty response.\n    11. No network, disk, or database access is performed during this function."
+        "Extract experience information from resume content.\n\nArgs:\n    resume_content (str): The Markdown content of the resume to parse.\n\nReturns:\n    ExperienceResponse: Extracted experience information containing lists of roles and projects.\n\nRaises:\n    ValueError: If parsing fails due to invalid or malformed resume content.\n\nNotes:\n    1. Parses the resume content using `_parse_resume`.\n    2. Retrieves the experience section. If it's missing but raw content exists, raises ValueError via `_check_for_unparsed_content`.\n    3. Loops through each role, converting it to a dictionary via `_convert_writer_role_to_dict`.\n    4. Loops through each project, converting it to a dictionary via `_convert_writer_project_to_dict`.\n    5. Collects non-empty dictionaries into lists.\n    6. Returns an `ExperienceResponse` with the collected lists."
       ],
       [
         "extract_certifications_info(resume_content: str) -> CertificationsResponse",
         "Extract certifications information from resume content.\n\nArgs:\n    resume_content (str): The Markdown content of the resume to parse.\n\nReturns:\n    CertificationsResponse: Extracted certifications information containing a list of certifications.\n\nRaises:\n    ValueError: If parsing fails due to invalid or malformed resume content.\n\nNotes:\n    1. Splits the resume content into lines.\n    2. Creates a ParseContext for parsing.\n    3. Parses the resume using the resume_writer module.\n    4. Retrieves the certifications section from the parsed resume.\n    5. Checks if certifications data is present; if not, returns an empty response.\n    6. Loops through each certification and extracts name, issuer, certification_id, issued, and expires.\n    7. Maps the extracted data into a dictionary.\n    8. Returns a list of dictionaries wrapped in the CertificationsResponse model.\n    9. If parsing fails, returns an empty response.\n    10. No network, disk, or database access is performed during this function."
       ],
       [
-        "serialize_personal_info_to_markdown(personal_info: UnknownType) -> str",
-        "Serialize personal information to Markdown format.\n\nArgs:\n    personal_info: Personal information to serialize, containing name, email, phone, location, and website.\n\nReturns:\n    str: Markdown formatted personal information section.\n\nNotes:\n    1. Initializes an empty list of lines and adds a heading.\n    2. Adds each field (name, email, phone, location) as a direct field if present.\n    3. Adds a Websites section if website is present.\n    4. Joins the lines with newlines.\n    5. Returns the formatted string with a trailing newline.\n    6. Returns an empty string if no personal data is present.\n    7. No network, disk, or database access is performed during this function."
+        "serialize_personal_info_to_markdown(personal_info: PersonalInfoResponse | None) -> str",
+        "    Serialize personal information to Markdown format.\n\n    Args:\n        personal_info (PersonalInfoResponse | None): Personal information to serialize.\n\n    Returns:\n        str: Markdown formatted personal information section.\n\n    Notes:\n        1. Returns an empty string if `personal_info` is `None`.\n        2. Initializes an empty list `lines`.\n        3. Calls helper functions to add contact info, websites, visa status,\n           banner, and note sections to `lines`.\n        4. If `lines` is not empty, constructs the final string:\n            a. Starts with `# Personal\n\n`.\n            b. Joins the elements of `lines` with newlines.\n            c. Appends a final newline.\n        5. Otherwise, returns an empty string.\n    "
       ],
       [
         "serialize_education_to_markdown(education: UnknownType) -> str",
@@ -1214,7 +1214,7 @@
       ],
       [
         "_serialize_project_to_markdown(project: UnknownType) -> list[str]",
-        "Serialize a single project to markdown lines.\n\nArgs:\n    project: A project object to serialize.\n\nReturns:\n    list[str]: A list of markdown lines representing the project.\n\nNotes:\n    1. Gets the overview from the project.\n    2. Checks if the inclusion status is OMIT; if so, returns an empty list.\n    3. Builds the overview content with title, URL, URL description, start date, and end date.\n    4. Adds the overview section to the project content.\n    5. If the inclusion status is not NOT_RELEVANT:\n        a. Adds the description if present.\n        b. Adds the skills if present.\n    6. Returns the full project content as a list of lines."
+        "Serialize a single project to markdown lines.\n\nArgs:\n    project: A project object to serialize.\n\nReturns:\n    list[str]: A list of markdown lines representing the project.\n\nNotes:\n    1. Gets the overview from the project.\n    2. Checks if the inclusion status is OMIT; if so, returns an empty list.\n    3. Calls `_add_project_overview_markdown` to add the overview section.\n    4. If inclusion status is not `NOT_RELEVANT`, calls `_add_project_description_markdown` and `_add_project_skills_markdown`.\n    5. If any content is generated, prepends the `### Project` header.\n    6. Returns the full project content as a list of lines."
       ],
       [
         "_serialize_role_to_markdown(role: UnknownType) -> list[str]",
@@ -1998,6 +1998,104 @@
       [
         "test_render_resume_to_docx_stream_invalid_format(mock_parse: UnknownType) -> UnknownType",
         "Test render_resume_to_docx_stream raises ValueError for invalid format."
+      ]
+    ],
+    "classes": {}
+  },
+  "resume_editor/app/api/routes/route_logic/resume_serialization_helpers.py": {
+    "filepath": "resume_editor/app/api/routes/route_logic/resume_serialization_helpers.py",
+    "filename": "resume_serialization_helpers.py",
+    "functions": [
+      [
+        "_parse_resume(resume_content: str) -> WriterResume",
+        "Parse resume content using resume_writer.\n\nArgs:\n    resume_content (str): The Markdown content of the resume to parse.\n\nReturns:\n    WriterResume: The parsed resume object.\n\nRaises:\n    ValueError: If parsing fails.\n\nNotes:\n    1. Splits content into lines.\n    2. Creates a ParseContext.\n    3. Attempts to parse the resume using WriterResume.parse.\n    4. On any exception, logs and raises a ValueError."
+      ],
+      [
+        "_check_for_unparsed_content(resume_content: str, section_name: str, parsed_section: any) -> None",
+        "Check for unparsed content in a resume section.\n\nArgs:\n    resume_content (str): The raw resume content.\n    section_name (str): The name of the section to check (e.g., \"personal\").\n    parsed_section (any): The result from the parser for this section.\n\nRaises:\n    ValueError: If the section was not parsed but raw content exists.\n\nNotes:\n    1. If 'parsed_section' is not empty, return.\n    2. Iterate through 'resume_content' lines to find the section header.\n    3. Once inside the section, check for any non-empty lines before the next top-level section.\n    4. If any content is found, log a warning and raise a ValueError."
+      ],
+      [
+        "_extract_data_from_personal_section(personal: any) -> dict",
+        "Extract data from a parsed personal section into a dictionary.\nArgs:\n    personal (any): The parsed personal section from resume_writer.\nReturns:\n    dict: A dictionary of personal information.\nNotes:\n    1. If `personal` is None, returns an empty dictionary.\n    2. Extracts contact info: name, email, phone, location.\n    3. Extracts websites: website, github, linkedin, twitter.\n    4. Extracts visa status: work_authorization, require_sponsorship.\n    5. Extracts banner text.\n    6. Extracts note text.\n    7. Returns a dictionary containing all extracted data."
+      ],
+      [
+        "_convert_writer_role_to_dict(role: any) -> dict",
+        "Convert a resume_writer Role object to a dictionary.\nArgs:\n    role (any): The parsed role object from resume_writer.\nReturns:\n    dict: A dictionary of role information.\nNotes:\n    1. Extracts basics: company, title, dates, etc.\n    2. Extracts summary text.\n    3. Extracts responsibilities text.\n    4. Extracts skills list.\n    5. Returns a dictionary containing all extracted data."
+      ],
+      [
+        "_convert_writer_project_to_dict(project: any) -> dict",
+        "Convert a resume_writer Project object to a dictionary.\nArgs:\n    project (any): The parsed project object from resume_writer.\nReturns:\n    dict: A dictionary of project information.\nNotes:\n    1. Extracts overview: title, url, dates, inclusion_status, etc.\n    2. Extracts description text.\n    3. Extracts skills list.\n    4. Returns a dictionary containing all extracted data."
+      ],
+      [
+        "_add_contact_info_markdown(personal_info: PersonalInfoResponse, lines: list[str]) -> None",
+        "Adds contact info Markdown to a list of lines.\nArgs:\n    personal_info (PersonalInfoResponse): The personal info data.\n    lines (list[str]): The list of lines to append to.\nNotes:\n    1. Checks for name, email, phone, location.\n    2. If any exist, adds a \"Contact Information\" section header.\n    3. Appends each non-empty field.\n    4. Adds a trailing blank line to the section."
+      ],
+      [
+        "_add_websites_markdown(personal_info: PersonalInfoResponse, lines: list[str]) -> None",
+        "Adds websites Markdown to a list of lines.\nArgs:\n    personal_info (PersonalInfoResponse): The personal info data.\n    lines (list[str]): The list of lines to append to.\nNotes:\n    1. Checks for github, linkedin, website, twitter.\n    2. If any exist, adds a \"Websites\" section header.\n    3. Appends each non-empty field.\n    4. Adds a trailing blank line to the section."
+      ],
+      [
+        "_add_visa_status_markdown(personal_info: PersonalInfoResponse, lines: list[str]) -> None",
+        "Adds visa status Markdown to a list of lines.\nArgs:\n    personal_info (PersonalInfoResponse): The personal info data.\n    lines (list[str]): The list of lines to append to.\nNotes:\n    1. Checks for work_authorization or require_sponsorship.\n    2. If any exist, adds a \"Visa Status\" section header.\n    3. Appends each field if it has a value.\n    4. Adds a trailing blank line to the section."
+      ],
+      [
+        "_add_banner_markdown(personal_info: PersonalInfoResponse, lines: list[str]) -> None",
+        "Adds banner Markdown to a list of lines.\nArgs:\n    personal_info (PersonalInfoResponse): The personal info data.\n    lines (list[str]): The list of lines to append to.\nNotes:\n    1. Checks for banner text.\n    2. If it exists, adds a \"Banner\" section header and the text.\n    3. Adds a trailing blank line to the section."
+      ],
+      [
+        "_add_note_markdown(personal_info: PersonalInfoResponse, lines: list[str]) -> None",
+        "Adds note Markdown to a list of lines.\nArgs:\n    personal_info (PersonalInfoResponse): The personal info data.\n    lines (list[str]): The list of lines to append to.\nNotes:\n    1. Checks for note text.\n    2. If it exists, adds a \"Note\" section header and the text.\n    3. Adds a trailing blank line to the section."
+      ],
+      [
+        "_add_project_overview_markdown(overview: any, lines: list[str]) -> None",
+        "Adds project overview Markdown to a list of lines.\nArgs:\n    overview (any): The parsed project overview from resume_writer.\n    lines (list[str]): The list of lines to append to.\nNotes:\n    1. Checks for title, url, url_description, start_date, end_date.\n    2. If any exist, adds an \"Overview\" section header.\n    3. Appends each non-empty field.\n    4. Adds a trailing blank line to the section."
+      ],
+      [
+        "_add_project_description_markdown(description: any, lines: list[str]) -> None",
+        "Adds project description Markdown to a list of lines.\nArgs:\n    description (any): The parsed project description from resume_writer.\n    lines (list[str]): The list of lines to append to.\nNotes:\n    1. Checks for description text.\n    2. If it exists, adds a \"Description\" section header and the text.\n    3. Adds a trailing blank line to the section."
+      ],
+      [
+        "_add_project_skills_markdown(skills: any, lines: list[str]) -> None",
+        "Adds project skills Markdown to a list of lines.\nArgs:\n    skills (any): The parsed project skills from resume_writer.\n    lines (list[str]): The list of lines to append to.\nNotes:\n    1. Checks for a list of skills.\n    2. If it exists, adds a \"Skills\" section header and the skills as a bulleted list.\n    3. Adds a trailing blank line to the section."
+      ]
+    ],
+    "classes": {}
+  },
+  "resume_editor/app/api/routes/route_logic/resume_ai_logic.py": {
+    "filepath": "resume_editor/app/api/routes/route_logic/resume_ai_logic.py",
+    "filename": "resume_ai_logic.py",
+    "functions": [
+      [
+        "get_llm_config(db: Session, user_id: int) -> tuple[str | None, str | None, str | None]",
+        "Retrieves LLM configuration for a user.\n\nFetches user settings, decrypts the API key, and returns the LLM endpoint,\nmodel name, and API key.\n\nArgs:\n    db (Session): The database session.\n    user_id (int): The ID of the user.\n\nReturns:\n    tuple[str | None, str | None, str | None]: A tuple containing the\n        llm_endpoint, llm_model_name, and decrypted api_key.\n\nRaises:\n    InvalidToken: If the API key decryption fails."
+      ],
+      [
+        "create_sse_message(event: str, data: str) -> str",
+        "Formats a message for Server-Sent Events (SSE).\n\nArgs:\n    event (str): The event name.\n    data (str): The data to send. Can be multi-line.\n\nReturns:\n    str: The formatted SSE message string."
+      ],
+      [
+        "create_sse_progress_message(message: str) -> str",
+        "Creates an SSE 'progress' message.\n\nArgs:\n    message (str): The progress message content.\n\nReturns:\n    str: The formatted SSE 'progress' message."
+      ],
+      [
+        "create_sse_introduction_message(introduction: str) -> str",
+        "Creates an SSE 'introduction_generated' message.\n\nArgs:\n    introduction (str): The introduction text.\n\nReturns:\n    str: The formatted SSE 'introduction_generated' message."
+      ],
+      [
+        "create_sse_error_message(message: str, is_warning: bool) -> str",
+        "Creates an SSE 'error' message.\n\nArgs:\n    message (str): The error or warning message.\n    is_warning (bool): If True, formats as a warning (yellow). Defaults to False (red).\n\nReturns:\n    str: The formatted SSE 'error' message."
+      ],
+      [
+        "create_sse_done_message(html_content: str) -> str",
+        "Creates an SSE 'done' message.\n\nArgs:\n    html_content (str): The final HTML content to be sent.\n\nReturns:\n    str: The formatted SSE 'done' message."
+      ],
+      [
+        "create_sse_close_message() -> str",
+        "Creates an SSE 'close' message.\n\nReturns:\n    str: The formatted SSE 'close' message."
+      ],
+      [
+        "process_refined_experience_result(resume: DatabaseResume, refined_roles: dict, job_description: str, introduction: str | None) -> str",
+        "Processes refined experience roles and generates final HTML.\n\nThis function takes the refined roles from the LLM, reconstructs the full\nresume content, and then generates the final HTML result to be sent in the\n'done' SSE event.\n\nArgs:\n    resume (DatabaseResume): The original resume object.\n    refined_roles (dict): A dictionary of refined role data from the LLM,\n                          keyed by their original index.\n    job_description (str): The job description used for refinement.\n    introduction (str | None): The LLM-generated introduction, if any.\n\nReturns:\n    str: The complete HTML content for the body of the `done` event."
       ]
     ],
     "classes": {}
