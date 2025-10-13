@@ -3,6 +3,21 @@ import logging
 from resume_writer.models.parsers import ParseContext
 from resume_writer.models.resume import Resume as WriterResume
 
+from resume_editor.app.api.routes.route_logic.resume_serialization_helpers import (
+    _add_banner_markdown,
+    _add_contact_info_markdown,
+    _add_note_markdown,
+    _add_project_description_markdown,
+    _add_project_overview_markdown,
+    _add_project_skills_markdown,
+    _add_visa_status_markdown,
+    _add_websites_markdown,
+    _check_for_unparsed_content,
+    _convert_writer_project_to_dict,
+    _convert_writer_role_to_dict,
+    _extract_data_from_personal_section,
+    _parse_resume,
+)
 from resume_editor.app.api.routes.route_models import (
     CertificationsResponse,
     EducationResponse,
@@ -28,90 +43,32 @@ def extract_personal_info(resume_content: str) -> PersonalInfoResponse:
         ValueError: If parsing fails due to invalid or malformed resume content.
 
     Notes:
-        1. Splits the resume content into lines.
-        2. Creates a ParseContext for parsing.
-        3. Parses the resume using the resume_writer module.
-        4. Retrieves the personal section from the parsed resume.
-        5. Checks if contact information is present; if not, returns an empty response.
-        6. Extracts contact info and websites from the parsed personal section.
-        7. Maps the extracted data to the PersonalInfoResponse fields.
-        8. Returns the populated response or an empty one if parsing fails.
-        9. No network, disk, or database access is performed during this function.
-
+        1. Parses the resume content using `_parse_resume`.
+        2. Checks for unparsed content in the "personal" section using `_check_for_unparsed_content`.
+        3. If no personal section was parsed, an empty response is returned.
+        4. Extracts data from the parsed personal section using `_extract_data_from_personal_section`.
+        5. Constructs and returns a `PersonalInfoResponse` with the extracted data.
     """
+    log.debug("extract_personal_info starting")
     try:
-        lines = resume_content.splitlines()
-        parse_context = ParseContext(lines, 1)
-        parsed_resume = WriterResume.parse(parse_context)
-        personal = parsed_resume.personal
-    except Exception as e:
+        parsed_resume = _parse_resume(resume_content)
+    except ValueError as e:
         _msg = "Failed to parse personal info from resume content."
-        log.exception(_msg)
         raise ValueError(_msg) from e
 
-    if not personal:
-        lines = resume_content.splitlines()
-        in_personal_section = False
-        content_found = False
-        for line in lines:
-            stripped_line = line.strip()
-            if stripped_line.lower() == "# personal":
-                in_personal_section = True
-                continue
+    personal = getattr(parsed_resume, "personal", None)
+    data = _extract_data_from_personal_section(personal)
 
-            if in_personal_section:
-                if stripped_line.lower().startswith("# "):
-                    break  # Next section
-                if stripped_line:
-                    content_found = True
-                    break
-        if content_found:
-            _msg = "Failed to parse personal info from resume content."
-            log.warning(
-                "Personal section contains content that could not be parsed. "
-                "The parser did not fail, but no personal info was found.",
-            )
-            raise ValueError(_msg)
-        return PersonalInfoResponse()
+    if not data:
+        # If no data was extracted from the 'personal' object, it implies
+        # that either the section is genuinely empty or contains unparseable content.
+        # We must manually check for the presence of raw, unparsed content.
+        # Passing 'None' to '_check_for_unparsed_content' forces it to perform this scan.
+        _check_for_unparsed_content(resume_content, "personal", None)
 
-    data = {}
-
-    contact_info = getattr(personal, "contact_info", None)
-    if contact_info is not None:
-        data["name"] = getattr(contact_info, "name", None)
-        data["email"] = getattr(contact_info, "email", None)
-        data["phone"] = getattr(contact_info, "phone", None)
-        data["location"] = getattr(contact_info, "location", None)
-
-    websites = getattr(personal, "websites", None)
-    if websites is not None:
-        data["website"] = getattr(websites, "website", None)
-        data["github"] = getattr(websites, "github", None)
-        data["linkedin"] = getattr(websites, "linkedin", None)
-        data["twitter"] = getattr(websites, "twitter", None)
-
-    visa_status = getattr(personal, "visa_status", None)
-    if visa_status is not None:
-        data["work_authorization"] = getattr(
-            visa_status,
-            "work_authorization",
-            None,
-        )
-        data["require_sponsorship"] = getattr(
-            visa_status,
-            "require_sponsorship",
-            None,
-        )
-
-    banner = getattr(personal, "banner", None)
-    if banner and hasattr(banner, "text"):
-        data["banner"] = banner.text
-
-    note = getattr(personal, "note", None)
-    if note and hasattr(note, "text"):
-        data["note"] = note.text
-
-    return PersonalInfoResponse(**data)
+    response = PersonalInfoResponse(**data)
+    log.debug("extract_personal_info returning")
+    return response
 
 
 def extract_education_info(resume_content: str) -> EducationResponse:
@@ -141,14 +98,12 @@ def extract_education_info(resume_content: str) -> EducationResponse:
 
     """
     try:
-        lines = resume_content.splitlines()
-        parse_context = ParseContext(lines, 1)
-        parsed_resume = WriterResume.parse(parse_context)
-        education = parsed_resume.education
-    except Exception as e:
+        parsed_resume = _parse_resume(resume_content)
+    except ValueError as e:
         _msg = "Failed to parse education info from resume content."
-        log.exception(_msg)
         raise ValueError(_msg) from e
+
+    education = parsed_resume.education
 
     if not education or not hasattr(education, "degrees") or not education.degrees:
         return EducationResponse(degrees=[])
@@ -177,150 +132,46 @@ def extract_experience_info(resume_content: str) -> ExperienceResponse:
         resume_content (str): The Markdown content of the resume to parse.
 
     Returns:
-        ExperienceResponse: Extracted experience information containing a list of roles and projects.
+        ExperienceResponse: Extracted experience information containing lists of roles and projects.
 
     Raises:
         ValueError: If parsing fails due to invalid or malformed resume content.
 
     Notes:
-        1. Splits the resume content into lines.
-        2. Creates a ParseContext for parsing.
-        3. Parses the resume using the resume_writer module.
-        4. Retrieves the experience section from the parsed resume.
-        5. Checks if experience data is present; if not, returns an empty response.
-        6. Loops through each role and extracts basics, summary, responsibilities and skills.
-        7. Loops through each project and extracts overview, description, and skills.
-        8. Maps the extracted data into a dictionary with nested structure.
-        9. Returns a list of dictionaries wrapped in the ExperienceResponse model.
-        10. If parsing fails, returns an empty response.
-        11. No network, disk, or database access is performed during this function.
+        1. Parses the resume content using `_parse_resume`.
+        2. Retrieves the experience section. If it's missing but raw content exists, raises ValueError via `_check_for_unparsed_content`.
+        3. Loops through each role, converting it to a dictionary via `_convert_writer_role_to_dict`.
+        4. Loops through each project, converting it to a dictionary via `_convert_writer_project_to_dict`.
+        5. Collects non-empty dictionaries into lists.
+        6. Returns an `ExperienceResponse` with the collected lists.
 
     """
     try:
-        lines = resume_content.splitlines()
-        parse_context = ParseContext(lines, 1)
-        parsed_resume = WriterResume.parse(parse_context)
-        experience = parsed_resume.experience
-    except Exception as e:
+        parsed_resume = _parse_resume(resume_content)
+    except ValueError as e:
         _msg = "Failed to parse experience info from resume content."
-        log.exception(_msg)
         raise ValueError(_msg) from e
 
-    if not experience:
-        return ExperienceResponse(roles=[], projects=[])
-
-    has_roles = bool(getattr(experience, "roles", None))
-    has_projects = bool(getattr(experience, "projects", None))
-    if not has_roles and not has_projects:
-        # Check for content in the original markdown string.
-        lines = resume_content.splitlines()
-        in_experience_section = False
-        content_found = False
-        for line in lines:
-            stripped_line = line.strip()
-            if stripped_line.lower() == "# experience":
-                in_experience_section = True
-                continue
-
-            if in_experience_section and stripped_line:
-                # Headers for empty sections are not "content"
-                if stripped_line.lower() not in ["## roles", "## projects"]:
-                    content_found = True
-                break  # Found first line of content or next section
-        if content_found:
-            _msg = "Failed to parse experience info from resume content."
-            log.warning(
-                "Experience section contains content that could not be parsed. "
-                "The parser did not fail, but no roles or projects were found.",
-            )
-            raise ValueError(_msg)
+    experience = parsed_resume.experience
 
     roles_list = []
-    if hasattr(experience, "roles") and experience.roles is not None:
+    if experience and hasattr(experience, "roles") and experience.roles is not None:
         for role in experience.roles:
-            role_dict = {}
-
-            # Basics
-            role_basics = getattr(role, "basics", None)
-            if role_basics:
-                start_date = getattr(role_basics, "start_date", None)
-                end_date = getattr(role_basics, "end_date", None)
-                role_dict["basics"] = {
-                    "company": getattr(role_basics, "company", None),
-                    "title": getattr(role_basics, "title", None),
-                    "start_date": start_date,
-                    "end_date": end_date,
-                    "location": getattr(role_basics, "location", None),
-                    "agency_name": getattr(role_basics, "agency_name", None),
-                    "job_category": getattr(role_basics, "job_category", None),
-                    "employment_type": getattr(
-                        role_basics,
-                        "employment_type",
-                        None,
-                    ),
-                    "reason_for_change": getattr(
-                        role_basics,
-                        "reason_for_change",
-                        None,
-                    ),
-                }
-
-            # Summary
-            summary = getattr(role, "summary", None)
-            if summary and hasattr(summary, "summary"):
-                role_dict["summary"] = {"text": summary.summary}
-
-            # Responsibilities
-            responsibilities = getattr(role, "responsibilities", None)
-            if responsibilities and hasattr(responsibilities, "text"):
-                role_dict["responsibilities"] = {
-                    "text": responsibilities.text,
-                }
-
-            # Skills
-            skills = getattr(role, "skills", None)
-            if skills and hasattr(skills, "skills"):
-                role_dict["skills"] = {"skills": skills.skills}
-
+            role_dict = _convert_writer_role_to_dict(role)
             if role_dict:
                 roles_list.append(role_dict)
 
     projects_list = []
-    if hasattr(experience, "projects") and experience.projects is not None:
+    if experience and hasattr(experience, "projects") and experience.projects is not None:
         for project in experience.projects:
-            project_dict = {}
-
-            # Overview
-            project_overview = getattr(project, "overview", None)
-            if project_overview:
-                start_date = getattr(project_overview, "start_date", None)
-                end_date = getattr(project_overview, "end_date", None)
-                project_dict["overview"] = {
-                    "title": getattr(project_overview, "title", None),
-                    "url": getattr(project_overview, "url", None),
-                    "url_description": getattr(
-                        project_overview,
-                        "url_description",
-                        None,
-                    ),
-                    "start_date": start_date,
-                    "end_date": end_date,
-                }
-
-            # Description
-            description = getattr(project, "description", None)
-            if description and hasattr(description, "text"):
-                project_dict["description"] = {"text": description.text}
-
-            # Skills
-            skills = getattr(project, "skills", None)
-            if skills and hasattr(skills, "skills"):
-                project_dict["skills"] = {"skills": skills.skills}
-
+            project_dict = _convert_writer_project_to_dict(project)
             if project_dict:
                 projects_list.append(project_dict)
-    _ret = ExperienceResponse(roles=roles_list, projects=projects_list)
-    return _ret
+
+    if not roles_list and not projects_list:
+        _check_for_unparsed_content(resume_content, "experience", None)
+
+    return ExperienceResponse(roles=roles_list, projects=projects_list)
 
 
 def extract_certifications_info(resume_content: str) -> CertificationsResponse:
@@ -350,14 +201,12 @@ def extract_certifications_info(resume_content: str) -> CertificationsResponse:
 
     """
     try:
-        lines = resume_content.splitlines()
-        parse_context = ParseContext(lines, 1)
-        parsed_resume = WriterResume.parse(parse_context)
-        certifications = parsed_resume.certifications
-    except Exception as e:
+        parsed_resume = _parse_resume(resume_content)
+    except ValueError as e:
         _msg = "Failed to parse certifications info from resume content."
-        log.exception(_msg)
         raise ValueError(_msg) from e
+
+    certifications = parsed_resume.certifications
 
     if not certifications or not hasattr(certifications, "__iter__"):
         return CertificationsResponse(certifications=[])
@@ -379,111 +228,41 @@ def extract_certifications_info(resume_content: str) -> CertificationsResponse:
     return CertificationsResponse(certifications=certs_list)
 
 
-def serialize_personal_info_to_markdown(personal_info) -> str:
+def serialize_personal_info_to_markdown(personal_info: PersonalInfoResponse | None) -> str:
     """
     Serialize personal information to Markdown format.
 
     Args:
-        personal_info: Personal information to serialize, containing name, email, phone, location, and website.
+        personal_info (PersonalInfoResponse | None): Personal information to serialize.
 
     Returns:
         str: Markdown formatted personal information section.
 
     Notes:
-        1. Initializes an empty list of lines and adds a heading.
-        2. Adds each field (name, email, phone, location) as a direct field if present.
-        3. Adds a Websites section if website is present.
-        4. Joins the lines with newlines.
-        5. Returns the formatted string with a trailing newline.
-        6. Returns an empty string if no personal data is present.
-        7. No network, disk, or database access is performed during this function.
-
+        1. Returns an empty string if `personal_info` is `None`.
+        2. Initializes an empty list `lines`.
+        3. Calls helper functions to add contact info, websites, visa status,
+           banner, and note sections to `lines`.
+        4. If `lines` is not empty, constructs the final string:
+            a. Starts with `# Personal\n\n`.
+            b. Joins the elements of `lines` with newlines.
+            c. Appends a final newline.
+        5. Otherwise, returns an empty string.
     """
     if not personal_info:
-        personal_info = PersonalInfoResponse()
+        return ""
 
-    lines = ["# Personal", ""]
+    lines = []
+    _add_contact_info_markdown(personal_info, lines)
+    _add_websites_markdown(personal_info, lines)
+    _add_visa_status_markdown(personal_info, lines)
+    _add_banner_markdown(personal_info, lines)
+    _add_note_markdown(personal_info, lines)
 
-    # Add contact information
-    has_contact_info = any(
-        [
-            getattr(personal_info, "name", None),
-            getattr(personal_info, "email", None),
-            getattr(personal_info, "phone", None),
-            getattr(personal_info, "location", None),
-        ],
-    )
-    if has_contact_info:
-        lines.append("## Contact Information")
-        lines.append("")
-        if getattr(personal_info, "name", None):
-            lines.append(f"Name: {personal_info.name}")
-        if getattr(personal_info, "email", None):
-            lines.append(f"Email: {personal_info.email}")
-        if getattr(personal_info, "phone", None):
-            lines.append(f"Phone: {personal_info.phone}")
-        if getattr(personal_info, "location", None):
-            lines.append(f"Location: {personal_info.location}")
-        lines.append("")
+    if not lines:
+        return ""
 
-    # Add websites
-    has_websites = any(
-        [
-            getattr(personal_info, "github", None),
-            getattr(personal_info, "linkedin", None),
-            getattr(personal_info, "website", None),
-            getattr(personal_info, "twitter", None),
-        ],
-    )
-    if has_websites:
-        lines.append("## Websites")
-        lines.append("")
-        if getattr(personal_info, "github", None):
-            lines.append(f"GitHub: {personal_info.github}")
-        if getattr(personal_info, "linkedin", None):
-            lines.append(f"LinkedIn: {personal_info.linkedin}")
-        if getattr(personal_info, "website", None):
-            lines.append(f"Website: {personal_info.website}")
-        if getattr(personal_info, "twitter", None):
-            lines.append(f"Twitter: {personal_info.twitter}")
-        lines.append("")
-
-    # Add visa status
-    has_visa_status = any(
-        [
-            getattr(personal_info, "work_authorization", None),
-            getattr(personal_info, "require_sponsorship", None) is not None,
-        ],
-    )
-    if has_visa_status:
-        lines.append("## Visa Status")
-        lines.append("")
-        if getattr(personal_info, "work_authorization", None):
-            lines.append(f"Work Authorization: {personal_info.work_authorization}")
-        if getattr(personal_info, "require_sponsorship", None) is not None:
-            sponsorship = "Yes" if personal_info.require_sponsorship else "No"
-            lines.append(f"Require sponsorship: {sponsorship}")
-        lines.append("")
-
-    # Add banner
-    if getattr(personal_info, "banner", None):
-        lines.append("## Banner")
-        lines.append("")
-        lines.append(str(personal_info.banner))
-        lines.append("")
-
-    # Add note
-    if getattr(personal_info, "note", None):
-        lines.append("## Note")
-        lines.append("")
-        lines.append(str(personal_info.note))
-        lines.append("")
-
-    # Only return content if there's more than just the main header
-    if len(lines) > 2:
-        return "\n".join(lines) + "\n"
-
-    return ""
+    return "# Personal\n\n" + "\n".join(lines) + "\n"
 
 
 def serialize_education_to_markdown(education) -> str:
@@ -549,11 +328,9 @@ def _serialize_project_to_markdown(project) -> list[str]:
     Notes:
         1. Gets the overview from the project.
         2. Checks if the inclusion status is OMIT; if so, returns an empty list.
-        3. Builds the overview content with title, URL, URL description, start date, and end date.
-        4. Adds the overview section to the project content.
-        5. If the inclusion status is not NOT_RELEVANT:
-            a. Adds the description if present.
-            b. Adds the skills if present.
+        3. Calls `_add_project_overview_markdown` to add the overview section.
+        4. If inclusion status is not `NOT_RELEVANT`, calls `_add_project_description_markdown` and `_add_project_skills_markdown`.
+        5. If any content is generated, prepends the `### Project` header.
         6. Returns the full project content as a list of lines.
 
     """
@@ -566,33 +343,14 @@ def _serialize_project_to_markdown(project) -> list[str]:
         return []
 
     project_content = []
-    overview_content = []
-    if getattr(overview, "title", None):
-        overview_content.append(f"Title: {overview.title}")
-    if getattr(overview, "url", None):
-        overview_content.append(f"Url: {overview.url}")
-    if getattr(overview, "url_description", None):
-        overview_content.append(f"Url Description: {overview.url_description}")
-    if getattr(overview, "start_date", None):
-        overview_content.append(f"Start date: {overview.start_date.strftime('%m/%Y')}")
-    if getattr(overview, "end_date", None):
-        overview_content.append(f"End date: {overview.end_date.strftime('%m/%Y')}")
-
-    if overview_content:
-        project_content.extend(["#### Overview", ""])
-        project_content.extend(overview_content)
-        project_content.append("")
+    _add_project_overview_markdown(overview, project_content)
 
     if inclusion_status != InclusionStatus.NOT_RELEVANT:
         description = getattr(project, "description", None)
-        if description and getattr(description, "text", None):
-            project_content.extend(["#### Description", "", description.text, ""])
+        _add_project_description_markdown(description, project_content)
 
         skills = getattr(project, "skills", None)
-        if skills and hasattr(skills, "skills") and skills.skills:
-            project_content.extend(["#### Skills", ""])
-            project_content.extend([f"* {skill}" for skill in skills.skills])
-            project_content.append("")
+        _add_project_skills_markdown(skills, project_content)
 
     if project_content:
         return ["### Project", ""] + project_content

@@ -131,3 +131,18 @@ def test_update_resume_content_with_all_sections():
     assert "# Education" in updated_content
     assert "# Experience" in updated_content
     assert "# Certifications" in updated_content
+
+
+def test_update_resume_content_with_unparseable_personal_info():
+    """Test that update_resume_content_with_structured_data handles unparseable personal info."""
+    current_content = textwrap.dedent(
+        """\
+        # Personal
+        This is some junk.
+        # Other Section
+        """
+    )
+    with pytest.raises(
+        ValueError, match="Failed to parse personal info from resume content."
+    ):
+        update_resume_content_with_structured_data(current_content)

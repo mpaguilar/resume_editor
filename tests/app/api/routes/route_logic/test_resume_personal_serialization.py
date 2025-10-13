@@ -1,9 +1,6 @@
-from unittest.mock import Mock, patch
-
 import pytest
 
 from resume_editor.app.api.routes.route_logic.resume_serialization import (
-    extract_personal_info,
     serialize_personal_info_to_markdown,
 )
 from resume_editor.app.api.routes.route_models import PersonalInfoResponse
@@ -107,99 +104,3 @@ def test_serialize_personal_info_to_markdown(personal_info, expected_output):
     assert result == expected_output
 
 
-class TestExtractPersonalInfo:
-    """Test cases for personal info extraction functions."""
-
-    @patch(
-        "resume_editor.app.api.routes.route_logic.resume_serialization.WriterResume.parse",
-    )
-    def test_extract_personal_info_no_personal_section(self, mock_parse):
-        """Test personal info extraction when personal section is missing."""
-        mock_resume = Mock()
-        mock_resume.personal = None
-        mock_parse.return_value = mock_resume
-
-        response = extract_personal_info("any content")
-        assert response == PersonalInfoResponse()
-
-    @patch(
-        "resume_editor.app.api.routes.route_logic.resume_serialization.WriterResume.parse",
-    )
-    def test_extract_personal_info_no_contact_info(self, mock_parse):
-        """Test personal info extraction when contact info is missing."""
-        mock_personal = Mock()
-        mock_personal.contact_info = None
-        # To accurately simulate the parser's behavior for missing sections,
-        # we configure the mock to raise an AttributeError when these are accessed.
-        mock_personal.configure_mock(
-            **{
-                "websites": None,
-                "visa_status": None,
-                "banner": None,
-                "note": None,
-            },
-        )
-        # Use a spec to ensure only valid attributes of the real object are accessed
-        mock_personal.spec = [
-            "contact_info",
-            "websites",
-            "visa_status",
-            "banner",
-            "note",
-        ]
-        # Set attributes that should be absent to None explicitly.
-        mock_personal.websites = None
-        mock_personal.visa_status = None
-        mock_personal.banner = None
-        mock_personal.note = None
-
-        mock_resume = Mock()
-        mock_resume.personal = mock_personal
-        mock_parse.return_value = mock_resume
-
-        response = extract_personal_info("any content")
-        # An empty response should be returned if no data is present
-        assert response == PersonalInfoResponse()
-
-    @patch(
-        "resume_editor.app.api.routes.route_logic.resume_serialization.WriterResume.parse",
-    )
-    def test_extract_personal_info_partial_data(self, mock_parse):
-        """Test personal info extraction with partial data."""
-        mock_contact_info = Mock()
-        mock_contact_info.name = "John Doe"
-        mock_contact_info.email = None
-        mock_contact_info.phone = "123-456-7890"
-        mock_contact_info.location = None
-        mock_websites = Mock()
-        mock_websites.website = None
-        mock_websites.github = None
-        mock_websites.linkedin = None
-        mock_websites.twitter = None
-
-        mock_personal = Mock()
-        mock_personal.contact_info = mock_contact_info
-        mock_personal.websites = mock_websites
-        mock_personal.visa_status = None
-        mock_personal.banner = None
-        mock_personal.note = None
-
-        mock_resume = Mock()
-        mock_resume.personal = mock_personal
-        mock_parse.return_value = mock_resume
-
-        response = extract_personal_info("any content")
-        assert response.name == "John Doe"
-        assert response.email is None
-        assert response.phone == "123-456-7890"
-        assert response.location is None
-        assert response.website is None
-
-    @patch(
-        "resume_editor.app.api.routes.route_logic.resume_serialization.WriterResume.parse",
-        side_effect=Exception("mock parse error"),
-    )
-    def test_extract_personal_info_parse_fails(self, mock_parse):
-        """Test personal info extraction when parsing fails."""
-        with pytest.raises(ValueError, match="Failed to parse personal info"):
-            extract_personal_info("invalid content")

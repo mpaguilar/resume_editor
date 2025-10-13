@@ -719,6 +719,43 @@ def test_serialize_project_with_no_content():
     assert markdown == ""
 
 
+def test_serialize_project_with_overview_and_skills_no_description():
+    """Test serializing a project with overview and skills, but no description."""
+    experience = ExperienceResponse(
+        roles=[],
+        projects=[
+            {
+                "overview": {
+                    "title": "Skills Project",
+                    "inclusion_status": InclusionStatus.INCLUDE,
+                },
+                "description": None,
+                "skills": {"skills": ["API", "Testing"]},
+            },
+        ],
+    )
+    markdown = serialize_experience_to_markdown(experience)
+    expected = textwrap.dedent(
+        """\
+        # Experience
+
+        ## Projects
+
+        ### Project
+
+        #### Overview
+
+        Title: Skills Project
+
+        #### Skills
+
+        * API
+        * Testing
+
+        """
+    )
+    assert "#### Description" not in markdown
+    assert markdown.strip() == expected.strip()
 
 
 def test_serialize_experience_to_markdown_partial_data():
@@ -751,4 +788,80 @@ Location: Remote
 
 """
     assert markdown == expected
+
+
+def test_project_overview_missing_inclusion_status_defaults_to_include():
+    """Test project with overview missing inclusion_status defaults to INCLUDE."""
+    # This tests the defensive getattr() in _serialize_project_to_markdown
+    mock_overview = SimpleNamespace(
+        title="Default Include Project",
+        url=None,
+        url_description=None,
+        start_date=None,
+        end_date=None,
+        # No inclusion_status
+    )
+    mock_project = Mock()
+    mock_project.overview = mock_overview
+    mock_project.description = Mock(text="Description is here")
+    mock_project.skills = Mock(skills=["skill1"])
+
+    mock_experience = Mock()
+    mock_experience.projects = [mock_project]
+    mock_experience.roles = []
+
+    markdown = serialize_experience_to_markdown(mock_experience)
+
+    assert "# Experience" in markdown
+    assert "## Projects" in markdown
+    assert "### Project" in markdown
+    assert "#### Overview" in markdown
+    assert "Title: Default Include Project" in markdown
+    assert "#### Description" in markdown
+    assert "Description is here" in markdown
+    assert "#### Skills" in markdown
+    assert "* skill1" in markdown
+
+
+def test_serialize_project_with_empty_overview_and_default_include():
+    """
+    Test serializing a project with an empty overview and no inclusion status.
+
+    It should default to INCLUDE and serialize the other content.
+    """
+    # Using SimpleNamespace to avoid having 'inclusion_status' attribute
+    mock_overview = SimpleNamespace(
+        title=None,
+        url=None,
+        url_description=None,
+        start_date=None,
+        end_date=None,
+    )
+    mock_description = Mock(spec=ProjectDescription, text="A sample description.")
+    mock_project = Mock(
+        spec=Project,
+        overview=mock_overview,
+        description=mock_description,
+        skills=None,
+    )
+    mock_experience = Mock(spec=ExperienceResponse, projects=[mock_project], roles=[])
+
+    markdown = serialize_experience_to_markdown(mock_experience)
+
+    expected_markdown = textwrap.dedent(
+        """\
+    # Experience
+
+    ## Projects
+
+    ### Project
+
+    #### Description
+
+    A sample description.
+
+    """
+    )
+    assert "Overview" not in markdown
+    assert markdown.strip() == expected_markdown.strip()
 

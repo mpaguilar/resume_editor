@@ -45,8 +45,10 @@ These are known mappings:
 - `resume_editor/app/api/routes/route_logic/resume_serialization.py` -> `tests/app/api/routes/route_logic/test_resume_education_serialization.py`
 - `resume_editor/app/api/routes/route_logic/resume_serialization.py` -> `tests/app/api/routes/route_logic/test_resume_experience_extraction.py`
 - `resume_editor/app/api/routes/route_logic/resume_serialization.py` -> `tests/app/api/routes/route_logic/test_resume_personal_extraction.py`
+- `resume_editor/app/api/routes/route_logic/resume_serialization.py` -> `tests/app/api/routes/route_logic/test_resume_personal_serialization.py`
 - `resume_editor/app/api/routes/route_logic/resume_serialization.py` -> `tests/app/api/routes/route_logic/test_resume_experience_serialization.py`
 - `resume_editor/app/api/routes/route_logic/resume_reconstruction.py` -> `tests/app/api/routes/route_logic/test_resume_reconstruction.py`
 - `resume_editor/app/api/routes/route_logic/resume_parsing.py` -> `tests/app/api/routes/route_logic/test_resume_parsing.py`
 - `resume_editor/app/middleware.py` -> `tests/app/test_middleware.py`
 - `resume_editor/app/core/rendering_settings.py` -> `tests/app/core/test_rendering_settings.py`
+- `resume_editor/app/api/routes/route_logic/resume_serialization_helpers.py` -> `tests/app/api/routes/route_logic/test_resume_serialization_helpers.py`
