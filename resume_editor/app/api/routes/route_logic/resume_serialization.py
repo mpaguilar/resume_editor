@@ -10,6 +10,10 @@ from resume_editor.app.api.routes.route_logic.resume_serialization_helpers impor
     _add_project_description_markdown,
     _add_project_overview_markdown,
     _add_project_skills_markdown,
+    _add_role_basics_markdown,
+    _add_role_responsibilities_markdown,
+    _add_role_skills_markdown,
+    _add_role_summary_markdown,
     _add_visa_status_markdown,
     _add_websites_markdown,
     _check_for_unparsed_content,
@@ -370,12 +374,13 @@ def _serialize_role_to_markdown(role) -> list[str]:
     Notes:
         1. Gets the `basics` section from the role. If not present, returns an empty list.
         2. Checks the `inclusion_status` on the `basics` object. If `OMIT`, returns an empty list.
-        3. Serializes the `basics` content (company, title, dates, etc.) into Markdown.
-        4. Serializes the `summary` and `skills` sections into Markdown if they exist. This happens for both `INCLUDE` and `NOT_RELEVANT` statuses.
-        5. Handles the `responsibilities` section based on `inclusion_status`:
-            - If `NOT_RELEVANT`, it writes a placeholder text `(no relevant experience)`.
-            - If `INCLUDE`, it serializes the original responsibilities text if it exists.
-        6. Returns the combined list of Markdown lines for the role.
+        3. Orchestrates calls to helper functions to serialize different parts of the role:
+           - `_add_role_basics_markdown` for company, title, dates, etc.
+           - `_add_role_summary_markdown` for the summary text.
+           - `_add_role_responsibilities_markdown` for responsibilities, handling inclusion status.
+           - `_add_role_skills_markdown` for the list of skills.
+        4. If any content is generated, prepends the `### Role` header.
+        5. Returns the combined list of Markdown lines for the role.
 
     """
     basics = getattr(role, "basics", None)
@@ -387,61 +392,18 @@ def _serialize_role_to_markdown(role) -> list[str]:
         return []
 
     role_content = []
-    basics_content = []
-    if getattr(basics, "company", None):
-        basics_content.append(f"Company: {basics.company}")
-    if getattr(basics, "title", None):
-        basics_content.append(f"Title: {basics.title}")
-    if getattr(basics, "employment_type", None):
-        basics_content.append(f"Employment type: {basics.employment_type}")
-    if getattr(basics, "job_category", None):
-        basics_content.append(f"Job category: {basics.job_category}")
-    if getattr(basics, "agency_name", None):
-        basics_content.append(f"Agency: {basics.agency_name}")
-    if getattr(basics, "start_date", None):
-        basics_content.append(f"Start date: {basics.start_date.strftime('%m/%Y')}")
-    if getattr(basics, "end_date", None):
-        basics_content.append(f"End date: {basics.end_date.strftime('%m/%Y')}")
-    if getattr(basics, "reason_for_change", None):
-        basics_content.append(f"Reason for change: {basics.reason_for_change}")
-    if getattr(basics, "location", None):
-        basics_content.append(f"Location: {basics.location}")
-
-    if basics_content:
-        role_content.extend(["#### Basics", ""])
-        role_content.extend(basics_content)
-        role_content.append("")
+    _add_role_basics_markdown(basics, role_content)
 
     summary = getattr(role, "summary", None)
-    if summary and getattr(summary, "text", None):
-        role_content.extend(["#### Summary", "", summary.text, ""])
+    _add_role_summary_markdown(summary, role_content)
 
-    if inclusion_status == InclusionStatus.NOT_RELEVANT:
-        role_content.extend(
-            [
-                "#### Responsibilities",
-                "",
-                "(no relevant experience)",
-                "",
-            ]
-        )
-    else:  # Status is INCLUDE
-        responsibilities = getattr(role, "responsibilities", None)
-        if responsibilities and getattr(responsibilities, "text", None):
-            role_content.extend(
-                [
-                    "#### Responsibilities",
-                    "",
-                    responsibilities.text,
-                    "",
-                ],
-            )
+    responsibilities = getattr(role, "responsibilities", None)
+    _add_role_responsibilities_markdown(
+        responsibilities, inclusion_status, role_content
+    )
 
     skills = getattr(role, "skills", None)
-    if skills and hasattr(skills, "skills") and skills.skills:
-        role_content.extend(["#### Skills", ""])
-        role_content.extend([f"* {skill}" for skill in skills.skills])
-        role_content.append("")
+    _add_role_skills_markdown(skills, role_content)
 
     if role_content:
         return ["### Role", ""] + role_content

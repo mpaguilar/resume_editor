@@ -783,8 +783,8 @@ def test_serialize_experience_to_markdown_partial_data():
 
 Company: Partial Corp
 Title: Partial Title
-Start date: 01/2021
 Location: Remote
+Start date: 01/2021
 
 """
     assert markdown == expected
@@ -864,4 +864,128 @@ def test_serialize_project_with_empty_overview_and_default_include():
     )
     assert "Overview" not in markdown
     assert markdown.strip() == expected_markdown.strip()
+
+
+@patch("resume_editor.app.api.routes.route_logic.resume_serialization._add_role_skills_markdown")
+@patch(
+    "resume_editor.app.api.routes.route_logic.resume_serialization._add_role_responsibilities_markdown"
+)
+@patch("resume_editor.app.api.routes.route_logic.resume_serialization._add_role_summary_markdown")
+@patch("resume_editor.app.api.routes.route_logic.resume_serialization._add_role_basics_markdown")
+class TestSerializeRoleToMarkdown:
+    def test_full_role_serialization(
+        self,
+        mock_add_basics,
+        mock_add_summary,
+        mock_add_responsibilities,
+        mock_add_skills,
+    ):
+        """Test serializing a full role calls all helpers and handles content."""
+        # Let one helper add content to test that the list is passed and used.
+        mock_add_basics.side_effect = lambda basics, lines: lines.append(
+            "basics content"
+        )
+
+        mock_role = Mock()
+        mock_role.basics.inclusion_status = InclusionStatus.INCLUDE
+
+        result = _serialize_role_to_markdown(mock_role)
+
+        assert result == ["### Role", "", "basics content"]
+
+        mock_add_basics.assert_called_once()
+        assert mock_add_basics.call_args.args[0] is mock_role.basics
+
+        mock_add_summary.assert_called_once()
+        assert mock_add_summary.call_args.args[0] is mock_role.summary
+
+        mock_add_responsibilities.assert_called_once()
+        assert (
+            mock_add_responsibilities.call_args.args[0] is mock_role.responsibilities
+        )
+        assert (
+            mock_add_responsibilities.call_args.args[1] == InclusionStatus.INCLUDE
+        )
+
+        mock_add_skills.assert_called_once()
+        assert mock_add_skills.call_args.args[0] is mock_role.skills
+
+    def test_omit_inclusion_status(
+        self,
+        mock_add_basics,
+        mock_add_summary,
+        mock_add_responsibilities,
+        mock_add_skills,
+    ):
+        """Test that a role with OMIT status is not serialized."""
+        mock_role = Mock()
+        mock_role.basics.inclusion_status = InclusionStatus.OMIT
+
+        result = _serialize_role_to_markdown(mock_role)
+
+        assert result == []
+        mock_add_basics.assert_not_called()
+        mock_add_summary.assert_not_called()
+        mock_add_responsibilities.assert_not_called()
+        mock_add_skills.assert_not_called()
+
+    def test_no_basics(
+        self,
+        mock_add_basics,
+        mock_add_summary,
+        mock_add_responsibilities,
+        mock_add_skills,
+    ):
+        """Test that a role without a 'basics' section is not serialized."""
+        mock_role = Mock(spec=["summary", "responsibilities", "skills"])  # No 'basics'
+
+        result = _serialize_role_to_markdown(mock_role)
+
+        assert result == []
+        mock_add_basics.assert_not_called()
+        mock_add_summary.assert_not_called()
+        mock_add_responsibilities.assert_not_called()
+        mock_add_skills.assert_not_called()
+
+    def test_no_content_generated(
+        self,
+        mock_add_basics,
+        mock_add_summary,
+        mock_add_responsibilities,
+        mock_add_skills,
+    ):
+        """Test that if helpers generate no content, the result is empty."""
+        # Mocks do nothing, so role_content stays empty
+        mock_role = Mock()
+        mock_role.basics.inclusion_status = InclusionStatus.INCLUDE
+
+        result = _serialize_role_to_markdown(mock_role)
+
+        assert result == []
+        mock_add_basics.assert_called_once()
+        mock_add_summary.assert_called_once()
+        mock_add_responsibilities.assert_called_once()
+        mock_add_skills.assert_called_once()
+
+    def test_default_inclusion_status(
+        self,
+        mock_add_basics,
+        mock_add_summary,
+        mock_add_responsibilities,
+        mock_add_skills,
+    ):
+        """Test inclusion_status defaults to INCLUDE if not present."""
+        # Using SimpleNamespace to avoid having 'inclusion_status' attribute
+        mock_basics = SimpleNamespace(company="Test Co")
+        mock_role = Mock()
+        mock_role.basics = mock_basics
+
+        result = _serialize_role_to_markdown(mock_role)
+
+        assert result == []
+        mock_add_basics.assert_called_once()
+
+        # Verify that inclusion_status was defaulted to INCLUDE for responsibilities call
+        mock_add_responsibilities.assert_called_once()
+        assert mock_add_responsibilities.call_args.args[1] == InclusionStatus.INCLUDE
 

@@ -51,7 +51,7 @@ class TestExperienceModels:
         # missing test
         skills = ["Python", "JavaScript"]
         role_skills = RoleSkills(skills=skills)
-        assert [skill for skill in role_skills] == skills
+        assert list(role_skills) == skills
 
     def test_role_basics_creation(self):
         """Test RoleBasics model creation."""
@@ -253,7 +253,7 @@ class TestExperienceModels:
         # missing test
         role1 = Role()
         roles_obj = Roles(roles=[role1])
-        assert [r for r in roles_obj] == [role1]
+        assert list(roles_obj) == [role1]
 
     def test_roles_list_class(self):
         # missing test
@@ -280,7 +280,7 @@ class TestExperienceModels:
         # missing test
         skills = ["a", "b"]
         ps = ProjectSkills(skills=skills)
-        assert [s for s in ps] == skills
+        assert list(ps) == skills
 
     def test_project_skills_len(self):
         # missing test
@@ -352,7 +352,7 @@ class TestExperienceModels:
             description=ProjectDescription(text="d1"),
         )
         projects_obj = Projects(projects=[proj1])
-        assert [p for p in projects_obj] == [proj1]
+        assert list(projects_obj) == [proj1]
 
     def test_projects_list_class(self):
         # missing test

@@ -437,3 +437,121 @@ def _add_project_skills_markdown(skills: any, lines: list[str]) -> None:
         lines.extend([f"* {skill}" for skill in skills.skills])
         lines.append("")
     log.debug("_add_project_skills_markdown returning")
+
+
+def _add_role_basics_markdown(basics: any, lines: list[str]) -> None:
+    """Adds role basics Markdown to a list of lines.
+    Args:
+        basics (any): The parsed role basics from resume_writer.
+        lines (list[str]): The list of lines to append to.
+    Notes:
+        1. Defines mappings for string and date fields to their labels.
+        2. Iterates through the field mappings to collect basics info.
+        3. Formats date fields to 'MM/YYYY'.
+        4. If any data is collected, adds a "Basics" section header.
+        5. Appends each non-empty field.
+        6. Adds a trailing blank line.
+    """
+    log.debug("_add_role_basics_markdown starting")
+    basics_content = []
+
+    string_fields = {
+        "company": "Company",
+        "title": "Title",
+        "employment_type": "Employment type",
+        "job_category": "Job category",
+        "agency_name": "Agency",
+        "reason_for_change": "Reason for change",
+        "location": "Location",
+    }
+    date_fields = {
+        "start_date": "Start date",
+        "end_date": "End date",
+    }
+
+    for attr, label in string_fields.items():
+        value = getattr(basics, attr, None)
+        if value:
+            basics_content.append(f"{label}: {value}")
+
+    for attr, label in date_fields.items():
+        value = getattr(basics, attr, None)
+        if value:
+            basics_content.append(f"{label}: {value.strftime('%m/%Y')}")
+
+    if basics_content:
+        lines.extend(["#### Basics", ""])
+        lines.extend(basics_content)
+        lines.append("")
+    log.debug("_add_role_basics_markdown returning")
+
+
+def _add_role_summary_markdown(summary: any, lines: list[str]) -> None:
+    """Adds role summary Markdown to a list of lines.
+    Args:
+        summary (any): The parsed role summary from resume_writer.
+        lines (list[str]): The list of lines to append to.
+    Notes:
+        1. Checks for summary text.
+        2. If present, adds a "Summary" section header and the text.
+        3. Adds a trailing blank line.
+    """
+    log.debug("_add_role_summary_markdown starting")
+    if summary and getattr(summary, "text", None):
+        lines.extend(["#### Summary", "", summary.text, ""])
+    log.debug("_add_role_summary_markdown returning")
+
+
+def _add_role_responsibilities_markdown(
+    responsibilities: any, inclusion_status: InclusionStatus, lines: list[str]
+) -> None:
+    """Adds role responsibilities Markdown to a list of lines.
+    Args:
+        responsibilities (any): The parsed role responsibilities from resume_writer.
+        inclusion_status (InclusionStatus): The inclusion status of the role.
+        lines (list[str]): The list of lines to append to.
+    Notes:
+        1. If inclusion_status is `NOT_RELEVANT`, appends a placeholder.
+        2. If inclusion_status is `INCLUDE` and responsibilities text exists, appends the text.
+        3. Adds section header and trailing blank line as appropriate.
+    """
+    log.debug("_add_role_responsibilities_markdown starting")
+    if inclusion_status == InclusionStatus.NOT_RELEVANT:
+        lines.extend(
+            [
+                "#### Responsibilities",
+                "",
+                "(no relevant experience)",
+                "",
+            ]
+        )
+    elif inclusion_status == InclusionStatus.INCLUDE:
+        if responsibilities and getattr(responsibilities, "text", None):
+            lines.extend(
+                [
+                    "#### Responsibilities",
+                    "",
+                    responsibilities.text,
+                    "",
+                ],
+            )
+    log.debug("_add_role_responsibilities_markdown returning")
+
+
+def _add_role_skills_markdown(skills: any, lines: list[str]) -> None:
+    """Adds role skills Markdown to a list of lines.
+    Args:
+        skills (any): The parsed role skills from resume_writer.
+        lines (list[str]): The list of lines to append to.
+    Notes:
+        1. Checks for a list of skills.
+        2. If it exists and is not empty, adds a "Skills" section header.
+        3. Appends the skills as a bulleted list.
+        4. Adds a trailing blank line.
+    """
+    log.debug("_add_role_skills_markdown starting")
+    if skills and hasattr(skills, "skills") and skills.skills:
+        lines.extend(["#### Skills", ""])
+        lines.extend([f"* {skill}" for skill in skills.skills])
+        lines.append("")
+    log.debug("_add_role_skills_markdown returning")

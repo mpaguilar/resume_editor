@@ -11,6 +11,10 @@ from resume_editor.app.api.routes.route_logic.resume_serialization_helpers impor
     _add_project_description_markdown,
     _add_project_overview_markdown,
     _add_project_skills_markdown,
+    _add_role_basics_markdown,
+    _add_role_responsibilities_markdown,
+    _add_role_skills_markdown,
+    _add_role_summary_markdown,
     _add_visa_status_markdown,
     _add_websites_markdown,
     _check_for_unparsed_content,
@@ -507,4 +511,178 @@ class TestAddProjectSkillsMarkdown:
         skills = Mock(skills=[])
         lines = []
         _add_project_skills_markdown(skills, lines)
+        assert lines == []
+
+
+class TestAddRoleBasicsMarkdown:
+    def test_with_full_info(self):
+        basics = Mock(
+            company="Test Inc",
+            title="Engineer",
+            employment_type="Full-time",
+            job_category="Tech",
+            agency_name="Recruiters",
+            start_date=datetime(2022, 1, 1),
+            end_date=datetime(2022, 12, 31),
+            reason_for_change="Growth",
+            location="Remote",
+        )
+        lines = []
+        _add_role_basics_markdown(basics, lines)
+        expected = [
+            "#### Basics",
+            "",
+            "Company: Test Inc",
+            "Title: Engineer",
+            "Employment type: Full-time",
+            "Job category: Tech",
+            "Agency: Recruiters",
+            "Reason for change: Growth",
+            "Location: Remote",
+            "Start date: 01/2022",
+            "End date: 12/2022",
+            "",
+        ]
+        assert lines == expected
+
+    def test_with_partial_info(self):
+        basics = Mock(
+            company="Test Inc",
+            title=None,
+            employment_type=None,
+            job_category=None,
+            agency_name=None,
+            start_date=None,
+            end_date=None,
+            reason_for_change=None,
+            location=None,
+        )
+        lines = []
+        _add_role_basics_markdown(basics, lines)
+        expected = ["#### Basics", "", "Company: Test Inc", ""]
+        assert lines == expected
+
+    def test_with_no_info(self):
+        basics = Mock(
+            company=None,
+            title=None,
+            employment_type=None,
+            job_category=None,
+            agency_name=None,
+            start_date=None,
+            end_date=None,
+            reason_for_change=None,
+            location=None,
+        )
+        lines = []
+        _add_role_basics_markdown(basics, lines)
+        assert lines == []
+
+    def test_with_date_fields_only(self):
+        basics = Mock(
+            company=None,
+            title=None,
+            employment_type=None,
+            job_category=None,
+            agency_name=None,
+            start_date=datetime(2022, 1, 1),
+            end_date=datetime(2022, 12, 31),
+            reason_for_change=None,
+            location=None,
+        )
+        lines = []
+        _add_role_basics_markdown(basics, lines)
+        expected = [
+            "#### Basics",
+            "",
+            "Start date: 01/2022",
+            "End date: 12/2022",
+            "",
+        ]
+        assert lines == expected
+
+
+class TestAddRoleSummaryMarkdown:
+    def test_with_summary(self):
+        summary = Mock(text="A sample summary.")
+        lines = []
+        _add_role_summary_markdown(summary, lines)
+        expected = ["#### Summary", "", "A sample summary.", ""]
+        assert lines == expected
+
+    def test_with_no_summary_object(self):
+        lines = []
+        _add_role_summary_markdown(None, lines)
+        assert lines == []
+
+    def test_with_no_summary_text(self):
+        summary = Mock(text=None)
+        lines = []
+        _add_role_summary_markdown(summary, lines)
+        assert lines == []
+
+
+class TestAddRoleResponsibilitiesMarkdown:
+    def test_with_include_status(self):
+        responsibilities = Mock(text="Did stuff.")
+        lines = []
+        _add_role_responsibilities_markdown(
+            responsibilities, InclusionStatus.INCLUDE, lines
+        )
+        expected = ["#### Responsibilities", "", "Did stuff.", ""]
+        assert lines == expected
+
+    def test_with_include_status_no_text(self):
+        responsibilities = Mock(text=None)
+        lines = []
+        _add_role_responsibilities_markdown(
+            responsibilities, InclusionStatus.INCLUDE, lines
+        )
+        assert lines == []
+
+    def test_with_not_relevant_status(self):
+        responsibilities = Mock(text="Did stuff.")
+        lines = []
+        _add_role_responsibilities_markdown(
+            responsibilities, InclusionStatus.NOT_RELEVANT, lines
+        )
+        expected = [
+            "#### Responsibilities",
+            "",
+            "(no relevant experience)",
+            "",
+        ]
+        assert lines == expected
+
+    def test_with_omit_status(self):
+        responsibilities = Mock(text="Did stuff.")
+        lines = []
+        _add_role_responsibilities_markdown(
+            responsibilities, InclusionStatus.OMIT, lines
+        )
+        assert lines == []
+
+    def test_with_no_responsibilities_object_and_include(self):
+        lines = []
+        _add_role_responsibilities_markdown(None, InclusionStatus.INCLUDE, lines)
+        assert lines == []
+
+
+class TestAddRoleSkillsMarkdown:
+    def test_with_skills(self):
+        skills = Mock(skills=["Python", "FastAPI"])
+        lines = []
+        _add_role_skills_markdown(skills, lines)
+        expected = ["#### Skills", "", "* Python", "* FastAPI", ""]
+        assert lines == expected
+
+    def test_with_no_skills_object(self):
+        lines = []
+        _add_role_skills_markdown(None, lines)
+        assert lines == []
+
+    def test_with_empty_skills_list(self):
+        skills = Mock(skills=[])
+        lines = []
+        _add_role_skills_markdown(skills, lines)
         assert lines == []
