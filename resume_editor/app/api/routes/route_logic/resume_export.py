@@ -1,15 +1,19 @@
 import io
 import logging
+from typing import TYPE_CHECKING
 
 import docx
-from resume_writer.models.resume import Resume as WriterResume
-from resume_writer.resume_render.render_settings import ResumeRenderSettings
+
+if TYPE_CHECKING:
+    from resume_writer.models.resume import Resume as WriterResume
+
 from resume_writer.resume_render.ats.resume_main import (
     RenderResume as AtsRenderResume,
 )
 from resume_writer.resume_render.plain.resume_main import (
     RenderResume as PlainRenderResume,
 )
+from resume_writer.resume_render.render_settings import ResumeRenderSettings
 
 from resume_editor.app.api.routes.route_logic.resume_parsing import (
     parse_resume_to_writer_object,
@@ -19,7 +23,9 @@ log = logging.getLogger(__name__)
 
 
 def render_resume_to_docx_stream(
-    resume_content: str, render_format: str, settings_dict: dict
+    resume_content: str,
+    render_format: str,
+    settings_dict: dict,
 ) -> io.BytesIO:
     """Renders a resume's markdown content to a DOCX file stream.
 
@@ -53,8 +59,8 @@ def render_resume_to_docx_stream(
     log.debug(_msg)
 
     # 1. Parse resume content
-    parsed_resume: WriterResume = parse_resume_to_writer_object(
-        markdown_content=resume_content
+    parsed_resume: "WriterResume" = parse_resume_to_writer_object(
+        markdown_content=resume_content,
     )
 
     # 2. Instantiate and update render settings
@@ -71,11 +77,15 @@ def render_resume_to_docx_stream(
     renderer = None
     if render_format == "plain" or render_format == "executive_summary":
         renderer = PlainRenderResume(
-            resume=parsed_resume, document=document, settings=render_settings
+            resume=parsed_resume,
+            document=document,
+            settings=render_settings,
         )
     elif render_format == "ats":
         renderer = AtsRenderResume(
-            resume=parsed_resume, document=document, settings=render_settings
+            resume=parsed_resume,
+            document=document,
+            settings=render_settings,
         )
     else:
         _msg = f"Unknown render format: {render_format}"

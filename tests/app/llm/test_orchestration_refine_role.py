@@ -7,7 +7,7 @@ from openai import AuthenticationError
 import json
 
 from resume_editor.app.llm.orchestration import refine_role
-from resume_editor.app.llm.models import JobAnalysis, RefinedRole
+from resume_editor.app.llm.models import JobAnalysis, LLMConfig, RefinedRole
 from resume_editor.app.models.resume.experience import (
     Role,
     RoleBasics,
@@ -190,9 +190,7 @@ async def test_refine_role_success(mock_chain_invocations_for_role_refine):
     result = await refine_role(
         role=mock_role,
         job_analysis=mock_job_analysis,
-        llm_endpoint=None,
-        api_key=None,
-        llm_model_name=None,
+        llm_config=LLMConfig(),
     )
 
     assert isinstance(result, RefinedRole)
@@ -222,9 +220,7 @@ async def test_refine_role_json_error(mock_chain_invocations_for_role_refine):
         await refine_role(
             role=create_mock_role(),
             job_analysis=create_mock_job_analysis(),
-            llm_endpoint=None,
-            api_key=None,
-            llm_model_name=None,
+            llm_config=LLMConfig(),
         )
 
 
@@ -239,9 +235,7 @@ async def test_refine_role_validation_error(mock_chain_invocations_for_role_refi
         await refine_role(
             role=create_mock_role(),
             job_analysis=create_mock_job_analysis(),
-            llm_endpoint=None,
-            api_key=None,
-            llm_model_name=None,
+            llm_config=LLMConfig(),
         )
 
 
@@ -252,9 +246,7 @@ async def test_refine_role_prompt_content(mock_chain_invocations_for_role_refine
     await refine_role(
         role=create_mock_role(),
         job_analysis=create_mock_job_analysis(),
-        llm_endpoint=None,
-        api_key=None,
-        llm_model_name=None,
+        llm_config=LLMConfig(),
     )
 
     # Assert
@@ -304,9 +296,11 @@ async def test_refine_role_llm_initialization(
     await refine_role(
         role=create_mock_role(),
         job_analysis=create_mock_job_analysis(),
-        llm_endpoint=llm_endpoint,
-        api_key=api_key,
-        llm_model_name=llm_model_name,
+        llm_config=LLMConfig(
+            llm_endpoint=llm_endpoint,
+            api_key=api_key,
+            llm_model_name=llm_model_name,
+        ),
     )
     mock_chat_openai = mock_chain_invocations_for_role_refine["chat_openai"]
     mock_chat_openai.assert_called_once_with(**expected_call_args)
@@ -330,7 +324,5 @@ async def test_refine_role_authentication_error(
         await refine_role(
             role=create_mock_role(),
             job_analysis=create_mock_job_analysis(),
-            llm_endpoint=None,
-            api_key=None,
-            llm_model_name=None,
+            llm_config=LLMConfig(),
         )

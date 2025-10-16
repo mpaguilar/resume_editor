@@ -14,8 +14,7 @@ log = logging.getLogger(__name__)
 
 
 def get_user_settings(db: Session, user_id: int) -> UserSettings | None:
-    """
-    Retrieves the settings for a given user.
+    """Retrieves the settings for a given user.
 
     Args:
         db (Session): The database session used to query the database.
@@ -40,8 +39,7 @@ def update_user_settings(
     user_id: int,
     settings_data: "UserSettingsUpdateRequest",
 ) -> UserSettings:
-    """
-    Creates or updates settings for a user.
+    """Creates or updates settings for a user.
 
     Args:
         db (Session): The database session used to perform database operations.
@@ -78,7 +76,10 @@ def update_user_settings(
         else:
             settings.llm_endpoint = None
 
-    if hasattr(settings_data, "llm_model_name") and settings_data.llm_model_name is not None:
+    if (
+        hasattr(settings_data, "llm_model_name")
+        and settings_data.llm_model_name is not None
+    ):
         if settings_data.llm_model_name:
             settings.llm_model_name = settings_data.llm_model_name
         else:

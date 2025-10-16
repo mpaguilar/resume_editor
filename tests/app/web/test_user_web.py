@@ -5,7 +5,7 @@ from fastapi.testclient import TestClient
 
 from resume_editor.app.core.auth import get_current_user_from_cookie, get_db
 from resume_editor.app.main import create_app
-from resume_editor.app.models.user import User
+from resume_editor.app.models.user import User, UserData
 
 
 @pytest.fixture
@@ -31,9 +31,11 @@ def test_force_password_change_redirect(mock_decode, mock_settings, client, app)
     app.dependency_overrides.clear()
     mock_db_session = MagicMock()
     mock_user = User(
-        username="testuser",
-        email="test@test.com",
-        hashed_password="old_hashed_password",
+        data=UserData(
+            username="testuser",
+            email="test@test.com",
+            hashed_password="old_hashed_password",
+        )
     )
     mock_user.attributes = {"force_password_change": True}
 
@@ -57,10 +59,12 @@ def test_get_change_password_page(client, app):
     app.dependency_overrides.clear()
     mock_db_session = MagicMock()
     mock_user = User(
-        username="testuser",
-        email="test@test.com",
-        hashed_password="some_password_hash",
-        attributes={"force_password_change": True},
+        data=UserData(
+            username="testuser",
+            email="test@test.com",
+            hashed_password="some_password_hash",
+            attributes={"force_password_change": True},
+        )
     )
     app.dependency_overrides[get_db] = lambda: mock_db_session
     app.dependency_overrides[get_current_user_from_cookie] = lambda: mock_user
@@ -98,10 +102,12 @@ def test_post_change_password_success_forced(client, app):
     app.dependency_overrides.clear()
     mock_db_session = MagicMock()
     mock_user = User(
-        username="testuser",
-        email="test@test.com",
-        hashed_password="old_hashed_password",
-        attributes={"force_password_change": True},
+        data=UserData(
+            username="testuser",
+            email="test@test.com",
+            hashed_password="old_hashed_password",
+            attributes={"force_password_change": True},
+        )
     )
     app.dependency_overrides[get_db] = lambda: mock_db_session
     app.dependency_overrides[get_current_user_from_cookie] = lambda: mock_user
@@ -132,10 +138,12 @@ def test_post_change_password_mismatch(client, app):
     app.dependency_overrides.clear()
     mock_db_session = MagicMock()
     mock_user = User(
-        username="testuser",
-        email="test@test.com",
-        hashed_password="old_hashed_password",
-        attributes={"force_password_change": True},
+        data=UserData(
+            username="testuser",
+            email="test@test.com",
+            hashed_password="old_hashed_password",
+            attributes={"force_password_change": True},
+        )
     )
     app.dependency_overrides[get_db] = lambda: mock_db_session
     app.dependency_overrides[get_current_user_from_cookie] = lambda: mock_user
@@ -160,9 +168,11 @@ def test_force_password_change_redirect_htmx(mock_decode, mock_settings, client,
     app.dependency_overrides.clear()
     mock_db_session = MagicMock()
     mock_user = User(
-        username="testuser",
-        email="test@test.com",
-        hashed_password="old_hashed_password",
+        data=UserData(
+            username="testuser",
+            email="test@test.com",
+            hashed_password="old_hashed_password",
+        )
     )
     mock_user.attributes = {"force_password_change": True}
 
@@ -204,10 +214,12 @@ def test_post_change_password_failure_incorrect_current_no_mock(client, app):
     hashed_current_password = get_password_hash(current_password)
 
     mock_user = User(
-        username="testuser",
-        email="test@test.com",
-        hashed_password=hashed_current_password,
-        attributes={"force_password_change": False},
+        data=UserData(
+            username="testuser",
+            email="test@test.com",
+            hashed_password=hashed_current_password,
+            attributes={"force_password_change": False},
+        )
     )
     app.dependency_overrides[get_db] = lambda: mock_db_session
     app.dependency_overrides[get_current_user_from_cookie] = lambda: mock_user
@@ -232,10 +244,12 @@ def test_post_change_password_success_htmx(client, app):
     app.dependency_overrides.clear()
     mock_db_session = MagicMock()
     mock_user = User(
-        username="testuser",
-        email="test@test.com",
-        hashed_password="old_hashed_password",
-        attributes={"force_password_change": True},
+        data=UserData(
+            username="testuser",
+            email="test@test.com",
+            hashed_password="old_hashed_password",
+            attributes={"force_password_change": True},
+        )
     )
     app.dependency_overrides[get_db] = lambda: mock_db_session
     app.dependency_overrides[get_current_user_from_cookie] = lambda: mock_user
@@ -272,10 +286,12 @@ def test_post_change_password_and_login_with_new_password(client, app):
     hashed_old_password = get_password_hash(old_password)
 
     mock_user = User(
-        username="testuser",
-        email="test@test.com",
-        hashed_password=hashed_old_password,
-        attributes={"force_password_change": True},
+        data=UserData(
+            username="testuser",
+            email="test@test.com",
+            hashed_password=hashed_old_password,
+            attributes={"force_password_change": True},
+        )
     )
     app.dependency_overrides[get_db] = lambda: mock_db_session
     app.dependency_overrides[get_current_user_from_cookie] = lambda: mock_user
@@ -307,10 +323,12 @@ def test_post_change_password_success_not_forced(client, app):
     hashed_current_password = get_password_hash(current_password)
 
     mock_user = User(
-        username="testuser",
-        email="test@test.com",
-        hashed_password=hashed_current_password,
-        attributes={"force_password_change": False},
+        data=UserData(
+            username="testuser",
+            email="test@test.com",
+            hashed_password=hashed_current_password,
+            attributes={"force_password_change": False},
+        )
     )
     app.dependency_overrides[get_db] = lambda: mock_db_session
     app.dependency_overrides[get_current_user_from_cookie] = lambda: mock_user
@@ -342,10 +360,12 @@ def test_post_change_password_with_none_attributes(client, app):
     hashed_current_password = get_password_hash(current_password)
 
     mock_user = User(
-        username="testuser",
-        email="test@test.com",
-        hashed_password=hashed_current_password,
-        attributes=None,  # Attributes are None
+        data=UserData(
+            username="testuser",
+            email="test@test.com",
+            hashed_password=hashed_current_password,
+            attributes=None,  # Attributes are None
+        )
     )
     app.dependency_overrides[get_db] = lambda: mock_db_session
     app.dependency_overrides[get_current_user_from_cookie] = lambda: mock_user
@@ -372,10 +392,12 @@ def test_post_change_password_non_forced_missing_current_password(client, app):
     app.dependency_overrides.clear()
     mock_db_session = MagicMock()
     mock_user = User(
-        username="testuser",
-        email="test@test.com",
-        hashed_password="some_hash",
-        attributes={"force_password_change": False},
+        data=UserData(
+            username="testuser",
+            email="test@test.com",
+            hashed_password="some_hash",
+            attributes={"force_password_change": False},
+        )
     )
     app.dependency_overrides[get_db] = lambda: mock_db_session
     app.dependency_overrides[get_current_user_from_cookie] = lambda: mock_user
@@ -401,10 +423,12 @@ def test_post_forced_change_with_incorrect_current_password_succeeds(client, app
     old_password = "old_password"
     hashed_old_password = get_password_hash(old_password)
     mock_user = User(
-        username="testuser",
-        email="test@test.com",
-        hashed_password=hashed_old_password,
-        attributes={"force_password_change": True},
+        data=UserData(
+            username="testuser",
+            email="test@test.com",
+            hashed_password=hashed_old_password,
+            attributes={"force_password_change": True},
+        )
     )
     app.dependency_overrides[get_db] = lambda: mock_db_session
     app.dependency_overrides[get_current_user_from_cookie] = lambda: mock_user

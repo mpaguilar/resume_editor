@@ -2,6 +2,7 @@ import logging
 from collections.abc import Generator
 
 from sqlalchemy import create_engine
+from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session, sessionmaker
 
 from resume_editor.app.core.config import get_settings
@@ -13,9 +14,8 @@ _engine = None
 _SessionLocal = None
 
 
-def get_engine():
-    """
-    Get or create the database engine.
+def get_engine() -> Engine:
+    """Get or create the database engine.
 
     Args:
         None
@@ -39,9 +39,8 @@ def get_engine():
     return _engine
 
 
-def get_session_local():
-    """
-    Get or create the session local factory.
+def get_session_local() -> sessionmaker[Session]:
+    """Get or create the session local factory.
 
     Args:
         None
@@ -68,8 +67,7 @@ def get_session_local():
 
 
 def get_db() -> Generator[Session, None, None]:
-    """
-    Dependency to provide database sessions to route handlers.
+    """Dependency to provide database sessions to route handlers.
 
     Args:
         None

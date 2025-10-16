@@ -1,14 +1,17 @@
 import logging
 from datetime import datetime
+from typing import Annotated
 
-from fastapi import APIRouter, Depends, Form, HTTPException, Request, Response
+from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlalchemy.orm import Session
 
 from resume_editor.app.api.dependencies import get_resume_for_user
 from resume_editor.app.api.routes.route_logic.resume_crud import (
+    ResumeUpdateParams,
+)
+from resume_editor.app.api.routes.route_logic.resume_crud import (
     update_resume as update_resume_db,
 )
-from resume_editor.app.api.routes.html_fragments import _generate_resume_detail_html
 from resume_editor.app.api.routes.route_logic.resume_serialization import (
     extract_certifications_info,
     extract_education_info,
@@ -21,14 +24,18 @@ from resume_editor.app.api.routes.route_logic.resume_validation import (
 )
 from resume_editor.app.api.routes.route_models import (
     CertificationsResponse,
+    CertificationUpdateForm,
     CertificationUpdateRequest,
     EducationResponse,
+    EducationUpdateForm,
     EducationUpdateRequest,
     ExperienceResponse,
+    ExperienceUpdateForm,
     ExperienceUpdateRequest,
     PersonalInfoResponse,
     PersonalInfoUpdateRequest,
     ProjectsResponse,
+    ProjectUpdateForm,
 )
 from resume_editor.app.database.database import get_db
 from resume_editor.app.models.resume.certifications import Certification
@@ -41,17 +48,14 @@ log = logging.getLogger(__name__)
 router = APIRouter()
 
 
-@router.get("/{resume_id}/personal", response_model=PersonalInfoResponse)
+@router.get("/{resume_id}/personal")
 async def get_personal_info(
-    resume: DatabaseResume = Depends(get_resume_for_user),
-):
-    """
-    Get personal information from a resume.
+    resume: Annotated[DatabaseResume, Depends(get_resume_for_user)],
+) -> PersonalInfoResponse:
+    """Get personal information from a resume.
 
     Args:
-        resume_id: The ID of the resume.
-        db: Database session.
-        current_user: Current authenticated user.
+        resume (DatabaseResume): The resume fetched for the current user via dependency injection.
 
     Returns:
         PersonalInfoResponse: The personal information from the resume.
@@ -74,17 +78,15 @@ async def get_personal_info(
 @router.put("/{resume_id}/personal", status_code=200)
 async def update_personal_info_structured(
     request: PersonalInfoUpdateRequest,
-    db: Session = Depends(get_db),
-    resume: DatabaseResume = Depends(get_resume_for_user),
-):
-    """
-    Update personal information in a resume.
+    db: Annotated[Session, Depends(get_db)],
+    resume: Annotated[DatabaseResume, Depends(get_resume_for_user)],
+) -> Response:
+    """Update personal information in a resume.
 
     Args:
-        resume_id: The ID of the resume.
-        request: The updated personal information.
-        db: Database session.
-        current_user: Current authenticated user.
+        request (PersonalInfoUpdateRequest): The updated personal information payload.
+        db (Session): Database session dependency.
+        resume (DatabaseResume): The resume fetched for the current user via dependency injection.
 
     Returns:
         PersonalInfoResponse: The updated personal information.
@@ -117,7 +119,8 @@ async def update_personal_info_structured(
         perform_pre_save_validation(updated_content, resume.content)
 
         # Save updated content to database
-        update_resume_db(db, resume, content=updated_content)
+        update_params = ResumeUpdateParams(content=updated_content)
+        update_resume_db(db, resume, params=update_params)
 
         return Response(headers={"HX-Redirect": "/dashboard"})
     except (ValueError, TypeError, HTTPException) as e:
@@ -129,30 +132,18 @@ async def update_personal_info_structured(
         raise HTTPException(status_code=422, detail=_msg)
 
 
-
 @router.post("/{resume_id}/edit/projects", status_code=200)
 async def update_projects(
-    http_request: Request,
-    db: Session = Depends(get_db),
-    resume: DatabaseResume = Depends(get_resume_for_user),
-    title: str = Form(...),
-    description: str = Form(...),
-    url: str | None = Form(None),
-    start_date: str | None = Form(None),
-    end_date: str | None = Form(None),
-):
-    """
-    Update projects information in a resume.
+    db: Annotated[Session, Depends(get_db)],
+    resume: Annotated[DatabaseResume, Depends(get_resume_for_user)],
+    form: Annotated[ProjectUpdateForm, Depends()],
+) -> Response:
+    """Update projects information in a resume.
 
     Args:
-        http_request (Request): The HTTP request object.
         db (Session): The database session dependency.
         resume (DatabaseResume): The resume object from dependency injection.
-        title (str): The title of the project.
-        description (str): A description of the project.
-        url (str | None): A URL associated with the project.
-        start_date (str | None): The start date of the project in YYYY-MM-DD format.
-        end_date (str | None): The end date of the project in YYYY-MM-DD format.
+        form (ProjectUpdateForm): The form data for the new project.
 
     Returns:
         HTMLResponse: Updated resume content view for HTMX.
@@ -170,16 +161,16 @@ async def update_projects(
     try:
         new_project_data = {
             "overview": {
-                "title": title,
-                "url": url,
-                "start_date": datetime.strptime(start_date, "%Y-%m-%d")
-                if start_date
+                "title": form.title,
+                "url": form.url,
+                "start_date": datetime.strptime(form.start_date, "%Y-%m-%d")
+                if form.start_date
                 else None,
-                "end_date": datetime.strptime(end_date, "%Y-%m-%d")
-                if end_date
+                "end_date": datetime.strptime(form.end_date, "%Y-%m-%d")
+                if form.end_date
                 else None,
             },
-            "description": {"text": description},
+            "description": {"text": form.description},
         }
         new_project = Project.model_validate(new_project_data)
 
@@ -192,7 +183,8 @@ async def update_projects(
         )
 
         perform_pre_save_validation(updated_content, resume.content)
-        update_resume_db(db, resume=resume, content=updated_content)
+        update_params = ResumeUpdateParams(content=updated_content)
+        update_resume_db(db, resume=resume, params=update_params)
 
         return Response(headers={"HX-Redirect": "/dashboard"})
     except (ValueError, TypeError, HTTPException) as e:
@@ -204,27 +196,16 @@ async def update_projects(
 
 @router.post("/{resume_id}/edit/certifications", status_code=200)
 async def update_certifications(
-    http_request: Request,
-    db: Session = Depends(get_db),
-    resume: DatabaseResume = Depends(get_resume_for_user),
-    name: str = Form(...),
-    issuer: str | None = Form(None),
-    certification_id: str | None = Form(None, alias="id"),
-    issued_date: str | None = Form(None),
-    expiry_date: str | None = Form(None),
-):
-    """
-    Update certifications information in a resume.
+    db: Annotated[Session, Depends(get_db)],
+    resume: Annotated[DatabaseResume, Depends(get_resume_for_user)],
+    form: Annotated[CertificationUpdateForm, Depends()],
+) -> Response:
+    """Update certifications information in a resume.
 
     Args:
-        http_request (Request): The HTTP request object.
         db (Session): The database session dependency.
         resume (DatabaseResume): The resume object from dependency injection.
-        name (str): The name of the certification.
-        issuer (str | None): The issuing organization.
-        certification_id (str | None): The ID of the certification (form field name 'id').
-        issued_date (str | None): The date the certification was issued in YYYY-MM-DD format.
-        expiry_date (str | None): The date the certification expires in YYYY-MM-DD format.
+        form (CertificationUpdateForm): The form data for the new certification.
 
     Returns:
         HTMLResponse: Updated resume content view for HTMX.
@@ -241,14 +222,14 @@ async def update_certifications(
     """
     try:
         new_cert_data = {
-            "name": name,
-            "issuer": issuer,
-            "certification_id": certification_id,
-            "issued": datetime.strptime(issued_date, "%Y-%m-%d")
-            if issued_date
+            "name": form.name,
+            "issuer": form.issuer,
+            "certification_id": form.certification_id,
+            "issued": datetime.strptime(form.issued_date, "%Y-%m-%d")
+            if form.issued_date
             else None,
-            "expires": datetime.strptime(expiry_date, "%Y-%m-%d")
-            if expiry_date
+            "expires": datetime.strptime(form.expiry_date, "%Y-%m-%d")
+            if form.expiry_date
             else None,
         }
         new_cert = Certification.model_validate(new_cert_data)
@@ -262,7 +243,8 @@ async def update_certifications(
         )
 
         perform_pre_save_validation(updated_content, resume.content)
-        update_resume_db(db, resume=resume, content=updated_content)
+        update_params = ResumeUpdateParams(content=updated_content)
+        update_resume_db(db, resume=resume, params=update_params)
 
         return Response(headers={"HX-Redirect": "/dashboard"})
     except (ValueError, TypeError, HTTPException) as e:
@@ -272,17 +254,14 @@ async def update_certifications(
         raise HTTPException(status_code=422, detail=_msg)
 
 
-@router.get("/{resume_id}/projects", response_model=ProjectsResponse)
+@router.get("/{resume_id}/projects")
 async def get_projects_info(
-    resume: DatabaseResume = Depends(get_resume_for_user),
-):
-    """
-    Get projects information from a resume.
+    resume: Annotated[DatabaseResume, Depends(get_resume_for_user)],
+) -> ProjectsResponse:
+    """Get projects information from a resume.
 
     Args:
-        resume_id: The ID of the resume.
-        db: Database session.
-        current_user: Current authenticated user.
+        resume (DatabaseResume): The resume fetched for the current user via dependency injection.
 
     Returns:
         ProjectsResponse: The projects information from the resume.
@@ -306,17 +285,15 @@ async def get_projects_info(
 @router.put("/{resume_id}/projects", status_code=200)
 async def update_projects_info_structured(
     request: ExperienceUpdateRequest,
-    db: Session = Depends(get_db),
-    resume: DatabaseResume = Depends(get_resume_for_user),
-):
-    """
-    Update projects information in a resume.
+    db: Annotated[Session, Depends(get_db)],
+    resume: Annotated[DatabaseResume, Depends(get_resume_for_user)],
+) -> Response:
+    """Update projects information in a resume.
 
     Args:
-        resume_id: The ID of the resume.
-        request: The updated projects information.
-        db: Database session.
-        current_user: Current authenticated user.
+        request (ExperienceUpdateRequest): The updated projects information.
+        db (Session): Database session dependency.
+        resume (DatabaseResume): The resume fetched for the current user via dependency injection.
 
     Returns:
         ProjectsResponse: The updated projects information.
@@ -353,7 +330,8 @@ async def update_projects_info_structured(
 
         perform_pre_save_validation(updated_content, resume.content)
 
-        update_resume_db(db, resume, content=updated_content)
+        update_params = ResumeUpdateParams(content=updated_content)
+        update_resume_db(db, resume, params=update_params)
 
         return Response(headers={"HX-Redirect": "/dashboard"})
     except (ValueError, TypeError, HTTPException) as e:
@@ -365,17 +343,14 @@ async def update_projects_info_structured(
         raise HTTPException(status_code=422, detail=_msg)
 
 
-@router.get("/{resume_id}/certifications", response_model=CertificationsResponse)
+@router.get("/{resume_id}/certifications")
 async def get_certifications_info(
-    resume: DatabaseResume = Depends(get_resume_for_user),
-):
-    """
-    Get certifications information from a resume.
+    resume: Annotated[DatabaseResume, Depends(get_resume_for_user)],
+) -> CertificationsResponse:
+    """Get certifications information from a resume.
 
     Args:
-        resume_id: The ID of the resume.
-        db: Database session.
-        current_user: Current authenticated user.
+        resume (DatabaseResume): The resume fetched for the current user via dependency injection.
 
     Returns:
         CertificationsResponse: The certifications information from the resume.
@@ -398,17 +373,15 @@ async def get_certifications_info(
 @router.put("/{resume_id}/certifications", status_code=200)
 async def update_certifications_info_structured(
     request: CertificationUpdateRequest,
-    db: Session = Depends(get_db),
-    resume: DatabaseResume = Depends(get_resume_for_user),
-):
-    """
-    Update certifications information in a resume.
+    db: Annotated[Session, Depends(get_db)],
+    resume: Annotated[DatabaseResume, Depends(get_resume_for_user)],
+) -> Response:
+    """Update certifications information in a resume.
 
     Args:
-        resume_id: The ID of the resume.
-        request: The updated certifications information.
-        db: Database session.
-        current_user: Current authenticated user.
+        request (CertificationUpdateRequest): The updated certifications information.
+        db (Session): Database session dependency.
+        resume (DatabaseResume): The resume fetched for the current user via dependency injection.
 
     Returns:
         CertificationsResponse: The updated certifications information.
@@ -440,7 +413,8 @@ async def update_certifications_info_structured(
 
         perform_pre_save_validation(updated_content, resume.content)
 
-        update_resume_db(db, resume, content=updated_content)
+        update_params = ResumeUpdateParams(content=updated_content)
+        update_resume_db(db, resume, params=update_params)
 
         return Response(headers={"HX-Redirect": "/dashboard"})
     except (ValueError, TypeError, HTTPException) as e:
@@ -452,31 +426,18 @@ async def update_certifications_info_structured(
         raise HTTPException(status_code=422, detail=_msg)
 
 
-
-
 @router.post("/{resume_id}/edit/experience", status_code=200)
 async def update_experience(
-    http_request: Request,
-    db: Session = Depends(get_db),
-    resume: DatabaseResume = Depends(get_resume_for_user),
-    company: str = Form(...),
-    title: str = Form(...),
-    start_date: str = Form(...),
-    end_date: str | None = Form(None),
-    description: str | None = Form(None),
-):
-    """
-    Update experience information in a resume.
+    db: Annotated[Session, Depends(get_db)],
+    resume: Annotated[DatabaseResume, Depends(get_resume_for_user)],
+    form: Annotated[ExperienceUpdateForm, Depends()],
+) -> Response:
+    """Update experience information in a resume.
 
     Args:
-        http_request (Request): The HTTP request object.
         db (Session): The database session dependency.
         resume (DatabaseResume): The resume object from dependency injection.
-        company (str): The company name.
-        title (str): The job title.
-        start_date (str): The start date of the role in YYYY-MM-DD format.
-        end_date (str | None): The end date of the role in YYYY-MM-DD format.
-        description (str | None): A summary of the role.
+        form (ExperienceUpdateForm): The form data for the new experience role.
 
     Returns:
         HTMLResponse: Updated resume content view for HTMX.
@@ -494,14 +455,14 @@ async def update_experience(
     try:
         new_role_data = {
             "basics": {
-                "company": company,
-                "title": title,
-                "start_date": datetime.strptime(start_date, "%Y-%m-%d"),
-                "end_date": datetime.strptime(end_date, "%Y-%m-%d")
-                if end_date
+                "company": form.company,
+                "title": form.title,
+                "start_date": datetime.strptime(form.start_date, "%Y-%m-%d"),
+                "end_date": datetime.strptime(form.end_date, "%Y-%m-%d")
+                if form.end_date
                 else None,
             },
-            "summary": {"text": description} if description else None,
+            "summary": {"text": form.description} if form.description else None,
         }
         new_role = Role.model_validate(new_role_data)
 
@@ -514,7 +475,8 @@ async def update_experience(
         )
 
         perform_pre_save_validation(updated_content, resume.content)
-        update_resume_db(db, resume=resume, content=updated_content)
+        update_params = ResumeUpdateParams(content=updated_content)
+        update_resume_db(db, resume=resume, params=update_params)
 
         return Response(headers={"HX-Redirect": "/dashboard"})
     except (ValueError, TypeError, HTTPException) as e:
@@ -524,17 +486,14 @@ async def update_experience(
         raise HTTPException(status_code=422, detail=_msg)
 
 
-@router.get("/{resume_id}/experience", response_model=ExperienceResponse)
+@router.get("/{resume_id}/experience")
 async def get_experience_info(
-    resume: DatabaseResume = Depends(get_resume_for_user),
-):
-    """
-    Get experience information from a resume.
+    resume: Annotated[DatabaseResume, Depends(get_resume_for_user)],
+) -> ExperienceResponse:
+    """Get experience information from a resume.
 
     Args:
-        resume_id: The ID of the resume.
-        db: Database session.
-        current_user: Current authenticated user.
+        resume (DatabaseResume): The resume fetched for the current user via dependency injection.
 
     Returns:
         ExperienceResponse: The experience information from the resume.
@@ -557,17 +516,15 @@ async def get_experience_info(
 @router.put("/{resume_id}/experience", status_code=200)
 async def update_experience_info_structured(
     request: ExperienceUpdateRequest,
-    db: Session = Depends(get_db),
-    resume: DatabaseResume = Depends(get_resume_for_user),
-):
-    """
-    Update experience information in a resume.
+    db: Annotated[Session, Depends(get_db)],
+    resume: Annotated[DatabaseResume, Depends(get_resume_for_user)],
+) -> Response:
+    """Update experience information in a resume.
 
     Args:
-        resume_id: The ID of the resume.
-        request: The updated experience information.
-        db: Database session.
-        current_user: Current authenticated user.
+        request (ExperienceUpdateRequest): The updated experience information.
+        db (Session): Database session dependency.
+        resume (DatabaseResume): The resume fetched for the current user via dependency injection.
 
     Returns:
         ExperienceResponse: The updated experience information.
@@ -610,7 +567,8 @@ async def update_experience_info_structured(
         perform_pre_save_validation(updated_content, resume.content)
 
         # Save updated content to database
-        update_resume_db(db, resume, content=updated_content)
+        update_params = ResumeUpdateParams(content=updated_content)
+        update_resume_db(db, resume, params=update_params)
 
         return Response(headers={"HX-Redirect": "/dashboard"})
     except (ValueError, TypeError, HTTPException) as e:
@@ -624,29 +582,16 @@ async def update_experience_info_structured(
 
 @router.post("/{resume_id}/edit/education", status_code=200)
 async def update_education(
-    http_request: Request,
-    db: Session = Depends(get_db),
-    resume: DatabaseResume = Depends(get_resume_for_user),
-    school: str = Form(...),
-    degree: str | None = Form(None),
-    major: str | None = Form(None),
-    start_date: str | None = Form(None),
-    end_date: str | None = Form(None),
-    gpa: str | None = Form(None),
-):
-    """
-    Update education information in a resume.
+    db: Annotated[Session, Depends(get_db)],
+    resume: Annotated[DatabaseResume, Depends(get_resume_for_user)],
+    form: Annotated[EducationUpdateForm, Depends()],
+) -> Response:
+    """Update education information in a resume.
 
     Args:
-        http_request (Request): The HTTP request object.
         db (Session): The database session dependency.
         resume (DatabaseResume): The resume object from dependency injection.
-        school (str): The school name.
-        degree (str | None): The degree obtained.
-        major (str | None): The major field of study.
-        start_date (str | None): The start date of the degree in YYYY-MM-DD format.
-        end_date (str | None): The end date of the degree in YYYY-MM-DD format.
-        gpa (str | None): The grade point average.
+        form (EducationUpdateForm): The form data for the new education entry.
 
     Returns:
         HTMLResponse: Updated resume content view for HTMX.
@@ -663,14 +608,16 @@ async def update_education(
     """
     try:
         new_degree_data = {
-            "school": school,
-            "degree": degree,
-            "major": major,
-            "start_date": datetime.strptime(start_date, "%Y-%m-%d")
-            if start_date
+            "school": form.school,
+            "degree": form.degree,
+            "major": form.major,
+            "start_date": datetime.strptime(form.start_date, "%Y-%m-%d")
+            if form.start_date
             else None,
-            "end_date": datetime.strptime(end_date, "%Y-%m-%d") if end_date else None,
-            "gpa": gpa,
+            "end_date": datetime.strptime(form.end_date, "%Y-%m-%d")
+            if form.end_date
+            else None,
+            "gpa": form.gpa,
         }
         new_degree = Degree(**new_degree_data)
 
@@ -683,7 +630,8 @@ async def update_education(
         )
 
         perform_pre_save_validation(updated_content, resume.content)
-        update_resume_db(db, resume=resume, content=updated_content)
+        update_params = ResumeUpdateParams(content=updated_content)
+        update_resume_db(db, resume=resume, params=update_params)
 
         return Response(headers={"HX-Redirect": "/dashboard"})
     except (ValueError, TypeError, HTTPException) as e:
@@ -693,17 +641,14 @@ async def update_education(
         raise HTTPException(status_code=422, detail=_msg)
 
 
-@router.get("/{resume_id}/education", response_model=EducationResponse)
+@router.get("/{resume_id}/education")
 async def get_education_info(
-    resume: DatabaseResume = Depends(get_resume_for_user),
-):
-    """
-    Get education information from a resume.
+    resume: Annotated[DatabaseResume, Depends(get_resume_for_user)],
+) -> EducationResponse:
+    """Get education information from a resume.
 
     Args:
-        resume_id: The ID of the resume.
-        db: Database session.
-        current_user: Current authenticated user.
+        resume (DatabaseResume): The resume fetched for the current user via dependency injection.
 
     Returns:
         EducationResponse: The education information from the resume.
@@ -726,17 +671,15 @@ async def get_education_info(
 @router.put("/{resume_id}/education", status_code=200)
 async def update_education_info_structured(
     request: EducationUpdateRequest,
-    db: Session = Depends(get_db),
-    resume: DatabaseResume = Depends(get_resume_for_user),
-):
-    """
-    Update education information in a resume.
+    db: Annotated[Session, Depends(get_db)],
+    resume: Annotated[DatabaseResume, Depends(get_resume_for_user)],
+) -> Response:
+    """Update education information in a resume.
 
     Args:
-        resume_id: The ID of the resume.
-        request: The updated education information.
-        db: Database session.
-        current_user: Current authenticated user.
+        request (EducationUpdateRequest): The updated education information.
+        db (Session): Database session dependency.
+        resume (DatabaseResume): The resume fetched for the current user via dependency injection.
 
     Returns:
         EducationResponse: The updated education information.
@@ -769,7 +712,8 @@ async def update_education_info_structured(
         perform_pre_save_validation(updated_content, resume.content)
 
         # Save updated content to database
-        update_resume_db(db, resume, content=updated_content)
+        update_params = ResumeUpdateParams(content=updated_content)
+        update_resume_db(db, resume, params=update_params)
 
         return Response(headers={"HX-Redirect": "/dashboard"})
     except (ValueError, TypeError, HTTPException) as e:

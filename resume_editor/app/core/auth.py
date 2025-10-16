@@ -2,7 +2,6 @@ import logging
 from typing import Annotated
 
 from fastapi import Depends, HTTPException, Request, status
-from fastapi.responses import RedirectResponse
 from jose import JWTError, jwt
 from sqlalchemy.orm import Session
 
@@ -18,8 +17,7 @@ def get_current_user(
     token: Annotated[str, Depends(oauth2_scheme)],
     db: Session = Depends(get_db),
 ) -> User:
-    """
-    Retrieve the authenticated user from the provided JWT token.
+    """Retrieve the authenticated user from the provided JWT token.
 
     Args:
         token: JWT token extracted from the request header, used to authenticate the user.
@@ -51,6 +49,7 @@ def get_current_user(
 
     Database Access:
         - Queries the User table to retrieve a user record by username.
+
     """
     settings = get_settings()
     credentials_exception = HTTPException(
@@ -82,8 +81,7 @@ def get_current_user_from_cookie(
     request: Request,
     db: Session = Depends(get_db),
 ) -> User:
-    """
-    Retrieve the authenticated user from the JWT token in the request cookie.
+    """Retrieve the authenticated user from the JWT token in the request cookie.
 
     For browser-based requests that fail authentication, this function will
     raise an HTTPException that results in a redirect to the login page.
@@ -113,6 +111,7 @@ def get_current_user_from_cookie(
 
     Database Access:
         - Queries the User table to retrieve a user record by username.
+
     """
     settings = get_settings()
     credentials_exception = HTTPException(
@@ -189,8 +188,7 @@ def get_optional_current_user_from_cookie(
     request: Request,
     db: Session = Depends(get_db),
 ) -> User | None:
-    """
-    Retrieve an optional authenticated user from the JWT token in the request cookie.
+    """Retrieve an optional authenticated user from the JWT token in the request cookie.
 
     Args:
         request: The request object, used to access cookies.
@@ -215,6 +213,7 @@ def get_optional_current_user_from_cookie(
 
     Database Access:
         - Queries the User table to retrieve a user record by username.
+
     """
     try:
         return get_current_user_from_cookie(request=request, db=db)
@@ -231,8 +230,7 @@ def get_optional_current_user_from_cookie(
 
 
 def verify_admin_privileges(user: User) -> User:
-    """
-    Verify that a user has admin privileges.
+    """Verify that a user has admin privileges.
 
     Args:
         user (User): The user object to check for admin privileges.
@@ -254,6 +252,7 @@ def verify_admin_privileges(user: User) -> User:
         2. Check if any role has the name 'admin'.
         3. If no role with the name 'admin' is found, log a warning and raise an HTTPException with status 403.
         4. Return the user object if an 'admin' role is found.
+
     """
     if not any(role.name == "admin" for role in user.roles):
         _msg = f"User {user.username} does not have admin privileges"
@@ -268,8 +267,7 @@ def verify_admin_privileges(user: User) -> User:
 def get_current_admin_user(
     current_user: Annotated[User, Depends(get_current_user)],
 ) -> User:
-    """
-    Verify that the current user has administrator privileges.
+    """Verify that the current user has administrator privileges.
 
     This dependency relies on `get_current_user` to retrieve the authenticated user.
     It then checks the user's roles to determine if they are an administrator.
@@ -295,6 +293,7 @@ def get_current_admin_user(
         2. Call `verify_admin_privileges` to check if the user has admin roles.
         3. Log a debug message indicating the function is returning.
         4. Return the user object if the user has admin privileges.
+
     """
     _msg = "get_current_admin_user starting"
     log.debug(_msg)
@@ -309,8 +308,7 @@ def get_current_admin_user(
 def get_current_admin_user_from_cookie(
     current_user: Annotated[User, Depends(get_current_user_from_cookie)],
 ) -> User:
-    """
-    Verify that the current user (from cookie) has admin privileges.
+    """Verify that the current user (from cookie) has admin privileges.
 
     This dependency relies on `get_current_user_from_cookie` to retrieve the authenticated user.
     It then checks the user's roles to determine if they are an administrator.
@@ -336,6 +334,7 @@ def get_current_admin_user_from_cookie(
         2. Call `verify_admin_privileges` to check if the user has admin roles.
         3. Log a debug message indicating the function is returning.
         4. Return the user object if the user has admin privileges.
+
     """
     _msg = "get_current_admin_user_from_cookie starting"
     log.debug(_msg)

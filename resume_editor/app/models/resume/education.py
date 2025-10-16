@@ -1,14 +1,13 @@
 import logging
 from datetime import datetime
 
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, ValidationInfo, field_validator
 
 log = logging.getLogger(__name__)
 
 
 class Degree(BaseModel):
-    """
-    Represents details of a specific academic degree earned.
+    """Represents details of a specific academic degree earned.
 
     Attributes:
         school (str): The name of the educational institution.
@@ -29,9 +28,8 @@ class Degree(BaseModel):
 
     @field_validator("school")
     @classmethod
-    def validate_school(cls, v):
-        """
-        Validate the school field.
+    def validate_school(cls, v: str):
+        """Validate the school field.
 
         Args:
             v (str): The school value to validate. Must be a non-empty string.
@@ -53,9 +51,8 @@ class Degree(BaseModel):
 
     @field_validator("degree")
     @classmethod
-    def validate_degree(cls, v):
-        """
-        Validate the degree field.
+    def validate_degree(cls, v: str | None):
+        """Validate the degree field.
 
         Args:
             v (str | None): The degree value to validate. Must be a non-empty string or None.
@@ -79,9 +76,8 @@ class Degree(BaseModel):
 
     @field_validator("major")
     @classmethod
-    def validate_major(cls, v):
-        """
-        Validate the major field.
+    def validate_major(cls, v: str | None):
+        """Validate the major field.
 
         Args:
             v (str | None): The major value to validate. Must be a non-empty string or None.
@@ -105,9 +101,8 @@ class Degree(BaseModel):
 
     @field_validator("gpa")
     @classmethod
-    def validate_gpa(cls, v):
-        """
-        Validate the gpa field.
+    def validate_gpa(cls, v: str | None):
+        """Validate the gpa field.
 
         Args:
             v (str | None): The gpa value to validate. Must be a non-empty string or None.
@@ -131,9 +126,8 @@ class Degree(BaseModel):
 
     @field_validator("end_date")
     @classmethod
-    def validate_end_date(cls, v, info):
-        """
-        Validate that start_date is not after end_date.
+    def validate_end_date(cls, v: datetime | None, info: ValidationInfo):
+        """Validate that start_date is not after end_date.
 
         Args:
             v (datetime | None): The end_date value to validate.
@@ -157,8 +151,7 @@ class Degree(BaseModel):
 
 
 class Degrees(BaseModel):
-    """
-    Represents a collection of academic degrees earned.
+    """Represents a collection of academic degrees earned.
 
     Attributes:
         degrees (list[Degree]): A list of Degree objects representing educational achievements.
@@ -168,8 +161,7 @@ class Degrees(BaseModel):
     degrees: list[Degree] = []
 
     def __iter__(self):
-        """
-        Iterate over the degrees.
+        """Iterate over the degrees.
 
         Returns:
             Iterator: An iterator over the degrees list.
@@ -181,8 +173,7 @@ class Degrees(BaseModel):
         return iter(self.degrees)
 
     def __len__(self):
-        """
-        Return the number of degrees.
+        """Return the number of degrees.
 
         Returns:
             int: The number of degrees in the list.
@@ -193,9 +184,8 @@ class Degrees(BaseModel):
         """
         return len(self.degrees)
 
-    def __getitem__(self, index):
-        """
-        Return the degree at the given index.
+    def __getitem__(self, index: int):
+        """Return the degree at the given index.
 
         Args:
             index (int): The index of the degree to retrieve.
@@ -211,8 +201,7 @@ class Degrees(BaseModel):
 
 
 class Education(BaseModel):
-    """
-    Represents the educational background section of a resume.
+    """Represents the educational background section of a resume.
 
     Attributes:
         degrees (Degrees | None): A Degrees object containing educational achievements, or None if no degrees.

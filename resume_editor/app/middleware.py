@@ -1,7 +1,9 @@
 import logging
+from collections.abc import Awaitable, Callable
 
 import jwt
 from fastapi import Request
+from fastapi.responses import Response
 
 from resume_editor.app.core.config import Settings, get_settings
 from resume_editor.app.core.security import create_access_token
@@ -9,7 +11,10 @@ from resume_editor.app.core.security import create_access_token
 log = logging.getLogger(__name__)
 
 
-async def refresh_session_middleware(request: Request, call_next):
+async def refresh_session_middleware(
+    request: Request,
+    call_next: Callable[[Request], Awaitable[Response]],
+) -> Response:
     """Refreshes session token on each request.
 
     If a valid, unexpired access token is found in the cookies, a new token
@@ -50,7 +55,9 @@ async def refresh_session_middleware(request: Request, call_next):
 
     try:
         payload = jwt.decode(
-            access_token, settings.secret_key, algorithms=[settings.algorithm]
+            access_token,
+            settings.secret_key,
+            algorithms=[settings.algorithm],
         )
         claims_to_preserve = {
             "sub": payload.get("sub"),

@@ -10,6 +10,10 @@ from fastapi.testclient import TestClient
 from openai import AuthenticationError
 from sqlalchemy.orm import Session
 
+from resume_editor.app.api.routes.route_logic.resume_crud import (
+    ResumeCreateParams,
+    ResumeUpdateParams,
+)
 from resume_editor.app.api.routes.route_models import (
     CertificationsResponse,
     EducationResponse,
@@ -22,8 +26,11 @@ from resume_editor.app.core.auth import get_current_user_from_cookie
 from resume_editor.app.core.config import get_settings
 from resume_editor.app.database.database import get_db
 from resume_editor.app.main import create_app
-from resume_editor.app.models.resume_model import Resume as DatabaseResume
-from resume_editor.app.models.user import User as DBUser
+from resume_editor.app.models.resume_model import (
+    Resume as DatabaseResume,
+    ResumeData,
+)
+from resume_editor.app.models.user import User as DBUser, UserData
 from resume_editor.app.models.user_settings import UserSettings
 
 # A sample resume content for testing purposes.
@@ -107,22 +114,25 @@ Start date: 01/2024
 def test_user():
     """Fixture for a test user."""
     user = DBUser(
-        username="testuser",
-        email="test@example.com",
-        hashed_password="hashed_password",
+        data=UserData(
+            username="testuser",
+            email="test@example.com",
+            hashed_password="hashed_password",
+            id_=1,
+        )
     )
-    user.id = 1
     return user
 
 
 @pytest.fixture
 def test_resume(test_user):
     """Fixture for a test resume."""
-    resume = DatabaseResume(
+    resume_data = ResumeData(
         user_id=test_user.id,
         name="Test Resume",
         content=VALID_MINIMAL_RESUME_CONTENT,
     )
+    resume = DatabaseResume(data=resume_data)
     resume.id = 1
     return resume
 
@@ -130,13 +140,14 @@ def test_resume(test_user):
 @pytest.fixture
 def test_refined_resume(test_user):
     """Fixture for a test refined resume."""
-    resume = DatabaseResume(
+    resume_data = ResumeData(
         user_id=test_user.id,
         name="Refined Test Resume",
         content=REFINED_VALID_MINIMAL_RESUME_CONTENT,
         is_base=False,
         parent_id=1,
     )
+    resume = DatabaseResume(data=resume_data)
     resume.id = 2
     return resume
 
@@ -624,11 +635,12 @@ def test_create_resume_no_htmx(
 ):
     """Test creating a resume without HTMX returns a JSON response."""
     mock_validate.return_value = None
-    created_resume = DatabaseResume(
+    resume_data = ResumeData(
         user_id=test_user.id,
         name="New Resume",
         content=VALID_MINIMAL_RESUME_CONTENT,
     )
+    created_resume = DatabaseResume(data=resume_data)
     created_resume.id = 2
     mock_create_resume_db.return_value = created_resume
 
@@ -643,9 +655,10 @@ def test_create_resume_no_htmx(
     assert json_response["id"] == 2
     mock_validate.assert_called_once_with(VALID_MINIMAL_RESUME_CONTENT)
     mock_create_resume_db.assert_called_once()
-    call_args = mock_create_resume_db.call_args[1]
-    assert call_args["name"] == "New Resume"
-    assert call_args["content"] == VALID_MINIMAL_RESUME_CONTENT
+    params = mock_create_resume_db.call_args.kwargs["params"]
+    assert isinstance(params, ResumeCreateParams)
+    assert params.name == "New Resume"
+    assert params.content == VALID_MINIMAL_RESUME_CONTENT
 
 
 @patch("resume_editor.app.api.routes.resume.validate_resume_content")
@@ -655,11 +668,12 @@ def test_create_resume_htmx_redirect(
 ):
     """Test creating a resume via HTMX returns a redirect response."""
     mock_validate.return_value = None
-    created_resume = DatabaseResume(
+    resume_data = ResumeData(
         user_id=test_user.id,
         name="New Resume",
         content=VALID_MINIMAL_RESUME_CONTENT,
     )
+    created_resume = DatabaseResume(data=resume_data)
     created_resume.id = 99
     mock_create_resume_db.return_value = created_resume
 
@@ -674,6 +688,10 @@ def test_create_resume_htmx_redirect(
     assert response.headers["HX-Redirect"] == "/resumes/99/edit"
     assert response.text == ""
     mock_create_resume_db.assert_called_once()
+    params = mock_create_resume_db.call_args.kwargs["params"]
+    assert isinstance(params, ResumeCreateParams)
+    assert params.name == "New Resume"
+    assert params.content == VALID_MINIMAL_RESUME_CONTENT
 
 
 @patch("resume_editor.app.api.routes.resume.validate_resume_content")

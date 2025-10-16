@@ -3,6 +3,7 @@ import logging
 from pydantic import BaseModel, Field
 
 from resume_editor.app.models.resume.experience import (
+    Role,
     RoleBasics,
     RoleResponsibilities,
     RoleSkills,
@@ -13,8 +14,7 @@ log = logging.getLogger(__name__)
 
 
 class RefinedSection(BaseModel):
-    """
-    Pydantic model for the structured output from the LLM after refining a resume section.
+    """Pydantic model for the structured output from the LLM after refining a resume section.
 
     Attributes:
         refined_markdown (str): The refined resume section, formatted as a valid Markdown string.
@@ -37,7 +37,8 @@ class JobAnalysis(BaseModel):
         description="A list of the most important technical skills, soft skills, tools, and qualifications from the job description.",
     )
     primary_duties: list[str] = Field(
-        ..., description="A list of the primary duties and responsibilities of the role."
+        ...,
+        description="A list of the primary duties and responsibilities of the role.",
     )
     themes: list[str] = Field(
         ...,
@@ -56,3 +57,20 @@ class RefinedRole(BaseModel):
     summary: RoleSummary | None = None
     responsibilities: RoleResponsibilities | None = None
     skills: RoleSkills | None = None
+
+
+class LLMConfig(BaseModel):
+    """Configuration for LLM client initialization."""
+
+    llm_endpoint: str | None = None
+    api_key: str | None = None
+    llm_model_name: str | None = None
+
+
+class RoleRefinementJob(BaseModel):
+    """Payload for a single role refinement task."""
+
+    role: Role
+    job_analysis: JobAnalysis
+    llm_config: LLMConfig
+    original_index: int

@@ -11,8 +11,11 @@ log = logging.getLogger(__name__)
 
 
 def change_password(
-    db: Session, user: User, new_password: str, current_password: str | None = None,
-):
+    db: Session,
+    user: User,
+    new_password: str,
+    current_password: str | None = None,
+) -> None:
     """Change a user's password and unset the force_password_change flag.
 
     Args:
@@ -38,6 +41,7 @@ def change_password(
         8. Mark the attributes as modified to ensure SQLAlchemy tracks changes.
         9. Commit the transaction to persist changes to the database.
         10. Database access: The function performs a write operation to update the user's password and attributes in the database.
+
     """
     _msg = f"Changing password for user {user.username}"
     log.debug(_msg)

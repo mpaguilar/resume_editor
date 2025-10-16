@@ -1,13 +1,23 @@
 import logging
-from datetime import date
+from typing import Annotated
 
-from fastapi import APIRouter, Depends, Form, HTTPException, Request, Response
+from fastapi import APIRouter, Depends, Form, Request, Response
 from fastapi.responses import HTMLResponse
 from sqlalchemy.orm import Session
 
 # Import database dependencies
 from resume_editor.app.api.dependencies import get_resume_for_user
+from resume_editor.app.api.routes.html_fragments import (
+    _generate_resume_detail_html,
+    _generate_resume_list_html,
+)
+
 # Import route logic modules
+from resume_editor.app.api.routes.route_logic.resume_crud import (
+    ResumeCreateParams,
+    ResumeUpdateParams,
+    get_user_resumes,
+)
 from resume_editor.app.api.routes.route_logic.resume_crud import (
     create_resume as create_resume_db,
 )
@@ -15,22 +25,7 @@ from resume_editor.app.api.routes.route_logic.resume_crud import (
     delete_resume as delete_resume_db,
 )
 from resume_editor.app.api.routes.route_logic.resume_crud import (
-    get_user_resumes,
-)
-from resume_editor.app.api.routes.route_logic.resume_crud import (
     update_resume as update_resume_db,
-)
-from resume_editor.app.api.routes.route_logic.resume_reconstruction import (
-    build_complete_resume_from_sections,
-)
-from resume_editor.app.api.routes.route_logic.resume_serialization import (
-    extract_certifications_info,
-    extract_education_info,
-    extract_experience_info,
-    extract_personal_info,
-)
-from resume_editor.app.api.routes.route_logic.resume_validation import (
-    perform_pre_save_validation,
 )
 from resume_editor.app.api.routes.route_logic.resume_parsing import (
     parse_resume_content,
@@ -39,21 +34,17 @@ from resume_editor.app.api.routes.route_logic.resume_parsing import (
 from resume_editor.app.api.routes.route_models import (
     ParseRequest,
     ParseResponse,
-    RefineTargetSection,
     ResumeCreateRequest,
     ResumeDetailResponse,
     ResumeResponse,
     ResumeSortBy,
 )
-from resume_editor.app.api.routes.html_fragments import (
-    _generate_resume_detail_html,
-    _generate_resume_list_html,
-)
 from resume_editor.app.core.auth import get_current_user_from_cookie
 from resume_editor.app.database.database import get_db
 from resume_editor.app.models.resume_model import Resume as DatabaseResume
 from resume_editor.app.models.user import User
-from . import resume_export, resume_ai, resume_edit
+
+from . import resume_ai, resume_edit, resume_export
 
 log = logging.getLogger(__name__)
 
@@ -64,10 +55,9 @@ router.include_router(resume_ai.router)
 router.include_router(resume_edit.router)
 
 
-@router.post("/parse", response_model=ParseResponse)
-async def parse_resume_endpoint(request: ParseRequest):
-    """
-    Parse Markdown resume content and return structured data.
+@router.post("/parse")
+async def parse_resume_endpoint(request: ParseRequest) -> ParseResponse:
+    """Parse Markdown resume content and return structured data.
 
     Args:
         request (ParseRequest): The request containing the Markdown content to parse.
@@ -96,11 +86,10 @@ async def parse_resume_endpoint(request: ParseRequest):
 async def create_resume(
     http_request: Request,
     request: ResumeCreateRequest,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user_from_cookie),
-):
-    """
-    Save a new resume to the database via API, associating it with the current user.
+    db: Annotated[Session, Depends(get_db)],
+    current_user: Annotated[User, Depends(get_current_user_from_cookie)],
+) -> Response:
+    """Save a new resume to the database via API, associating it with the current user.
 
     This endpoint handles both standard JSON API calls and HTMX form submissions that
     trigger a page redirect.
@@ -132,12 +121,12 @@ async def create_resume(
     # Validate Markdown content before saving
     validate_resume_content(request.content)
 
-    resume = create_resume_db(
-        db=db,
+    resume_params = ResumeCreateParams(
         user_id=current_user.id,
         name=request.name,
         content=request.content,
     )
+    resume = create_resume_db(db=db, params=resume_params)
 
     if "HX-Request" in http_request.headers:
         return HTMLResponse(headers={"HX-Redirect": f"/resumes/{resume.id}/edit"})
@@ -145,18 +134,39 @@ async def create_resume(
     return ResumeResponse(id=resume.id, name=resume.name)
 
 
+class UpdateResumeForm:
+    """Represents the form data for updating a resume."""
+
+    def __init__(
+        self,
+        name: str = Form(...),
+        content: str | None = Form(None),
+        from_editor: str | None = Form(None),
+        sort_by: ResumeSortBy | None = Form(None),
+    ):
+        """Initializes the form data.
+
+        Args:
+            name (str): The new name for the resume.
+            content (str | None): The new content for the resume.
+            from_editor (str | None): Flag indicating if the update is from the editor.
+            sort_by (ResumeSortBy | None): The sorting criteria.
+
+        """
+        self.name = name
+        self.content = content
+        self.from_editor = from_editor
+        self.sort_by = sort_by
+
+
 @router.put("/{resume_id}", response_model=ResumeResponse)
 async def update_resume(
     http_request: Request,
-    db: Session = Depends(get_db),
-    resume: DatabaseResume = Depends(get_resume_for_user),
-    name: str = Form(...),
-    content: str | None = Form(None),
-    from_editor: str | None = Form(None),
-    sort_by: ResumeSortBy | None = Form(None),
-):
-    """
-    Update an existing resume's name and/or content for the current user.
+    db: Annotated[Session, Depends(get_db)],
+    resume: Annotated[DatabaseResume, Depends(get_resume_for_user)],
+    form_data: Annotated[UpdateResumeForm, Depends()],
+) -> Response:
+    """Update an existing resume's name and/or content for the current user.
 
     This endpoint handles both JSON API calls and HTMX form submissions.
 
@@ -164,12 +174,13 @@ async def update_resume(
         http_request (Request): The HTTP request object.
         db (Session): The database session dependency.
         resume (DatabaseResume): The resume object to update, from dependency.
-        name (str): The resume name from form data.
-        content (str): The resume content from form data.
+        form_data (UpdateResumeForm): The resume form data.
 
 
     Returns:
-        ResumeResponse | HTMLResponse: JSON response for API call, or HTML for HTMX.
+        Response | ResumeResponse: A generic `Response` for successful saves from the editor,
+                                   an `HTMLResponse` for other HTMX calls, or `ResumeResponse`
+                                   for standard API calls.
 
     Raises:
         HTTPException: If validation fails or an error occurs during the update.
@@ -184,25 +195,33 @@ async def update_resume(
 
     """
     # Validate Markdown content only if it's a non-empty string
-    if content:
-        validate_resume_content(content)
+    if form_data.content:
+        validate_resume_content(form_data.content)
 
     # If content is an empty string, treat it as None to prevent wiping content.
-    content_to_update = content if content else None
+    content_to_update = form_data.content if form_data.content else None
+    update_params = ResumeUpdateParams(
+        name=form_data.name,
+        content=content_to_update,
+    )
     updated_resume = update_resume_db(
-        db=db, resume=resume, name=name, content=content_to_update
+        db=db,
+        resume=resume,
+        params=update_params,
     )
 
     if "HX-Request" in http_request.headers:
-        if from_editor:
+        if form_data.from_editor:
             # When saving from the editor, just return a success status.
             # The client-side script will show a "Saved!" message.
             return Response(status_code=200)
 
         # After an update, we need to regenerate both the list and the detail view
-        sort_by_val = sort_by.value if sort_by else None
+        sort_by_val = form_data.sort_by.value if form_data.sort_by else None
         all_resumes = get_user_resumes(
-            db=db, user_id=resume.user_id, sort_by=sort_by_val
+            db=db,
+            user_id=resume.user_id,
+            sort_by=sort_by_val,
         )
         base_resumes = [r for r in all_resumes if r.is_base]
         refined_resumes = [r for r in all_resumes if not r.is_base]
@@ -226,11 +245,10 @@ async def update_resume(
 @router.delete("/{resume_id}")
 async def delete_resume(
     http_request: Request,
-    db: Session = Depends(get_db),
-    resume: DatabaseResume = Depends(get_resume_for_user),
-):
-    """
-    Delete a resume for the current user.
+    db: Annotated[Session, Depends(get_db)],
+    resume: Annotated[DatabaseResume, Depends(get_resume_for_user)],
+) -> Response:
+    """Delete a resume for the current user.
 
     The `get_resume_for_user` dependency handles fetching the resume and ensuring
     it belongs to the authenticated user.
@@ -253,6 +271,7 @@ async def delete_resume(
         4. Otherwise, returns a JSON success message.
         5. Performs database access: Reads via `get_resume_for_user` dependency and writes via `delete_resume_db`.
         6. Performs network access: None.
+
     """
     # Delete the resume
     delete_resume_db(db, resume)
@@ -270,13 +289,12 @@ async def delete_resume(
 @router.get("", response_model=list[ResumeResponse])
 async def list_resumes(
     request: Request,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user_from_cookie),
+    db: Annotated[Session, Depends(get_db)],
+    current_user: Annotated[User, Depends(get_current_user_from_cookie)],
     selected_id: int | None = None,
     sort_by: ResumeSortBy | None = None,
-):
-    """
-    List all resumes for the current user.
+) -> Response:
+    """List all resumes for the current user.
 
     Args:
         request (Request): The HTTP request object.
@@ -302,7 +320,9 @@ async def list_resumes(
 
     """
     resumes = get_user_resumes(
-        db=db, user_id=current_user.id, sort_by=sort_by.value if sort_by else None
+        db=db,
+        user_id=current_user.id,
+        sort_by=sort_by.value if sort_by else None,
     )
     base_resumes = [r for r in resumes if r.is_base]
     refined_resumes = [r for r in resumes if not r.is_base]
@@ -322,15 +342,12 @@ async def list_resumes(
     return [ResumeResponse(id=resume.id, name=resume.name) for resume in resumes]
 
 
-
-
 @router.get("/{resume_id}", response_model=ResumeDetailResponse)
 async def get_resume(
     request: Request,
-    resume: DatabaseResume = Depends(get_resume_for_user),
-):
-    """
-    Retrieve a specific resume's Markdown content by ID for the current user.
+    resume: Annotated[DatabaseResume, Depends(get_resume_for_user)],
+) -> Response:
+    """Retrieve a specific resume's Markdown content by ID for the current user.
 
     Args:
         request (Request): The HTTP request object.
@@ -360,17 +377,3 @@ async def get_resume(
         name=resume.name,
         content=resume.content,
     )
-
-
-
-
-
-
-
-
-
-
-
-
-
-

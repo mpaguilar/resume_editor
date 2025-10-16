@@ -8,7 +8,7 @@ from jose import jwt
 from sqlalchemy.orm import Session
 
 from resume_editor.app.core import security as security_module
-from resume_editor.app.models.user import User
+from resume_editor.app.models.user import User, UserData
 
 log = logging.getLogger(__name__)
 
@@ -44,9 +44,11 @@ def test_authenticate_user():
     mock_db = MagicMock(spec=Session)
     password = "my_correct_password"
     mock_user = User(
-        username="testuser",
-        email="test@example.com",
-        hashed_password=security_module.get_password_hash(password),
+        data=UserData(
+            username="testuser",
+            email="test@example.com",
+            hashed_password=security_module.get_password_hash(password),
+        )
     )
     mock_db.query.return_value.filter.return_value.first.return_value = mock_user
 

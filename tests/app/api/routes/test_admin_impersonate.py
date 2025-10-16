@@ -6,7 +6,7 @@ from jose import jwt
 from resume_editor.app.core.auth import get_current_admin_user, get_current_user
 from resume_editor.app.core.config import get_settings
 from resume_editor.app.database.database import get_db
-from resume_editor.app.models.user import User
+from resume_editor.app.models.user import User, UserData
 
 
 def setup_dependency_overrides(app: FastAPI, mock_db: MagicMock, mock_user: User | None):
@@ -56,19 +56,17 @@ def test_admin_impersonate_user_success_and_use_token(
     mock_get_session_local.return_value = lambda: mock_session
     mock_db = MagicMock()
     mock_admin_user = User(
-        username="admin",
-        email="admin@test.com",
-        hashed_password="pw",
+        data=UserData(
+            username="admin", email="admin@test.com", hashed_password="pw", id_=1
+        )
     )
-    mock_admin_user.id = 1
     setup_dependency_overrides(app, mock_db, mock_admin_user)
 
     mock_target_user = User(
-        username="target",
-        email="target@test.com",
-        hashed_password="pw",
+        data=UserData(
+            username="target", email="target@test.com", hashed_password="pw", id_=2
+        )
     )
-    mock_target_user.id = 2
 
     mock_get_user_by_username_admin.return_value = mock_target_user
 
@@ -152,9 +150,11 @@ def test_admin_impersonate_user_not_found(
     mock_get_session_local.return_value = lambda: mock_session
     mock_db = MagicMock()
     mock_admin_user = User(
-        username="admin",
-        email="admin@test.com",
-        hashed_password="pw",
+        data=UserData(
+            username="admin",
+            email="admin@test.com",
+            hashed_password="pw",
+        )
     )
     setup_dependency_overrides(app, mock_db, mock_admin_user)
 

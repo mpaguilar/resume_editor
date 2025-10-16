@@ -1,11 +1,38 @@
 import logging
 
 from fastapi import HTTPException
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from resume_editor.app.models.resume_model import Resume as DatabaseResume
+from resume_editor.app.models.resume_model import (
+    Resume as DatabaseResume,
+)
+from resume_editor.app.models.resume_model import (
+    ResumeData,
+)
 
 log = logging.getLogger(__name__)
+
+
+class ResumeCreateParams(BaseModel):
+    """Parameters for creating a resume."""
+
+    user_id: int
+    name: str
+    content: str
+    is_base: bool = True
+    parent_id: int | None = None
+    job_description: str | None = None
+    introduction: str | None = None
+
+
+class ResumeUpdateParams(BaseModel):
+    """Parameters for updating a resume."""
+
+    name: str | None = None
+    content: str | None = None
+    introduction: str | None = None
+    notes: str | None = None
 
 
 def get_resume_by_id_and_user(
@@ -13,8 +40,7 @@ def get_resume_by_id_and_user(
     resume_id: int,
     user_id: int,
 ) -> DatabaseResume:
-    """
-    Retrieve a resume by its ID and verify it belongs to the specified user.
+    """Retrieve a resume by its ID and verify it belongs to the specified user.
 
     Args:
         db (Session): The SQLAlchemy database session used to query the database.
@@ -50,10 +76,11 @@ def get_resume_by_id_and_user(
 
 
 def get_user_resumes(
-    db: Session, user_id: int, sort_by: str | None = None
+    db: Session,
+    user_id: int,
+    sort_by: str | None = None,
 ) -> list[DatabaseResume]:
-    """
-    Retrieve all resumes associated with a specific user, with optional sorting.
+    """Retrieve all resumes associated with a specific user, with optional sorting.
 
     Args:
         db (Session): The SQLAlchemy database session used to query the database.
@@ -90,26 +117,13 @@ def get_user_resumes(
 
 def create_resume(
     db: Session,
-    user_id: int,
-    name: str,
-    content: str,
-    is_base: bool = True,
-    parent_id: int | None = None,
-    job_description: str | None = None,
-    introduction: str | None = None,
+    params: ResumeCreateParams,
 ) -> DatabaseResume:
-    """
-    Create and save a new resume.
+    """Create and save a new resume.
 
     Args:
         db (Session): The database session.
-        user_id (int): The ID of the user who owns the resume.
-        name (str): The name of the resume.
-        content (str): The content of the resume.
-        is_base (bool): Whether this is a base resume. Defaults to True.
-        parent_id (int | None): The ID of the parent resume if this is a refined version.
-        job_description (str | None): The job description for a refined resume.
-        introduction (str | None): AI-generated introduction for the resume.
+        params (ResumeCreateParams): The parameters required to create the resume.
 
     Returns:
         DatabaseResume: The newly created resume object.
@@ -123,15 +137,16 @@ def create_resume(
         6. This function performs a database write operation.
 
     """
-    resume = DatabaseResume(
-        user_id=user_id,
-        name=name,
-        content=content,
-        is_base=is_base,
-        parent_id=parent_id,
-        job_description=job_description,
-        introduction=introduction,
+    resume_data = ResumeData(
+        user_id=params.user_id,
+        name=params.name,
+        content=params.content,
+        is_base=params.is_base,
+        parent_id=params.parent_id,
+        job_description=params.job_description,
+        introduction=params.introduction,
     )
+    resume = DatabaseResume(data=resume_data)
     db.add(resume)
     db.commit()
     db.refresh(resume)
@@ -141,21 +156,14 @@ def create_resume(
 def update_resume(
     db: Session,
     resume: DatabaseResume,
-    name: str | None = None,
-    content: str | None = None,
-    introduction: str | None = None,
-    notes: str | None = None,
+    params: ResumeUpdateParams,
 ) -> DatabaseResume:
-    """
-    Update a resume's name, content, introduction, and/or notes.
+    """Update a resume's name, content, introduction, and/or notes.
 
     Args:
         db (Session): The database session.
         resume (DatabaseResume): The resume to update.
-        name (str | None): The new name for the resume. If None, the name is not updated.
-        content (str | None): The new content for the resume. If None, the content is not updated.
-        introduction (str | None): The new introduction for the resume. If None, it is not updated.
-        notes (str | None): The new notes for the resume. If None, the notes are not updated.
+        params (ResumeUpdateParams): The new data for the resume.
 
     Returns:
         DatabaseResume: The updated resume object.
@@ -171,22 +179,21 @@ def update_resume(
         8. This function performs a database write operation.
 
     """
-    if name is not None:
-        resume.name = name
-    if content is not None:
-        resume.content = content
-    if introduction is not None:
-        resume.introduction = introduction
-    if notes is not None:
-        resume.notes = notes
+    if params.name is not None:
+        resume.name = params.name
+    if params.content is not None:
+        resume.content = params.content
+    if params.introduction is not None:
+        resume.introduction = params.introduction
+    if params.notes is not None:
+        resume.notes = params.notes
     db.commit()
     db.refresh(resume)
     return resume
 
 
 def delete_resume(db: Session, resume: DatabaseResume) -> None:
-    """
-    Delete a resume.
+    """Delete a resume.
 
     Args:
         db (Session): The database session.

@@ -3,17 +3,11 @@ import json
 import logging
 from typing import Any, AsyncGenerator
 
-from fastapi import Request
 from langchain_core.output_parsers import PydanticOutputParser, StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.utils.json import parse_json_markdown
 from langchain_openai import ChatOpenAI
-from openai import AuthenticationError
 
-from resume_editor.app.api.routes.html_fragments import _create_refine_result_html
-from resume_editor.app.api.routes.route_logic.resume_reconstruction import (
-    reconstruct_resume_markdown,
-)
 from resume_editor.app.api.routes.route_logic.resume_serialization import (
     extract_certifications_info,
     extract_education_info,
@@ -24,13 +18,13 @@ from resume_editor.app.api.routes.route_logic.resume_serialization import (
     serialize_experience_to_markdown,
     serialize_personal_info_to_markdown,
 )
-from resume_editor.app.api.routes.route_models import (
-    CertificationsResponse,
-    EducationResponse,
-    ExperienceResponse,
-    PersonalInfoResponse,
+from resume_editor.app.llm.models import (
+    JobAnalysis,
+    LLMConfig,
+    RefinedRole,
+    RefinedSection,
+    RoleRefinementJob,
 )
-from resume_editor.app.llm.models import JobAnalysis, RefinedRole, RefinedSection
 from resume_editor.app.llm.prompts import (
     JOB_ANALYSIS_HUMAN_PROMPT,
     JOB_ANALYSIS_SYSTEM_PROMPT,
@@ -45,8 +39,7 @@ log = logging.getLogger(__name__)
 
 
 def _get_section_content(resume_content: str, section_name: str) -> str:
-    """
-    Extracts the Markdown content for a specific section of the resume.
+    """Extracts the Markdown content for a specific section of the resume.
 
     Args:
         resume_content (str): The full resume content in Markdown.
@@ -93,18 +86,14 @@ def _get_section_content(resume_content: str, section_name: str) -> str:
 
 async def analyze_job_description(
     job_description: str,
-    llm_endpoint: str | None,
-    api_key: str | None,
-    llm_model_name: str | None,
+    llm_config: LLMConfig,
     resume_content_for_intro: str | None = None,
 ) -> tuple[JobAnalysis, str | None]:
     """Uses an LLM to analyze a job description and optionally generate a resume introduction.
 
     Args:
         job_description (str): The job description to analyze.
-        llm_endpoint (str | None): The custom LLM endpoint URL.
-        api_key (str | None): The user's decrypted LLM API key.
-        llm_model_name (str | None): The user-specified LLM model name.
+        llm_config (LLMConfig): LLM configuration including endpoint, API key, and model name.
         resume_content_for_intro (str | None): Optional full resume content to be used for generating an introduction.
 
     Returns:
@@ -123,6 +112,7 @@ async def analyze_job_description(
 
     Network access:
         - This function makes a network request to the LLM endpoint specified by llm_endpoint.
+
     """
     _msg = "analyze_job_description starting"
     log.debug(_msg)
@@ -146,29 +136,29 @@ async def analyze_job_description(
         [
             ("system", JOB_ANALYSIS_SYSTEM_PROMPT),
             ("human", JOB_ANALYSIS_HUMAN_PROMPT),
-        ]
+        ],
     ).partial(
         format_instructions=parser.get_format_instructions(),
         introduction_instructions=introduction_instructions,
     )
 
-    model_name = llm_model_name if llm_model_name else "gpt-4o"
+    model_name = llm_config.llm_model_name if llm_config.llm_model_name else "gpt-4o"
 
     llm_params = {
         "model": model_name,
         "temperature": 0.7,
     }
-    if llm_endpoint:
-        llm_params["openai_api_base"] = llm_endpoint
-        if "openrouter.ai" in llm_endpoint:
+    if llm_config.llm_endpoint:
+        llm_params["openai_api_base"] = llm_config.llm_endpoint
+        if "openrouter.ai" in llm_config.llm_endpoint:
             llm_params["default_headers"] = {
                 "HTTP-Referer": "http://localhost:8000/",
                 "X-Title": "Resume Editor",
             }
 
-    if api_key:
-        llm_params["api_key"] = api_key
-    elif llm_endpoint and "openrouter.ai" not in llm_endpoint:
+    if llm_config.api_key:
+        llm_params["api_key"] = llm_config.api_key
+    elif llm_config.llm_endpoint and "openrouter.ai" not in llm_config.llm_endpoint:
         llm_params["api_key"] = "not-needed"
 
     llm = ChatOpenAI(**llm_params)
@@ -180,7 +170,7 @@ async def analyze_job_description(
             {
                 "job_description": job_description,
                 "resume_content_block": resume_content_block,
-            }
+            },
         )
 
         parsed_json = parse_json_markdown(response_str)
@@ -190,7 +180,7 @@ async def analyze_job_description(
         _msg = f"Failed to parse LLM response as JSON: {e!s}"
         log.exception(_msg)
         raise ValueError(
-            "The AI service returned an unexpected response. Please try again."
+            "The AI service returned an unexpected response. Please try again.",
         ) from e
 
     _msg = "analyze_job_description returning"
@@ -234,6 +224,7 @@ def _refine_generic_section(
         9. Validates the parsed JSON against the `RefinedSection` model.
         10. Extracts the `refined_markdown` and optionally the `introduction` from the validated result.
         11. Returns a tuple of `(refined_markdown, introduction)`.
+
     """
     section_content = _get_section_content(resume_content, target_section)
     if not section_content.strip():
@@ -254,7 +245,7 @@ def _refine_generic_section(
         [
             ("system", RESUME_REFINE_SYSTEM_PROMPT),
             ("human", RESUME_REFINE_HUMAN_PROMPT),
-        ]
+        ],
     ).partial(
         goal=goal_statement,
         processing_guidelines=processing_guidelines,
@@ -284,24 +275,18 @@ def _refine_generic_section(
         _msg = f"Failed to parse LLM response as JSON: {e!s}"
         log.exception(_msg)
         raise ValueError(
-            "The AI service returned an unexpected response. Please try again."
+            "The AI service returned an unexpected response. Please try again.",
         ) from e
 
     return refined_section.refined_markdown, introduction
 
 
 async def _refine_role_and_put_on_queue(
-    role: Role,
-    job_analysis: JobAnalysis,
+    job: RoleRefinementJob,
     semaphore: asyncio.Semaphore,
     event_queue: asyncio.Queue,
-    llm_endpoint: str | None,
-    api_key: str | None,
-    llm_model_name: str | None,
-    original_index: int,
 ) -> None:
-    """
-    Refines a single role and puts progress/result events onto an asyncio.Queue.
+    """Refines a single role and puts progress/result events onto an asyncio.Queue.
 
     This function acts as a concurrent worker. It acquires a semaphore to limit
     concurrency, sends an 'in_progress' event to the queue, calls the `refine_role`
@@ -309,14 +294,9 @@ async def _refine_role_and_put_on_queue(
     exception onto the queue.
 
     Args:
-        role (Role): The structured role object to refine.
-        job_analysis (JobAnalysis): The structured job analysis to use as context.
+        job (RoleRefinementJob): The refinement job containing the role, job analysis, LLM configuration, and original index.
         semaphore (asyncio.Semaphore): The semaphore to control concurrency.
         event_queue (asyncio.Queue): The queue to send events to.
-        llm_endpoint (str | None): The custom LLM endpoint URL.
-        api_key (str | None): The user's decrypted LLM API key.
-        llm_model_name (str | None): The user-specified LLM model name.
-        original_index (int): The original index of the role in the resume.
 
     Returns:
         None
@@ -329,32 +309,37 @@ async def _refine_role_and_put_on_queue(
         5. It puts the result of the refinement (a `role_refined` dictionary) onto the `event_queue`.
         6. If any exception occurs during the process, it puts the exception object onto the `event_queue`.
         7. The semaphore is released automatically by the `async with` block.
+
     """
     try:
-        log.debug("Waiting on semaphore for role refinement for index %d", original_index)
+        log.debug(
+            "Waiting on semaphore for role refinement for index %d",
+            job.original_index,
+        )
         async with semaphore:
-            role_title = f"{role.basics.title} @ {role.basics.company}"
+            role_title = f"{job.role.basics.title} @ {job.role.basics.company}"
             await event_queue.put(
                 {
                     "status": "in_progress",
                     "message": f"Refining role '{role_title}'...",
-                }
+                },
             )
 
-            log.debug("Semaphore acquired, refining role for index %d", original_index)
+            log.debug(
+                "Semaphore acquired, refining role for index %d",
+                job.original_index,
+            )
             refined_role = await refine_role(
-                role=role,
-                job_analysis=job_analysis,
-                llm_endpoint=llm_endpoint,
-                api_key=api_key,
-                llm_model_name=llm_model_name,
+                role=job.role,
+                job_analysis=job.job_analysis,
+                llm_config=job.llm_config,
             )
             await event_queue.put(
                 {
                     "status": "role_refined",
                     "data": refined_role.model_dump(mode="json"),
-                    "original_index": original_index,
-                }
+                    "original_index": job.original_index,
+                },
             )
     except Exception as e:
         await event_queue.put(e)
@@ -363,21 +348,16 @@ async def _refine_role_and_put_on_queue(
 async def async_refine_experience_section(
     resume_content: str,
     job_description: str,
-    llm_endpoint: str | None,
-    api_key: str | None,
-    llm_model_name: str | None,
+    llm_config: LLMConfig,
     generate_introduction: bool,
     max_concurrency: int = 5,
 ) -> AsyncGenerator[dict[str, Any], None]:
-    """
-    Orchestrates the CONCURRENT refinement of the 'experience' section of a resume.
+    """Orchestrates the CONCURRENT refinement of the 'experience' section of a resume.
 
     Args:
         resume_content (str): The full Markdown content of the resume.
         job_description (str): The job description to align the resume with.
-        llm_endpoint (str | None): The custom LLM endpoint URL.
-        api_key (str | None): The user's decrypted LLM API key.
-        llm_model_name (str | None): The user-specified LLM model name.
+        llm_config (LLMConfig): LLM configuration including endpoint, API key, and model name.
         generate_introduction (bool): Whether to generate an introduction.
         max_concurrency (int): The maximum number of roles to refine in parallel.
 
@@ -394,6 +374,7 @@ async def async_refine_experience_section(
         7. For each role, creates a concurrent task using `_refine_role_and_put_on_queue`.
         8. Enters a loop to consume events from the queue until all roles are processed.
         9. For each event, if it's an exception, it is raised. Otherwise, it is yielded to the caller.
+
     """
     log.debug("async_refine_experience_section starting")
 
@@ -412,9 +393,7 @@ async def async_refine_experience_section(
 
     job_analysis, introduction = await analyze_job_description(
         job_description=job_description,
-        llm_endpoint=llm_endpoint,
-        api_key=api_key,
-        llm_model_name=llm_model_name,
+        llm_config=llm_config,
         resume_content_for_intro=resume_content_for_intro,
     )
 
@@ -430,19 +409,22 @@ async def async_refine_experience_section(
     event_queue = asyncio.Queue()
     semaphore = asyncio.Semaphore(max_concurrency)
 
+    tasks = []
     for index, role in enumerate(experience_info.roles):
-        asyncio.create_task(
+        job = RoleRefinementJob(
+            role=role,
+            job_analysis=job_analysis,
+            llm_config=llm_config,
+            original_index=index,
+        )
+        task = asyncio.create_task(
             _refine_role_and_put_on_queue(
-                role=role,
-                job_analysis=job_analysis,
+                job=job,
                 semaphore=semaphore,
                 event_queue=event_queue,
-                llm_endpoint=llm_endpoint,
-                api_key=api_key,
-                llm_model_name=llm_model_name,
-                original_index=index,
-            )
+            ),
         )
+        tasks.append(task)
 
     # 4. Yield events from the queue
     processed_count = 0
@@ -460,15 +442,11 @@ async def async_refine_experience_section(
     log.debug("async_refine_experience_section finishing")
 
 
-
-
 def refine_resume_section_with_llm(
     resume_content: str,
     job_description: str,
     target_section: str,
-    llm_endpoint: str | None,
-    api_key: str | None,
-    llm_model_name: str | None,
+    llm_config: LLMConfig,
     generate_introduction: bool,
 ) -> tuple[str, str | None]:
     """Uses an LLM to refine a specific non-experience section of a resume.
@@ -481,9 +459,7 @@ def refine_resume_section_with_llm(
         resume_content (str): The full Markdown content of the resume.
         job_description (str): The job description to align the resume with.
         target_section (str): The section of the resume to refine (e.g., "personal").
-        llm_endpoint (str | None): The custom LLM endpoint URL.
-        api_key (str | None): The user's decrypted LLM API key.
-        llm_model_name (str | None): The user-specified LLM model name.
+        llm_config (LLMConfig): LLM configuration including endpoint, API key, and model name.
         generate_introduction (bool): Whether to generate an introduction.
 
     Returns:
@@ -517,26 +493,28 @@ def refine_resume_section_with_llm(
         # This section is handled by the async `refine_experience_section` generator
         # and should not be called with this synchronous function.
         raise ValueError(
-            "Experience section refinement must be called via the async 'refine_experience_section' method."
+            "Experience section refinement must be called via the async 'refine_experience_section' method.",
         )
     else:
-        model_name = llm_model_name if llm_model_name else "gpt-4o"
+        model_name = (
+            llm_config.llm_model_name if llm_config.llm_model_name else "gpt-4o"
+        )
 
         llm_params = {
             "model": model_name,
             "temperature": 0.7,
         }
-        if llm_endpoint:
-            llm_params["openai_api_base"] = llm_endpoint
-            if "openrouter.ai" in llm_endpoint:
+        if llm_config.llm_endpoint:
+            llm_params["openai_api_base"] = llm_config.llm_endpoint
+            if "openrouter.ai" in llm_config.llm_endpoint:
                 llm_params["default_headers"] = {
                     "HTTP-Referer": "http://localhost:8000/",
                     "X-Title": "Resume Editor",
                 }
 
-        if api_key:
-            llm_params["api_key"] = api_key
-        elif llm_endpoint and "openrouter.ai" not in llm_endpoint:
+        if llm_config.api_key:
+            llm_params["api_key"] = llm_config.api_key
+        elif llm_config.llm_endpoint and "openrouter.ai" not in llm_config.llm_endpoint:
             # For non-OpenRouter custom endpoints (e.g. local LLMs), provide a
             # dummy key if none is given to satisfy the client library.
             llm_params["api_key"] = "not-needed"
@@ -559,18 +537,14 @@ def refine_resume_section_with_llm(
 async def refine_role(
     role: Role,
     job_analysis: JobAnalysis,
-    llm_endpoint: str | None,
-    api_key: str | None,
-    llm_model_name: str | None,
+    llm_config: LLMConfig,
 ) -> RefinedRole:
     """Uses an LLM to refine a single resume Role based on a job analysis.
 
     Args:
         role (Role): The structured Role object to refine.
         job_analysis (JobAnalysis): The structured job analysis to align with.
-        llm_endpoint (str | None): The custom LLM endpoint URL.
-        api_key (str | None): The user's decrypted LLM API key.
-        llm_model_name (str | None): The user-specified LLM model name.
+        llm_config (LLMConfig): LLM configuration including endpoint, API key, and model name.
 
     Returns:
         Role: The refined and validated Role object.
@@ -593,6 +567,7 @@ async def refine_role(
 
     Network access:
         - This function makes a network request to the LLM endpoint.
+
     """
     _msg = "refine_role starting"
     log.debug(_msg)
@@ -603,26 +578,26 @@ async def refine_role(
         [
             ("system", ROLE_REFINE_SYSTEM_PROMPT),
             ("human", ROLE_REFINE_HUMAN_PROMPT),
-        ]
+        ],
     ).partial(format_instructions=parser.get_format_instructions())
 
-    model_name = llm_model_name if llm_model_name else "gpt-4o"
+    model_name = llm_config.llm_model_name if llm_config.llm_model_name else "gpt-4o"
 
     llm_params = {
         "model": model_name,
         "temperature": 0.7,
     }
-    if llm_endpoint:
-        llm_params["openai_api_base"] = llm_endpoint
-        if "openrouter.ai" in llm_endpoint:
+    if llm_config.llm_endpoint:
+        llm_params["openai_api_base"] = llm_config.llm_endpoint
+        if "openrouter.ai" in llm_config.llm_endpoint:
             llm_params["default_headers"] = {
                 "HTTP-Referer": "http://localhost:8000/",
                 "X-Title": "Resume Editor",
             }
 
-    if api_key:
-        llm_params["api_key"] = api_key
-    elif llm_endpoint and "openrouter.ai" not in llm_endpoint:
+    if llm_config.api_key:
+        llm_params["api_key"] = llm_config.api_key
+    elif llm_config.llm_endpoint and "openrouter.ai" not in llm_config.llm_endpoint:
         llm_params["api_key"] = "not-needed"
 
     llm = ChatOpenAI(**llm_params)
@@ -647,7 +622,7 @@ async def refine_role(
         _msg = f"Failed to parse LLM response for role refinement: {e!s}"
         log.exception(_msg)
         raise ValueError(
-            "The AI service returned an unexpected response. Please try again."
+            "The AI service returned an unexpected response. Please try again.",
         ) from e
 
     # Preserve the original inclusion status, as the AI should not decide this.
@@ -656,7 +631,3 @@ async def refine_role(
     _msg = "refine_role returning"
     log.debug(_msg)
     return refined_role
-
-
-
-

@@ -889,7 +889,7 @@
         "Create and configure the FastAPI application.\n\nArgs:\n    None\n\nReturns:\n    FastAPI: The configured FastAPI application instance.\n\nNotes:\n    1. Initialize the FastAPI application with the title \"Resume Editor API\".\n    2. Add CORS middleware to allow requests from any origin (for development only).\n    3. Include the user router to handle user-related API endpoints.\n    4. Include the resume router to handle resume-related API endpoints.\n    5. Include the admin router to handle administrative API endpoints.\n    6. Define a health check endpoint at \"/health\" that returns a JSON object with status \"ok\".\n    7. Add static file serving for CSS/JS assets.\n    8. Add template rendering for HTML pages.\n    9. Define dashboard routes for the HTMX-based interface.\n    10. Log a success message indicating the application was created."
       ],
       [
-        "initialize_database() -> UnknownType",
+        "initialize_database() -> None",
         "Initialize the database.\n\nArgs:\n    None\n\nReturns:\n    None\n\nNotes:\n    1. Database initialization is now handled by Alembic migrations.\n    2. This function is kept for structural consistency but performs no actions."
       ]
     ],
@@ -910,7 +910,17 @@
     "filepath": "resume_editor/app/api/routes/resume.py",
     "filename": "resume.py",
     "functions": [],
-    "classes": {}
+    "classes": {
+      "UpdateResumeForm": [
+        "Represents the form data for updating a resume.",
+        [
+          [
+            "__init__(self: UnknownType, name: str, content: str | None, from_editor: str | None, sort_by: ResumeSortBy | None) -> UnknownType",
+            "Initializes the form data.\n\nArgs:\n    name (str): The new name for the resume.\n    content (str | None): The new content for the resume.\n    from_editor (str | None): Flag indicating if the update is from the editor.\n    sort_by (ResumeSortBy | None): The sorting criteria."
+          ]
+        ]
+      ]
+    }
   },
   "resume_editor/app/api/routes/user.py": {
     "filepath": "resume_editor/app/api/routes/user.py",
@@ -941,28 +951,28 @@
         "Delete a user from the database.\n\nArgs:\n    db (Session): The database session.\n    user (User): The user object to delete.\n\nNotes:\n    1. Remove the user object from the database session.\n    2. Commit the transaction to persist the deletion.\n    3. Database access: Performs a write operation on the User table."
       ],
       [
-        "register_user(user: UserCreate, db: Session) -> UserResponse",
+        "register_user(user: UserCreate, db: Annotated[Session, Depends(get_db)]) -> UserResponse",
         "Register a new user with the provided credentials.\n\nArgs:\n    user: Data containing username, email, and password for the new user.\n    db: Database session dependency used to interact with the user database.\n\nReturns:\n    UserResponse: The created user's data, excluding the password.\n\nRaises:\n    HTTPException: If the username or email is already registered.\n\nNotes:\n    1. Check if the provided username already exists in the database.\n    2. If the username exists, raise a 400 error.\n    3. Check if the provided email already exists in the database.\n    4. If the email exists, raise a 400 error.\n    5. Create a new user with the provided data and store it in the database.\n    6. Return the newly created user's data (without the password).\n    7. Database access: Performs read and write operations on the User table."
       ],
       [
-        "get_user_settings(db: Session, current_user: User) -> UnknownType",
+        "get_user_settings(db: Annotated[Session, Depends(get_db)], current_user: Annotated[User, Depends(get_current_user)]) -> UserSettingsResponse",
         "Get the current user's settings.\n\nArgs:\n    db (Session): The database session.\n    current_user (User): The authenticated user.\n\nReturns:\n    UserSettingsResponse: The user's settings.\n\nNotes:\n    1. Retrieve the user's settings from the database.\n    2. If no settings exist, return an empty response.\n    3. Database access: Performs a read operation on the UserSettings table."
       ],
       [
-        "update_user_settings(settings_data: UserSettingsUpdateRequest, db: Session, current_user: User) -> UnknownType",
+        "update_user_settings(settings_data: UserSettingsUpdateRequest, db: Annotated[Session, Depends(get_db)], current_user: Annotated[User, Depends(get_current_user)]) -> UserSettingsResponse",
         "Update the current user's settings.\n\nArgs:\n    settings_data (UserSettingsUpdateRequest): The settings data to update.\n    db (Session): The database session.\n    current_user (User): The authenticated user.\n\nReturns:\n    UserSettingsResponse: The updated user's settings.\n\nNotes:\n    1. Update the user's settings in the database with the provided data.\n    2. Return the updated settings.\n    3. Database access: Performs a write operation on the UserSettings table."
       ],
       [
-        "change_password(request: Request, new_password: str, confirm_new_password: str, current_password: str | None, db: Session, current_user: User) -> UnknownType",
-        "Change the current user's password.\n\nThis endpoint handles both standard and forced password changes. It also handles\nrequests from two different forms: the full-page form and the partial form\non the settings page.\n\nIt performs content negotiation based on the 'Accept' and 'HX-Target' headers.\n\nArgs:\n    request (Request): The request object.\n    new_password (str): The new password from the form.\n    confirm_new_password (str): The new password confirmation from the form.\n    current_password (str | None): The user's current password. Optional for forced changes.\n    db (Session): The database session.\n    current_user (User): The authenticated user.\n\nReturns:\n    Response: A response appropriate for a request type (JSON, HTML snippet,\n              full page render, or redirect)."
+        "change_password(request: Request, form_data: Annotated[ChangePasswordForm, Depends()], db: Annotated[Session, Depends(get_db)], current_user: Annotated[User, Depends(get_current_user_from_cookie)]) -> Response",
+        "Change the current user's password.\n\nThis endpoint handles both standard and forced password changes. It also handles\nrequests from two different forms: the full-page form and the partial form\non the settings page.\n\nIt performs content negotiation based on the 'Accept' and 'HX-Target' headers.\n\nArgs:\n    request (Request): The request object.\n    form_data (ChangePasswordForm): The form data with new and current passwords.\n    db (Session): The database session.\n    current_user (User): The authenticated user.\n\nReturns:\n    Response: A response appropriate for a request type (JSON, HTML snippet,\n              full page render, or redirect)."
       ],
       [
-        "get_change_password_page(request: Request, user: User) -> UnknownType",
+        "get_change_password_page(request: Request, user: Annotated[User, Depends(get_current_user_from_cookie)]) -> HTMLResponse",
         "Renders the page for changing a password.\n\nThis page can be used for both forced and standard password changes. The\ntemplate will conditionally render fields based on whether the user is\nbeing forced to change their password.\n\nArgs:\n    request (Request): The incoming HTTP request.\n    user (User): The authenticated user, retrieved from the cookie.\n\nReturns:\n    HTMLResponse: The rendered HTML page for changing the password.\n\nNotes:\n    1. Render the change_password.html template with the current user context.\n    2. The template checks for `user.attributes.force_password_change` to\n       determine which version of the form to display.\n    3. Return the HTML response to the client."
       ],
       [
-        "login_user(form_data: Annotated[OAuth2PasswordRequestForm, Depends()], db: Session, settings: Settings) -> Token",
-        "Authenticate a user and return an access token.\n\nArgs:\n    form_data: Form data containing username and password for authentication.\n    db: Database session dependency used to verify user credentials.\n\nReturns:\n    Token: An access token for the authenticated user, formatted as a JWT.\n\nRaises:\n    HTTPException: If the username or password is incorrect.\n\nNotes:\n    1. Attempt to authenticate the user using the provided username and password.\n    2. If authentication fails, raise a 401 error.\n    3. Update the user's last_login_at timestamp to the current UTC time.\n    4. Commit the change to the database.\n    5. Generate a JWT access token with a defined expiration time.\n    6. Return the access token to the client.\n    7. Database access: Performs read and write operations on the User table."
+        "login_user(form_data: Annotated[OAuth2PasswordRequestForm, Depends()], db: Annotated[Session, Depends(get_db)], settings: Annotated[Settings, Depends(get_settings)]) -> Token",
+        "Authenticate a user and return an access token.\n\nArgs:\n    form_data: Form data containing username and password for authentication.\n    db: Database session dependency used to verify user credentials.\n    settings: Application settings used for token creation and configuration.\n\nReturns:\n    Token: An access token for the authenticated user, formatted as a JWT.\n\nRaises:\n    HTTPException: If the username or password is incorrect.\n\nNotes:\n    1. Attempt to authenticate the user using the provided username and password.\n    2. If authentication fails, raise a 401 error.\n    3. Update the user's last_login_at timestamp to the current UTC time.\n    4. Commit the change to the database.\n    5. Generate a JWT access token with a defined expiration time.\n    6. Return the access token to the client.\n    7. Database access: Performs read and write operations on the User table."
       ]
     ],
     "classes": {}
@@ -971,43 +981,116 @@
     "filepath": "resume_editor/app/api/routes/route_models.py",
     "filename": "route_models.py",
     "functions": [],
-    "classes": {}
+    "classes": {
+      "RefineForm": [
+        "Form data for refining a resume section.",
+        [
+          [
+            "__init__(self: UnknownType, job_description: str, target_section: RefineTargetSection, generate_introduction: bool) -> UnknownType",
+            ""
+          ]
+        ]
+      ],
+      "SaveAsNewForm": [
+        "Form data for saving a refined resume as a new one.",
+        [
+          [
+            "__init__(self: UnknownType, refined_content: str, target_section: RefineTargetSection, new_resume_name: str | None, job_description: str | None, introduction: str | None) -> UnknownType",
+            ""
+          ]
+        ]
+      ],
+      "ChangePasswordForm": [
+        "Form data for changing a password.",
+        [
+          [
+            "__init__(self: UnknownType, new_password: str, confirm_new_password: str, current_password: str | None) -> UnknownType",
+            ""
+          ]
+        ]
+      ],
+      "ProjectUpdateForm": [
+        "Form data for updating projects.",
+        [
+          [
+            "__init__(self: UnknownType, title: str, description: str, url: str | None, start_date: str | None, end_date: str | None) -> UnknownType",
+            ""
+          ]
+        ]
+      ],
+      "CertificationUpdateForm": [
+        "Form data for updating certifications.",
+        [
+          [
+            "__init__(self: UnknownType, name: str, issuer: str | None, certification_id: str | None, issued_date: str | None, expiry_date: str | None) -> UnknownType",
+            ""
+          ]
+        ]
+      ],
+      "ExperienceUpdateForm": [
+        "Form data for updating experience.",
+        [
+          [
+            "__init__(self: UnknownType, company: str, title: str, start_date: str, end_date: str | None, description: str | None) -> UnknownType",
+            ""
+          ]
+        ]
+      ],
+      "EducationDates": [
+        "Form data for education dates.",
+        [
+          [
+            "__init__(self: UnknownType, start_date: str | None, end_date: str | None) -> UnknownType",
+            ""
+          ]
+        ]
+      ],
+      "EducationUpdateForm": [
+        "Form data for updating education.",
+        [
+          [
+            "__init__(self: UnknownType, school: str, degree: str | None, major: str | None, dates: EducationDates, gpa: str | None) -> UnknownType",
+            ""
+          ]
+        ]
+      ]
+    }
   },
   "resume_editor/app/api/routes/admin.py": {
     "filepath": "resume_editor/app/api/routes/admin.py",
     "filename": "admin.py",
     "functions": [
       [
-        "admin_create_user(user_data: AdminUserCreate, db: Session) -> UnknownType",
+        "admin_create_user(user_data: AdminUserCreate, db: Annotated[Session, Depends(get_db)]) -> AdminUserResponse",
         "Admin endpoint to create a new user.\n\nArgs:\n    user_data (AdminUserCreate): The data required to create a new user, including username, password, and optional email.\n    db (Session): The database session used to interact with the database.\n\nReturns:\n    AdminUserResponse: The created user's data, including admin-specific fields.\n\nNotes:\n    1. Logs the admin's attempt to create a user.\n    2. Calls `admin_crud.create_user_admin` to handle user creation.\n    3. The CRUD function hashes the password, commits the new user, and re-fetches it to load relationships.\n    4. Logs the completion of user creation.\n    5. Database access occurs during user creation."
       ],
       [
-        "admin_get_users(db: Session) -> UnknownType",
+        "admin_get_users(db: Annotated[Session, Depends(get_db)]) -> list[AdminUserResponse]",
         "Admin endpoint to list all users.\n\nArgs:\n    db (Session): The database session used to interact with the database.\n\nReturns:\n    list[AdminUserResponse]: A list of all users' data, including their ID, username, and other public fields.\n\nNotes:\n    1. Logs the admin's request to fetch all users.\n    2. Retrieves all users from the database using `admin_crud.get_users_admin`.\n    3. The response model automatically computes additional fields like resume_count.\n    4. Database access occurs during the retrieval of users."
       ],
       [
-        "admin_get_user(user_id: int, db: Session) -> UnknownType",
+        "admin_get_user(user_id: int, db: Annotated[Session, Depends(get_db)]) -> AdminUserResponse",
         "Admin endpoint to get a single user by ID.\n\nArgs:\n    user_id (int): The unique identifier of the user to retrieve.\n    db (Session): The database session used to interact with the database.\n\nReturns:\n    AdminUserResponse: The data of the requested user, including their ID, username, and other public fields, as well as admin-specific fields.\n\nRaises:\n    HTTPException: If the user with the given ID is not found, raises a 404 error.\n\nNotes:\n    1. Logs the admin's request to fetch a user by ID.\n    2. Retrieves the user from the database using `admin_crud.get_user_by_id_admin`, which eager-loads resume data.\n    3. If the user is not found, raises a 404 HTTPException.\n    4. Logs the completion of the fetch operation.\n    5. Database access occurs during the user retrieval."
       ],
       [
-        "admin_update_user(user_id: int, update_data: AdminUserUpdateRequest, db: Session) -> UnknownType",
+        "admin_update_user(user_id: int, update_data: AdminUserUpdateRequest, db: Annotated[Session, Depends(get_db)]) -> AdminUserResponse",
         "Admin endpoint to update a user's attributes.\n\nArgs:\n    user_id (int): The unique identifier of the user to update.\n    update_data (AdminUserUpdateRequest): The data for the update.\n    db (Session): The database session.\n\nReturns:\n    AdminUserResponse: The updated user's data.\n\nRaises:\n    HTTPException: If the user is not found.\n\nNotes:\n    1. Retrieves the user by ID using `admin_crud.get_user_by_id_admin`.\n    2. If the user is not found, raises a 404 error.\n    3. Calls `admin_crud.update_user_admin` to apply attribute updates.\n    4. Returns the updated user object.\n    5. Database access occurs during user retrieval and update."
       ],
       [
-        "admin_delete_user(user_id: int, db: Session, admin_user: User) -> UnknownType",
-        "Admin endpoint to delete a user.\n\nArgs:\n    user_id (int): The unique identifier of the user to delete.\n    db (Session): The database session used to interact with the database.\n\nRaises:\n    HTTPException: If the user with the given ID is not found, raises a 404 error.\n\nNotes:\n    1. Logs the admin's request to delete a user.\n    2. Retrieves the user from the database using get_user_by_id_admin.\n    3. If the user is not found, raises a 404 HTTPException.\n    4. Deletes the user from the database using delete_user_admin.\n    5. Commits the deletion to the database.\n    6. Logs the completion of the deletion.\n    7. Database access occurs during user retrieval, deletion, and commit."
+        "admin_delete_user(user_id: int, db: Annotated[Session, Depends(get_db)], admin_user: Annotated[User, Depends(get_current_admin_user)]) -> None",
+        "Admin endpoint to delete a user.\n\nArgs:\n    user_id (int): The unique identifier of the user to delete.\n    db (Session): The database session used to interact with the database.\n    admin_user (User): The currently authenticated admin user performing the deletion.\n\nRaises:\n    HTTPException: If the user with the given ID is not found, raises a 404 error.\n\nNotes:\n    1. Logs the admin's request to delete a user.\n    2. Retrieves the user from the database using get_user_by_id_admin.\n    3. If the user is not found, raises a 404 HTTPException.\n    4. Deletes the user from the database using delete_user_admin.\n    5. Commits the deletion to the database.\n    6. Logs the completion of the deletion.\n    7. Database access occurs during user retrieval, deletion, and commit."
       ],
       [
-        "admin_assign_role_to_user(user_id: int, role_name: str, db: Session) -> UnknownType",
+        "admin_assign_role_to_user(user_id: int, role_name: str, db: Annotated[Session, Depends(get_db)]) -> AdminUserResponse",
         "Admin endpoint to assign a role to a user.\n\nArgs:\n    user_id (int): The unique identifier of the user to assign the role to.\n    role_name (str): The name of the role to assign.\n    db (Session): The database session used to interact with the database.\n\nReturns:\n    AdminUserResponse: The updated user data, including the newly assigned role and other admin fields.\n\nRaises:\n    HTTPException: If the user or role is not found (404 error), or if the user already has the role (400 error).\n\nNotes:\n    1. Logs the admin's attempt to assign a role to a user.\n    2. Retrieves the user from the database using get_user_by_id_admin.\n    3. If the user is not found, raises a 404 HTTPException.\n    4. Retrieves the role from the database using get_role_by_name_admin.\n    5. If the role is not found, raises a 404 HTTPException.\n    6. Checks if the user already has the role; if so, returns the user without modification.\n    7. Appends the role to the user's roles list.\n    8. Commits the change to the database.\n    9. Refreshes the user object from the database.\n    10. Logs the completion of the role assignment.\n    11. Database access occurs during user and role retrieval, modification, and commit."
       ],
       [
-        "admin_remove_role_from_user(user_id: int, role_name: str, db: Session) -> UnknownType",
+        "admin_remove_role_from_user(user_id: int, role_name: str, db: Annotated[Session, Depends(get_db)]) -> AdminUserResponse",
         "Admin endpoint to remove a role from a user.\n\nArgs:\n    user_id (int): The unique identifier of the user to remove the role from.\n    role_name (str): The name of the role to remove.\n    db (Session): The database session used to interact with the database.\n\nReturns:\n    AdminUserResponse: The updated user data, excluding the removed role, but including other admin fields.\n\nRaises:\n    HTTPException: If the user or role is not found (404 error), or if the user does not have the role (400 error).\n\nNotes:\n    1. Logs the admin's attempt to remove a role from a user.\n    2. Retrieves the user from the database using get_user_by_id_admin.\n    3. If the user is not found, raises a 404 HTTPException.\n    4. Retrieves the role from the database using get_role_by_name_admin.\n    5. If the role is not found, raises a 404 HTTPException.\n    6. Checks if the user has the role; if not, raises a 400 HTTPException.\n    7. Removes the role from the user's roles list.\n    8. Commits the change to the database.\n    9. Refreshes the user object from the database.\n    10. Logs the completion of the role removal.\n    11. Database access occurs during user and role retrieval, modification, and commit."
       ],
       [
-        "admin_impersonate_user(username: str, db: Session, admin_user: User, settings: Settings) -> UnknownType",
-        "Admin endpoint to impersonate a user.\n\nArgs:\n    username (str): The username of the user to impersonate.\n    db (Session): The database session used to interact with the database.\n    admin_user (User): The currently authenticated admin user.\n\nReturns:\n    Token: A JWT access token for the impersonated user, with the admin's username as the impersonator.\n\nRaises:\n    HTTPException: If the user to impersonate is not found, raises a 404 error.\n\nNotes:\n    1. Logs the admin's attempt to impersonate a user.\n    2. Retrieves the target user from the database by username using `admin_crud.get_user_by_username_admin`.\n    3. If the target user is not found, raises a 404 HTTPException.\n    4. Creates a JWT access token with the admin's username as the impersonator.\n    5. Logs the successful creation of the impersonation token."
+        "admin_impersonate_user(username: str, db: Annotated[Session, Depends(get_db)], admin_user: Annotated[User, Depends(get_current_admin_user)], settings: Annotated[Settings, Depends(get_settings)]) -> Token",
+        "Admin endpoint to impersonate a user.\n\nArgs:\n    username (str): The username of the user to impersonate.\n    db (Session): The database session used to interact with the database.\n    admin_user (User): The currently authenticated admin user.\n    settings (Settings): Application settings used for token creation and configuration.\n\nReturns:\n    Token: A JWT access token for the impersonated user, with the admin's username as the impersonator.\n\nRaises:\n    HTTPException: If the user to impersonate is not found, raises a 404 error.\n\nNotes:\n    1. Logs the admin's attempt to impersonate a user.\n    2. Retrieves the target user from the database by username using `admin_crud.get_user_by_username_admin`.\n    3. If the target user is not found, raises a 404 HTTPException.\n    4. Creates a JWT access token with the admin's username as the impersonator.\n    5. Logs the successful creation of the impersonation token."
       ]
     ],
     "classes": {}
@@ -1025,12 +1108,12 @@
         "Retrieve all resumes associated with a specific user, with optional sorting.\n\nArgs:\n    db (Session): The SQLAlchemy database session used to query the database.\n    user_id (int): The unique identifier for the user whose resumes are to be retrieved.\n    sort_by (str | None): The sorting criterion. Defaults to 'updated_at_desc'.\n\nReturns:\n    list[DatabaseResume]: A sorted list of DatabaseResume objects belonging to the specified user.\n\nNotes:\n    1. Build a query for records in the DatabaseResume table where the user_id matches.\n    2. Determine the sorting column and direction from the `sort_by` parameter.\n    3. Default to sorting by `updated_at` in descending order if `sort_by` is not provided.\n    4. Apply the sorting to the query.\n    5. Execute the query and return the list of matching DatabaseResume objects.\n    6. This function performs a single database query."
       ],
       [
-        "create_resume(db: Session, user_id: int, name: str, content: str, is_base: bool, parent_id: int | None, job_description: str | None, introduction: str | None) -> DatabaseResume",
-        "Create and save a new resume.\n\nArgs:\n    db (Session): The database session.\n    user_id (int): The ID of the user who owns the resume.\n    name (str): The name of the resume.\n    content (str): The content of the resume.\n    is_base (bool): Whether this is a base resume. Defaults to True.\n    parent_id (int | None): The ID of the parent resume if this is a refined version.\n    job_description (str | None): The job description for a refined resume.\n    introduction (str | None): AI-generated introduction for the resume.\n\nReturns:\n    DatabaseResume: The newly created resume object.\n\nNotes:\n    1. Create a new DatabaseResume instance with all provided details.\n    2. Add the instance to the database session.\n    3. Commit the transaction to persist the changes.\n    4. Refresh the instance to ensure it has the latest state, including the generated ID.\n    5. Return the created resume.\n    6. This function performs a database write operation."
+        "create_resume(db: Session, params: ResumeCreateParams) -> DatabaseResume",
+        "Create and save a new resume.\n\nArgs:\n    db (Session): The database session.\n    params (ResumeCreateParams): The parameters required to create the resume.\n\nReturns:\n    DatabaseResume: The newly created resume object.\n\nNotes:\n    1. Create a new DatabaseResume instance with all provided details.\n    2. Add the instance to the database session.\n    3. Commit the transaction to persist the changes.\n    4. Refresh the instance to ensure it has the latest state, including the generated ID.\n    5. Return the created resume.\n    6. This function performs a database write operation."
       ],
       [
-        "update_resume(db: Session, resume: DatabaseResume, name: str | None, content: str | None, introduction: str | None, notes: str | None) -> DatabaseResume",
-        "Update a resume's name, content, introduction, and/or notes.\n\nArgs:\n    db (Session): The database session.\n    resume (DatabaseResume): The resume to update.\n    name (str | None): The new name for the resume. If None, the name is not updated.\n    content (str | None): The new content for the resume. If None, the content is not updated.\n    introduction (str | None): The new introduction for the resume. If None, it is not updated.\n    notes (str | None): The new notes for the resume. If None, the notes are not updated.\n\nReturns:\n    DatabaseResume: The updated resume object.\n\nNotes:\n    1. If a new name is provided (not None), update the resume's name attribute.\n    2. If new content is provided (not None), update the resume's content attribute.\n    3. If an introduction is provided (not None), update the resume's introduction attribute.\n    4. If new notes are provided (not None), update the resume's notes attribute.\n    5. Commit the transaction to save the changes to the database.\n    6. Refresh the resume object to ensure it reflects the latest state from the database.\n    7. Return the updated resume.\n    8. This function performs a database write operation."
+        "update_resume(db: Session, resume: DatabaseResume, params: ResumeUpdateParams) -> DatabaseResume",
+        "Update a resume's name, content, introduction, and/or notes.\n\nArgs:\n    db (Session): The database session.\n    resume (DatabaseResume): The resume to update.\n    params (ResumeUpdateParams): The new data for the resume.\n\nReturns:\n    DatabaseResume: The updated resume object.\n\nNotes:\n    1. If a new name is provided (not None), update the resume's name attribute.\n    2. If new content is provided (not None), update the resume's content attribute.\n    3. If an introduction is provided (not None), update the resume's introduction attribute.\n    4. If new notes are provided (not None), update the resume's notes attribute.\n    5. Commit the transaction to save the changes to the database.\n    6. Refresh the resume object to ensure it reflects the latest state from the database.\n    7. Return the updated resume.\n    8. This function performs a database write operation."
       ],
       [
         "delete_resume(db: Session, resume: DatabaseResume) -> None",
@@ -1044,8 +1127,8 @@
     "filename": "resume_validation.py",
     "functions": [
       [
-        "perform_pre_save_validation(markdown_content: str, original_content: str | None) -> None",
-        "Perform comprehensive pre-save validation on resume content.\n\nArgs:\n    markdown_content (str): The updated resume Markdown content to validate.\n    original_content (str | None): The original resume content for comparison.\n\nReturns:\n    None: This function does not return any value.\n\nRaises:\n    HTTPException: If validation fails with status code 422.\n\nNotes:\n    1. Run the updated Markdown through the existing parser to ensure it's still valid.\n    2. If any validation fails, raise an HTTPException with detailed error messages.\n    3. This function performs validation checks on resume content before saving to ensure data integrity.\n    4. Validation includes parsing the Markdown content to verify its structure and format.\n    5. The function accesses the resume parsing module to validate the content structure."
+        "perform_pre_save_validation(markdown_content: str) -> None",
+        "Perform comprehensive pre-save validation on resume content.\n\nArgs:\n    markdown_content (str): The updated resume Markdown content to validate.\n\nReturns:\n    None: This function does not return any value.\n\nRaises:\n    HTTPException: If validation fails with status code 422.\n\nNotes:\n    1. Run the updated Markdown through the existing parser to ensure it's still valid.\n    2. If any validation fails, raise an HTTPException with detailed error messages.\n    3. This function performs validation checks on resume content before saving to ensure data integrity.\n    4. Validation includes parsing the Markdown content to verify its structure and format.\n    5. The function accesses the resume parsing module to validate the content structure."
       ]
     ],
     "classes": {}
@@ -1206,31 +1289,31 @@
       ],
       [
         "serialize_personal_info_to_markdown(personal_info: PersonalInfoResponse | None) -> str",
-        "    Serialize personal information to Markdown format.\n\n    Args:\n        personal_info (PersonalInfoResponse | None): Personal information to serialize.\n\n    Returns:\n        str: Markdown formatted personal information section.\n\n    Notes:\n        1. Returns an empty string if `personal_info` is `None`.\n        2. Initializes an empty list `lines`.\n        3. Calls helper functions to add contact info, websites, visa status,\n           banner, and note sections to `lines`.\n        4. If `lines` is not empty, constructs the final string:\n            a. Starts with `# Personal\n\n`.\n            b. Joins the elements of `lines` with newlines.\n            c. Appends a final newline.\n        5. Otherwise, returns an empty string.\n    "
+        "Serialize personal information to Markdown format.\n\n    Args:\n        personal_info (PersonalInfoResponse | None): Personal information to serialize.\n\n    Returns:\n        str: Markdown formatted personal information section.\n\n    Notes:\n        1. Returns an empty string if `personal_info` is `None`.\n        2. Initializes an empty list `lines`.\n        3. Calls helper functions to add contact info, websites, visa status,\n           banner, and note sections to `lines`.\n        4. If `lines` is not empty, constructs the final string:\n            a. Starts with `# Personal\n\n`.\n            b. Joins the elements of `lines` with newlines.\n            c. Appends a final newline.\n        5. Otherwise, returns an empty string.\n\n    "
       ],
       [
-        "serialize_education_to_markdown(education: UnknownType) -> str",
-        "Serialize education information to Markdown format.\n\nArgs:\n    education: Education information to serialize, containing a list of degree entries.\n\nReturns:\n    str: Markdown formatted education section.\n\nNotes:\n    1. Initializes an empty list of lines and adds a heading.\n    2. For each degree in the list:\n        a. Adds a subsection header.\n        b. Adds each field (school, degree, major, start_date, end_date, gpa) as a direct field if present.\n        c. Adds a blank line after each degree.\n    3. Joins the lines with newlines.\n    4. Returns the formatted string with a trailing newline.\n    5. No network, disk, or database access is performed during this function."
+        "serialize_education_to_markdown(education: EducationResponse | None) -> str",
+        "Serialize education information to Markdown format.\n\nArgs:\n    education (EducationResponse | None): Education information to serialize, containing a list of degree entries.\n\nReturns:\n    str: Markdown formatted education section.\n\nNotes:\n    1. Initializes an empty list of lines and adds a heading.\n    2. For each degree in the list:\n        a. Adds a subsection header.\n        b. Adds each field (school, degree, major, start_date, end_date, gpa) as a direct field if present.\n        c. Adds a blank line after each degree.\n    3. Joins the lines with newlines.\n    4. Returns the formatted string with a trailing newline.\n    5. No network, disk, or database access is performed during this function."
       ],
       [
-        "_serialize_project_to_markdown(project: UnknownType) -> list[str]",
-        "Serialize a single project to markdown lines.\n\nArgs:\n    project: A project object to serialize.\n\nReturns:\n    list[str]: A list of markdown lines representing the project.\n\nNotes:\n    1. Gets the overview from the project.\n    2. Checks if the inclusion status is OMIT; if so, returns an empty list.\n    3. Calls `_add_project_overview_markdown` to add the overview section.\n    4. If inclusion status is not `NOT_RELEVANT`, calls `_add_project_description_markdown` and `_add_project_skills_markdown`.\n    5. If any content is generated, prepends the `### Project` header.\n    6. Returns the full project content as a list of lines."
+        "_serialize_project_to_markdown(project: Project) -> list[str]",
+        "Serialize a single project to markdown lines.\n\nArgs:\n    project (Project): A project object to serialize.\n\nReturns:\n    list[str]: A list of markdown lines representing the project.\n\nNotes:\n    1. Gets the overview from the project.\n    2. Checks if the inclusion status is OMIT; if so, returns an empty list.\n    3. Calls `_add_project_overview_markdown` to add the overview section.\n    4. If inclusion status is not `NOT_RELEVANT`, calls `_add_project_description_markdown` and `_add_project_skills_markdown`.\n    5. If any content is generated, prepends the `### Project` header.\n    6. Returns the full project content as a list of lines."
       ],
       [
-        "_serialize_role_to_markdown(role: UnknownType) -> list[str]",
-        "Serialize a single role to markdown lines.\n\nArgs:\n    role: A role object to serialize.\n\nReturns:\n    list[str]: A list of markdown lines representing the role.\n\nNotes:\n    1. Gets the `basics` section from the role. If not present, returns an empty list.\n    2. Checks the `inclusion_status` on the `basics` object. If `OMIT`, returns an empty list.\n    3. Serializes the `basics` content (company, title, dates, etc.) into Markdown.\n    4. Serializes the `summary` and `skills` sections into Markdown if they exist. This happens for both `INCLUDE` and `NOT_RELEVANT` statuses.\n    5. Handles the `responsibilities` section based on `inclusion_status`:\n        - If `NOT_RELEVANT`, it writes a placeholder text `(no relevant experience)`.\n        - If `INCLUDE`, it serializes the original responsibilities text if it exists.\n    6. Returns the combined list of Markdown lines for the role."
+        "_serialize_role_to_markdown(role: Role) -> list[str]",
+        "Serialize a single role to markdown lines.\n\nArgs:\n    role (Role): A role object to serialize.\n\nReturns:\n    list[str]: A list of markdown lines representing the role.\n\nNotes:\n    1. Gets the `basics` section from the role. If not present, returns an empty list.\n    2. Checks the `inclusion_status` on the `basics` object. If `OMIT`, returns an empty list.\n    3. Orchestrates calls to helper functions to serialize different parts of the role:\n       - `_add_role_basics_markdown` for company, title, dates, etc.\n       - `_add_role_summary_markdown` for the summary text.\n       - `_add_role_responsibilities_markdown` for responsibilities, handling inclusion status.\n       - `_add_role_skills_markdown` for the list of skills.\n    4. If any content is generated, prepends the `### Role` header.\n    5. Returns the combined list of Markdown lines for the role."
       ],
       [
-        "serialize_experience_to_markdown(experience: UnknownType) -> str",
-        "Serialize experience information to Markdown format.\n\nArgs:\n    experience: Experience information to serialize, containing lists of roles and projects.\n\nReturns:\n    str: Markdown formatted experience section.\n\nNotes:\n    1. Checks if the experience object is empty.\n    2. Initializes an empty list of lines.\n    3. If projects exist, serializes each one using `_serialize_project_to_markdown`.\n    4. If roles exist, serializes each one using `_serialize_role_to_markdown`.\n    5. If any content was generated, builds the final Markdown string with `# Experience`, `## Projects` (if any), and `## Roles` (if any) headers.\n    6. Joins the lines with newlines and returns the formatted string with a trailing newline.\n    7. Returns an empty string if no experience data is present or all items are omitted.\n    8. No network, disk, or database access is performed during this function."
+        "serialize_experience_to_markdown(experience: ExperienceResponse | None) -> str",
+        "Serialize experience information to Markdown format.\n\nArgs:\n    experience (ExperienceResponse | None): Experience information to serialize, containing lists of roles and projects.\n\nReturns:\n    str: Markdown formatted experience section.\n\nNotes:\n    1. Checks if the experience object is empty.\n    2. Initializes an empty list of lines.\n    3. If projects exist, serializes each one using `_serialize_project_to_markdown`.\n    4. If roles exist, serializes each one using `_serialize_role_to_markdown`.\n    5. If any content was generated, builds the final Markdown string with `# Experience`, `## Projects` (if any), and `## Roles` (if any) headers.\n    6. Joins the lines with newlines and returns the formatted string with a trailing newline.\n    7. Returns an empty string if no experience data is present or all items are omitted.\n    8. No network, disk, or database access is performed during this function."
       ],
       [
-        "serialize_certifications_to_markdown(certifications: UnknownType) -> str",
-        "Serialize certifications information to Markdown format.\n\nArgs:\n    certifications: Certifications information to serialize, containing a list of certifications.\n\nReturns:\n    str: Markdown formatted certifications section.\n\nNotes:\n    1. Initializes an empty list of lines and adds a heading.\n    2. For each certification in the list:\n        a. Adds a subsection header.\n        b. Adds each field (name, issuer, id, issued_date, expiry_date) as direct fields if present.\n        c. Adds a blank line after each certification.\n    3. Joins the lines with newlines.\n    4. Returns the formatted string with a trailing newline.\n    5. No network, disk, or database access is performed during this function."
+        "serialize_certifications_to_markdown(certifications: CertificationsResponse | None) -> str",
+        "Serialize certifications information to Markdown format.\n\nArgs:\n    certifications (CertificationsResponse | None): Certifications information to serialize, containing a list of certifications.\n\nReturns:\n    str: Markdown formatted certifications section.\n\nNotes:\n    1. Initializes an empty list of lines and adds a heading.\n    2. For each certification in the list:\n        a. Adds a subsection header.\n        b. Adds each field (name, issuer, id, issued_date, expiry_date) as direct fields if present.\n        c. Adds a blank line after each certification.\n    3. Joins the lines with newlines.\n    4. Returns the formatted string with a trailing newline.\n    5. No network, disk, or database access is performed during this function."
       ],
       [
-        "update_resume_content_with_structured_data(current_content: str, personal_info: UnknownType, education: UnknownType, certifications: UnknownType, experience: UnknownType) -> str",
-        "Update resume content with structured data by replacing specific sections.\n\nArgs:\n    current_content (str): Current resume Markdown content to update.\n    personal_info: Updated personal information to insert. If None, the existing info is preserved.\n    education: Updated education information to insert. If None, the existing info is preserved.\n    certifications: Updated certifications information to insert. If None, the existing info is preserved.\n    experience: Updated experience information to insert. If None, the existing info is preserved.\n\nReturns:\n    str: Updated resume content with new structured data.\n\nNotes:\n    1. Extracts existing sections from `current_content` if they are not provided as arguments.\n    2. reconstructs the full resume using the combination of new and existing data."
+        "update_resume_content_with_structured_data(current_content: str, personal_info: PersonalInfoResponse | None, education: EducationResponse | None, certifications: CertificationsResponse | None, experience: ExperienceResponse | None) -> str",
+        "Update resume content with structured data by replacing specific sections.\n\nArgs:\n    current_content (str): Current resume Markdown content to update.\n    personal_info (PersonalInfoResponse | None): Updated personal information to insert. If None, the existing info is preserved.\n    education (EducationResponse | None): Updated education information to insert. If None, the existing info is preserved.\n    certifications (CertificationsResponse | None): Updated certifications information to insert. If None, the existing info is preserved.\n    experience (ExperienceResponse | None): Updated experience information to insert. If None, the existing info is preserved.\n\nReturns:\n    str: Updated resume content with new structured data.\n\nNotes:\n    1. Extracts existing sections from `current_content` if they are not provided as arguments.\n    2. reconstructs the full resume using the combination of new and existing data."
       ]
     ],
     "classes": {}
@@ -1353,11 +1436,11 @@
     "filename": "database.py",
     "functions": [
       [
-        "get_engine() -> UnknownType",
+        "get_engine() -> Engine",
         "Get or create the database engine.\n\nArgs:\n    None\n\nReturns:\n    Engine: The SQLAlchemy engine instance used to connect to the database.\n\nNotes:\n    1. Create the engine only when first accessed to avoid premature connection.\n    2. Reuse the same engine instance on subsequent calls to ensure consistency.\n    3. Network access occurs when creating the engine, using the database URL from settings."
       ],
       [
-        "get_session_local() -> UnknownType",
+        "get_session_local() -> sessionmaker[Session]",
         "Get or create the session local factory.\n\nArgs:\n    None\n\nReturns:\n    sessionmaker: The SQLAlchemy sessionmaker instance used to create database sessions.\n\nNotes:\n    1. Create the sessionmaker only when first accessed to avoid premature configuration.\n    2. Reuse the same sessionmaker instance on subsequent calls to ensure consistent session behavior.\n    3. No network access in this function itself; it uses the previously created engine."
       ],
       [
@@ -1382,28 +1465,28 @@
         "User model for authentication and session management.\n\nAttributes:\n    id (int): Unique identifier for the user.\n    username (str): Unique username for the user.\n    email (str): Unique email address for the user.\n    hashed_password (str): Hashed password for the user.\n    is_active (bool): Whether the user account is active.\n    last_login_at (datetime): Timestamp of the last successful login.\n    force_password_change (bool): If true, user must change password on next login.\n    attributes (dict): Flexible key-value store for user-specific attributes.\n    roles (list[Role]): Roles assigned to the user for authorization.\n    resumes (list[Resume]): Resumes associated with the user.\n    settings (UserSettings): User-specific settings.",
         [
           [
-            "__init__(self: UnknownType, username: str, email: str, hashed_password: str, is_active: bool, attributes: dict[str, Any] | None, id: int | None) -> UnknownType",
-            "Initialize a User instance.\n\nArgs:\n    username (str): Unique username for the user. Must be a non-empty string.\n    email (str): Unique email address for the user. Must be a non-empty string.\n    hashed_password (str): Hashed password for the user. Must be a non-empty string.\n    is_active (bool): Whether the user account is active. Must be a boolean.\n    attributes (dict | None): Flexible key-value attributes for the user.\n    id (int | None): The unique identifier of the user, for testing purposes.\n\nReturns:\n    None\n\nNotes:\n    1. Validate that username is a non-empty string.\n    2. Validate that email is a non-empty string.\n    3. Validate that hashed_password is a non-empty string.\n    4. Validate that is_active is a boolean.\n    5. Validate that attributes is a dict or None.\n    6. Assign all values to instance attributes.\n    7. Log the initialization of the user with their username.\n    8. This operation does not involve network, disk, or database access."
+            "__init__(self: UnknownType, data: UserData) -> UnknownType",
+            "Initialize a User instance.\n\nArgs:\n    data (UserData): An object containing all initialization data for the user.\n\nReturns:\n    None\n\nNotes:\n    1. Validate that username is a non-empty string.\n    2. Validate that email is a non-empty string.\n    3. Validate that hashed_password is a non-empty string.\n    4. Validate that is_active is a boolean.\n    5. Validate that attributes is a dict or None.\n    6. Assign all values to instance attributes.\n    7. Log the initialization of the user with their username.\n    8. This operation does not involve network, disk, or database access."
           ],
           [
-            "validate_username(self: UnknownType, key: UnknownType, username: UnknownType) -> UnknownType",
-            "Validate the username field.\n\nArgs:\n    key (str): The field name being validated (should be 'username').\n    username (str): The username value to validate. Must be a non-empty string.\n\nReturns:\n    str: The validated username (stripped of leading/trailing whitespace).\n\nNotes:\n    1. Ensure username is a string.\n    2. Ensure username is not empty after stripping whitespace.\n    3. This operation does not involve network, disk, or database access."
+            "validate_username(self: UnknownType, _key: str, username: str) -> str",
+            "Validate the username field.\n\nArgs:\n    _key (str): The field name being validated (should be 'username').\n    username (str): The username value to validate. Must be a non-empty string.\n\nReturns:\n    str: The validated username (stripped of leading/trailing whitespace).\n\nNotes:\n    1. Ensure username is a string.\n    2. Ensure username is not empty after stripping whitespace.\n    3. This operation does not involve network, disk, or database access."
           ],
           [
-            "validate_email(self: UnknownType, key: UnknownType, email: UnknownType) -> UnknownType",
-            "Validate the email field.\n\nArgs:\n    key (str): The field name being validated (should be 'email').\n    email (str): The email value to validate. Must be a non-empty string.\n\nReturns:\n    str: The validated email (stripped of leading/trailing whitespace).\n\nNotes:\n    1. Ensure email is a string.\n    2. Ensure email is not empty after stripping whitespace.\n    3. This operation does not involve network, disk, or database access."
+            "validate_email(self: UnknownType, _key: str, email: str) -> str",
+            "Validate the email field.\n\nArgs:\n    _key (str): The field name being validated (should be 'email').\n    email (str): The email value to validate. Must be a non-empty string.\n\nReturns:\n    str: The validated email (stripped of leading/trailing whitespace).\n\nNotes:\n    1. Ensure email is a string.\n    2. Ensure email is not empty after stripping whitespace.\n    3. This operation does not involve network, disk, or database access."
           ],
           [
-            "validate_hashed_password(self: UnknownType, key: UnknownType, hashed_password: UnknownType) -> UnknownType",
-            "Validate the hashed_password field.\n\nArgs:\n    key (str): The field name being validated (should be 'hashed_password').\n    hashed_password (str): The hashed password value to validate. Must be a non-empty string.\n\nReturns:\n    str: The validated hashed password (stripped of leading/trailing whitespace).\n\nNotes:\n    1. Ensure hashed_password is a string.\n    2. Ensure hashed_password is not empty after stripping whitespace.\n    3. This operation does not involve network, disk, or database access."
+            "validate_hashed_password(self: UnknownType, _key: str, hashed_password: str) -> str",
+            "Validate the hashed_password field.\n\nArgs:\n    _key (str): The field name being validated (should be 'hashed_password').\n    hashed_password (str): The hashed password value to validate. Must be a non-empty string.\n\nReturns:\n    str: The validated hashed password (stripped of leading/trailing whitespace).\n\nNotes:\n    1. Ensure hashed_password is a string.\n    2. Ensure hashed_password is not empty after stripping whitespace.\n    3. This operation does not involve network, disk, or database access."
           ],
           [
-            "validate_is_active(self: UnknownType, key: UnknownType, is_active: UnknownType) -> UnknownType",
-            "Validate the is_active field.\n\nArgs:\n    key (str): The field name being validated (should be 'is_active').\n    is_active (bool): The is_active value to validate. Must be a boolean.\n\nReturns:\n    bool: The validated is_active value.\n\nNotes:\n    1. Ensure is_active is a boolean.\n    2. This operation does not involve network, disk, or database access."
+            "validate_is_active(self: UnknownType, _key: str, is_active: bool) -> bool",
+            "Validate the is_active field.\n\nArgs:\n    _key (str): The field name being validated (should be 'is_active').\n    is_active (bool): The is_active value to validate. Must be a boolean.\n\nReturns:\n    bool: The validated is_active value.\n\nNotes:\n    1. Ensure is_active is a boolean.\n    2. This operation does not involve network, disk, or database access."
           ],
           [
-            "validate_attributes(self: UnknownType, key: UnknownType, attributes: UnknownType) -> UnknownType",
-            "Validate the attributes field.\n\nArgs:\n    key (str): The field name being validated (should be 'attributes').\n    attributes (dict | None): The attributes value to validate. Must be a dictionary or None.\n\nReturns:\n    dict | None: The validated attributes.\n\nNotes:\n    1. If attributes is not None, ensure it is a dictionary.\n    2. This operation does not involve network, disk, or database access."
+            "validate_attributes(self: UnknownType, _key: str, attributes: dict[str, Any] | None) -> dict[str, Any] | None",
+            "Validate the attributes field.\n\nArgs:\n    _key (str): The field name being validated (should be 'attributes').\n    attributes (dict | None): The attributes value to validate. Must be a dictionary or None.\n\nReturns:\n    dict | None: The validated attributes.\n\nNotes:\n    1. If attributes is not None, ensure it is a dictionary.\n    2. This operation does not involve network, disk, or database access."
           ]
         ]
       ]
@@ -1434,8 +1517,8 @@
         "Resume model for storing user resumes.\n\nAttributes:\n    id (int): Unique identifier for the resume.\n    user_id (int): Foreign key to User model, identifying the user who owns the resume.\n    name (str): User-assigned descriptive name for the resume, must be non-empty.\n    content (str): The Markdown text content of the resume, must be non-empty.\n    created_at (datetime): Timestamp when the resume was created.\n    updated_at (datetime): Timestamp when the resume was last updated.\n    is_active (bool): Whether the resume is currently active.\n    is_base (bool): True if this is a base resume, False if it is a refined version.\n    job_description (str | None): The job description associated with a refined resume.\n    parent_id (int | None): A self-referencing foreign key to link a refined resume to its base resume.\n    parent (Resume): The parent resume relationship.\n    children (list[Resume]): The child resumes relationship.\n    notes (str | None): User-provided notes for the resume.\n    introduction (str | None): AI-generated introduction for the resume.",
         [
           [
-            "__init__(self: UnknownType, user_id: int, name: str, content: str, is_active: bool, is_base: bool, job_description: str | None, parent_id: int | None, notes: str | None, introduction: str | None) -> UnknownType",
-            "Initialize a Resume instance.\n\nArgs:\n    user_id (int): The unique identifier of the user who owns the resume.\n    name (str): A descriptive name assigned by the user for the resume; must be non-empty.\n    content (str): The Markdown-formatted text content of the resume; must be non-empty.\n    is_active (bool): A flag indicating whether the resume is currently active; defaults to True.\n    is_base (bool): Whether this is a base resume. Defaults to True.\n    job_description (str | None): The job description for a refined resume.\n    parent_id (int | None): The ID of the parent resume if this is a refined resume.\n    notes (str | None): User-provided notes for the resume.\n    introduction (str | None): AI-generated introduction for the resume.\n\nReturns:\n    None\n\nRaises:\n    ValueError: If user_id is not an integer, name is empty, content is empty, or is_active is not a boolean.\n\nNotes:\n    1. Validate that user_id is an integer.\n    2. Validate that name is a non-empty string.\n    3. Validate that content is a non-empty string.\n    4. Validate that is_active is a boolean.\n    5. Assign user_id, name, content, is_active, is_base, job_description, parent_id, notes, and introduction to instance attributes.\n    6. Log the initialization of the resume with its name.\n    7. This function performs no database access."
+            "__init__(self: UnknownType, data: ResumeData) -> UnknownType",
+            "Initialize a Resume instance.\n\nArgs:\n    data (ResumeData): An object containing the data for the new resume.\n\nReturns:\n    None\n\nNotes:\n    1. Assigns attributes from the `data` object to the `Resume` instance.\n    2. This constructor does not perform validation. It assumes `data` is a valid `ResumeData` object.\n    3. Logs the initialization of the resume.\n    4. This function does not perform disk, network, or database access."
           ]
         ]
       ]
@@ -1462,23 +1545,23 @@
         "Represents details of a specific academic degree earned.\n\nAttributes:\n    school (str): The name of the educational institution.\n    degree (str | None): The type of degree (e.g., Bachelor, Master).\n    start_date (datetime | None): The start date of the program.\n    end_date (datetime | None): The end date of the program.\n    major (str | None): The major field of study.\n    gpa (str | None): The grade point average.",
         [
           [
-            "validate_school(cls: UnknownType, v: UnknownType) -> UnknownType",
+            "validate_school(cls: UnknownType, v: str) -> UnknownType",
             "Validate the school field.\n\nArgs:\n    v (str): The school value to validate. Must be a non-empty string.\n\nReturns:\n    str: The validated school (stripped of leading/trailing whitespace).\n\nRaises:\n    ValueError: If the school is empty or contains only whitespace.\n\nNotes:\n    1. Ensure school is a string.\n    2. Ensure school is not empty after stripping whitespace."
           ],
           [
-            "validate_degree(cls: UnknownType, v: UnknownType) -> UnknownType",
+            "validate_degree(cls: UnknownType, v: str | None) -> UnknownType",
             "Validate the degree field.\n\nArgs:\n    v (str | None): The degree value to validate. Must be a non-empty string or None.\n\nReturns:\n    str | None: The validated degree (stripped of leading/trailing whitespace) or None.\n\nRaises:\n    ValueError: If the degree is empty after stripping whitespace.\n\nNotes:\n    1. Ensure degree is a string or None.\n    2. Ensure degree is not empty after stripping whitespace."
           ],
           [
-            "validate_major(cls: UnknownType, v: UnknownType) -> UnknownType",
+            "validate_major(cls: UnknownType, v: str | None) -> UnknownType",
             "Validate the major field.\n\nArgs:\n    v (str | None): The major value to validate. Must be a non-empty string or None.\n\nReturns:\n    str | None: The validated major (stripped of leading/trailing whitespace) or None.\n\nRaises:\n    ValueError: If the major is empty after stripping whitespace.\n\nNotes:\n    1. Ensure major is a string or None.\n    2. Ensure major is not empty after stripping whitespace."
           ],
           [
-            "validate_gpa(cls: UnknownType, v: UnknownType) -> UnknownType",
+            "validate_gpa(cls: UnknownType, v: str | None) -> UnknownType",
             "Validate the gpa field.\n\nArgs:\n    v (str | None): The gpa value to validate. Must be a non-empty string or None.\n\nReturns:\n    str | None: The validated gpa (stripped of leading/trailing whitespace) or None.\n\nRaises:\n    ValueError: If the gpa is empty after stripping whitespace.\n\nNotes:\n    1. Ensure gpa is a string or None.\n    2. Ensure gpa is not empty after stripping whitespace."
           ],
           [
-            "validate_end_date(cls: UnknownType, v: UnknownType, info: UnknownType) -> UnknownType",
+            "validate_end_date(cls: UnknownType, v: datetime | None, info: ValidationInfo) -> UnknownType",
             "Validate that start_date is not after end_date.\n\nArgs:\n    v (datetime | None): The end_date value to validate.\n    info (ValidationInfo): Validation info containing data.\n\nReturns:\n    datetime | None: The validated end_date.\n\nRaises:\n    ValueError: If end_date is before start_date.\n\nNotes:\n    1. If both start_date and end_date are provided, ensure start_date is not after end_date."
           ]
         ]
@@ -1495,7 +1578,7 @@
             "Return the number of degrees.\n\nReturns:\n    int: The number of degrees in the list.\n\nNotes:\n    No external access (network, disk, or database) is performed."
           ],
           [
-            "__getitem__(self: UnknownType, index: UnknownType) -> UnknownType",
+            "__getitem__(self: UnknownType, index: int) -> UnknownType",
             "Return the degree at the given index.\n\nArgs:\n    index (int): The index of the degree to retrieve.\n\nReturns:\n    Degree: The Degree object at the specified index.\n\nNotes:\n    No external access (network, disk, or database) is performed."
           ]
         ]
@@ -1511,19 +1594,19 @@
         "Represents a professional certification.\n\nAttributes:\n    name (str): The name of the certification.\n    issuer (str | None): The organization that issued the certification.\n    issued (datetime | None): The date the certification was issued.\n    expires (datetime | None): The date the certification expires.\n    certification_id (str | None): An identifier for the certification.",
         [
           [
-            "validate_name(cls: UnknownType, v: UnknownType) -> UnknownType",
+            "validate_name(cls: UnknownType, v: str) -> UnknownType",
             "Validate the name field.\n\nArgs:\n    v (str): The name value to validate. Must be a non-empty string.\n\nReturns:\n    str: The validated name, stripped of leading/trailing whitespace.\n\nRaises:\n    ValueError: If the name is not a string or is empty.\n\nNotes:\n    1. Ensure name is a string.\n    2. Ensure name is not empty."
           ],
           [
-            "validate_optional_strings(cls: UnknownType, v: UnknownType) -> UnknownType",
+            "validate_optional_strings(cls: UnknownType, v: str | None) -> UnknownType",
             "Validate optional string fields.\n\nArgs:\n    v (str | None): The field value to validate. Must be a string or None.\n\nReturns:\n    str | None: The validated field value.\n\nRaises:\n    ValueError: If the field is neither a string nor None.\n\nNotes:\n    1. Ensure field is a string or None."
           ],
           [
-            "validate_dates(cls: UnknownType, v: UnknownType) -> UnknownType",
+            "validate_dates(cls: UnknownType, v: datetime | None) -> UnknownType",
             "Validate the date fields.\n\nArgs:\n    v (datetime | None): The date value to validate. Must be a datetime object or None.\n\nReturns:\n    datetime | None: The validated date.\n\nRaises:\n    ValueError: If the date is neither a datetime object nor None.\n\nNotes:\n    1. Ensure date is a datetime object or None."
           ],
           [
-            "validate_date_order(self: UnknownType) -> UnknownType",
+            "validate_date_order(self: UnknownType) -> Self",
             "Validate that issued date is not after expires date.\n\nReturns:\n    Certification: The validated model instance.\n\nRaises:\n    ValueError: If expires date is before issued date.\n\nNotes:\n    1. If both issued and expires dates are provided, ensure issued is not after expires."
           ]
         ]
@@ -1532,7 +1615,7 @@
         "Represents a collection of professional certifications.\n\nAttributes:\n    certifications (list[Certification]): A list of Certification objects.",
         [
           [
-            "validate_certifications(cls: UnknownType, v: UnknownType) -> UnknownType",
+            "validate_certifications(cls: UnknownType, v: list['Certification']) -> UnknownType",
             "Validate the certifications field.\n\nArgs:\n    v (list[Certification]): The certifications value to validate. Must be a list of Certification objects.\n\nReturns:\n    list[Certification]: The validated certifications list.\n\nRaises:\n    ValueError: If certifications is not a list or contains non-Certification items.\n\nNotes:\n    1. Ensure certifications is a list.\n    2. Ensure all items in certifications are instances of Certification."
           ],
           [
@@ -1544,11 +1627,11 @@
             "Return the number of certifications.\n\nReturns:\n    int: The integer count of certifications in the list.\n\nNotes:\n    1. Return the length of the certifications list."
           ],
           [
-            "__getitem__(self: UnknownType, index: UnknownType) -> UnknownType",
+            "__getitem__(self: UnknownType, index: int) -> UnknownType",
             "Return the certification at the given index.\n\nArgs:\n    index (int): The index of the certification to retrieve.\n\nReturns:\n    Certification: The Certification object at the specified index.\n\nNotes:\n    1. Retrieve and return the certification at the given index."
           ],
           [
-            "list_class(self: UnknownType) -> UnknownType",
+            "list_class(self: UnknownType) -> type['Certification']",
             "Return the type that will be contained in the list.\n\nReturns:\n    type: The Certification class.\n\nNotes:\n    1. Return the Certification class."
           ]
         ]
@@ -1564,19 +1647,19 @@
         "Holds personal contact details such as name, email, phone, and location.\n\nAttributes:\n    name (str): The full name of the person.\n    email (str | None): The email address of the person, or None if not provided.\n    phone (str | None): The phone number of the person, or None if not provided.\n    location (str | None): The physical location (e.g., city and country) of the person, or None if not provided.",
         [
           [
-            "validate_name(cls: UnknownType, v: UnknownType) -> UnknownType",
+            "validate_name(cls: UnknownType, v: str) -> UnknownType",
             "Validate the name field.\n\nArgs:\n    v: The name value to validate. Must be a non-empty string.\n\nReturns:\n    str: The validated name (stripped of leading/trailing whitespace).\n\nRaises:\n    ValueError: If the name is not a string or is empty after stripping whitespace.\n\nNotes:\n    1. Ensure name is a string.\n    2. Ensure name is not empty after stripping whitespace."
           ],
           [
-            "validate_email(cls: UnknownType, v: UnknownType) -> UnknownType",
+            "validate_email(cls: UnknownType, v: str | None) -> UnknownType",
             "Validate the email field.\n\nArgs:\n    v: The email value to validate. Must be a non-empty string or None.\n\nReturns:\n    str: The validated email (stripped of leading/trailing whitespace).\n\nRaises:\n    ValueError: If the email is not a string or is empty after stripping whitespace.\n\nNotes:\n    1. Ensure email is a string or None.\n    2. Ensure email is not empty after stripping whitespace."
           ],
           [
-            "validate_phone(cls: UnknownType, v: UnknownType) -> UnknownType",
+            "validate_phone(cls: UnknownType, v: str | None) -> UnknownType",
             "Validate the phone field.\n\nArgs:\n    v: The phone value to validate. Must be a non-empty string or None.\n\nReturns:\n    str: The validated phone (stripped of leading/trailing whitespace).\n\nRaises:\n    ValueError: If the phone is not a string or is empty after stripping whitespace.\n\nNotes:\n    1. Ensure phone is a string or None.\n    2. Ensure phone is not empty after stripping whitespace."
           ],
           [
-            "validate_location(cls: UnknownType, v: UnknownType) -> UnknownType",
+            "validate_location(cls: UnknownType, v: str | None) -> UnknownType",
             "Validate the location field.\n\nArgs:\n    v: The location value to validate. Must be a non-empty string or None.\n\nReturns:\n    str: The validated location (stripped of leading/trailing whitespace).\n\nRaises:\n    ValueError: If the location is not a string or is empty after stripping whitespace.\n\nNotes:\n    1. Ensure location is a string or None.\n    2. Ensure location is not empty after stripping whitespace."
           ]
         ]
@@ -1585,19 +1668,19 @@
         "Holds personal website and social media links.\n\nAttributes:\n    website (str | None): The personal website URL, or None if not provided.\n    github (str | None): The GitHub profile URL, or None if not provided.\n    linkedin (str | None): The LinkedIn profile URL, or None if not provided.\n    twitter (str | None): The Twitter profile URL, or None if not provided.",
         [
           [
-            "validate_website(cls: UnknownType, v: UnknownType) -> UnknownType",
+            "validate_website(cls: UnknownType, v: str | None) -> UnknownType",
             "Validate the website field.\n\nArgs:\n    v: The website value to validate. Must be a non-empty string or None.\n\nReturns:\n    str: The validated website (stripped of leading/trailing whitespace).\n\nRaises:\n    ValueError: If the website is not a string or is empty after stripping whitespace.\n\nNotes:\n    1. Ensure website is a string or None.\n    2. Ensure website is not empty after stripping whitespace."
           ],
           [
-            "validate_github(cls: UnknownType, v: UnknownType) -> UnknownType",
+            "validate_github(cls: UnknownType, v: str | None) -> UnknownType",
             "Validate the github field.\n\nArgs:\n    v: The github value to validate. Must be a non-empty string or None.\n\nReturns:\n    str: The validated github (stripped of leading/trailing whitespace).\n\nRaises:\n    ValueError: If the github is not a string or is empty after stripping whitespace.\n\nNotes:\n    1. Ensure github is a string or None.\n    2. Ensure github is not empty after stripping whitespace."
           ],
           [
-            "validate_linkedin(cls: UnknownType, v: UnknownType) -> UnknownType",
+            "validate_linkedin(cls: UnknownType, v: str | None) -> UnknownType",
             "Validate the linkedin field.\n\nArgs:\n    v: The linkedin value to validate. Must be a non-empty string or None.\n\nReturns:\n    str: The validated linkedin (stripped of leading/trailing whitespace).\n\nRaises:\n    ValueError: If the linkedin is not a string or is empty after stripping whitespace.\n\nNotes:\n    1. Ensure linkedin is a string or None.\n    2. Ensure linkedin is not empty after stripping whitespace."
           ],
           [
-            "validate_twitter(cls: UnknownType, v: UnknownType) -> UnknownType",
+            "validate_twitter(cls: UnknownType, v: str | None) -> UnknownType",
             "Validate the twitter field.\n\nArgs:\n    v: The twitter value to validate. Must be a non-empty string or None.\n\nReturns:\n    str: The validated twitter (stripped of leading/trailing whitespace).\n\nRaises:\n    ValueError: If the twitter is not a string or is empty after stripping whitespace.\n\nNotes:\n    1. Ensure twitter is a string or None.\n    2. Ensure twitter is not empty after stripping whitespace."
           ]
         ]
@@ -1606,11 +1689,11 @@
         "Holds information about work authorization and sponsorship requirements.\n\nAttributes:\n    work_authorization (str | None): The current work authorization status (e.g., \"US Citizen\", \"H-1B\"), or None if not provided.\n    require_sponsorship (bool | None): A boolean indicating if sponsorship is required, or None if not provided.",
         [
           [
-            "validate_work_authorization(cls: UnknownType, v: UnknownType) -> UnknownType",
+            "validate_work_authorization(cls: UnknownType, v: str | None) -> UnknownType",
             "Validate the work_authorization field.\n\nArgs:\n    v: The work_authorization value to validate. Must be a non-empty string or None.\n\nReturns:\n    str: The validated work_authorization (stripped of leading/trailing whitespace).\n\nRaises:\n    ValueError: If the work_authorization is not a string or is empty after stripping whitespace.\n\nNotes:\n    1. Ensure work_authorization is a string or None.\n    2. Ensure work_authorization is not empty after stripping whitespace."
           ],
           [
-            "validate_require_sponsorship(cls: UnknownType, v: UnknownType) -> UnknownType",
+            "validate_require_sponsorship(cls: UnknownType, v: bool | str | None) -> UnknownType",
             "Validate the require_sponsorship field.\n\nArgs:\n    v: The require_sponsorship value to validate. Must be a boolean, string (\"yes\"/\"no\"), or None.\n\nReturns:\n    bool: The validated require_sponsorship value.\n\nRaises:\n    ValueError: If the require_sponsorship is not a boolean, string, or None, or if the string is not \"yes\" or \"no\".\n\nNotes:\n    1. Ensure require_sponsorship is a boolean, string (\"yes\"/\"no\"), or None.\n    2. If require_sponsorship is a string, convert \"yes\" to True and \"no\" to False.\n    3. If require_sponsorship is not None and not a string, assign it directly.\n    4. Otherwise, set require_sponsorship to None."
           ]
         ]
@@ -1619,7 +1702,7 @@
         "Holds a personal banner message with cleaned text content.\n\nAttributes:\n    text (str): The cleaned text content of the banner, with leading/trailing and internal blank lines removed.",
         [
           [
-            "validate_text(cls: UnknownType, v: UnknownType) -> UnknownType",
+            "validate_text(cls: UnknownType, v: str) -> UnknownType",
             "Validate the text field and clean it.\n\nArgs:\n    v: The raw text content of the banner, potentially including leading/trailing or internal blank lines.\n\nReturns:\n    str: The cleaned text content of the banner.\n\nRaises:\n    ValueError: If the text is not a string.\n\nNotes:\n    1. Ensure text is a string.\n    2. Split the input text into lines.\n    3. Remove leading blank lines.\n    4. Remove trailing blank lines.\n    5. Filter out any lines that are blank after stripping whitespace.\n    6. Join the remaining lines back into a single string."
           ]
         ]
@@ -1628,7 +1711,7 @@
         "Holds a personal note with cleaned text content.\n\nAttributes:\n    text (str): The cleaned text content of the note, with leading/trailing and internal blank lines removed.",
         [
           [
-            "validate_text(cls: UnknownType, v: UnknownType) -> UnknownType",
+            "validate_text(cls: UnknownType, v: str) -> UnknownType",
             "Validate the text field and clean it.\n\nArgs:\n    v: The raw text content of the note, potentially including leading/trailing or internal blank lines.\n\nReturns:\n    str: The cleaned text content of the note.\n\nRaises:\n    ValueError: If the text is not a string.\n\nNotes:\n    1. Ensure text is a string.\n    2. Split the input text into lines.\n    3. Remove leading blank lines.\n    4. Remove trailing blank lines.\n    5. Filter out any lines that are blank after stripping whitespace.\n    6. Join the remaining lines back into a single string."
           ]
         ]
@@ -1650,7 +1733,7 @@
         "Represents skills used in a professional role.\n\nAttributes:\n    skills (list[str]): A list of non-empty, stripped skill strings.",
         [
           [
-            "validate_skills(cls: UnknownType, v: UnknownType) -> UnknownType",
+            "validate_skills(cls: UnknownType, v: list[str]) -> UnknownType",
             "Validate the skills field.\n\nArgs:\n    v: The skills value to validate. Must be a list of strings.\n\nReturns:\n    list[str]: The validated and cleaned skills list.\n\nNotes:\n    1. Ensure skills is a list.\n    2. Ensure all items in skills are strings.\n    3. Strip whitespace from each skill and filter out empty strings.\n    4. Raise a ValueError if skills is not a list or if any skill is not a string.\n    5. Return the cleaned list of non-empty skills."
           ],
           [
@@ -1662,7 +1745,7 @@
             "Return the number of skills.\n\nReturns:\n    int: The number of skills."
           ],
           [
-            "__getitem__(self: UnknownType, index: UnknownType) -> UnknownType",
+            "__getitem__(self: UnknownType, index: int) -> UnknownType",
             "Return the skill at the given index.\n\nArgs:\n    index (int): The index of the skill to return.\n\nReturns:\n    str: The skill at the specified index."
           ]
         ]
@@ -1671,15 +1754,15 @@
         "Represents basic information about a professional role.\n\nAttributes:\n    company (str): The name of the company.\n    start_date (datetime): The start date of the role.\n    end_date (datetime | None): The end date of the role or None if still ongoing.\n    title (str): The job title.\n    reason_for_change (str | None): The reason for leaving the role or None.\n    location (str | None): The job location or None.\n    job_category (str | None): The category of the job or None.\n    employment_type (str | None): The employment type or None.\n    agency_name (str | None): The name of the agency or None.\n    inclusion_status (InclusionStatus): The inclusion status of the role.",
         [
           [
-            "validate_company(cls: UnknownType, v: UnknownType) -> UnknownType",
+            "validate_company(cls: UnknownType, v: str) -> UnknownType",
             "Validate the company field.\n\nArgs:\n    v: The company value to validate. Must be a non-empty string.\n\nReturns:\n    str: The validated company.\n\nRaises:\n    ValueError: If company is not a string or is empty.\n\nNotes:\n    1. Ensure company is a string.\n    2. Ensure company is not empty.\n    3. Strip whitespace from the company name.\n    4. Raise a ValueError if company is not a string or is empty."
           ],
           [
-            "validate_title(cls: UnknownType, v: UnknownType) -> UnknownType",
+            "validate_title(cls: UnknownType, v: str) -> UnknownType",
             "Validate the title field.\n\nArgs:\n    v: The title value to validate. Must be a non-empty string.\n\nReturns:\n    str: The validated title.\n\nRaises:\n    ValueError: If title is not a string or is empty.\n\nNotes:\n    1. Ensure title is a string.\n    2. Ensure title is not empty.\n    3. Strip whitespace from the title.\n    4. Raise a ValueError if title is not a string or is empty."
           ],
           [
-            "validate_end_date(cls: UnknownType, v: UnknownType, info: UnknownType) -> UnknownType",
+            "validate_end_date(cls: UnknownType, v: datetime | None, info: ValidationInfo) -> UnknownType",
             "Validate the end_date field.\n\nArgs:\n    v: The end_date value to validate. Must be a datetime object or None.\n    info: Validation info containing data.\n\nReturns:\n    datetime: The validated end_date.\n\nRaises:\n    ValueError: If end_date is not a datetime object or None, or if end_date is before start_date.\n\nNotes:\n    1. Ensure end_date is a datetime object or None.\n    2. If end_date is provided, ensure it is not before start_date.\n    3. Raise a ValueError if end_date is not a datetime object or None, or if end_date is before start_date."
           ]
         ]
@@ -1696,11 +1779,11 @@
             "Return the number of roles.\n\nReturns:\n    int: The number of roles."
           ],
           [
-            "__getitem__(self: UnknownType, index: UnknownType) -> UnknownType",
+            "__getitem__(self: UnknownType, index: int) -> UnknownType",
             "Return the role at the given index.\n\nArgs:\n    index (int): The index of the role to return.\n\nReturns:\n    Role: The role at the specified index."
           ],
           [
-            "list_class(self: UnknownType) -> UnknownType",
+            "list_class(self: UnknownType) -> type[Role]",
             "Return the class for the list.\n\nReturns:\n    The Role class."
           ]
         ]
@@ -1709,7 +1792,7 @@
         "Represents skills used in a project.\n\nAttributes:\n    skills (list[str]): A list of non-empty, stripped skill strings.",
         [
           [
-            "validate_skills(cls: UnknownType, v: UnknownType) -> UnknownType",
+            "validate_skills(cls: UnknownType, v: list[str]) -> UnknownType",
             "Validate the skills field.\n\nArgs:\n    v: The skills value to validate. Must be a list of strings.\n\nReturns:\n    list[str]: The validated and cleaned skills list.\n\nRaises:\n    ValueError: If skills is not a list or if any skill is not a string.\n\nNotes:\n    1. Ensure skills is a list.\n    2. Ensure all items in skills are strings.\n    3. Strip whitespace from each skill and filter out empty strings.\n    4. Raise a ValueError if skills is not a list or if any skill is not a string.\n    5. Return the cleaned list of non-empty skills."
           ],
           [
@@ -1721,7 +1804,7 @@
             "Return the number of skills.\n\nReturns:\n    int: The number of skills."
           ],
           [
-            "__getitem__(self: UnknownType, index: UnknownType) -> UnknownType",
+            "__getitem__(self: UnknownType, index: int) -> UnknownType",
             "Return the skill at the given index.\n\nArgs:\n    index (int): The index of the skill to return.\n\nReturns:\n    str: The skill at the specified index."
           ]
         ]
@@ -1730,11 +1813,11 @@
         "Represents basic details of a project.\n\nAttributes:\n    title (str): The title of the project.\n    url (str | None): The URL for the project or None.\n    url_description (str | None): A description of the URL or None.\n    start_date (datetime | None): The start date as a datetime object or None.\n    end_date (datetime | None): The end date as a datetime object or None.\n    inclusion_status (InclusionStatus): The inclusion status of the project.",
         [
           [
-            "validate_title(cls: UnknownType, v: UnknownType) -> UnknownType",
+            "validate_title(cls: UnknownType, v: str) -> UnknownType",
             "Validate the title field.\n\nArgs:\n    v: The title value to validate. Must be a non-empty string.\n\nReturns:\n    str: The validated title.\n\nRaises:\n    ValueError: If title is not a string or is empty.\n\nNotes:\n    1. Ensure title is a string.\n    2. Ensure title is not empty.\n    3. Strip whitespace from the title.\n    4. Raise a ValueError if title is not a string or is empty."
           ],
           [
-            "validate_date_order(cls: UnknownType, v: UnknownType, info: UnknownType) -> UnknownType",
+            "validate_date_order(cls: UnknownType, v: datetime | None, info: ValidationInfo) -> UnknownType",
             "Validate that start_date is not after end_date.\n\nArgs:\n    v: The end_date value to validate.\n    info: Validation info containing data.\n\nReturns:\n    datetime: The validated end_date.\n\nRaises:\n    ValueError: If end_date is before start_date.\n\nNotes:\n    1. If both start_date and end_date are provided, ensure start_date is not after end_date.\n    2. Raise a ValueError if end_date is before start_date."
           ]
         ]
@@ -1751,11 +1834,11 @@
             "Return the number of projects.\n\nReturns:\n    int: The number of projects."
           ],
           [
-            "__getitem__(self: UnknownType, index: UnknownType) -> UnknownType",
+            "__getitem__(self: UnknownType, index: int) -> UnknownType",
             "Return the project at the given index.\n\nArgs:\n    index (int): The index of the project to return.\n\nReturns:\n    Project: The project at the specified index."
           ],
           [
-            "list_class(self: UnknownType) -> UnknownType",
+            "list_class(self: UnknownType) -> type[Project]",
             "Return the class of the list.\n\nReturns:\n    The Project class."
           ]
         ]
@@ -1799,7 +1882,7 @@
     "filename": "user.py",
     "functions": [
       [
-        "change_password(db: Session, user: User, new_password: str, current_password: str | None) -> UnknownType",
+        "change_password(db: Session, user: User, new_password: str, current_password: str | None) -> None",
         "Change a user's password and unset the force_password_change flag.\n\nArgs:\n    db (Session): The database session used to persist changes to the user record.\n    user (User): The user object whose password is being changed.\n    new_password (str): The new password to set for the user.\n    current_password (str | None): The user's current password, used for verification. Required for standard changes, optional for forced changes.\n\nReturns:\n    None: This function does not return a value.\n\nRaises:\n    HTTPException: For a standard password change, if the current password is not provided or is incorrect, a 400 Bad Request error is raised.\n\nNotes:\n    1. Determine if it's a forced password change by checking the user's attributes.\n    2. For a standard password change (when `force_password_change` is False), verify that `current_password` is provided and correct. If not, raise an HTTPException.\n    3. For a forced password change, the current password check is bypassed.\n    4. Hash the new password using get_password_hash.\n    5. Update the user's hashed_password attribute with the new hash.\n    6. Ensure the user's attributes are initialized as a dictionary if they are None.\n    7. Set the 'force_password_change' key in attributes to False.\n    8. Mark the attributes as modified to ensure SQLAlchemy tracks changes.\n    9. Commit the transaction to persist changes to the database.\n    10. Database access: The function performs a write operation to update the user's password and attributes in the database."
       ]
     ],
@@ -1862,8 +1945,8 @@
         "Uses a generic LLM chain to refine a non-experience section of the resume.\n\nArgs:\n    resume_content (str): The full Markdown content of the resume.\n    job_description (str): The job description to align the resume with.\n    target_section (str): The section of the resume to refine.\n    llm (ChatOpenAI): An initialized ChatOpenAI client instance.\n    generate_introduction (bool): Whether to request an introduction.\n\nReturns:\n    tuple[str, str | None]: A tuple containing the refined Markdown content\n         for the target section and an optional introduction. Returns an empty\n         string and None if the target section is empty.\n\nRaises:\n    ValueError: If the LLM response is not valid JSON or fails Pydantic validation.\n\nNotes:\n    1. Extracts the target section content from the resume using `_get_section_content`.\n    2. If the extracted content is empty, returns an empty string and None.\n    3. Sets up a `PydanticOutputParser` for structured output based on the `RefinedSection` model.\n    4. Conditionally modifies the prompt's goal to request an introduction if `generate_introduction` is True.\n    5. Creates a `ChatPromptTemplate` with instructions for the LLM.\n    6. Creates a chain combining the prompt, LLM, and a `StrOutputParser`.\n    7. Streams the response from the chain and joins the chunks.\n    8. Parses the LLM's JSON-Markdown output using `parse_json_markdown`.\n    9. Validates the parsed JSON against the `RefinedSection` model.\n    10. Extracts the `refined_markdown` and optionally the `introduction` from the validated result.\n    11. Returns a tuple of `(refined_markdown, introduction)`."
       ],
       [
-        "refine_resume_section_with_llm(resume_content: str, job_description: str, target_section: str, llm_endpoint: str | None, api_key: str | None, llm_model_name: str | None, generate_introduction: bool) -> tuple[str, str | None]",
-        "Uses an LLM to refine a specific non-experience section of a resume.\n\nThis function acts as a dispatcher. For 'experience' section, it raises an error,\ndirecting the caller to use the appropriate async generator. For all other sections,\nit delegates to a generic helper function to perform a single-pass refinement.\n\nArgs:\n    resume_content (str): The full Markdown content of the resume.\n    job_description (str): The job description to align the resume with.\n    target_section (str): The section of the resume to refine (e.g., \"personal\").\n    llm_endpoint (str | None): The custom LLM endpoint URL.\n    api_key (str | None): The user's decrypted LLM API key.\n    llm_model_name (str | None): The user-specified LLM model name.\n    generate_introduction (bool): Whether to generate an introduction.\n\nReturns:\n    tuple[str, str | None]: A tuple containing the refined Markdown content for\n         the target section and an optional introduction. Returns an empty\n         string and None if the target section is empty.\n\nRaises:\n    ValueError: If `target_section` is 'experience'.\n\nNetwork access:\n    - This function makes network requests to the LLM endpoint specified by\n      llm_endpoint.\n\nNotes:\n    1. Checks if `target_section` is 'experience' and raises a `ValueError` if so.\n    2. Determines the model name, falling back to a default if not provided.\n    3. Constructs parameters for `ChatOpenAI`, including the model name, endpoint,\n       and API key. A dummy API key is used for custom, non-OpenRouter endpoints if\n       no key is provided.\n    4. Initializes the `ChatOpenAI` client.\n    5. Calls `_refine_generic_section` with the resume content, job description,\n       target section, and the initialized LLM client.\n    6. Returns the tuple of refined content and introduction from the helper function."
+        "refine_resume_section_with_llm(resume_content: str, job_description: str, target_section: str, llm_config: LLMConfig, generate_introduction: bool) -> tuple[str, str | None]",
+        "Uses an LLM to refine a specific non-experience section of a resume.\n\nThis function acts as a dispatcher. For 'experience' section, it raises an error,\ndirecting the caller to use the appropriate async generator. For all other sections,\nit delegates to a generic helper function to perform a single-pass refinement.\n\nArgs:\n    resume_content (str): The full Markdown content of the resume.\n    job_description (str): The job description to align the resume with.\n    target_section (str): The section of the resume to refine (e.g., \"personal\").\n    llm_config (LLMConfig): LLM configuration including endpoint, API key, and model name.\n    generate_introduction (bool): Whether to generate an introduction.\n\nReturns:\n    tuple[str, str | None]: A tuple containing the refined Markdown content for\n         the target section and an optional introduction. Returns an empty\n         string and None if the target section is empty.\n\nRaises:\n    ValueError: If `target_section` is 'experience'.\n\nNetwork access:\n    - This function makes network requests to the LLM endpoint specified by\n      llm_endpoint.\n\nNotes:\n    1. Checks if `target_section` is 'experience' and raises a `ValueError` if so.\n    2. Determines the model name, falling back to a default if not provided.\n    3. Constructs parameters for `ChatOpenAI`, including the model name, endpoint,\n       and API key. A dummy API key is used for custom, non-OpenRouter endpoints if\n       no key is provided.\n    4. Initializes the `ChatOpenAI` client.\n    5. Calls `_refine_generic_section` with the resume content, job description,\n       target section, and the initialized LLM client.\n    6. Returns the tuple of refined content and introduction from the helper function."
       ]
     ],
     "classes": {}
@@ -1917,7 +2000,7 @@
       ],
       [
         "_generate_resume_list_html(base_resumes: list[DatabaseResume], refined_resumes: list[DatabaseResume], selected_resume_id: int | None, sort_by: str | None, wrap_in_div: bool) -> str",
-        "Generates HTML for a list of resumes, optionally marking one as selected.\n\nArgs:\n    base_resumes (list[DatabaseResume]): The list of base resumes to display.\n    refined_resumes (list[DatabaseResume]): The list of refined resumes to display.\n    selected_resume_id (int | None): The ID of the resume to mark as selected.\n\nReturns:\n    str: HTML string for the resume list.\n\nNotes:\n    1. Renders the `partials/resume/_resume_list.html` template."
+        "Generates HTML for a list of resumes, optionally marking one as selected.\n\nArgs:\n    base_resumes (list[DatabaseResume]): The list of base resumes to display.\n    refined_resumes (list[DatabaseResume]): The list of refined resumes to display.\n    selected_resume_id (int | None): The ID of the resume to mark as selected.\n    sort_by (str | None): The current sorting key applied to the resume list, if any.\n    wrap_in_div (bool): If True, wrap the generated HTML in a div with id 'resume-list'.\n\nReturns:\n    str: HTML string for the resume list.\n\nNotes:\n    1. Renders the `partials/resume/_resume_list.html` template."
       ],
       [
         "_generate_resume_detail_html(resume: DatabaseResume) -> str",
@@ -2057,6 +2140,22 @@
       [
         "_add_project_skills_markdown(skills: any, lines: list[str]) -> None",
         "Adds project skills Markdown to a list of lines.\nArgs:\n    skills (any): The parsed project skills from resume_writer.\n    lines (list[str]): The list of lines to append to.\nNotes:\n    1. Checks for a list of skills.\n    2. If it exists, adds a \"Skills\" section header and the skills as a bulleted list.\n    3. Adds a trailing blank line to the section."
+      ],
+      [
+        "_add_role_basics_markdown(basics: any, lines: list[str]) -> None",
+        "Adds role basics Markdown to a list of lines.\nArgs:\n    basics (any): The parsed role basics from resume_writer.\n    lines (list[str]): The list of lines to append to.\nNotes:\n    1. Defines mappings for string and date fields to their labels.\n    2. Iterates through the field mappings to collect basics info.\n    3. Formats date fields to 'MM/YYYY'.\n    4. If any data is collected, adds a \"Basics\" section header.\n    5. Appends each non-empty field.\n    6. Adds a trailing blank line."
+      ],
+      [
+        "_add_role_summary_markdown(summary: any, lines: list[str]) -> None",
+        "Adds role summary Markdown to a list of lines.\nArgs:\n    summary (any): The parsed role summary from resume_writer.\n    lines (list[str]): The list of lines to append to.\nNotes:\n    1. Checks for summary text.\n    2. If present, adds a \"Summary\" section header and the text.\n    3. Adds a trailing blank line."
+      ],
+      [
+        "_add_role_responsibilities_markdown(responsibilities: any, inclusion_status: InclusionStatus, lines: list[str]) -> None",
+        "Adds role responsibilities Markdown to a list of lines.\nArgs:\n    responsibilities (any): The parsed role responsibilities from resume_writer.\n    inclusion_status (InclusionStatus): The inclusion status of the role.\n    lines (list[str]): The list of lines to append to.\nNotes:\n    1. If inclusion_status is `NOT_RELEVANT`, appends a placeholder.\n    2. If inclusion_status is `INCLUDE` and responsibilities text exists, appends the text.\n    3. Adds section header and trailing blank line as appropriate."
+      ],
+      [
+        "_add_role_skills_markdown(skills: any, lines: list[str]) -> None",
+        "Adds role skills Markdown to a list of lines.\nArgs:\n    skills (any): The parsed role skills from resume_writer.\n    lines (list[str]): The list of lines to append to.\nNotes:\n    1. Checks for a list of skills.\n    2. If it exists and is not empty, adds a \"Skills\" section header.\n    3. Appends the skills as a bulleted list.\n    4. Adds a trailing blank line."
       ]
     ],
     "classes": {}
@@ -2096,8 +2195,34 @@
       [
         "process_refined_experience_result(resume: DatabaseResume, refined_roles: dict, job_description: str, introduction: str | None) -> str",
         "Processes refined experience roles and generates final HTML.\n\nThis function takes the refined roles from the LLM, reconstructs the full\nresume content, and then generates the final HTML result to be sent in the\n'done' SSE event.\n\nArgs:\n    resume (DatabaseResume): The original resume object.\n    refined_roles (dict): A dictionary of refined role data from the LLM,\n                          keyed by their original index.\n    job_description (str): The job description used for refinement.\n    introduction (str | None): The LLM-generated introduction, if any.\n\nReturns:\n    str: The complete HTML content for the body of the `done` event."
+      ],
+      [
+        "_process_sse_event(event: dict, refined_roles: dict) -> tuple[str | None, str | None]",
+        "Processes a single SSE event from the experience refinement stream.\n\nThis helper function updates the state of refined roles and determines\nwhat message, if any, should be yielded to the client.\n\nArgs:\n    event (dict): The event data from the async generator.\n    refined_roles (dict): A dictionary to be updated with refined role data.\n\nReturns:\n    tuple[str | None, str | None]: A tuple containing an optional SSE message\n                                   to yield and optional new introduction text."
+      ],
+      [
+        "_handle_sse_exception(e: Exception, resume_id: int) -> str",
+        "Handles exceptions during an SSE stream and formats an error message.\n\nArgs:\n    e (Exception): The exception that was raised.\n    resume_id (int): The ID of the resume being processed.\n\nReturns:\n    str: A formatted SSE error message string."
+      ],
+      [
+        "reconstruct_resume_from_refined_section(original_resume_content: str, refined_content: str, target_section: RefineTargetSection) -> str",
+        "Rebuilds a complete resume by combining a refined section with original sections.\n\nThis function takes a refined content string for a specific section and reconstructs\nthe full resume markdown by parsing all sections, replacing the target section\nwith the refined version, and then building the complete markdown from these parts.\n\nArgs:\n    original_resume_content (str): The full markdown content of the original resume.\n    refined_content (str): The markdown content of the section that has been refined.\n    target_section (RefineTargetSection): The enum member indicating which section was refined.\n\nReturns:\n    str: The full markdown content of the reconstructed resume."
+      ],
+      [
+        "handle_accept_refinement(db: Session, resume: DatabaseResume, refined_content: str, target_section: RefineTargetSection, introduction: str | None) -> DatabaseResume",
+        "Orchestrates accepting a refined resume section.\n\nThis involves reconstructing the resume, validating it, and updating the database.\n\nArgs:\n    db (Session): The database session.\n    resume (DatabaseResume): The original resume to update.\n    refined_content (str): The refined content for the target section.\n    target_section (RefineTargetSection): The section that was refined.\n    introduction (str | None): An optional new introduction.\n\nReturns:\n    DatabaseResume: The updated resume object.\n\nRaises:\n    HTTPException: If reconstruction or validation fails."
+      ],
+      [
+        "handle_save_as_new_refinement(params: SaveAsNewParams) -> DatabaseResume",
+        "Orchestrates saving a refined resume as a new resume.\n\nThis involves reconstructing the resume, validating it, and creating a new record in the database.\n\nArgs:\n    params (SaveAsNewParams): The parameters for saving the new resume.\n\nReturns:\n    DatabaseResume: The newly created resume object.\n\nRaises:\n    HTTPException: If reconstruction or validation fails."
       ]
     ],
+    "classes": {}
+  },
+  "resume_editor/app/web/pages.py": {
+    "filepath": "resume_editor/app/web/pages.py",
+    "filename": "pages.py",
+    "functions": [],
     "classes": {}
   }
 }

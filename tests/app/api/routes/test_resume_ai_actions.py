@@ -3,6 +3,8 @@ from unittest.mock import ANY, patch
 import pytest
 from fastapi import HTTPException
 
+from resume_editor.app.api.routes.route_models import SaveAsNewParams
+
 
 @patch("resume_editor.app.api.routes.resume_ai.handle_accept_refinement")
 @pytest.mark.parametrize(
@@ -144,16 +146,18 @@ def test_save_refined_resume_as_new_full(
     assert response.headers["HX-Redirect"] == "/dashboard"
     assert not response.content
 
-    mock_handle_save.assert_called_once_with(
-        db=ANY,
-        user=test_user,
-        resume=test_resume,
-        refined_content=refined_content,
-        target_section=RefineTargetSection.FULL,
-        new_resume_name="New Name",
-        job_description="A job description",
-        introduction=expected_intro,
-    )
+    mock_handle_save.assert_called_once()
+    call_args, _ = mock_handle_save.call_args
+    assert len(call_args) == 1
+    params_arg = call_args[0]
+    assert isinstance(params_arg, SaveAsNewParams)
+    assert params_arg.user == test_user
+    assert params_arg.resume == test_resume
+    assert params_arg.form_data.refined_content == refined_content
+    assert params_arg.form_data.target_section == RefineTargetSection.FULL
+    assert params_arg.form_data.new_resume_name == "New Name"
+    assert params_arg.form_data.job_description == "A job description"
+    assert params_arg.form_data.introduction == expected_intro
 
 
 @patch("resume_editor.app.api.routes.resume_ai.handle_save_as_new_refinement")
@@ -195,16 +199,18 @@ def test_save_refined_resume_as_new_partial_with_job_desc(
     assert response.headers["HX-Redirect"] == "/dashboard"
     assert not response.content
 
-    mock_handle_save.assert_called_once_with(
-        db=ANY,
-        user=test_user,
-        resume=test_resume,
-        refined_content=refined_content,
-        target_section=RefineTargetSection.PERSONAL,
-        new_resume_name="New Name",
-        job_description="A job description",
-        introduction=expected_intro,
-    )
+    mock_handle_save.assert_called_once()
+    call_args, _ = mock_handle_save.call_args
+    assert len(call_args) == 1
+    params_arg = call_args[0]
+    assert isinstance(params_arg, SaveAsNewParams)
+    assert params_arg.user == test_user
+    assert params_arg.resume == test_resume
+    assert params_arg.form_data.refined_content == refined_content
+    assert params_arg.form_data.target_section == RefineTargetSection.PERSONAL
+    assert params_arg.form_data.new_resume_name == "New Name"
+    assert params_arg.form_data.job_description == "A job description"
+    assert params_arg.form_data.introduction == expected_intro
 
 
 @patch("resume_editor.app.api.routes.resume_ai.handle_save_as_new_refinement")
@@ -243,16 +249,18 @@ def test_save_refined_resume_as_new_no_intro_no_jd(
     assert response.headers["HX-Redirect"] == "/dashboard"
     assert not response.content
 
-    mock_handle_save.assert_called_once_with(
-        db=ANY,
-        user=test_user,
-        resume=test_resume,
-        refined_content=refined_content,
-        target_section=RefineTargetSection.PERSONAL,
-        new_resume_name="New Name",
-        job_description=None,
-        introduction=expected_intro,
-    )
+    mock_handle_save.assert_called_once()
+    call_args, _ = mock_handle_save.call_args
+    assert len(call_args) == 1
+    params_arg = call_args[0]
+    assert isinstance(params_arg, SaveAsNewParams)
+    assert params_arg.user == test_user
+    assert params_arg.resume == test_resume
+    assert params_arg.form_data.refined_content == refined_content
+    assert params_arg.form_data.target_section == RefineTargetSection.PERSONAL
+    assert params_arg.form_data.new_resume_name == "New Name"
+    assert params_arg.form_data.job_description is None
+    assert params_arg.form_data.introduction == expected_intro
 
 
 @patch("resume_editor.app.api.routes.resume_ai.handle_save_as_new_refinement")

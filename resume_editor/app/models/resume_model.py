@@ -1,4 +1,5 @@
 import logging
+from dataclasses import dataclass
 from datetime import datetime, timezone
 
 from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String, Text
@@ -9,9 +10,23 @@ from resume_editor.app.models import Base
 log = logging.getLogger(__name__)
 
 
+@dataclass
+class ResumeData:
+    """Dataclass to hold data for Resume initialization."""
+
+    user_id: int
+    name: str
+    content: str
+    is_active: bool = True
+    is_base: bool = True
+    job_description: str | None = None
+    parent_id: int | None = None
+    notes: str | None = None
+    introduction: str | None = None
+
+
 class Resume(Base):
-    """
-    Resume model for storing user resumes.
+    """Resume model for storing user resumes.
 
     Attributes:
         id (int): Unique identifier for the resume.
@@ -28,6 +43,7 @@ class Resume(Base):
         children (list[Resume]): The child resumes relationship.
         notes (str | None): User-provided notes for the resume.
         introduction (str | None): AI-generated introduction for the resume.
+
     """
 
     __tablename__ = "resumes"
@@ -37,7 +53,9 @@ class Resume(Base):
     name = Column(String, nullable=False)
     content = Column(Text, nullable=False)
     created_at = Column(
-        DateTime, default=lambda: datetime.now(timezone.utc), nullable=False
+        DateTime,
+        default=lambda: datetime.now(timezone.utc),
+        nullable=False,
     )
     updated_at = Column(
         DateTime,
@@ -58,60 +76,36 @@ class Resume(Base):
     # Self-referencing relationship for refined resumes
     parent = relationship("Resume", remote_side=[id], back_populates="children")
     children = relationship(
-        "Resume", back_populates="parent", cascade="all, delete-orphan"
+        "Resume",
+        back_populates="parent",
+        cascade="all, delete-orphan",
     )
 
-    def __init__(
-        self,
-        user_id: int,
-        name: str,
-        content: str,
-        is_active: bool = True,
-        is_base: bool = True,
-        job_description: str | None = None,
-        parent_id: int | None = None,
-        notes: str | None = None,
-        introduction: str | None = None,
-    ):
-        """
-        Initialize a Resume instance.
+    def __init__(self, data: ResumeData):
+        """Initialize a Resume instance.
 
         Args:
-            user_id (int): The unique identifier of the user who owns the resume.
-            name (str): A descriptive name assigned by the user for the resume; must be non-empty.
-            content (str): The Markdown-formatted text content of the resume; must be non-empty.
-            is_active (bool): A flag indicating whether the resume is currently active; defaults to True.
-            is_base (bool): Whether this is a base resume. Defaults to True.
-            job_description (str | None): The job description for a refined resume.
-            parent_id (int | None): The ID of the parent resume if this is a refined resume.
-            notes (str | None): User-provided notes for the resume.
-            introduction (str | None): AI-generated introduction for the resume.
+            data (ResumeData): An object containing the data for the new resume.
 
         Returns:
             None
 
-        Raises:
-            ValueError: If user_id is not an integer, name is empty, content is empty, or is_active is not a boolean.
-
         Notes:
-            1. Validate that user_id is an integer.
-            2. Validate that name is a non-empty string.
-            3. Validate that content is a non-empty string.
-            4. Validate that is_active is a boolean.
-            5. Assign user_id, name, content, is_active, is_base, job_description, parent_id, notes, and introduction to instance attributes.
-            6. Log the initialization of the resume with its name.
-            7. This function performs no database access.
+            1. Assigns attributes from the `data` object to the `Resume` instance.
+            2. This constructor does not perform validation. It assumes `data` is a valid `ResumeData` object.
+            3. Logs the initialization of the resume.
+            4. This function does not perform disk, network, or database access.
 
         """
-        _msg = f"Initializing Resume with name: {name}"
+        _msg = f"Initializing Resume with name: {data.name}"
         log.debug(_msg)
 
-        self.user_id = user_id
-        self.name = name
-        self.content = content
-        self.is_active = is_active
-        self.is_base = is_base
-        self.job_description = job_description
-        self.parent_id = parent_id
-        self.notes = notes
-        self.introduction = introduction
+        self.user_id = data.user_id
+        self.name = data.name
+        self.content = data.content
+        self.is_active = data.is_active
+        self.is_base = data.is_base
+        self.job_description = data.job_description
+        self.parent_id = data.parent_id
+        self.notes = data.notes
+        self.introduction = data.introduction

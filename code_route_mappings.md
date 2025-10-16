@@ -15,14 +15,14 @@ Many routes may point to one file.
 ## Code->route file mappings
 
 These are the known mappings:
-- `/login->resume_editor/app/main.py`
-- `/resumes/{resume_id}/edit->resume_editor/app/main.py`
-- `/resumes/{resume_id}/view->resume_editor/app/main.py`
+- `/login->resume_editor/app/web/pages.py`
+- `/resumes/{resume_id}/edit->resume_editor/app/web/pages.py`
+- `/resumes/{resume_id}/view->resume_editor/app/web/pages.py`
 - `/api/resumes/{resume_id}/download->resume_editor/app/api/routes/resume_export.py`
 - `/api/resumes->resume_editor/app/api/routes/resume.py`
 - `/api/resumes/parse->resume_editor/app/api/routes/resume.py`
 - `/api/resumes/{resume_id}/export/markdown->resume_editor/app/api/routes/resume_export.py`
-- `/resumes/create->resume_editor/app/main.py`
+- `/resumes/create->resume_editor/app/web/pages.py`
 - `/api/resumes/{resume_id}/refine->resume_editor/app/api/routes/resume_ai.py`
 - `/api/resumes/{resume_id}/refine/stream->resume_editor/app/api/routes/resume_ai.py`
 - `/api/resumes/{resume_id}/refine/accept->resume_editor/app/api/routes/resume_ai.py`
@@ -37,4 +37,9 @@ These are the known mappings:
 - `/api/resumes/{resume_id}/certifications->resume_editor/app/api/routes/resume_edit.py`
 - `/api/resumes/{resume_id}/edit/certifications->resume_editor/app/api/routes/resume_edit.py`
 - `/api/resumes/{resume_id}/refine/discard->resume_editor/app/api/routes/resume_ai.py`
-- `/resumes/{resume_id}/refine->resume_editor/app/main.py`
+- `/resumes/{resume_id}/refine->resume_editor/app/web/pages.py`
+- `/api/admin/users/->resume_editor/app/api/routes/admin.py`
+- `/api/admin/users/{user_id}->resume_editor/app/api/routes/admin.py`
+- `/api/admin/users/{user_id}/roles/{role_name}->resume_editor/app/api/routes/admin.py`
+- `/api/admin/impersonate/{username}->resume_editor/app/api/routes/admin.py`
+- `/setup->resume_editor/app/api/routes/pages/setup.py`

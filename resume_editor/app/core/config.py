@@ -8,8 +8,7 @@ log = logging.getLogger(__name__)
 
 
 class Settings(BaseSettings):
-    """
-    Application settings loaded from environment variables.
+    """Application settings loaded from environment variables.
 
     This class defines all configuration values used by the application,
     including database connection details, security parameters, and API keys.
@@ -46,8 +45,7 @@ class Settings(BaseSettings):
     @computed_field
     @property
     def database_url(self) -> PostgresDsn:
-        """
-        Assembled database URL from components.
+        """Assembled database URL from components.
 
         Args:
             None: This property does not take any arguments.
@@ -92,8 +90,7 @@ class Settings(BaseSettings):
 
 @lru_cache
 def get_settings() -> Settings:
-    """
-    Get the global settings instance.
+    """Get the global settings instance.
 
     This function returns a singleton instance of the Settings class,
     which contains all application configuration values.

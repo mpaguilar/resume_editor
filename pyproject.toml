@@ -1,6 +1,6 @@
 [project]
 name = "resume-editor"
-version = "0.60.14"
+version = "0.60.19"
 description = "Edits and refines resumes"
 readme = "README.md"
 requires-python = ">=3.12"
@@ -9,7 +9,7 @@ dependencies = [
     "bcrypt>=4.3.0",
     "click>=8.2.1",
     "cryptography>=45.0.6",
-    "fastapi>=0.116.1",
+    "fastapi>=0.119.0",
     "langchain-openai>=0.3.29",
     "passlib>=1.7.4",
     "psycopg2-binary>=2.9.10",
@@ -47,3 +47,25 @@ log_cli_level = "DEBUG"
 
 [tool.uv.sources]
 resume-writer = { git = "https://github.com/mpaguilar/resume_writer.git", rev = "44084d1" }
+
+[tool.ruff]
+exclude = ["temporal-samples-python"]
+
+[tool.ruff.lint]
+select = ["ALL"]
+ignore = ["ANN101", "D201", "D202",
+    "RET504", # ignore assignment right before return
+    "PGH003", # ignore general mypy type: ignore
+    "PTH123", # ignore Path.open
+    "FA102", # ignore annotation warning, we require v3.10
+    "ANN102", # ignore `cls` annotations
+    "TD002", "TD003", "FIX002", # ignore TODO details
+    "S101", # ignore asserts
+    "ANN204", # ignore __init__ return type
+    "UP032", "G001", # I like str.format
+    "TRY003", # Ignore long exception messages
+    "D104", "D100" # Ignore docstring for __init__.py, __main__.py
+    ]
+
+[tool.ruff.lint.per-file-ignores]
+"**/tests/**/*" = ["ANN", "D", "I"]

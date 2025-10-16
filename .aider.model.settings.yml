@@ -9,3 +9,11 @@
 - name: openrouter/qwen/qwen3-coder
   edit_format: diff
   cache_control: true
+
+- name: openrouter/google/gemini-2.5-flash
+  edit_format: diff
+  cache_control: true
+
+- name: openrouter/google/gemini-2.5-pro
+  edit_format: diff-fenced
+  cache_control: true

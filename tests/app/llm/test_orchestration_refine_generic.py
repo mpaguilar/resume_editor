@@ -3,6 +3,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from openai import AuthenticationError
 
+from resume_editor.app.llm.models import LLMConfig
 from resume_editor.app.llm.orchestration import (
     _refine_generic_section,
     refine_resume_section_with_llm,
@@ -176,9 +177,7 @@ def test_refine_resume_section_with_llm_dispatcher():
             resume_content="resume",
             job_description="job desc",
             target_section="personal",
-            llm_endpoint=None,
-            api_key=None,
-            llm_model_name=None,
+            llm_config=LLMConfig(),
             generate_introduction=True,
         )
         assert result_content == "refined content from helper"
@@ -213,9 +212,11 @@ def test_refine_resume_section_with_llm_initialization(
             resume_content="resume",
             job_description="job desc",
             target_section="personal",
-            llm_endpoint=llm_endpoint,
-            api_key=api_key,
-            llm_model_name=llm_model_name,
+            llm_config=LLMConfig(
+                llm_endpoint=llm_endpoint,
+                api_key=api_key,
+                llm_model_name=llm_model_name,
+            ),
             generate_introduction=True,
         )
 
@@ -244,9 +245,7 @@ def test_refine_resume_section_with_llm_experience_raises_error():
             resume_content="resume",
             job_description="job desc",
             target_section="experience",
-            llm_endpoint=None,
-            api_key=None,
-            llm_model_name=None,
+            llm_config=LLMConfig(),
             generate_introduction=True,
         )
 

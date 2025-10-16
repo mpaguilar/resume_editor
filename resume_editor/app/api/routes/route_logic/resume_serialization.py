@@ -1,8 +1,5 @@
 import logging
 
-from resume_writer.models.parsers import ParseContext
-from resume_writer.models.resume import Resume as WriterResume
-
 from resume_editor.app.api.routes.route_logic.resume_serialization_helpers import (
     _add_banner_markdown,
     _add_contact_info_markdown,
@@ -28,14 +25,13 @@ from resume_editor.app.api.routes.route_models import (
     ExperienceResponse,
     PersonalInfoResponse,
 )
-from resume_editor.app.models.resume.experience import InclusionStatus
+from resume_editor.app.models.resume.experience import InclusionStatus, Project, Role
 
 log = logging.getLogger(__name__)
 
 
 def extract_personal_info(resume_content: str) -> PersonalInfoResponse:
-    """
-    Extract personal information from resume content.
+    """Extract personal information from resume content.
 
     Args:
         resume_content (str): The Markdown content of the resume to parse.
@@ -52,6 +48,7 @@ def extract_personal_info(resume_content: str) -> PersonalInfoResponse:
         3. If no personal section was parsed, an empty response is returned.
         4. Extracts data from the parsed personal section using `_extract_data_from_personal_section`.
         5. Constructs and returns a `PersonalInfoResponse` with the extracted data.
+
     """
     log.debug("extract_personal_info starting")
     try:
@@ -76,8 +73,7 @@ def extract_personal_info(resume_content: str) -> PersonalInfoResponse:
 
 
 def extract_education_info(resume_content: str) -> EducationResponse:
-    """
-    Extract education information from resume content.
+    """Extract education information from resume content.
 
     Args:
         resume_content (str): The Markdown content of the resume to parse.
@@ -129,8 +125,7 @@ def extract_education_info(resume_content: str) -> EducationResponse:
 
 
 def extract_experience_info(resume_content: str) -> ExperienceResponse:
-    """
-    Extract experience information from resume content.
+    """Extract experience information from resume content.
 
     Args:
         resume_content (str): The Markdown content of the resume to parse.
@@ -166,7 +161,11 @@ def extract_experience_info(resume_content: str) -> ExperienceResponse:
                 roles_list.append(role_dict)
 
     projects_list = []
-    if experience and hasattr(experience, "projects") and experience.projects is not None:
+    if (
+        experience
+        and hasattr(experience, "projects")
+        and experience.projects is not None
+    ):
         for project in experience.projects:
             project_dict = _convert_writer_project_to_dict(project)
             if project_dict:
@@ -179,8 +178,7 @@ def extract_experience_info(resume_content: str) -> ExperienceResponse:
 
 
 def extract_certifications_info(resume_content: str) -> CertificationsResponse:
-    """
-    Extract certifications information from resume content.
+    """Extract certifications information from resume content.
 
     Args:
         resume_content (str): The Markdown content of the resume to parse.
@@ -232,9 +230,10 @@ def extract_certifications_info(resume_content: str) -> CertificationsResponse:
     return CertificationsResponse(certifications=certs_list)
 
 
-def serialize_personal_info_to_markdown(personal_info: PersonalInfoResponse | None) -> str:
-    """
-    Serialize personal information to Markdown format.
+def serialize_personal_info_to_markdown(
+    personal_info: PersonalInfoResponse | None,
+) -> str:
+    """Serialize personal information to Markdown format.
 
     Args:
         personal_info (PersonalInfoResponse | None): Personal information to serialize.
@@ -252,6 +251,7 @@ def serialize_personal_info_to_markdown(personal_info: PersonalInfoResponse | No
             b. Joins the elements of `lines` with newlines.
             c. Appends a final newline.
         5. Otherwise, returns an empty string.
+
     """
     if not personal_info:
         return ""
@@ -269,12 +269,11 @@ def serialize_personal_info_to_markdown(personal_info: PersonalInfoResponse | No
     return "# Personal\n\n" + "\n".join(lines) + "\n"
 
 
-def serialize_education_to_markdown(education) -> str:
-    """
-    Serialize education information to Markdown format.
+def serialize_education_to_markdown(education: EducationResponse | None) -> str:
+    """Serialize education information to Markdown format.
 
     Args:
-        education: Education information to serialize, containing a list of degree entries.
+        education (EducationResponse | None): Education information to serialize, containing a list of degree entries.
 
     Returns:
         str: Markdown formatted education section.
@@ -319,12 +318,11 @@ def serialize_education_to_markdown(education) -> str:
     return ""
 
 
-def _serialize_project_to_markdown(project) -> list[str]:
-    """
-    Serialize a single project to markdown lines.
+def _serialize_project_to_markdown(project: Project) -> list[str]:
+    """Serialize a single project to markdown lines.
 
     Args:
-        project: A project object to serialize.
+        project (Project): A project object to serialize.
 
     Returns:
         list[str]: A list of markdown lines representing the project.
@@ -361,12 +359,11 @@ def _serialize_project_to_markdown(project) -> list[str]:
     return []
 
 
-def _serialize_role_to_markdown(role) -> list[str]:
-    """
-    Serialize a single role to markdown lines.
+def _serialize_role_to_markdown(role: Role) -> list[str]:
+    """Serialize a single role to markdown lines.
 
     Args:
-        role: A role object to serialize.
+        role (Role): A role object to serialize.
 
     Returns:
         list[str]: A list of markdown lines representing the role.
@@ -399,7 +396,9 @@ def _serialize_role_to_markdown(role) -> list[str]:
 
     responsibilities = getattr(role, "responsibilities", None)
     _add_role_responsibilities_markdown(
-        responsibilities, inclusion_status, role_content
+        responsibilities,
+        inclusion_status,
+        role_content,
     )
 
     skills = getattr(role, "skills", None)
@@ -410,12 +409,11 @@ def _serialize_role_to_markdown(role) -> list[str]:
     return []
 
 
-def serialize_experience_to_markdown(experience) -> str:
-    """
-    Serialize experience information to Markdown format.
+def serialize_experience_to_markdown(experience: ExperienceResponse | None) -> str:
+    """Serialize experience information to Markdown format.
 
     Args:
-        experience: Experience information to serialize, containing lists of roles and projects.
+        experience (ExperienceResponse | None): Experience information to serialize, containing lists of roles and projects.
 
     Returns:
         str: Markdown formatted experience section.
@@ -458,12 +456,13 @@ def serialize_experience_to_markdown(experience) -> str:
     return "\n".join(lines) + "\n"
 
 
-def serialize_certifications_to_markdown(certifications) -> str:
-    """
-    Serialize certifications information to Markdown format.
+def serialize_certifications_to_markdown(
+    certifications: CertificationsResponse | None,
+) -> str:
+    """Serialize certifications information to Markdown format.
 
     Args:
-        certifications: Certifications information to serialize, containing a list of certifications.
+        certifications (CertificationsResponse | None): Certifications information to serialize, containing a list of certifications.
 
     Returns:
         str: Markdown formatted certifications section.
@@ -506,20 +505,19 @@ def serialize_certifications_to_markdown(certifications) -> str:
 
 def update_resume_content_with_structured_data(
     current_content: str,
-    personal_info=None,
-    education=None,
-    certifications=None,
-    experience=None,
+    personal_info: PersonalInfoResponse | None = None,
+    education: EducationResponse | None = None,
+    certifications: CertificationsResponse | None = None,
+    experience: ExperienceResponse | None = None,
 ) -> str:
-    """
-    Update resume content with structured data by replacing specific sections.
+    """Update resume content with structured data by replacing specific sections.
 
     Args:
         current_content (str): Current resume Markdown content to update.
-        personal_info: Updated personal information to insert. If None, the existing info is preserved.
-        education: Updated education information to insert. If None, the existing info is preserved.
-        certifications: Updated certifications information to insert. If None, the existing info is preserved.
-        experience: Updated experience information to insert. If None, the existing info is preserved.
+        personal_info (PersonalInfoResponse | None): Updated personal information to insert. If None, the existing info is preserved.
+        education (EducationResponse | None): Updated education information to insert. If None, the existing info is preserved.
+        certifications (CertificationsResponse | None): Updated certifications information to insert. If None, the existing info is preserved.
+        experience (ExperienceResponse | None): Updated experience information to insert. If None, the existing info is preserved.
 
     Returns:
         str: Updated resume content with new structured data.

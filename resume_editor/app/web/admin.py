@@ -1,8 +1,9 @@
 import logging
 from pathlib import Path
+from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
@@ -33,9 +34,9 @@ templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 @router.get("/users/", response_class=HTMLResponse)
 async def admin_users_page(
     request: Request,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_admin_user_from_cookie),
-):
+    db: Annotated[Session, Depends(get_db)],
+    current_user: Annotated[User, Depends(get_current_admin_user_from_cookie)],
+) -> HTMLResponse:
     """Serves the admin page for managing users.
 
     This endpoint is protected and requires administrator privileges. It handles
@@ -57,6 +58,7 @@ async def admin_users_page(
         4. Converts each user to an AdminUserResponse model for consistent response formatting.
         5. Renders the "admin/users.html" template with the list of users and current user context.
         6. Database access: Reads all users from the database via get_users_admin.
+
     """
     _msg = "Admin users page requested"
     log.debug(_msg)
@@ -74,9 +76,9 @@ async def admin_users_page(
 async def admin_delete_user_web(
     request: Request,
     user_id: int,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_admin_user_from_cookie),
-):
+    db: Annotated[Session, Depends(get_db)],
+    current_user: Annotated[User, Depends(get_current_admin_user_from_cookie)],
+) -> HTMLResponse:
     """Handles the deletion of a user from the admin web interface.
 
     This endpoint is protected and requires administrator privileges.
@@ -105,6 +107,7 @@ async def admin_delete_user_web(
         8. Converts each user to an AdminUserResponse model for consistent response formatting.
         9. Renders the "admin/partials/user_list.html" template with the updated user list and current user context.
         10. Database access: Reads and deletes a user from the database via get_user_by_id_admin and delete_user_admin.
+
     """
     _msg = f"Admin delete user web requested for user_id: {user_id}"
     log.debug(_msg)

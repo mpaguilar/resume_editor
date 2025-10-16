@@ -1,4 +1,5 @@
 import logging
+from typing import Annotated
 
 from fastapi import Depends
 from sqlalchemy.orm import Session
@@ -16,11 +17,10 @@ log = logging.getLogger(__name__)
 
 async def get_resume_for_user(
     resume_id: int,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user_from_cookie),
+    db: Annotated[Session, Depends(get_db)],
+    current_user: Annotated[User, Depends(get_current_user_from_cookie)],
 ) -> DatabaseResume:
-    """
-    Dependency to get a specific resume for the current user.
+    """Dependency to get a specific resume for the current user.
 
     Args:
         resume_id (int): The unique identifier of the resume to retrieve.

@@ -1,5 +1,4 @@
-"""
-This module serves as the initialization file for the core package of the resume editor application.
+"""This module serves as the initialization file for the core package of the resume editor application.
 
 It defines the main entry points and configurations for the core functionality.
 

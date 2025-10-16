@@ -8,7 +8,10 @@ from fastapi.testclient import TestClient
 from resume_editor.app.api.dependencies import get_resume_for_user
 from resume_editor.app.api.routes.route_models import RenderFormat, RenderSettingsName
 from resume_editor.app.main import create_app
-from resume_editor.app.models.resume_model import Resume as DatabaseResume
+from resume_editor.app.models.resume_model import (
+    Resume as DatabaseResume,
+    ResumeData,
+)
 
 # Sample resume content for testing
 VALID_RESUME_CONTENT = """
@@ -46,9 +49,10 @@ def client(app):
 @pytest.fixture
 def setup_resume_dependency(app):
     """Fixture to set up database resume dependency override."""
-    mock_resume = DatabaseResume(
+    resume_data = ResumeData(
         user_id=1, name="Test Resume", content=VALID_RESUME_CONTENT
     )
+    mock_resume = DatabaseResume(data=resume_data)
     mock_resume.id = 1
 
     def override_get_resume_for_user():

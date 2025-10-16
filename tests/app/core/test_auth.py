@@ -16,7 +16,7 @@ from resume_editor.app.core.auth import (
     verify_admin_privileges,
 )
 from resume_editor.app.models.role import Role
-from resume_editor.app.models.user import User
+from resume_editor.app.models.user import User, UserData
 
 # --- Tests for get_current_user ---
 
@@ -31,9 +31,11 @@ def test_get_current_user_success(mock_jwt_decode, mock_get_settings):
     )
     mock_db = MagicMock(spec=Session)
     expected_user = User(
-        username="testuser",
-        email="test@example.com",
-        hashed_password="hashed",
+        data=UserData(
+            username="testuser",
+            email="test@example.com",
+            hashed_password="hashed",
+        )
     )
     mock_db.query.return_value.filter.return_value.first.return_value = expected_user
     mock_jwt_decode.return_value = {"sub": "testuser"}
@@ -122,9 +124,11 @@ client = TestClient(app)
 def test_get_current_admin_user_with_admin_role():
     """Test that a user with the 'admin' role is granted access."""
     admin_user = User(
-        username="admin",
-        email="admin@test.com",
-        hashed_password="password",
+        data=UserData(
+            username="admin",
+            email="admin@test.com",
+            hashed_password="password",
+        )
     )
     admin_role = Role(name="admin")
     admin_user.roles = [admin_role]
@@ -143,7 +147,9 @@ def test_get_current_admin_user_with_admin_role():
 
 def test_get_current_admin_user_without_admin_role():
     """Test that a user without the 'admin' role is denied access."""
-    user = User(username="user", email="user@test.com", hashed_password="password")
+    user = User(
+        data=UserData(username="user", email="user@test.com", hashed_password="password")
+    )
     user_role = Role(name="user")
     user.roles = [user_role]
 
@@ -182,9 +188,11 @@ def test_get_current_user_from_cookie_success(
     )
     mock_db = MagicMock(spec=Session)
     expected_user = User(
-        username="testuser",
-        email="test@example.com",
-        hashed_password="hashed",
+        data=UserData(
+            username="testuser",
+            email="test@example.com",
+            hashed_password="hashed",
+        )
     )
     mock_db.query.return_value.filter.return_value.first.return_value = expected_user
     mock_jwt_decode.return_value = {"sub": "testuser"}
@@ -332,12 +340,14 @@ def test_get_current_user_from_cookie_force_change_redirect(
     )
     mock_db = MagicMock(spec=Session)
     user_with_force = User(
-        username="forceuser",
-        email="force@example.com",
-        hashed_password="hashed",
-        attributes={"force_password_change": True},
+        data=UserData(
+            username="forceuser",
+            email="force@example.com",
+            hashed_password="hashed",
+            attributes={"force_password_change": True},
+            id_=2,
+        )
     )
-    user_with_force.id = 2
     mock_db.query.return_value.filter.return_value.first.return_value = user_with_force
     mock_jwt_decode.return_value = {"sub": "forceuser"}
     mock_request.cookies.get.return_value = "valid-token"
@@ -369,12 +379,14 @@ def test_get_current_user_from_cookie_force_change_htmx_redirect(
     )
     mock_db = MagicMock(spec=Session)
     user_with_force = User(
-        username="forceuser",
-        email="force@example.com",
-        hashed_password="hashed",
-        attributes={"force_password_change": True},
+        data=UserData(
+            username="forceuser",
+            email="force@example.com",
+            hashed_password="hashed",
+            attributes={"force_password_change": True},
+            id_=2,
+        )
     )
-    user_with_force.id = 2
     mock_db.query.return_value.filter.return_value.first.return_value = user_with_force
     mock_jwt_decode.return_value = {"sub": "forceuser"}
     mock_request.cookies.get.return_value = "valid-token"
@@ -411,12 +423,14 @@ def test_get_current_user_from_cookie_force_change_no_redirect_on_allowed_paths(
     )
     mock_db = MagicMock(spec=Session)
     user_with_force = User(
-        username="forceuser",
-        email="force@example.com",
-        hashed_password="hashed",
-        attributes={"force_password_change": True},
+        data=UserData(
+            username="forceuser",
+            email="force@example.com",
+            hashed_password="hashed",
+            attributes={"force_password_change": True},
+            id_=2,
+        )
     )
-    user_with_force.id = 2
     mock_db.query.return_value.filter.return_value.first.return_value = user_with_force
     mock_jwt_decode.return_value = {"sub": "forceuser"}
     mock_request.cookies.get.return_value = "valid-token"
@@ -440,12 +454,14 @@ def test_get_current_user_from_cookie_no_force_change(
     )
     mock_db = MagicMock(spec=Session)
     user_no_force = User(
-        username="noforceuser",
-        email="noforce@example.com",
-        hashed_password="hashed",
-        attributes={"force_password_change": False},
+        data=UserData(
+            username="noforceuser",
+            email="noforce@example.com",
+            hashed_password="hashed",
+            attributes={"force_password_change": False},
+            id_=3,
+        )
     )
-    user_no_force.id = 3
     mock_db.query.return_value.filter.return_value.first.return_value = user_no_force
     mock_jwt_decode.return_value = {"sub": "noforceuser"}
     mock_request.cookies.get.return_value = "valid-token"
@@ -466,9 +482,11 @@ def test_get_optional_current_user_from_cookie_success(
     """Test successful optional user retrieval."""
     mock_db = MagicMock(spec=Session)
     expected_user = User(
-        username="testuser",
-        email="test@example.com",
-        hashed_password="hashed",
+        data=UserData(
+            username="testuser",
+            email="test@example.com",
+            hashed_password="hashed",
+        )
     )
     mock_get_current_user_from_cookie.return_value = expected_user
 
@@ -525,7 +543,9 @@ def test_get_optional_current_user_from_cookie_reraises_other_exceptions(
 
 def test_get_current_admin_user_with_no_roles():
     """Test that a user with no roles is denied access."""
-    user = User(username="user", email="user@test.com", hashed_password="password")
+    user = User(
+        data=UserData(username="user", email="user@test.com", hashed_password="password")
+    )
     user.roles = []
 
     def override_get_current_user():
@@ -554,9 +574,11 @@ async def admin_only_cookie_route(
 def test_get_current_admin_user_from_cookie_with_admin_role():
     """Test that an admin user from a cookie is granted access."""
     admin_user = User(
-        username="admin",
-        email="admin@test.com",
-        hashed_password="password",
+        data=UserData(
+            username="admin",
+            email="admin@test.com",
+            hashed_password="password",
+        )
     )
     admin_role = Role(name="admin")
     admin_user.roles = [admin_role]
@@ -577,7 +599,9 @@ def test_get_current_admin_user_from_cookie_with_admin_role():
 
 def test_get_current_admin_user_from_cookie_without_admin_role():
     """Test that a non-admin user from a cookie is denied access."""
-    user = User(username="user", email="user@test.com", hashed_password="password")
+    user = User(
+        data=UserData(username="user", email="user@test.com", hashed_password="password")
+    )
     user_role = Role(name="user")
     user.roles = [user_role]
 
@@ -601,9 +625,11 @@ def test_get_current_admin_user_from_cookie_without_admin_role():
 def test_verify_admin_privileges_with_admin_role():
     """Test that a user with the 'admin' role is verified."""
     admin_user = User(
-        username="admin",
-        email="admin@test.com",
-        hashed_password="password",
+        data=UserData(
+            username="admin",
+            email="admin@test.com",
+            hashed_password="password",
+        )
     )
     admin_user.roles = [Role(name="admin")]
     assert verify_admin_privileges(admin_user) == admin_user
@@ -611,7 +637,9 @@ def test_verify_admin_privileges_with_admin_role():
 
 def test_verify_admin_privileges_without_admin_role():
     """Test that a user without the 'admin' role raises an HTTPException."""
-    user = User(username="user", email="user@test.com", hashed_password="password")
+    user = User(
+        data=UserData(username="user", email="user@test.com", hashed_password="password")
+    )
     user.roles = [Role(name="user")]
     with pytest.raises(HTTPException) as exc_info:
         verify_admin_privileges(user)
@@ -621,7 +649,9 @@ def test_verify_admin_privileges_without_admin_role():
 
 def test_verify_admin_privileges_with_no_roles():
     """Test that a user with no roles raises an HTTPException."""
-    user = User(username="user", email="user@test.com", hashed_password="password")
+    user = User(
+        data=UserData(username="user", email="user@test.com", hashed_password="password")
+    )
     user.roles = []
     with pytest.raises(HTTPException) as exc_info:
         verify_admin_privileges(user)

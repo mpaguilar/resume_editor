@@ -6,8 +6,7 @@ log = logging.getLogger(__name__)
 
 
 class ContactInfo(BaseModel):
-    """
-    Holds personal contact details such as name, email, phone, and location.
+    """Holds personal contact details such as name, email, phone, and location.
 
     Attributes:
         name (str): The full name of the person.
@@ -24,9 +23,8 @@ class ContactInfo(BaseModel):
 
     @field_validator("name", mode="before")
     @classmethod
-    def validate_name(cls, v):
-        """
-        Validate the name field.
+    def validate_name(cls, v: str):
+        """Validate the name field.
 
         Args:
             v: The name value to validate. Must be a non-empty string.
@@ -50,9 +48,8 @@ class ContactInfo(BaseModel):
 
     @field_validator("email", mode="before")
     @classmethod
-    def validate_email(cls, v):
-        """
-        Validate the email field.
+    def validate_email(cls, v: str | None):
+        """Validate the email field.
 
         Args:
             v: The email value to validate. Must be a non-empty string or None.
@@ -78,9 +75,8 @@ class ContactInfo(BaseModel):
 
     @field_validator("phone", mode="before")
     @classmethod
-    def validate_phone(cls, v):
-        """
-        Validate the phone field.
+    def validate_phone(cls, v: str | None):
+        """Validate the phone field.
 
         Args:
             v: The phone value to validate. Must be a non-empty string or None.
@@ -106,9 +102,8 @@ class ContactInfo(BaseModel):
 
     @field_validator("location", mode="before")
     @classmethod
-    def validate_location(cls, v):
-        """
-        Validate the location field.
+    def validate_location(cls, v: str | None):
+        """Validate the location field.
 
         Args:
             v: The location value to validate. Must be a non-empty string or None.
@@ -134,8 +129,7 @@ class ContactInfo(BaseModel):
 
 
 class Websites(BaseModel):
-    """
-    Holds personal website and social media links.
+    """Holds personal website and social media links.
 
     Attributes:
         website (str | None): The personal website URL, or None if not provided.
@@ -152,9 +146,8 @@ class Websites(BaseModel):
 
     @field_validator("website", mode="before")
     @classmethod
-    def validate_website(cls, v):
-        """
-        Validate the website field.
+    def validate_website(cls, v: str | None):
+        """Validate the website field.
 
         Args:
             v: The website value to validate. Must be a non-empty string or None.
@@ -180,9 +173,8 @@ class Websites(BaseModel):
 
     @field_validator("github", mode="before")
     @classmethod
-    def validate_github(cls, v):
-        """
-        Validate the github field.
+    def validate_github(cls, v: str | None):
+        """Validate the github field.
 
         Args:
             v: The github value to validate. Must be a non-empty string or None.
@@ -208,9 +200,8 @@ class Websites(BaseModel):
 
     @field_validator("linkedin", mode="before")
     @classmethod
-    def validate_linkedin(cls, v):
-        """
-        Validate the linkedin field.
+    def validate_linkedin(cls, v: str | None):
+        """Validate the linkedin field.
 
         Args:
             v: The linkedin value to validate. Must be a non-empty string or None.
@@ -236,9 +227,8 @@ class Websites(BaseModel):
 
     @field_validator("twitter", mode="before")
     @classmethod
-    def validate_twitter(cls, v):
-        """
-        Validate the twitter field.
+    def validate_twitter(cls, v: str | None):
+        """Validate the twitter field.
 
         Args:
             v: The twitter value to validate. Must be a non-empty string or None.
@@ -264,8 +254,7 @@ class Websites(BaseModel):
 
 
 class VisaStatus(BaseModel):
-    """
-    Holds information about work authorization and sponsorship requirements.
+    """Holds information about work authorization and sponsorship requirements.
 
     Attributes:
         work_authorization (str | None): The current work authorization status (e.g., "US Citizen", "H-1B"), or None if not provided.
@@ -278,9 +267,8 @@ class VisaStatus(BaseModel):
 
     @field_validator("work_authorization", mode="before")
     @classmethod
-    def validate_work_authorization(cls, v):
-        """
-        Validate the work_authorization field.
+    def validate_work_authorization(cls, v: str | None):
+        """Validate the work_authorization field.
 
         Args:
             v: The work_authorization value to validate. Must be a non-empty string or None.
@@ -306,9 +294,8 @@ class VisaStatus(BaseModel):
 
     @field_validator("require_sponsorship", mode="before")
     @classmethod
-    def validate_require_sponsorship(cls, v):
-        """
-        Validate the require_sponsorship field.
+    def validate_require_sponsorship(cls, v: bool | str | None):
+        """Validate the require_sponsorship field.
 
         Args:
             v: The require_sponsorship value to validate. Must be a boolean, string ("yes"/"no"), or None.
@@ -341,8 +328,7 @@ class VisaStatus(BaseModel):
 
 
 class Banner(BaseModel):
-    """
-    Holds a personal banner message with cleaned text content.
+    """Holds a personal banner message with cleaned text content.
 
     Attributes:
         text (str): The cleaned text content of the banner, with leading/trailing and internal blank lines removed.
@@ -353,9 +339,8 @@ class Banner(BaseModel):
 
     @field_validator("text", mode="before")
     @classmethod
-    def validate_text(cls, v):
-        """
-        Validate the text field and clean it.
+    def validate_text(cls, v: str):
+        """Validate the text field and clean it.
 
         Args:
             v: The raw text content of the banner, potentially including leading/trailing or internal blank lines.
@@ -397,8 +382,7 @@ class Banner(BaseModel):
 
 
 class Note(BaseModel):
-    """
-    Holds a personal note with cleaned text content.
+    """Holds a personal note with cleaned text content.
 
     Attributes:
         text (str): The cleaned text content of the note, with leading/trailing and internal blank lines removed.
@@ -409,9 +393,8 @@ class Note(BaseModel):
 
     @field_validator("text", mode="before")
     @classmethod
-    def validate_text(cls, v):
-        """
-        Validate the text field and clean it.
+    def validate_text(cls, v: str):
+        """Validate the text field and clean it.
 
         Args:
             v: The raw text content of the note, potentially including leading/trailing or internal blank lines.
@@ -453,8 +436,7 @@ class Note(BaseModel):
 
 
 class Personal(BaseModel):
-    """
-    Holds all personal information including contact details, websites, visa status, banner, and note.
+    """Holds all personal information including contact details, websites, visa status, banner, and note.
 
     Attributes:
         contact_info (ContactInfo | None): An instance of ContactInfo containing personal contact details, or None if not provided.

@@ -42,7 +42,9 @@ def _parse_resume(resume_content: str) -> WriterResume:
 
 
 def _check_for_unparsed_content(
-    resume_content: str, section_name: str, parsed_section: any
+    resume_content: str,
+    section_name: str,
+    parsed_section: any,
 ) -> None:
     """Check for unparsed content in a resume section.
 
@@ -59,6 +61,7 @@ def _check_for_unparsed_content(
         2. Iterate through 'resume_content' lines to find the section header.
         3. Once inside the section, check for any non-empty lines before the next top-level section.
         4. If any content is found, log a warning and raise a ValueError.
+
     """
     log.debug("_check_for_unparsed_content starting")
     if parsed_section:
@@ -106,6 +109,7 @@ def _extract_data_from_personal_section(personal: any) -> dict:
         5. Extracts banner text.
         6. Extracts note text.
         7. Returns a dictionary containing all extracted data.
+
     """
     log.debug("_extract_data_from_personal_section starting")
     if not personal:
@@ -164,6 +168,7 @@ def _convert_writer_role_to_dict(role: any) -> dict:
         3. Extracts responsibilities text.
         4. Extracts skills list.
         5. Returns a dictionary containing all extracted data.
+
     """
     log.debug("_convert_writer_role_to_dict starting")
     role_dict = {}
@@ -225,6 +230,7 @@ def _convert_writer_project_to_dict(project: any) -> dict:
         2. Extracts description text.
         3. Extracts skills list.
         4. Returns a dictionary containing all extracted data.
+
     """
     log.debug("_convert_writer_project_to_dict starting")
     project_dict = {}
@@ -245,7 +251,9 @@ def _convert_writer_project_to_dict(project: any) -> dict:
             "start_date": start_date,
             "end_date": end_date,
             "inclusion_status": getattr(
-                project_overview, "inclusion_status", InclusionStatus.INCLUDE
+                project_overview,
+                "inclusion_status",
+                InclusionStatus.INCLUDE,
             ),
         }
 
@@ -263,7 +271,10 @@ def _convert_writer_project_to_dict(project: any) -> dict:
     return project_dict
 
 
-def _add_contact_info_markdown(personal_info: PersonalInfoResponse, lines: list[str]) -> None:
+def _add_contact_info_markdown(
+    personal_info: PersonalInfoResponse,
+    lines: list[str],
+) -> None:
     """Adds contact info Markdown to a list of lines.
     Args:
         personal_info (PersonalInfoResponse): The personal info data.
@@ -273,6 +284,7 @@ def _add_contact_info_markdown(personal_info: PersonalInfoResponse, lines: list[
         2. If any exist, adds a "Contact Information" section header.
         3. Appends each non-empty field.
         4. Adds a trailing blank line to the section.
+
     """
     log.debug("_add_contact_info_markdown starting")
     contact_fields = ["name", "email", "phone", "location"]
@@ -290,7 +302,10 @@ def _add_contact_info_markdown(personal_info: PersonalInfoResponse, lines: list[
     log.debug("_add_contact_info_markdown returning")
 
 
-def _add_websites_markdown(personal_info: PersonalInfoResponse, lines: list[str]) -> None:
+def _add_websites_markdown(
+    personal_info: PersonalInfoResponse,
+    lines: list[str],
+) -> None:
     """Adds websites Markdown to a list of lines.
     Args:
         personal_info (PersonalInfoResponse): The personal info data.
@@ -300,6 +315,7 @@ def _add_websites_markdown(personal_info: PersonalInfoResponse, lines: list[str]
         2. If any exist, adds a "Websites" section header.
         3. Appends each non-empty field.
         4. Adds a trailing blank line to the section.
+
     """
     log.debug("_add_websites_markdown starting")
     website_fields = ["github", "linkedin", "website", "twitter"]
@@ -318,7 +334,8 @@ def _add_websites_markdown(personal_info: PersonalInfoResponse, lines: list[str]
 
 
 def _add_visa_status_markdown(
-    personal_info: PersonalInfoResponse, lines: list[str]
+    personal_info: PersonalInfoResponse,
+    lines: list[str],
 ) -> None:
     """Adds visa status Markdown to a list of lines.
     Args:
@@ -329,9 +346,13 @@ def _add_visa_status_markdown(
         2. If any exist, adds a "Visa Status" section header.
         3. Appends each field if it has a value.
         4. Adds a trailing blank line to the section.
+
     """
     log.debug("_add_visa_status_markdown starting")
-    if personal_info.work_authorization or personal_info.require_sponsorship is not None:
+    if (
+        personal_info.work_authorization
+        or personal_info.require_sponsorship is not None
+    ):
         lines.extend(["## Visa Status", ""])
         if personal_info.work_authorization:
             lines.append(f"Work Authorization: {personal_info.work_authorization}")
@@ -351,6 +372,7 @@ def _add_banner_markdown(personal_info: PersonalInfoResponse, lines: list[str]) 
         1. Checks for banner text.
         2. If it exists, adds a "Banner" section header and the text.
         3. Adds a trailing blank line to the section.
+
     """
     log.debug("_add_banner_markdown starting")
     if personal_info.banner:
@@ -367,6 +389,7 @@ def _add_note_markdown(personal_info: PersonalInfoResponse, lines: list[str]) ->
         1. Checks for note text.
         2. If it exists, adds a "Note" section header and the text.
         3. Adds a trailing blank line to the section.
+
     """
     log.debug("_add_note_markdown starting")
     if personal_info.note:
@@ -384,6 +407,7 @@ def _add_project_overview_markdown(overview: any, lines: list[str]) -> None:
         2. If any exist, adds an "Overview" section header.
         3. Appends each non-empty field.
         4. Adds a trailing blank line to the section.
+
     """
     log.debug("_add_project_overview_markdown starting")
     overview_content = []
@@ -414,6 +438,7 @@ def _add_project_description_markdown(description: any, lines: list[str]) -> Non
         1. Checks for description text.
         2. If it exists, adds a "Description" section header and the text.
         3. Adds a trailing blank line to the section.
+
     """
     log.debug("_add_project_description_markdown starting")
     if description and getattr(description, "text", None):
@@ -430,6 +455,7 @@ def _add_project_skills_markdown(skills: any, lines: list[str]) -> None:
         1. Checks for a list of skills.
         2. If it exists, adds a "Skills" section header and the skills as a bulleted list.
         3. Adds a trailing blank line to the section.
+
     """
     log.debug("_add_project_skills_markdown starting")
     if skills and hasattr(skills, "skills") and skills.skills:
@@ -451,6 +477,7 @@ def _add_role_basics_markdown(basics: any, lines: list[str]) -> None:
         4. If any data is collected, adds a "Basics" section header.
         5. Appends each non-empty field.
         6. Adds a trailing blank line.
+
     """
     log.debug("_add_role_basics_markdown starting")
     basics_content = []
@@ -495,6 +522,7 @@ def _add_role_summary_markdown(summary: any, lines: list[str]) -> None:
         1. Checks for summary text.
         2. If present, adds a "Summary" section header and the text.
         3. Adds a trailing blank line.
+
     """
     log.debug("_add_role_summary_markdown starting")
     if summary and getattr(summary, "text", None):
@@ -503,7 +531,9 @@ def _add_role_summary_markdown(summary: any, lines: list[str]) -> None:
 
 
 def _add_role_responsibilities_markdown(
-    responsibilities: any, inclusion_status: InclusionStatus, lines: list[str]
+    responsibilities: any,
+    inclusion_status: InclusionStatus,
+    lines: list[str],
 ) -> None:
     """Adds role responsibilities Markdown to a list of lines.
     Args:
@@ -514,6 +544,7 @@ def _add_role_responsibilities_markdown(
         1. If inclusion_status is `NOT_RELEVANT`, appends a placeholder.
         2. If inclusion_status is `INCLUDE` and responsibilities text exists, appends the text.
         3. Adds section header and trailing blank line as appropriate.
+
     """
     log.debug("_add_role_responsibilities_markdown starting")
     if inclusion_status == InclusionStatus.NOT_RELEVANT:
@@ -523,7 +554,7 @@ def _add_role_responsibilities_markdown(
                 "",
                 "(no relevant experience)",
                 "",
-            ]
+            ],
         )
     elif inclusion_status == InclusionStatus.INCLUDE:
         if responsibilities and getattr(responsibilities, "text", None):
@@ -548,6 +579,7 @@ def _add_role_skills_markdown(skills: any, lines: list[str]) -> None:
         2. If it exists and is not empty, adds a "Skills" section header.
         3. Appends the skills as a bulleted list.
         4. Adds a trailing blank line.
+
     """
     log.debug("_add_role_skills_markdown starting")
     if skills and hasattr(skills, "skills") and skills.skills:

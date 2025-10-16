@@ -7,7 +7,7 @@ import json
 from resume_editor.app.llm.orchestration import (
     analyze_job_description,
 )
-from resume_editor.app.llm.models import JobAnalysis
+from resume_editor.app.llm.models import JobAnalysis, LLMConfig
 
 LLM_INIT_PARAMS = [
     # Case 1: Endpoint, API key, and model name provided
@@ -97,9 +97,7 @@ async def test_analyze_job_description_empty_input():
     with pytest.raises(ValueError, match="Job description cannot be empty."):
         await analyze_job_description(
             job_description=" ",
-            llm_endpoint=None,
-            api_key=None,
-            llm_model_name=None,
+            llm_config=LLMConfig(),
         )
 
 
@@ -151,9 +149,7 @@ async def test_analyze_job_description(mock_chain_invocations_for_analysis):
     # Act
     job_analysis, introduction = await analyze_job_description(
         job_description="some job description",
-        llm_endpoint=None,
-        api_key=None,
-        llm_model_name=None,
+        llm_config=LLMConfig(),
         resume_content_for_intro=None,  # Explicitly None
     )
 
@@ -186,9 +182,7 @@ async def test_analyze_job_description_with_introduction(
     # Act
     job_analysis, introduction = await analyze_job_description(
         job_description="some job description",
-        llm_endpoint=None,
-        api_key=None,
-        llm_model_name=None,
+        llm_config=LLMConfig(),
         resume_content_for_intro="some resume content",
     )
 
@@ -223,9 +217,11 @@ async def test_analyze_job_description_llm_initialization(
     """
     await analyze_job_description(
         job_description="some job description",
-        llm_endpoint=llm_endpoint,
-        api_key=api_key,
-        llm_model_name=llm_model_name,
+        llm_config=LLMConfig(
+            llm_endpoint=llm_endpoint,
+            api_key=api_key,
+            llm_model_name=llm_model_name,
+        ),
     )
     mock_chat_openai = mock_chain_invocations_for_analysis["chat_openai"]
     mock_chat_openai.assert_called_once_with(**expected_call_args)
@@ -251,9 +247,7 @@ async def test_analyze_job_description_json_decode_error(
     ):
         await analyze_job_description(
             job_description="job desc",
-            llm_endpoint=None,
-            api_key=None,
-            llm_model_name=None,
+            llm_config=LLMConfig(),
         )
 
 
@@ -273,9 +267,7 @@ async def test_analyze_job_description_validation_error(
     ):
         await analyze_job_description(
             job_description="job desc",
-            llm_endpoint=None,
-            api_key=None,
-            llm_model_name=None,
+            llm_config=LLMConfig(),
         )
 
 
@@ -296,9 +288,7 @@ async def test_analyze_job_description_authentication_error(
     with pytest.raises(AuthenticationError):
         await analyze_job_description(
             job_description="job desc",
-            llm_endpoint=None,
-            api_key=None,
-            llm_model_name=None,
+            llm_config=LLMConfig(),
         )
 
 
@@ -310,9 +300,7 @@ async def test_analyze_job_description_prompt_content(
     # Act
     await analyze_job_description(
         job_description="A job description",
-        llm_endpoint=None,
-        api_key=None,
-        llm_model_name=None,
+        llm_config=LLMConfig(),
     )
 
     # Assert

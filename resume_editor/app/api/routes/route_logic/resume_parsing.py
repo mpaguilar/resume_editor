@@ -11,19 +11,12 @@ from resume_editor.app.api.routes.route_logic.resume_serialization import (
     extract_experience_info,
     extract_personal_info,
 )
-from resume_editor.app.api.routes.route_models import (
-    CertificationsResponse,
-    EducationResponse,
-    ExperienceResponse,
-    PersonalInfoResponse,
-)
 
 log = logging.getLogger(__name__)
 
 
 def parse_resume_to_writer_object(markdown_content: str) -> WriterResume:
-    """
-    Parse Markdown resume content into a resume_writer Resume object.
+    """Parse Markdown resume content into a resume_writer Resume object.
 
     Args:
         markdown_content (str): The Markdown content to parse, expected to follow a valid resume format.
@@ -82,8 +75,7 @@ def parse_resume_to_writer_object(markdown_content: str) -> WriterResume:
 
 
 def parse_resume(markdown_content: str) -> dict[str, Any]:
-    """
-    Parse Markdown resume content using resume_writer parser and return a dictionary.
+    """Parse Markdown resume content using resume_writer parser and return a dictionary.
 
     Args:
         markdown_content (str): The Markdown content to parse, expected to follow a valid resume format.
@@ -127,8 +119,8 @@ def parse_resume(markdown_content: str) -> dict[str, Any]:
             v for v in personal_info.model_dump().values() if v
         )
         education_empty = not education_info or not education_info.degrees
-        experience_empty = (
-            not experience_info or (not experience_info.roles and not experience_info.projects)
+        experience_empty = not experience_info or (
+            not experience_info.roles and not experience_info.projects
         )
         certifications_empty = (
             not certifications_info or not certifications_info.certifications
@@ -154,8 +146,7 @@ def parse_resume(markdown_content: str) -> dict[str, Any]:
 
 
 def parse_resume_content(markdown_content: str) -> dict[str, Any]:
-    """
-    Parse Markdown resume content and return structured data as a dictionary.
+    """Parse Markdown resume content and return structured data as a dictionary.
 
     Args:
         markdown_content (str): The Markdown content to parse, expected to follow a valid resume format.
@@ -194,13 +185,13 @@ def parse_resume_content(markdown_content: str) -> dict[str, Any]:
     except ValueError as e:
         log.exception("Failed to parse resume")
         raise HTTPException(
-            status_code=400, detail=f"Failed to parse resume: {str(e)}"
+            status_code=400,
+            detail=f"Failed to parse resume: {str(e)}",
         ) from e
 
 
 def validate_resume_content(content: str) -> None:
-    """
-    Validate resume Markdown content for proper format.
+    """Validate resume Markdown content for proper format.
 
     Args:
         content (str): The Markdown content to validate, expected to be in a format compatible with resume_writer.

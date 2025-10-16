@@ -58,7 +58,7 @@ class TestExtractEducationInfo:
     """Test cases for education info extraction functions."""
 
     @patch(
-        "resume_editor.app.api.routes.route_logic.resume_serialization.WriterResume.parse",
+        "resume_editor.app.api.routes.route_logic.resume_parsing.WriterResume.parse",
     )
     def test_extract_education_info_no_education_section(self, mock_parse):
         """Test education info extraction when education section is missing."""
@@ -70,7 +70,7 @@ class TestExtractEducationInfo:
         assert response.degrees == []
 
     @patch(
-        "resume_editor.app.api.routes.route_logic.resume_serialization.WriterResume.parse",
+        "resume_editor.app.api.routes.route_logic.resume_parsing.WriterResume.parse",
     )
     def test_extract_education_info_no_degrees(self, mock_parse):
         """Test education info extraction when degrees are missing."""
@@ -84,7 +84,7 @@ class TestExtractEducationInfo:
         assert response.degrees == []
 
     @patch(
-        "resume_editor.app.api.routes.route_logic.resume_serialization.WriterResume.parse",
+        "resume_editor.app.api.routes.route_logic.resume_parsing.WriterResume.parse",
     )
     def test_extract_education_info_partial_data(self, mock_parse):
         """Test education info extraction with partial data in a degree."""
@@ -114,7 +114,7 @@ class TestExtractEducationInfo:
         assert degree.gpa is None
 
     @patch(
-        "resume_editor.app.api.routes.route_logic.resume_serialization.WriterResume.parse",
+        "resume_editor.app.api.routes.route_logic.resume_parsing.WriterResume.parse",
         side_effect=Exception("mock parse error"),
     )
     def test_extract_education_info_parse_fails(self, mock_parse):

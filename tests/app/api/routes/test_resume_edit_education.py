@@ -4,9 +4,13 @@ import pytest
 from fastapi.testclient import TestClient
 
 from resume_editor.app.api.dependencies import get_db, get_resume_for_user
+from resume_editor.app.api.routes.route_logic.resume_crud import ResumeUpdateParams
 from resume_editor.app.api.routes.route_models import EducationResponse
 from resume_editor.app.main import create_app
-from resume_editor.app.models.resume_model import Resume as DatabaseResume
+from resume_editor.app.models.resume_model import (
+    Resume as DatabaseResume,
+    ResumeData,
+)
 
 
 @pytest.fixture
@@ -49,12 +53,13 @@ A description of the project.
 @pytest.fixture
 def test_resume(valid_minimal_resume_content: str) -> DatabaseResume:
     """A test resume object."""
-    resume = DatabaseResume(
+    resume_data = ResumeData(
         user_id=1,
         name="Test Resume",
         content=valid_minimal_resume_content,
         is_active=True,
     )
+    resume = DatabaseResume(data=resume_data)
     resume.id = 1
     return resume
 
@@ -134,7 +139,9 @@ def test_update_education_info_structured_success(
 
     mock_update_db.assert_called_once()
     assert mock_update_db.call_args.args[1] == test_resume
-    assert mock_update_db.call_args.kwargs["content"] == "new updated content"
+    params = mock_update_db.call_args.kwargs["params"]
+    assert isinstance(params, ResumeUpdateParams)
+    assert params.content == "new updated content"
 
 
 @patch("resume_editor.app.api.routes.resume_edit.update_resume_db")
@@ -182,9 +189,10 @@ def test_update_education_success_form(
     client_with_auth_and_resume: TestClient,
     test_resume,
 ):
-    """Test successful form update of education info."""
+    """Test adding a new degree via form submission."""
     from datetime import datetime
 
+    mock_reconstruct.return_value = "Updated Content"
     mock_extract.return_value = EducationResponse(degrees=[])
 
     form_data = {
@@ -214,7 +222,7 @@ def test_update_education_success_form(
 def test_update_education_invalid_data_form(
     client_with_auth_and_resume: TestClient, test_resume
 ):
-    """Test invalid data for education form update."""
+    """Test that invalid form data for degree creation is handled."""
     form_data = {"school": "New School", "start_date": "invalid-date"}
     response = client_with_auth_and_resume.post(
         f"/api/resumes/{test_resume.id}/edit/education",
@@ -230,7 +238,7 @@ def test_update_education_extraction_fails_form(
     client_with_auth_and_resume: TestClient,
     test_resume,
 ):
-    """Test that a parsing failure during education form update is handled."""
+    """Test that a parsing failure during degree creation via form is handled."""
     mock_extract.side_effect = ValueError("Bad education section")
     form_data = {
         "school": "New School",

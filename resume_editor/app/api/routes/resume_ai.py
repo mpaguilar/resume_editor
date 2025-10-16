@@ -1,4 +1,5 @@
 import logging
+from typing import Annotated
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Request, Response
 from fastapi.responses import HTMLResponse, StreamingResponse
@@ -12,14 +13,22 @@ from resume_editor.app.api.routes.route_logic.resume_ai_logic import (
     handle_save_as_new_refinement,
     handle_sync_refinement,
 )
+from resume_editor.app.api.routes.route_models import (
+    RefineForm,
+    RefineTargetSection,
+    SaveAsNewForm,
+    SaveAsNewParams,
+    SyncRefinementParams,
+)
 from resume_editor.app.api.routes.route_models import RefineTargetSection
 from resume_editor.app.core.auth import get_current_user_from_cookie
 from resume_editor.app.database.database import get_db
 from resume_editor.app.models.resume_model import Resume as DatabaseResume
+from resume_editor.app.models.user import User
+
 from .html_fragments import (
     _generate_resume_detail_html,
 )
-from resume_editor.app.models.user import User
 
 log = logging.getLogger(__name__)
 
@@ -30,15 +39,13 @@ templates = Jinja2Templates(directory="resume_editor/app/templates")
 
 @router.get("/{resume_id}/refine/stream")
 async def refine_resume_stream(
-    request: Request,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user_from_cookie),
-    resume: DatabaseResume = Depends(get_resume_for_user),
+    db: Annotated[Session, Depends(get_db)],
+    current_user: Annotated[User, Depends(get_current_user_from_cookie)],
+    resume: Annotated[DatabaseResume, Depends(get_resume_for_user)],
     job_description: str = "",
     generate_introduction: bool = True,
 ) -> StreamingResponse:
-    """
-    Refine the experience section of a resume using an LLM stream.
+    """Refine the experience section of a resume using an LLM stream.
     This endpoint uses Server-Sent Events (SSE) to provide real-time feedback.
     """
     generator = experience_refinement_sse_generator(
@@ -57,15 +64,12 @@ async def refine_resume_stream(
 @router.post("/{resume_id}/refine")
 async def refine_resume(
     http_request: Request,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user_from_cookie),
-    resume: DatabaseResume = Depends(get_resume_for_user),
-    job_description: str = Form(...),
-    target_section: RefineTargetSection = Form(...),
-    generate_introduction: bool = Form(False),
-):
-    """
-    Refine a resume section using an LLM to align with a job description.
+    db: Annotated[Session, Depends(get_db)],
+    current_user: Annotated[User, Depends(get_current_user_from_cookie)],
+    resume: Annotated[DatabaseResume, Depends(get_resume_for_user)],
+    form_data: Annotated[RefineForm, Depends()],
+) -> Response:
+    """Refine a resume section using an LLM to align with a job description.
 
     This endpoint handles both JSON API calls and HTMX form submissions.
 
@@ -74,49 +78,48 @@ async def refine_resume(
         db (Session): The database session dependency.
         current_user (User): The current authenticated user.
         resume (DatabaseResume): The resume to be refined.
-        job_description (str): The job description to align the resume with.
-        target_section (RefineTargetSection): The section of the resume to refine.
+        form_data (RefineForm): The form data for the refinement request.
 
     Returns:
         RefineResponse | HTMLResponse: The response type
             depends on the request headers.
 
     """
-    _msg = f"Refining resume {resume.id} for section {target_section.value}"
+    _msg = f"Refining resume {resume.id} for section {form_data.target_section.value}"
     log.debug(_msg)
 
-    if target_section == RefineTargetSection.EXPERIENCE:
+    if form_data.target_section == RefineTargetSection.EXPERIENCE:
         return templates.TemplateResponse(
             http_request,
             "partials/resume/_refine_sse_loader.html",
             {
                 "resume_id": resume.id,
-                "job_description": job_description,
-                "generate_introduction": generate_introduction,
+                "job_description": form_data.job_description,
+                "generate_introduction": form_data.generate_introduction,
             },
         )
 
-    return await handle_sync_refinement(
+    params = SyncRefinementParams(
         request=http_request,
         db=db,
         user=current_user,
         resume=resume,
-        job_description=job_description,
-        target_section=target_section,
-        generate_introduction=generate_introduction,
+        job_description=form_data.job_description,
+        target_section=form_data.target_section,
+        generate_introduction=form_data.generate_introduction,
     )
+    return await handle_sync_refinement(params)
 
 
 @router.post("/{resume_id}/refine/accept", status_code=200)
 async def accept_refined_resume(
-    resume: DatabaseResume = Depends(get_resume_for_user),
-    db: Session = Depends(get_db),
-    refined_content: str = Form(...),
-    target_section: RefineTargetSection = Form(...),
-    introduction: str | None = Form(None),
-):
-    """
-    Accept a refined resume section and persist the changes by overwriting.
+    resume: Annotated[DatabaseResume, Depends(get_resume_for_user)],
+    db: Annotated[Session, Depends(get_db)],
+    refined_content: Annotated[str, Form(...)],
+    target_section: Annotated[RefineTargetSection, Form(...)],
+    introduction: Annotated[str | None, Form()] = None,
+) -> Response:
+    """Accept a refined resume section and persist the changes by overwriting.
 
     Args:
         resume (DatabaseResume): The original resume being modified.
@@ -141,57 +144,45 @@ async def accept_refined_resume(
 
 @router.post("/{resume_id}/refine/save_as_new")
 async def save_refined_resume_as_new(
-    resume: DatabaseResume = Depends(get_resume_for_user),
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user_from_cookie),
-    refined_content: str = Form(...),
-    target_section: RefineTargetSection = Form(...),
-    new_resume_name: str | None = Form(None),
-    job_description: str | None = Form(None),
-    introduction: str | None = Form(None),
-):
-    """
-    Save a refined resume as a new resume.
+    resume: Annotated[DatabaseResume, Depends(get_resume_for_user)],
+    db: Annotated[Session, Depends(get_db)],
+    current_user: Annotated[User, Depends(get_current_user_from_cookie)],
+    form_data: Annotated[SaveAsNewForm, Depends()],
+) -> Response:
+    """Save a refined resume as a new resume.
 
     Args:
         resume (DatabaseResume): The original resume being modified.
         db (Session): The database session.
         current_user (User): The current authenticated user.
-        refined_content (str): The refined markdown from the LLM.
-        target_section (RefineTargetSection): The section that was refined.
-        new_resume_name (str | None): The name for the new resume.
-        job_description (str | None): An optional job description.
-        introduction (str | None): An optional new introduction.
+        form_data (SaveAsNewForm): The form data for saving as new.
 
     Returns:
         Response: A response with an `HX-Redirect` header to the dashboard.
+
     """
-    if not new_resume_name:
+    if not form_data.new_resume_name:
         raise HTTPException(
             status_code=400,
             detail="New resume name is required for 'save as new' action.",
         )
 
-    handle_save_as_new_refinement(
+    params = SaveAsNewParams(
         db=db,
         user=current_user,
         resume=resume,
-        refined_content=refined_content,
-        target_section=target_section,
-        new_resume_name=new_resume_name,
-        job_description=job_description,
-        introduction=introduction,
+        form_data=form_data,
     )
+    handle_save_as_new_refinement(params)
 
     return Response(headers={"HX-Redirect": "/dashboard"})
 
 
 @router.post("/{resume_id}/refine/discard", response_class=HTMLResponse)
 async def discard_refined_resume(
-    resume: DatabaseResume = Depends(get_resume_for_user),
-):
-    """
-    Discards a refinement and returns the original resume detail view.
+    resume: Annotated[DatabaseResume, Depends(get_resume_for_user)],
+) -> HTMLResponse:
+    """Discards a refinement and returns the original resume detail view.
 
     This is used when a user rejects an AI suggestion, and it re-renders
     the resume detail partial to clear the suggestion from the UI.

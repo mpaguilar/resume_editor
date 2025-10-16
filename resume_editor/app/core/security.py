@@ -24,8 +24,7 @@ def create_access_token(
     expires_delta: timedelta | None = None,
     impersonator: str | None = None,
 ) -> str:
-    """
-    Create a JWT access token.
+    """Create a JWT access token.
 
     Args:
         data (dict): The data to encode in the token (e.g., user ID, role).
@@ -65,8 +64,7 @@ def create_access_token(
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    """
-    Verify a plain password against a hashed password.
+    """Verify a plain password against a hashed password.
 
     Args:
         plain_password (str): The plain text password to verify.
@@ -89,8 +87,7 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 
 
 def get_password_hash(password: str) -> str:
-    """
-    Hash a plain password.
+    """Hash a plain password.
 
     Args:
         password (str): The plain text password to hash.
@@ -111,8 +108,7 @@ def get_password_hash(password: str) -> str:
 
 
 def authenticate_user(db: Session, username: str, password: str) -> Optional["User"]:
-    """
-    Authenticate a user by username and password.
+    """Authenticate a user by username and password.
 
     Args:
         db (Session): Database session used to query for user records.
@@ -142,8 +138,7 @@ def authenticate_user(db: Session, username: str, password: str) -> Optional["Us
 
 
 def encrypt_data(data: str) -> str:
-    """
-    Encrypts data using Fernet symmetric encryption.
+    """Encrypts data using Fernet symmetric encryption.
 
     Args:
         data (str): The plaintext data to encrypt.
@@ -164,8 +159,7 @@ def encrypt_data(data: str) -> str:
 
 
 def decrypt_data(encrypted_data: str) -> str:
-    """
-    Decrypts data using Fernet symmetric encryption.
+    """Decrypts data using Fernet symmetric encryption.
 
     Args:
         encrypted_data (str): The encrypted data to decrypt.

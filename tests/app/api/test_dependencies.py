@@ -4,17 +4,22 @@ import pytest
 from fastapi import HTTPException
 
 from resume_editor.app.api.dependencies import get_resume_for_user
-from resume_editor.app.models.resume_model import Resume as DatabaseResume
-from resume_editor.app.models.user import User
+from resume_editor.app.models.resume_model import (
+    Resume as DatabaseResume,
+    ResumeData,
+)
+from resume_editor.app.models.user import User, UserData
 
 
 @pytest.mark.asyncio
 async def test_get_resume_for_user_success():
     """Test that get_resume_for_user returns a resume when it exists and belongs to the user."""
     mock_db = Mock()
-    mock_user = User(username="test", email="test@test.com", hashed_password="pw")
-    mock_user.id = 1
-    mock_resume = DatabaseResume(user_id=1, name="Test", content="...")
+    mock_user = User(
+        data=UserData(username="test", email="test@test.com", hashed_password="pw", id_=1)
+    )
+    resume_data = ResumeData(user_id=1, name="Test", content="...")
+    mock_resume = DatabaseResume(data=resume_data)
     mock_resume.id = 123
 
     # Mock the return value of get_resume_by_id_and_user
@@ -24,9 +29,7 @@ async def test_get_resume_for_user_success():
         mock_get.return_value = mock_resume
 
         # Call the dependency function
-        result = await get_resume_for_user(
-            resume_id=123, db=mock_db, current_user=mock_user
-        )
+        result = await get_resume_for_user(resume_id=123, db=mock_db, current_user=mock_user)
 
         # Assertions
         assert result == mock_resume
@@ -37,8 +40,9 @@ async def test_get_resume_for_user_success():
 async def test_get_resume_for_user_not_found():
     """Test that get_resume_for_user raises HTTPException when resume not found."""
     mock_db = Mock()
-    mock_user = User(username="test", email="test@test.com", hashed_password="pw")
-    mock_user.id = 1
+    mock_user = User(
+        data=UserData(username="test", email="test@test.com", hashed_password="pw", id_=1)
+    )
 
     # Mock the side effect of get_resume_by_id_and_user
     with patch(
@@ -48,9 +52,7 @@ async def test_get_resume_for_user_not_found():
 
         # Call the dependency function and assert it raises an exception
         with pytest.raises(HTTPException) as exc_info:
-            await get_resume_for_user(
-                resume_id=999, db=mock_db, current_user=mock_user
-            )
+            await get_resume_for_user(resume_id=999, db=mock_db, current_user=mock_user)
 
         assert exc_info.value.status_code == 404
         assert exc_info.value.detail == "Resume not found"

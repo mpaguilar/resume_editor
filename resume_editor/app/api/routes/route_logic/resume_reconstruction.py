@@ -16,8 +16,7 @@ def reconstruct_resume_markdown(
     certifications: CertificationsResponse | None = None,
     experience: ExperienceResponse | None = None,
 ) -> str:
-    """
-    Reconstruct a complete resume Markdown document from structured data sections.
+    """Reconstruct a complete resume Markdown document from structured data sections.
 
     Args:
         personal_info (PersonalInfoResponse | None): Personal information data structure. If None, the personal info section is omitted.
@@ -78,8 +77,7 @@ def build_complete_resume_from_sections(
     certifications: CertificationsResponse,
     experience: ExperienceResponse,
 ) -> str:
-    """
-    Build a complete resume Markdown document from all structured sections.
+    """Build a complete resume Markdown document from all structured sections.
 
     Args:
         personal_info (PersonalInfoResponse): Personal information data structure.

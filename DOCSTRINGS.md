@@ -2955,7 +2955,7 @@ Notes:
 
 ---
 
-## function: `initialize_database() -> UnknownType`
+## function: `initialize_database() -> None`
 
 Initialize the database.
 
@@ -3012,6 +3012,22 @@ Notes:
 ===
 # File: `resume_editor/app/api/routes/resume.py`
 
+## `UpdateResumeForm` class
+
+Represents the form data for updating a resume.
+
+---
+## method: `UpdateResumeForm.__init__(self: UnknownType, name: str, content: str | None, from_editor: str | None, sort_by: ResumeSortBy | None) -> UnknownType`
+
+Initializes the form data.
+
+Args:
+    name (str): The new name for the resume.
+    content (str | None): The new content for the resume.
+    from_editor (str | None): Flag indicating if the update is from the editor.
+    sort_by (ResumeSortBy | None): The sorting criteria.
+
+---
 
 ===
 
@@ -3115,7 +3131,7 @@ Notes:
 
 ---
 
-## function: `register_user(user: UserCreate, db: Session) -> UserResponse`
+## function: `register_user(user: UserCreate, db: Annotated[Session, Depends(get_db)]) -> UserResponse`
 
 Register a new user with the provided credentials.
 
@@ -3140,7 +3156,7 @@ Notes:
 
 ---
 
-## function: `get_user_settings(db: Session, current_user: User) -> UnknownType`
+## function: `get_user_settings(db: Annotated[Session, Depends(get_db)], current_user: Annotated[User, Depends(get_current_user)]) -> UserSettingsResponse`
 
 Get the current user's settings.
 
@@ -3158,7 +3174,7 @@ Notes:
 
 ---
 
-## function: `update_user_settings(settings_data: UserSettingsUpdateRequest, db: Session, current_user: User) -> UnknownType`
+## function: `update_user_settings(settings_data: UserSettingsUpdateRequest, db: Annotated[Session, Depends(get_db)], current_user: Annotated[User, Depends(get_current_user)]) -> UserSettingsResponse`
 
 Update the current user's settings.
 
@@ -3177,7 +3193,7 @@ Notes:
 
 ---
 
-## function: `change_password(request: Request, new_password: str, confirm_new_password: str, current_password: str | None, db: Session, current_user: User) -> UnknownType`
+## function: `change_password(request: Request, form_data: Annotated[ChangePasswordForm, Depends()], db: Annotated[Session, Depends(get_db)], current_user: Annotated[User, Depends(get_current_user_from_cookie)]) -> Response`
 
 Change the current user's password.
 
@@ -3189,9 +3205,7 @@ It performs content negotiation based on the 'Accept' and 'HX-Target' headers.
 
 Args:
     request (Request): The request object.
-    new_password (str): The new password from the form.
-    confirm_new_password (str): The new password confirmation from the form.
-    current_password (str | None): The user's current password. Optional for forced changes.
+    form_data (ChangePasswordForm): The form data with new and current passwords.
     db (Session): The database session.
     current_user (User): The authenticated user.
 
@@ -3201,7 +3215,7 @@ Returns:
 
 ---
 
-## function: `get_change_password_page(request: Request, user: User) -> UnknownType`
+## function: `get_change_password_page(request: Request, user: Annotated[User, Depends(get_current_user_from_cookie)]) -> HTMLResponse`
 
 Renders the page for changing a password.
 
@@ -3224,13 +3238,14 @@ Notes:
 
 ---
 
-## function: `login_user(form_data: Annotated[OAuth2PasswordRequestForm, Depends()], db: Session, settings: Settings) -> Token`
+## function: `login_user(form_data: Annotated[OAuth2PasswordRequestForm, Depends()], db: Annotated[Session, Depends(get_db)], settings: Annotated[Settings, Depends(get_settings)]) -> Token`
 
 Authenticate a user and return an access token.
 
 Args:
     form_data: Form data containing username and password for authentication.
     db: Database session dependency used to verify user credentials.
+    settings: Application settings used for token creation and configuration.
 
 Returns:
     Token: An access token for the authenticated user, formatted as a JWT.
@@ -3255,13 +3270,93 @@ Notes:
 ===
 # File: `resume_editor/app/api/routes/route_models.py`
 
+## `RefineForm` class
+
+Form data for refining a resume section.
+
+---
+## method: `RefineForm.__init__(self: UnknownType, job_description: str, target_section: RefineTargetSection, generate_introduction: bool) -> UnknownType`
+
+
+
+---
+## `SaveAsNewForm` class
+
+Form data for saving a refined resume as a new one.
+
+---
+## method: `SaveAsNewForm.__init__(self: UnknownType, refined_content: str, target_section: RefineTargetSection, new_resume_name: str | None, job_description: str | None, introduction: str | None) -> UnknownType`
+
+
+
+---
+## `ChangePasswordForm` class
+
+Form data for changing a password.
+
+---
+## method: `ChangePasswordForm.__init__(self: UnknownType, new_password: str, confirm_new_password: str, current_password: str | None) -> UnknownType`
+
+
+
+---
+## `ProjectUpdateForm` class
+
+Form data for updating projects.
+
+---
+## method: `ProjectUpdateForm.__init__(self: UnknownType, title: str, description: str, url: str | None, start_date: str | None, end_date: str | None) -> UnknownType`
+
+
+
+---
+## `CertificationUpdateForm` class
+
+Form data for updating certifications.
+
+---
+## method: `CertificationUpdateForm.__init__(self: UnknownType, name: str, issuer: str | None, certification_id: str | None, issued_date: str | None, expiry_date: str | None) -> UnknownType`
+
+
+
+---
+## `ExperienceUpdateForm` class
+
+Form data for updating experience.
+
+---
+## method: `ExperienceUpdateForm.__init__(self: UnknownType, company: str, title: str, start_date: str, end_date: str | None, description: str | None) -> UnknownType`
+
+
+
+---
+## `EducationDates` class
+
+Form data for education dates.
+
+---
+## method: `EducationDates.__init__(self: UnknownType, start_date: str | None, end_date: str | None) -> UnknownType`
+
+
+
+---
+## `EducationUpdateForm` class
+
+Form data for updating education.
+
+---
+## method: `EducationUpdateForm.__init__(self: UnknownType, school: str, degree: str | None, major: str | None, dates: EducationDates, gpa: str | None) -> UnknownType`
+
+
+
+---
 
 ===
 
 ===
 # File: `resume_editor/app/api/routes/admin.py`
 
-## function: `admin_create_user(user_data: AdminUserCreate, db: Session) -> UnknownType`
+## function: `admin_create_user(user_data: AdminUserCreate, db: Annotated[Session, Depends(get_db)]) -> AdminUserResponse`
 
 Admin endpoint to create a new user.
 
@@ -3281,7 +3376,7 @@ Notes:
 
 ---
 
-## function: `admin_get_users(db: Session) -> UnknownType`
+## function: `admin_get_users(db: Annotated[Session, Depends(get_db)]) -> list[AdminUserResponse]`
 
 Admin endpoint to list all users.
 
@@ -3299,7 +3394,7 @@ Notes:
 
 ---
 
-## function: `admin_get_user(user_id: int, db: Session) -> UnknownType`
+## function: `admin_get_user(user_id: int, db: Annotated[Session, Depends(get_db)]) -> AdminUserResponse`
 
 Admin endpoint to get a single user by ID.
 
@@ -3322,7 +3417,7 @@ Notes:
 
 ---
 
-## function: `admin_update_user(user_id: int, update_data: AdminUserUpdateRequest, db: Session) -> UnknownType`
+## function: `admin_update_user(user_id: int, update_data: AdminUserUpdateRequest, db: Annotated[Session, Depends(get_db)]) -> AdminUserResponse`
 
 Admin endpoint to update a user's attributes.
 
@@ -3346,13 +3441,14 @@ Notes:
 
 ---
 
-## function: `admin_delete_user(user_id: int, db: Session, admin_user: User) -> UnknownType`
+## function: `admin_delete_user(user_id: int, db: Annotated[Session, Depends(get_db)], admin_user: Annotated[User, Depends(get_current_admin_user)]) -> None`
 
 Admin endpoint to delete a user.
 
 Args:
     user_id (int): The unique identifier of the user to delete.
     db (Session): The database session used to interact with the database.
+    admin_user (User): The currently authenticated admin user performing the deletion.
 
 Raises:
     HTTPException: If the user with the given ID is not found, raises a 404 error.
@@ -3368,7 +3464,7 @@ Notes:
 
 ---
 
-## function: `admin_assign_role_to_user(user_id: int, role_name: str, db: Session) -> UnknownType`
+## function: `admin_assign_role_to_user(user_id: int, role_name: str, db: Annotated[Session, Depends(get_db)]) -> AdminUserResponse`
 
 Admin endpoint to assign a role to a user.
 
@@ -3398,7 +3494,7 @@ Notes:
 
 ---
 
-## function: `admin_remove_role_from_user(user_id: int, role_name: str, db: Session) -> UnknownType`
+## function: `admin_remove_role_from_user(user_id: int, role_name: str, db: Annotated[Session, Depends(get_db)]) -> AdminUserResponse`
 
 Admin endpoint to remove a role from a user.
 
@@ -3428,7 +3524,7 @@ Notes:
 
 ---
 
-## function: `admin_impersonate_user(username: str, db: Session, admin_user: User, settings: Settings) -> UnknownType`
+## function: `admin_impersonate_user(username: str, db: Annotated[Session, Depends(get_db)], admin_user: Annotated[User, Depends(get_current_admin_user)], settings: Annotated[Settings, Depends(get_settings)]) -> Token`
 
 Admin endpoint to impersonate a user.
 
@@ -3436,6 +3532,7 @@ Args:
     username (str): The username of the user to impersonate.
     db (Session): The database session used to interact with the database.
     admin_user (User): The currently authenticated admin user.
+    settings (Settings): Application settings used for token creation and configuration.
 
 Returns:
     Token: A JWT access token for the impersonated user, with the admin's username as the impersonator.
@@ -3503,19 +3600,13 @@ Notes:
 
 ---
 
-## function: `create_resume(db: Session, user_id: int, name: str, content: str, is_base: bool, parent_id: int | None, job_description: str | None, introduction: str | None) -> DatabaseResume`
+## function: `create_resume(db: Session, params: ResumeCreateParams) -> DatabaseResume`
 
 Create and save a new resume.
 
 Args:
     db (Session): The database session.
-    user_id (int): The ID of the user who owns the resume.
-    name (str): The name of the resume.
-    content (str): The content of the resume.
-    is_base (bool): Whether this is a base resume. Defaults to True.
-    parent_id (int | None): The ID of the parent resume if this is a refined version.
-    job_description (str | None): The job description for a refined resume.
-    introduction (str | None): AI-generated introduction for the resume.
+    params (ResumeCreateParams): The parameters required to create the resume.
 
 Returns:
     DatabaseResume: The newly created resume object.
@@ -3530,17 +3621,14 @@ Notes:
 
 ---
 
-## function: `update_resume(db: Session, resume: DatabaseResume, name: str | None, content: str | None, introduction: str | None, notes: str | None) -> DatabaseResume`
+## function: `update_resume(db: Session, resume: DatabaseResume, params: ResumeUpdateParams) -> DatabaseResume`
 
 Update a resume's name, content, introduction, and/or notes.
 
 Args:
     db (Session): The database session.
     resume (DatabaseResume): The resume to update.
-    name (str | None): The new name for the resume. If None, the name is not updated.
-    content (str | None): The new content for the resume. If None, the content is not updated.
-    introduction (str | None): The new introduction for the resume. If None, it is not updated.
-    notes (str | None): The new notes for the resume. If None, the notes are not updated.
+    params (ResumeUpdateParams): The new data for the resume.
 
 Returns:
     DatabaseResume: The updated resume object.
@@ -3581,13 +3669,12 @@ Notes:
 ===
 # File: `resume_editor/app/api/routes/route_logic/resume_validation.py`
 
-## function: `perform_pre_save_validation(markdown_content: str, original_content: str | None) -> None`
+## function: `perform_pre_save_validation(markdown_content: str) -> None`
 
 Perform comprehensive pre-save validation on resume content.
 
 Args:
     markdown_content (str): The updated resume Markdown content to validate.
-    original_content (str | None): The original resume content for comparison.
 
 Returns:
     None: This function does not return any value.
@@ -4258,7 +4345,7 @@ Notes:
 
 ## function: `serialize_personal_info_to_markdown(personal_info: PersonalInfoResponse | None) -> str`
 
-    Serialize personal information to Markdown format.
+Serialize personal information to Markdown format.
 
     Args:
         personal_info (PersonalInfoResponse | None): Personal information to serialize.
@@ -4278,16 +4365,17 @@ Notes:
             b. Joins the elements of `lines` with newlines.
             c. Appends a final newline.
         5. Otherwise, returns an empty string.
+
     
 
 ---
 
-## function: `serialize_education_to_markdown(education: UnknownType) -> str`
+## function: `serialize_education_to_markdown(education: EducationResponse | None) -> str`
 
 Serialize education information to Markdown format.
 
 Args:
-    education: Education information to serialize, containing a list of degree entries.
+    education (EducationResponse | None): Education information to serialize, containing a list of degree entries.
 
 Returns:
     str: Markdown formatted education section.
@@ -4304,12 +4392,12 @@ Notes:
 
 ---
 
-## function: `_serialize_project_to_markdown(project: UnknownType) -> list[str]`
+## function: `_serialize_project_to_markdown(project: Project) -> list[str]`
 
 Serialize a single project to markdown lines.
 
 Args:
-    project: A project object to serialize.
+    project (Project): A project object to serialize.
 
 Returns:
     list[str]: A list of markdown lines representing the project.
@@ -4324,12 +4412,12 @@ Notes:
 
 ---
 
-## function: `_serialize_role_to_markdown(role: UnknownType) -> list[str]`
+## function: `_serialize_role_to_markdown(role: Role) -> list[str]`
 
 Serialize a single role to markdown lines.
 
 Args:
-    role: A role object to serialize.
+    role (Role): A role object to serialize.
 
 Returns:
     list[str]: A list of markdown lines representing the role.
@@ -4337,21 +4425,22 @@ Returns:
 Notes:
     1. Gets the `basics` section from the role. If not present, returns an empty list.
     2. Checks the `inclusion_status` on the `basics` object. If `OMIT`, returns an empty list.
-    3. Serializes the `basics` content (company, title, dates, etc.) into Markdown.
-    4. Serializes the `summary` and `skills` sections into Markdown if they exist. This happens for both `INCLUDE` and `NOT_RELEVANT` statuses.
-    5. Handles the `responsibilities` section based on `inclusion_status`:
-        - If `NOT_RELEVANT`, it writes a placeholder text `(no relevant experience)`.
-        - If `INCLUDE`, it serializes the original responsibilities text if it exists.
-    6. Returns the combined list of Markdown lines for the role.
+    3. Orchestrates calls to helper functions to serialize different parts of the role:
+       - `_add_role_basics_markdown` for company, title, dates, etc.
+       - `_add_role_summary_markdown` for the summary text.
+       - `_add_role_responsibilities_markdown` for responsibilities, handling inclusion status.
+       - `_add_role_skills_markdown` for the list of skills.
+    4. If any content is generated, prepends the `### Role` header.
+    5. Returns the combined list of Markdown lines for the role.
 
 ---
 
-## function: `serialize_experience_to_markdown(experience: UnknownType) -> str`
+## function: `serialize_experience_to_markdown(experience: ExperienceResponse | None) -> str`
 
 Serialize experience information to Markdown format.
 
 Args:
-    experience: Experience information to serialize, containing lists of roles and projects.
+    experience (ExperienceResponse | None): Experience information to serialize, containing lists of roles and projects.
 
 Returns:
     str: Markdown formatted experience section.
@@ -4368,12 +4457,12 @@ Notes:
 
 ---
 
-## function: `serialize_certifications_to_markdown(certifications: UnknownType) -> str`
+## function: `serialize_certifications_to_markdown(certifications: CertificationsResponse | None) -> str`
 
 Serialize certifications information to Markdown format.
 
 Args:
-    certifications: Certifications information to serialize, containing a list of certifications.
+    certifications (CertificationsResponse | None): Certifications information to serialize, containing a list of certifications.
 
 Returns:
     str: Markdown formatted certifications section.
@@ -4390,16 +4479,16 @@ Notes:
 
 ---
 
-## function: `update_resume_content_with_structured_data(current_content: str, personal_info: UnknownType, education: UnknownType, certifications: UnknownType, experience: UnknownType) -> str`
+## function: `update_resume_content_with_structured_data(current_content: str, personal_info: PersonalInfoResponse | None, education: EducationResponse | None, certifications: CertificationsResponse | None, experience: ExperienceResponse | None) -> str`
 
 Update resume content with structured data by replacing specific sections.
 
 Args:
     current_content (str): Current resume Markdown content to update.
-    personal_info: Updated personal information to insert. If None, the existing info is preserved.
-    education: Updated education information to insert. If None, the existing info is preserved.
-    certifications: Updated certifications information to insert. If None, the existing info is preserved.
-    experience: Updated experience information to insert. If None, the existing info is preserved.
+    personal_info (PersonalInfoResponse | None): Updated personal information to insert. If None, the existing info is preserved.
+    education (EducationResponse | None): Updated education information to insert. If None, the existing info is preserved.
+    certifications (CertificationsResponse | None): Updated certifications information to insert. If None, the existing info is preserved.
+    experience (ExperienceResponse | None): Updated experience information to insert. If None, the existing info is preserved.
 
 Returns:
     str: Updated resume content with new structured data.
@@ -4829,7 +4918,7 @@ Notes:
 ===
 # File: `resume_editor/app/database/database.py`
 
-## function: `get_engine() -> UnknownType`
+## function: `get_engine() -> Engine`
 
 Get or create the database engine.
 
@@ -4846,7 +4935,7 @@ Notes:
 
 ---
 
-## function: `get_session_local() -> UnknownType`
+## function: `get_session_local() -> sessionmaker[Session]`
 
 Get or create the session local factory.
 
@@ -4911,17 +5000,12 @@ Attributes:
     settings (UserSettings): User-specific settings.
 
 ---
-## method: `User.__init__(self: UnknownType, username: str, email: str, hashed_password: str, is_active: bool, attributes: dict[str, Any] | None, id: int | None) -> UnknownType`
+## method: `User.__init__(self: UnknownType, data: UserData) -> UnknownType`
 
 Initialize a User instance.
 
 Args:
-    username (str): Unique username for the user. Must be a non-empty string.
-    email (str): Unique email address for the user. Must be a non-empty string.
-    hashed_password (str): Hashed password for the user. Must be a non-empty string.
-    is_active (bool): Whether the user account is active. Must be a boolean.
-    attributes (dict | None): Flexible key-value attributes for the user.
-    id (int | None): The unique identifier of the user, for testing purposes.
+    data (UserData): An object containing all initialization data for the user.
 
 Returns:
     None
@@ -4937,12 +5021,12 @@ Notes:
     8. This operation does not involve network, disk, or database access.
 
 ---
-## method: `User.validate_username(self: UnknownType, key: UnknownType, username: UnknownType) -> UnknownType`
+## method: `User.validate_username(self: UnknownType, _key: str, username: str) -> str`
 
 Validate the username field.
 
 Args:
-    key (str): The field name being validated (should be 'username').
+    _key (str): The field name being validated (should be 'username').
     username (str): The username value to validate. Must be a non-empty string.
 
 Returns:
@@ -4954,12 +5038,12 @@ Notes:
     3. This operation does not involve network, disk, or database access.
 
 ---
-## method: `User.validate_email(self: UnknownType, key: UnknownType, email: UnknownType) -> UnknownType`
+## method: `User.validate_email(self: UnknownType, _key: str, email: str) -> str`
 
 Validate the email field.
 
 Args:
-    key (str): The field name being validated (should be 'email').
+    _key (str): The field name being validated (should be 'email').
     email (str): The email value to validate. Must be a non-empty string.
 
 Returns:
@@ -4971,12 +5055,12 @@ Notes:
     3. This operation does not involve network, disk, or database access.
 
 ---
-## method: `User.validate_hashed_password(self: UnknownType, key: UnknownType, hashed_password: UnknownType) -> UnknownType`
+## method: `User.validate_hashed_password(self: UnknownType, _key: str, hashed_password: str) -> str`
 
 Validate the hashed_password field.
 
 Args:
-    key (str): The field name being validated (should be 'hashed_password').
+    _key (str): The field name being validated (should be 'hashed_password').
     hashed_password (str): The hashed password value to validate. Must be a non-empty string.
 
 Returns:
@@ -4988,12 +5072,12 @@ Notes:
     3. This operation does not involve network, disk, or database access.
 
 ---
-## method: `User.validate_is_active(self: UnknownType, key: UnknownType, is_active: UnknownType) -> UnknownType`
+## method: `User.validate_is_active(self: UnknownType, _key: str, is_active: bool) -> bool`
 
 Validate the is_active field.
 
 Args:
-    key (str): The field name being validated (should be 'is_active').
+    _key (str): The field name being validated (should be 'is_active').
     is_active (bool): The is_active value to validate. Must be a boolean.
 
 Returns:
@@ -5004,12 +5088,12 @@ Notes:
     2. This operation does not involve network, disk, or database access.
 
 ---
-## method: `User.validate_attributes(self: UnknownType, key: UnknownType, attributes: UnknownType) -> UnknownType`
+## method: `User.validate_attributes(self: UnknownType, _key: str, attributes: dict[str, Any] | None) -> dict[str, Any] | None`
 
 Validate the attributes field.
 
 Args:
-    key (str): The field name being validated (should be 'attributes').
+    _key (str): The field name being validated (should be 'attributes').
     attributes (dict | None): The attributes value to validate. Must be a dictionary or None.
 
 Returns:
@@ -5085,35 +5169,21 @@ Attributes:
     introduction (str | None): AI-generated introduction for the resume.
 
 ---
-## method: `Resume.__init__(self: UnknownType, user_id: int, name: str, content: str, is_active: bool, is_base: bool, job_description: str | None, parent_id: int | None, notes: str | None, introduction: str | None) -> UnknownType`
+## method: `Resume.__init__(self: UnknownType, data: ResumeData) -> UnknownType`
 
 Initialize a Resume instance.
 
 Args:
-    user_id (int): The unique identifier of the user who owns the resume.
-    name (str): A descriptive name assigned by the user for the resume; must be non-empty.
-    content (str): The Markdown-formatted text content of the resume; must be non-empty.
-    is_active (bool): A flag indicating whether the resume is currently active; defaults to True.
-    is_base (bool): Whether this is a base resume. Defaults to True.
-    job_description (str | None): The job description for a refined resume.
-    parent_id (int | None): The ID of the parent resume if this is a refined resume.
-    notes (str | None): User-provided notes for the resume.
-    introduction (str | None): AI-generated introduction for the resume.
+    data (ResumeData): An object containing the data for the new resume.
 
 Returns:
     None
 
-Raises:
-    ValueError: If user_id is not an integer, name is empty, content is empty, or is_active is not a boolean.
-
 Notes:
-    1. Validate that user_id is an integer.
-    2. Validate that name is a non-empty string.
-    3. Validate that content is a non-empty string.
-    4. Validate that is_active is a boolean.
-    5. Assign user_id, name, content, is_active, is_base, job_description, parent_id, notes, and introduction to instance attributes.
-    6. Log the initialization of the resume with its name.
-    7. This function performs no database access.
+    1. Assigns attributes from the `data` object to the `Resume` instance.
+    2. This constructor does not perform validation. It assumes `data` is a valid `ResumeData` object.
+    3. Logs the initialization of the resume.
+    4. This function does not perform disk, network, or database access.
 
 ---
 
@@ -5147,7 +5217,7 @@ Attributes:
     gpa (str | None): The grade point average.
 
 ---
-## method: `Degree.validate_school(cls: UnknownType, v: UnknownType) -> UnknownType`
+## method: `Degree.validate_school(cls: UnknownType, v: str) -> UnknownType`
 
 Validate the school field.
 
@@ -5165,7 +5235,7 @@ Notes:
     2. Ensure school is not empty after stripping whitespace.
 
 ---
-## method: `Degree.validate_degree(cls: UnknownType, v: UnknownType) -> UnknownType`
+## method: `Degree.validate_degree(cls: UnknownType, v: str | None) -> UnknownType`
 
 Validate the degree field.
 
@@ -5183,7 +5253,7 @@ Notes:
     2. Ensure degree is not empty after stripping whitespace.
 
 ---
-## method: `Degree.validate_major(cls: UnknownType, v: UnknownType) -> UnknownType`
+## method: `Degree.validate_major(cls: UnknownType, v: str | None) -> UnknownType`
 
 Validate the major field.
 
@@ -5201,7 +5271,7 @@ Notes:
     2. Ensure major is not empty after stripping whitespace.
 
 ---
-## method: `Degree.validate_gpa(cls: UnknownType, v: UnknownType) -> UnknownType`
+## method: `Degree.validate_gpa(cls: UnknownType, v: str | None) -> UnknownType`
 
 Validate the gpa field.
 
@@ -5219,7 +5289,7 @@ Notes:
     2. Ensure gpa is not empty after stripping whitespace.
 
 ---
-## method: `Degree.validate_end_date(cls: UnknownType, v: UnknownType, info: UnknownType) -> UnknownType`
+## method: `Degree.validate_end_date(cls: UnknownType, v: datetime | None, info: ValidationInfo) -> UnknownType`
 
 Validate that start_date is not after end_date.
 
@@ -5267,7 +5337,7 @@ Notes:
     No external access (network, disk, or database) is performed.
 
 ---
-## method: `Degrees.__getitem__(self: UnknownType, index: UnknownType) -> UnknownType`
+## method: `Degrees.__getitem__(self: UnknownType, index: int) -> UnknownType`
 
 Return the degree at the given index.
 
@@ -5299,7 +5369,7 @@ Attributes:
     certification_id (str | None): An identifier for the certification.
 
 ---
-## method: `Certification.validate_name(cls: UnknownType, v: UnknownType) -> UnknownType`
+## method: `Certification.validate_name(cls: UnknownType, v: str) -> UnknownType`
 
 Validate the name field.
 
@@ -5317,7 +5387,7 @@ Notes:
     2. Ensure name is not empty.
 
 ---
-## method: `Certification.validate_optional_strings(cls: UnknownType, v: UnknownType) -> UnknownType`
+## method: `Certification.validate_optional_strings(cls: UnknownType, v: str | None) -> UnknownType`
 
 Validate optional string fields.
 
@@ -5334,7 +5404,7 @@ Notes:
     1. Ensure field is a string or None.
 
 ---
-## method: `Certification.validate_dates(cls: UnknownType, v: UnknownType) -> UnknownType`
+## method: `Certification.validate_dates(cls: UnknownType, v: datetime | None) -> UnknownType`
 
 Validate the date fields.
 
@@ -5351,7 +5421,7 @@ Notes:
     1. Ensure date is a datetime object or None.
 
 ---
-## method: `Certification.validate_date_order(self: UnknownType) -> UnknownType`
+## method: `Certification.validate_date_order(self: UnknownType) -> Self`
 
 Validate that issued date is not after expires date.
 
@@ -5373,7 +5443,7 @@ Attributes:
     certifications (list[Certification]): A list of Certification objects.
 
 ---
-## method: `Certifications.validate_certifications(cls: UnknownType, v: UnknownType) -> UnknownType`
+## method: `Certifications.validate_certifications(cls: UnknownType, v: list['Certification']) -> UnknownType`
 
 Validate the certifications field.
 
@@ -5413,7 +5483,7 @@ Notes:
     1. Return the length of the certifications list.
 
 ---
-## method: `Certifications.__getitem__(self: UnknownType, index: UnknownType) -> UnknownType`
+## method: `Certifications.__getitem__(self: UnknownType, index: int) -> UnknownType`
 
 Return the certification at the given index.
 
@@ -5427,7 +5497,7 @@ Notes:
     1. Retrieve and return the certification at the given index.
 
 ---
-## method: `Certifications.list_class(self: UnknownType) -> UnknownType`
+## method: `Certifications.list_class(self: UnknownType) -> type['Certification']`
 
 Return the type that will be contained in the list.
 
@@ -5455,7 +5525,7 @@ Attributes:
     location (str | None): The physical location (e.g., city and country) of the person, or None if not provided.
 
 ---
-## method: `ContactInfo.validate_name(cls: UnknownType, v: UnknownType) -> UnknownType`
+## method: `ContactInfo.validate_name(cls: UnknownType, v: str) -> UnknownType`
 
 Validate the name field.
 
@@ -5473,7 +5543,7 @@ Notes:
     2. Ensure name is not empty after stripping whitespace.
 
 ---
-## method: `ContactInfo.validate_email(cls: UnknownType, v: UnknownType) -> UnknownType`
+## method: `ContactInfo.validate_email(cls: UnknownType, v: str | None) -> UnknownType`
 
 Validate the email field.
 
@@ -5491,7 +5561,7 @@ Notes:
     2. Ensure email is not empty after stripping whitespace.
 
 ---
-## method: `ContactInfo.validate_phone(cls: UnknownType, v: UnknownType) -> UnknownType`
+## method: `ContactInfo.validate_phone(cls: UnknownType, v: str | None) -> UnknownType`
 
 Validate the phone field.
 
@@ -5509,7 +5579,7 @@ Notes:
     2. Ensure phone is not empty after stripping whitespace.
 
 ---
-## method: `ContactInfo.validate_location(cls: UnknownType, v: UnknownType) -> UnknownType`
+## method: `ContactInfo.validate_location(cls: UnknownType, v: str | None) -> UnknownType`
 
 Validate the location field.
 
@@ -5538,7 +5608,7 @@ Attributes:
     twitter (str | None): The Twitter profile URL, or None if not provided.
 
 ---
-## method: `Websites.validate_website(cls: UnknownType, v: UnknownType) -> UnknownType`
+## method: `Websites.validate_website(cls: UnknownType, v: str | None) -> UnknownType`
 
 Validate the website field.
 
@@ -5556,7 +5626,7 @@ Notes:
     2. Ensure website is not empty after stripping whitespace.
 
 ---
-## method: `Websites.validate_github(cls: UnknownType, v: UnknownType) -> UnknownType`
+## method: `Websites.validate_github(cls: UnknownType, v: str | None) -> UnknownType`
 
 Validate the github field.
 
@@ -5574,7 +5644,7 @@ Notes:
     2. Ensure github is not empty after stripping whitespace.
 
 ---
-## method: `Websites.validate_linkedin(cls: UnknownType, v: UnknownType) -> UnknownType`
+## method: `Websites.validate_linkedin(cls: UnknownType, v: str | None) -> UnknownType`
 
 Validate the linkedin field.
 
@@ -5592,7 +5662,7 @@ Notes:
     2. Ensure linkedin is not empty after stripping whitespace.
 
 ---
-## method: `Websites.validate_twitter(cls: UnknownType, v: UnknownType) -> UnknownType`
+## method: `Websites.validate_twitter(cls: UnknownType, v: str | None) -> UnknownType`
 
 Validate the twitter field.
 
@@ -5619,7 +5689,7 @@ Attributes:
     require_sponsorship (bool | None): A boolean indicating if sponsorship is required, or None if not provided.
 
 ---
-## method: `VisaStatus.validate_work_authorization(cls: UnknownType, v: UnknownType) -> UnknownType`
+## method: `VisaStatus.validate_work_authorization(cls: UnknownType, v: str | None) -> UnknownType`
 
 Validate the work_authorization field.
 
@@ -5637,7 +5707,7 @@ Notes:
     2. Ensure work_authorization is not empty after stripping whitespace.
 
 ---
-## method: `VisaStatus.validate_require_sponsorship(cls: UnknownType, v: UnknownType) -> UnknownType`
+## method: `VisaStatus.validate_require_sponsorship(cls: UnknownType, v: bool | str | None) -> UnknownType`
 
 Validate the require_sponsorship field.
 
@@ -5665,7 +5735,7 @@ Attributes:
     text (str): The cleaned text content of the banner, with leading/trailing and internal blank lines removed.
 
 ---
-## method: `Banner.validate_text(cls: UnknownType, v: UnknownType) -> UnknownType`
+## method: `Banner.validate_text(cls: UnknownType, v: str) -> UnknownType`
 
 Validate the text field and clean it.
 
@@ -5695,7 +5765,7 @@ Attributes:
     text (str): The cleaned text content of the note, with leading/trailing and internal blank lines removed.
 
 ---
-## method: `Note.validate_text(cls: UnknownType, v: UnknownType) -> UnknownType`
+## method: `Note.validate_text(cls: UnknownType, v: str) -> UnknownType`
 
 Validate the text field and clean it.
 
@@ -5737,7 +5807,7 @@ Attributes:
     skills (list[str]): A list of non-empty, stripped skill strings.
 
 ---
-## method: `RoleSkills.validate_skills(cls: UnknownType, v: UnknownType) -> UnknownType`
+## method: `RoleSkills.validate_skills(cls: UnknownType, v: list[str]) -> UnknownType`
 
 Validate the skills field.
 
@@ -5771,7 +5841,7 @@ Returns:
     int: The number of skills.
 
 ---
-## method: `RoleSkills.__getitem__(self: UnknownType, index: UnknownType) -> UnknownType`
+## method: `RoleSkills.__getitem__(self: UnknownType, index: int) -> UnknownType`
 
 Return the skill at the given index.
 
@@ -5799,7 +5869,7 @@ Attributes:
     inclusion_status (InclusionStatus): The inclusion status of the role.
 
 ---
-## method: `RoleBasics.validate_company(cls: UnknownType, v: UnknownType) -> UnknownType`
+## method: `RoleBasics.validate_company(cls: UnknownType, v: str) -> UnknownType`
 
 Validate the company field.
 
@@ -5819,7 +5889,7 @@ Notes:
     4. Raise a ValueError if company is not a string or is empty.
 
 ---
-## method: `RoleBasics.validate_title(cls: UnknownType, v: UnknownType) -> UnknownType`
+## method: `RoleBasics.validate_title(cls: UnknownType, v: str) -> UnknownType`
 
 Validate the title field.
 
@@ -5839,7 +5909,7 @@ Notes:
     4. Raise a ValueError if title is not a string or is empty.
 
 ---
-## method: `RoleBasics.validate_end_date(cls: UnknownType, v: UnknownType, info: UnknownType) -> UnknownType`
+## method: `RoleBasics.validate_end_date(cls: UnknownType, v: datetime | None, info: ValidationInfo) -> UnknownType`
 
 Validate the end_date field.
 
@@ -5883,7 +5953,7 @@ Returns:
     int: The number of roles.
 
 ---
-## method: `Roles.__getitem__(self: UnknownType, index: UnknownType) -> UnknownType`
+## method: `Roles.__getitem__(self: UnknownType, index: int) -> UnknownType`
 
 Return the role at the given index.
 
@@ -5894,7 +5964,7 @@ Returns:
     Role: The role at the specified index.
 
 ---
-## method: `Roles.list_class(self: UnknownType) -> UnknownType`
+## method: `Roles.list_class(self: UnknownType) -> type[Role]`
 
 Return the class for the list.
 
@@ -5910,7 +5980,7 @@ Attributes:
     skills (list[str]): A list of non-empty, stripped skill strings.
 
 ---
-## method: `ProjectSkills.validate_skills(cls: UnknownType, v: UnknownType) -> UnknownType`
+## method: `ProjectSkills.validate_skills(cls: UnknownType, v: list[str]) -> UnknownType`
 
 Validate the skills field.
 
@@ -5947,7 +6017,7 @@ Returns:
     int: The number of skills.
 
 ---
-## method: `ProjectSkills.__getitem__(self: UnknownType, index: UnknownType) -> UnknownType`
+## method: `ProjectSkills.__getitem__(self: UnknownType, index: int) -> UnknownType`
 
 Return the skill at the given index.
 
@@ -5971,7 +6041,7 @@ Attributes:
     inclusion_status (InclusionStatus): The inclusion status of the project.
 
 ---
-## method: `ProjectOverview.validate_title(cls: UnknownType, v: UnknownType) -> UnknownType`
+## method: `ProjectOverview.validate_title(cls: UnknownType, v: str) -> UnknownType`
 
 Validate the title field.
 
@@ -5991,7 +6061,7 @@ Notes:
     4. Raise a ValueError if title is not a string or is empty.
 
 ---
-## method: `ProjectOverview.validate_date_order(cls: UnknownType, v: UnknownType, info: UnknownType) -> UnknownType`
+## method: `ProjectOverview.validate_date_order(cls: UnknownType, v: datetime | None, info: ValidationInfo) -> UnknownType`
 
 Validate that start_date is not after end_date.
 
@@ -6034,7 +6104,7 @@ Returns:
     int: The number of projects.
 
 ---
-## method: `Projects.__getitem__(self: UnknownType, index: UnknownType) -> UnknownType`
+## method: `Projects.__getitem__(self: UnknownType, index: int) -> UnknownType`
 
 Return the project at the given index.
 
@@ -6045,7 +6115,7 @@ Returns:
     Project: The project at the specified index.
 
 ---
-## method: `Projects.list_class(self: UnknownType) -> UnknownType`
+## method: `Projects.list_class(self: UnknownType) -> type[Project]`
 
 Return the class of the list.
 
@@ -6113,7 +6183,7 @@ Checks if the user must change their password.
 ===
 # File: `resume_editor/app/api/routes/route_logic/user.py`
 
-## function: `change_password(db: Session, user: User, new_password: str, current_password: str | None) -> UnknownType`
+## function: `change_password(db: Session, user: User, new_password: str, current_password: str | None) -> None`
 
 Change a user's password and unset the force_password_change flag.
 
@@ -6286,7 +6356,7 @@ Notes:
 
 ---
 
-## function: `refine_resume_section_with_llm(resume_content: str, job_description: str, target_section: str, llm_endpoint: str | None, api_key: str | None, llm_model_name: str | None, generate_introduction: bool) -> tuple[str, str | None]`
+## function: `refine_resume_section_with_llm(resume_content: str, job_description: str, target_section: str, llm_config: LLMConfig, generate_introduction: bool) -> tuple[str, str | None]`
 
 Uses an LLM to refine a specific non-experience section of a resume.
 
@@ -6298,9 +6368,7 @@ Args:
     resume_content (str): The full Markdown content of the resume.
     job_description (str): The job description to align the resume with.
     target_section (str): The section of the resume to refine (e.g., "personal").
-    llm_endpoint (str | None): The custom LLM endpoint URL.
-    api_key (str | None): The user's decrypted LLM API key.
-    llm_model_name (str | None): The user-specified LLM model name.
+    llm_config (LLMConfig): LLM configuration including endpoint, API key, and model name.
     generate_introduction (bool): Whether to generate an introduction.
 
 Returns:
@@ -6390,6 +6458,8 @@ Args:
     base_resumes (list[DatabaseResume]): The list of base resumes to display.
     refined_resumes (list[DatabaseResume]): The list of refined resumes to display.
     selected_resume_id (int | None): The ID of the resume to mark as selected.
+    sort_by (str | None): The current sorting key applied to the resume list, if any.
+    wrap_in_div (bool): If True, wrap the generated HTML in a div with id 'resume-list'.
 
 Returns:
     str: HTML string for the resume list.
@@ -6756,6 +6826,63 @@ Notes:
 
 ---
 
+## function: `_add_role_basics_markdown(basics: any, lines: list[str]) -> None`
+
+Adds role basics Markdown to a list of lines.
+Args:
+    basics (any): The parsed role basics from resume_writer.
+    lines (list[str]): The list of lines to append to.
+Notes:
+    1. Defines mappings for string and date fields to their labels.
+    2. Iterates through the field mappings to collect basics info.
+    3. Formats date fields to 'MM/YYYY'.
+    4. If any data is collected, adds a "Basics" section header.
+    5. Appends each non-empty field.
+    6. Adds a trailing blank line.
+
+---
+
+## function: `_add_role_summary_markdown(summary: any, lines: list[str]) -> None`
+
+Adds role summary Markdown to a list of lines.
+Args:
+    summary (any): The parsed role summary from resume_writer.
+    lines (list[str]): The list of lines to append to.
+Notes:
+    1. Checks for summary text.
+    2. If present, adds a "Summary" section header and the text.
+    3. Adds a trailing blank line.
+
+---
+
+## function: `_add_role_responsibilities_markdown(responsibilities: any, inclusion_status: InclusionStatus, lines: list[str]) -> None`
+
+Adds role responsibilities Markdown to a list of lines.
+Args:
+    responsibilities (any): The parsed role responsibilities from resume_writer.
+    inclusion_status (InclusionStatus): The inclusion status of the role.
+    lines (list[str]): The list of lines to append to.
+Notes:
+    1. If inclusion_status is `NOT_RELEVANT`, appends a placeholder.
+    2. If inclusion_status is `INCLUDE` and responsibilities text exists, appends the text.
+    3. Adds section header and trailing blank line as appropriate.
+
+---
+
+## function: `_add_role_skills_markdown(skills: any, lines: list[str]) -> None`
+
+Adds role skills Markdown to a list of lines.
+Args:
+    skills (any): The parsed role skills from resume_writer.
+    lines (list[str]): The list of lines to append to.
+Notes:
+    1. Checks for a list of skills.
+    2. If it exists and is not empty, adds a "Skills" section header.
+    3. Appends the skills as a bulleted list.
+    4. Adds a trailing blank line.
+
+---
+
 
 ===
 
@@ -6872,6 +6999,98 @@ Returns:
     str: The complete HTML content for the body of the `done` event.
 
 ---
+
+## function: `_process_sse_event(event: dict, refined_roles: dict) -> tuple[str | None, str | None]`
+
+Processes a single SSE event from the experience refinement stream.
+
+This helper function updates the state of refined roles and determines
+what message, if any, should be yielded to the client.
+
+Args:
+    event (dict): The event data from the async generator.
+    refined_roles (dict): A dictionary to be updated with refined role data.
+
+Returns:
+    tuple[str | None, str | None]: A tuple containing an optional SSE message
+                                   to yield and optional new introduction text.
+
+---
+
+## function: `_handle_sse_exception(e: Exception, resume_id: int) -> str`
+
+Handles exceptions during an SSE stream and formats an error message.
+
+Args:
+    e (Exception): The exception that was raised.
+    resume_id (int): The ID of the resume being processed.
+
+Returns:
+    str: A formatted SSE error message string.
+
+---
+
+## function: `reconstruct_resume_from_refined_section(original_resume_content: str, refined_content: str, target_section: RefineTargetSection) -> str`
+
+Rebuilds a complete resume by combining a refined section with original sections.
+
+This function takes a refined content string for a specific section and reconstructs
+the full resume markdown by parsing all sections, replacing the target section
+with the refined version, and then building the complete markdown from these parts.
+
+Args:
+    original_resume_content (str): The full markdown content of the original resume.
+    refined_content (str): The markdown content of the section that has been refined.
+    target_section (RefineTargetSection): The enum member indicating which section was refined.
+
+Returns:
+    str: The full markdown content of the reconstructed resume.
+
+---
+
+## function: `handle_accept_refinement(db: Session, resume: DatabaseResume, refined_content: str, target_section: RefineTargetSection, introduction: str | None) -> DatabaseResume`
+
+Orchestrates accepting a refined resume section.
+
+This involves reconstructing the resume, validating it, and updating the database.
+
+Args:
+    db (Session): The database session.
+    resume (DatabaseResume): The original resume to update.
+    refined_content (str): The refined content for the target section.
+    target_section (RefineTargetSection): The section that was refined.
+    introduction (str | None): An optional new introduction.
+
+Returns:
+    DatabaseResume: The updated resume object.
+
+Raises:
+    HTTPException: If reconstruction or validation fails.
+
+---
+
+## function: `handle_save_as_new_refinement(params: SaveAsNewParams) -> DatabaseResume`
+
+Orchestrates saving a refined resume as a new resume.
+
+This involves reconstructing the resume, validating it, and creating a new record in the database.
+
+Args:
+    params (SaveAsNewParams): The parameters for saving the new resume.
+
+Returns:
+    DatabaseResume: The newly created resume object.
+
+Raises:
+    HTTPException: If reconstruction or validation fails.
+
+---
+
+
+===
+
+===
+# File: `resume_editor/app/web/pages.py`
 
 
 ===

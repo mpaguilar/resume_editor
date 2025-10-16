@@ -8,8 +8,7 @@ log = logging.getLogger(__name__)
 
 
 def user_count(db: Session) -> int:
-    """
-    Counts the total number of users in the database.
+    """Counts the total number of users in the database.
 
     Args:
         db (Session): The database session.

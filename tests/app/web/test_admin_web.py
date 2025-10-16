@@ -12,7 +12,7 @@ from resume_editor.app.core.auth import (
 )
 from resume_editor.app.main import create_app
 from resume_editor.app.models.role import Role
-from resume_editor.app.models.user import User
+from resume_editor.app.models.user import User, UserData
 
 
 @pytest.fixture
@@ -91,9 +91,11 @@ def test_admin_users_page_as_non_admin(
     mock_get_session_local.return_value = lambda: mock_session
     mock_db_session = MagicMock()
     mock_user = User(
-        username="testuser",
-        email="test@test.com",
-        hashed_password="hashed",
+        data=UserData(
+            username="testuser",
+            email="test@test.com",
+            hashed_password="hashed",
+        )
     )
     mock_user.roles = []  # Not an admin
 
@@ -116,39 +118,47 @@ def test_admin_users_page_as_admin(
     mock_get_session_local.return_value = lambda: mock_session
     mock_db_session = MagicMock()
     mock_admin = User(
-        username="admin",
-        email="admin@test.com",
-        hashed_password="hashed",
+        data=UserData(
+            username="admin",
+            email="admin@test.com",
+            hashed_password="hashed",
+        )
     )
     mock_admin.roles = [Role(name="admin")]
 
     setup_dependency_overrides(app, mock_db_session, mock_admin)
 
     mock_user_1 = User(
-        id=2,
-        username="testuser1",
-        email="user1@test.com",
-        hashed_password="pwd",
+        data=UserData(
+            id_=2,
+            username="testuser1",
+            email="user1@test.com",
+            hashed_password="pwd",
+        )
     )
     mock_user_1.resumes = []
     mock_user_1.attributes = {}
     mock_user_1.last_login_at = None
 
     mock_user_2 = User(
-        id=3,
-        username="testuser2",
-        email="user2@test.com",
-        hashed_password="pwd",
+        data=UserData(
+            id_=3,
+            username="testuser2",
+            email="user2@test.com",
+            hashed_password="pwd",
+        )
     )
     mock_user_2.resumes = [MagicMock()]
     mock_user_2.attributes = {"force_password_change": True}
     mock_user_2.last_login_at = datetime(2025, 8, 31, 12, 0, 0)
 
     mock_user_3 = User(
-        id=4,
-        username="testuser3",
-        email="user3@test.com",
-        hashed_password="pwd",
+        data=UserData(
+            id_=4,
+            username="testuser3",
+            email="user3@test.com",
+            hashed_password="pwd",
+        )
     )
     mock_user_3.resumes = []
     mock_user_3.attributes = None
@@ -199,17 +209,21 @@ def test_admin_delete_user_web_success(
     mock_get_session_local.return_value = lambda: mock_session
     mock_db_session = MagicMock()
     admin_user = User(
-        id=1,
-        username="admin",
-        email="admin@test.com",
-        hashed_password="hashed",
+        data=UserData(
+            id_=1,
+            username="admin",
+            email="admin@test.com",
+            hashed_password="hashed",
+        )
     )
     admin_user.roles = [Role(id=1, name="admin")]
     user_to_delete = User(
-        id=2,
-        username="delete_me",
-        email="delete@me.com",
-        hashed_password="hashed",
+        data=UserData(
+            id_=2,
+            username="delete_me",
+            email="delete@me.com",
+            hashed_password="hashed",
+        )
     )
     user_to_delete.roles = []
 
@@ -263,10 +277,12 @@ def test_admin_delete_user_web_forbidden_if_not_admin(
     mock_get_session_local.return_value = lambda: mock_session
     mock_db_session = MagicMock()
     non_admin_user = User(
-        id=1,
-        username="test",
-        email="test@test.com",
-        hashed_password="hashed",
+        data=UserData(
+            id_=1,
+            username="test",
+            email="test@test.com",
+            hashed_password="hashed",
+        )
     )
     non_admin_user.roles = []  # No admin role
     setup_dependency_overrides(app, mock_db_session, non_admin_user)
@@ -286,10 +302,12 @@ def test_admin_delete_user_web_not_found(
     mock_get_session_local.return_value = lambda: mock_session
     mock_db_session = MagicMock()
     admin_user = User(
-        id=1,
-        username="admin",
-        email="admin@test.com",
-        hashed_password="hashed",
+        data=UserData(
+            id_=1,
+            username="admin",
+            email="admin@test.com",
+            hashed_password="hashed",
+        )
     )
     admin_user.roles = [Role(name="admin")]
     setup_dependency_overrides(app, mock_db_session, admin_user)
@@ -311,10 +329,12 @@ def test_admin_delete_user_web_self_delete_fails(
     mock_get_session_local.return_value = lambda: mock_session
     mock_db_session = MagicMock()
     admin_user = User(
-        id=1,
-        username="admin",
-        email="admin@test.com",
-        hashed_password="hashed",
+        data=UserData(
+            id_=1,
+            username="admin",
+            email="admin@test.com",
+            hashed_password="hashed",
+        )
     )
     admin_user.roles = [Role(name="admin")]
     setup_dependency_overrides(app, mock_db_session, admin_user)

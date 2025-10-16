@@ -5,15 +5,14 @@ from sqlalchemy.orm.attributes import flag_modified
 
 from resume_editor.app.core.security import get_password_hash
 from resume_editor.app.models.role import Role
-from resume_editor.app.models.user import User
+from resume_editor.app.models.user import User, UserData
 from resume_editor.app.schemas.user import AdminUserCreate, AdminUserUpdateRequest
 
 log = logging.getLogger(__name__)
 
 
 def create_user_admin(db: Session, user_data: AdminUserCreate) -> User:
-    """
-    Create a new user as an administrator.
+    """Create a new user as an administrator.
 
     Args:
         db (Session): The database session used to interact with the database.
@@ -38,11 +37,13 @@ def create_user_admin(db: Session, user_data: AdminUserCreate) -> User:
     _msg = f"Creating new user: {user_data.username}"
     log.debug(_msg)
     db_user = User(
-        username=user_data.username,
-        email=user_data.email,
-        hashed_password=hashed_password,
-        is_active=user_data.is_active,
-        attributes=user_data.attributes,
+        data=UserData(
+            username=user_data.username,
+            email=user_data.email,
+            hashed_password=hashed_password,
+            is_active=user_data.is_active,
+            attributes=user_data.attributes,
+        ),
     )
 
     _msg = f"Adding user {user_data.username} to database"
@@ -68,8 +69,7 @@ def create_user_admin(db: Session, user_data: AdminUserCreate) -> User:
 
 
 def create_initial_admin(db: Session, username: str, password: str) -> User:
-    """
-    Create the initial administrator account.
+    """Create the initial administrator account.
 
     This function creates the first user and assigns them the 'admin' role. It
     is intended to be used only during initial application setup when no users
@@ -96,6 +96,7 @@ def create_initial_admin(db: Session, username: str, password: str) -> User:
         7. Commits the transaction.
         8. Re-fetches the user to load relationships.
         9. This function performs database read and write operations.
+
     """
     _msg = "create_initial_admin starting"
     log.debug(_msg)
@@ -109,11 +110,13 @@ def create_initial_admin(db: Session, username: str, password: str) -> User:
     _msg = f"Creating new user object for initial admin: {username} with email {email}"
     log.debug(_msg)
     db_user = User(
-        username=username,
-        email=email,
-        hashed_password=hashed_password,
-        is_active=True,  # Initial admin is always active
-        attributes={},  # Start with empty attributes
+        data=UserData(
+            username=username,
+            email=email,
+            hashed_password=hashed_password,
+            is_active=True,  # Initial admin is always active
+            attributes={},  # Start with empty attributes
+        ),
     )
 
     _msg = "Fetching 'admin' role"
@@ -136,10 +139,7 @@ def create_initial_admin(db: Session, username: str, password: str) -> User:
     log.debug(_msg)
     db.commit()
 
-    _msg = (
-        f"Initial admin {username} committed, "
-        f"re-fetching with loaded relationships."
-    )
+    _msg = f"Initial admin {username} committed, re-fetching with loaded relationships."
     log.debug(_msg)
     created_user = get_user_by_id_admin(db=db, user_id=db_user.id)
     if not created_user:
@@ -153,8 +153,7 @@ def create_initial_admin(db: Session, username: str, password: str) -> User:
 
 
 def get_user_by_id_admin(db: Session, user_id: int) -> User | None:
-    """
-    Retrieve a single user by their unique ID as an administrator.
+    """Retrieve a single user by their unique ID as an administrator.
 
     Args:
         db (Session): The database session used to query the database.
@@ -182,8 +181,7 @@ def get_user_by_id_admin(db: Session, user_id: int) -> User | None:
 
 
 def get_users_admin(db: Session) -> list[User]:
-    """
-    Retrieve all users from the database as an administrator.
+    """Retrieve all users from the database as an administrator.
 
     Args:
         db (Session): The database session used to query the database.
@@ -205,8 +203,7 @@ def get_users_admin(db: Session) -> list[User]:
 
 
 def get_user_by_username_admin(db: Session, username: str) -> User | None:
-    """
-    Retrieve a single user by their username as an administrator.
+    """Retrieve a single user by their username as an administrator.
 
     Args:
         db (Session): The database session used to query the database.
@@ -229,8 +226,7 @@ def get_user_by_username_admin(db: Session, username: str) -> User | None:
 
 
 def delete_user_admin(db: Session, user: User) -> None:
-    """
-    Delete a user from the database as an administrator.
+    """Delete a user from the database as an administrator.
 
     Args:
         db (Session): The database session used to interact with the database.
@@ -254,8 +250,7 @@ def delete_user_admin(db: Session, user: User) -> None:
 
 
 def get_role_by_name_admin(db: Session, name: str) -> Role | None:
-    """
-    Retrieve a role from the database by its unique name.
+    """Retrieve a role from the database by its unique name.
 
     This function is intended for administrative use to fetch a role before
     performing actions like assigning it to or removing it from a user.
@@ -281,8 +276,7 @@ def get_role_by_name_admin(db: Session, name: str) -> Role | None:
 
 
 def assign_role_to_user_admin(db: Session, user: User, role: Role) -> User:
-    """
-    Assign a role to a user if they do not already have it.
+    """Assign a role to a user if they do not already have it.
 
     This administrative function associates a `Role` with a `User`.
     It checks for the role's existence on the user before appending to prevent duplicates.
@@ -327,8 +321,7 @@ def assign_role_to_user_admin(db: Session, user: User, role: Role) -> User:
 
 
 def remove_role_from_user_admin(db: Session, user: User, role: Role) -> User:
-    """
-    Remove a role from a user if they have it.
+    """Remove a role from a user if they have it.
 
     This administrative function disassociates a `Role` from a `User`.
     It checks if the user has the role before attempting removal.
@@ -377,8 +370,7 @@ def update_user_admin(
     user: User,
     update_data: AdminUserUpdateRequest,
 ) -> User:
-    """
-    Update a user's attributes as an administrator.
+    """Update a user's attributes as an administrator.
 
     Args:
         db (Session): The database session.

@@ -7,8 +7,7 @@ log = logging.getLogger(__name__)
 
 
 def _get_date_from_optional_datetime(dt: datetime | None) -> date | None:
-    """
-    Extract the date portion from an optional datetime object.
+    """Extract the date portion from an optional datetime object.
 
     Args:
         dt (datetime | None): The datetime object to extract the date from, or None.
@@ -30,8 +29,7 @@ def _is_in_date_range(
     filter_start_date: date | None,
     filter_end_date: date | None,
 ) -> bool:
-    """
-    Check if an item's date range overlaps with the filter's date range.
+    """Check if an item's date range overlaps with the filter's date range.
 
     Args:
         item_start_date (date | None): The start date of the item being evaluated.
@@ -63,8 +61,7 @@ def filter_experience_by_date(
     start_date: date | None = None,
     end_date: date | None = None,
 ) -> ExperienceResponse:
-    """
-    Filter roles and projects in an ExperienceResponse based on a date range.
+    """Filter roles and projects in an ExperienceResponse based on a date range.
 
     Args:
         experience (ExperienceResponse): The experience data to filter.

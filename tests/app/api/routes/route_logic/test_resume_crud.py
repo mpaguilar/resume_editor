@@ -6,13 +6,18 @@ from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
 from resume_editor.app.api.routes.route_logic.resume_crud import (
+    ResumeCreateParams,
+    ResumeUpdateParams,
     create_resume,
     delete_resume,
     get_resume_by_id_and_user,
     get_user_resumes,
     update_resume,
 )
-from resume_editor.app.models.resume_model import Resume as DatabaseResume
+from resume_editor.app.models.resume_model import (
+    Resume as DatabaseResume,
+    ResumeData,
+)
 
 log = logging.getLogger(__name__)
 
@@ -71,11 +76,11 @@ def db_with_resumes(db_session_and_engine):
     user_id = 1
 
     # Create resumes with different timestamps and names
-    r_gamma = DatabaseResume(user_id=user_id, name="gamma", content="c")
-    r_beta = DatabaseResume(user_id=user_id, name="beta", content="c")
-    r_alpha = DatabaseResume(user_id=user_id, name="alpha", content="c")
+    r_gamma = DatabaseResume(data=ResumeData(user_id=user_id, name="gamma", content="c"))
+    r_beta = DatabaseResume(data=ResumeData(user_id=user_id, name="beta", content="c"))
+    r_alpha = DatabaseResume(data=ResumeData(user_id=user_id, name="alpha", content="c"))
     # Resume for another user to ensure filtering works
-    r_delta = DatabaseResume(user_id=2, name="delta", content="c")
+    r_delta = DatabaseResume(data=ResumeData(user_id=2, name="delta", content="c"))
 
     db.add_all([r_gamma, r_beta, r_alpha, r_delta])
     db.commit()  # Committing assigns IDs and default timestamps
@@ -137,14 +142,17 @@ def test_create_resume_base_default(mock_db_resume):
     mock_instance = Mock()
     mock_db_resume.return_value = mock_instance
 
-    result = create_resume(
-        db=mock_db,
+    params = ResumeCreateParams(
         user_id=1,
         name="Test Resume",
         content="Test Content",
     )
+    result = create_resume(
+        db=mock_db,
+        params=params,
+    )
 
-    mock_db_resume.assert_called_once_with(
+    expected_resume_data = ResumeData(
         user_id=1,
         name="Test Resume",
         content="Test Content",
@@ -153,6 +161,7 @@ def test_create_resume_base_default(mock_db_resume):
         job_description=None,
         introduction=None,
     )
+    mock_db_resume.assert_called_once_with(data=expected_resume_data)
     mock_db.add.assert_called_once_with(mock_instance)
     mock_db.commit.assert_called_once()
     mock_db.refresh.assert_called_once_with(mock_instance)
@@ -166,8 +175,7 @@ def test_create_resume_refined(mock_db_resume):
     mock_instance = Mock()
     mock_db_resume.return_value = mock_instance
 
-    result = create_resume(
-        db=mock_db,
+    params = ResumeCreateParams(
         user_id=1,
         name="Refined Resume",
         content="Refined Content",
@@ -175,8 +183,12 @@ def test_create_resume_refined(mock_db_resume):
         parent_id=123,
         job_description="A cool job",
     )
+    result = create_resume(
+        db=mock_db,
+        params=params,
+    )
 
-    mock_db_resume.assert_called_once_with(
+    expected_resume_data = ResumeData(
         user_id=1,
         name="Refined Resume",
         content="Refined Content",
@@ -185,6 +197,7 @@ def test_create_resume_refined(mock_db_resume):
         job_description="A cool job",
         introduction=None,
     )
+    mock_db_resume.assert_called_once_with(data=expected_resume_data)
     mock_db.add.assert_called_once_with(mock_instance)
     mock_db.commit.assert_called_once()
     mock_db.refresh.assert_called_once_with(mock_instance)
@@ -199,15 +212,18 @@ def test_create_resume_with_introduction(mock_db_resume):
     mock_db_resume.return_value = mock_instance
 
     intro_text = "This is a great introduction."
-    result = create_resume(
-        db=mock_db,
+    params = ResumeCreateParams(
         user_id=1,
         name="Resume With Intro",
         content="Some content",
         introduction=intro_text,
     )
+    result = create_resume(
+        db=mock_db,
+        params=params,
+    )
 
-    mock_db_resume.assert_called_once_with(
+    expected_resume_data = ResumeData(
         user_id=1,
         name="Resume With Intro",
         content="Some content",
@@ -216,6 +232,7 @@ def test_create_resume_with_introduction(mock_db_resume):
         job_description=None,
         introduction=intro_text,
     )
+    mock_db_resume.assert_called_once_with(data=expected_resume_data)
     mock_db.add.assert_called_once_with(mock_instance)
     mock_db.commit.assert_called_once()
     mock_db.refresh.assert_called_once_with(mock_instance)
@@ -227,13 +244,16 @@ def test_update_resume():
     mock_db = Mock(spec=Session)
     mock_resume = Mock(spec=DatabaseResume)
 
-    result = update_resume(
-        db=mock_db,
-        resume=mock_resume,
+    params = ResumeUpdateParams(
         name="New Name",
         content="New Content",
         introduction="New Intro",
         notes="New Notes",
+    )
+    result = update_resume(
+        db=mock_db,
+        resume=mock_resume,
+        params=params,
     )
 
     assert mock_resume.name == "New Name"
@@ -254,7 +274,8 @@ def test_update_resume_no_changes():
     mock_resume.introduction = "Initial Intro"
     mock_resume.notes = "Initial notes"
 
-    result = update_resume(db=mock_db, resume=mock_resume)
+    params = ResumeUpdateParams()
+    result = update_resume(db=mock_db, resume=mock_resume, params=params)
 
     assert result.name == "Initial Name"
     assert result.content == "Initial Content"
@@ -273,7 +294,8 @@ def test_update_resume_only_name():
     mock_resume.introduction = "Initial Intro"
     mock_resume.notes = "Initial notes"
 
-    result = update_resume(db=mock_db, resume=mock_resume, name="New Name")
+    params = ResumeUpdateParams(name="New Name")
+    result = update_resume(db=mock_db, resume=mock_resume, params=params)
 
     assert result.name == "New Name"
     assert result.content == "Initial Content"
@@ -292,7 +314,8 @@ def test_update_resume_only_content():
     mock_resume.introduction = "Initial Intro"
     mock_resume.notes = "Initial notes"
 
-    result = update_resume(db=mock_db, resume=mock_resume, content="New Content")
+    params = ResumeUpdateParams(content="New Content")
+    result = update_resume(db=mock_db, resume=mock_resume, params=params)
 
     assert result.name == "Initial Name"
     assert result.content == "New Content"
@@ -311,7 +334,8 @@ def test_update_resume_only_introduction():
     mock_resume.content = "Initial Content"
     mock_resume.notes = "Initial notes"
 
-    result = update_resume(db=mock_db, resume=mock_resume, introduction="New Intro")
+    params = ResumeUpdateParams(introduction="New Intro")
+    result = update_resume(db=mock_db, resume=mock_resume, params=params)
 
     assert result.name == "Initial Name"
     assert result.content == "Initial Content"
@@ -330,7 +354,8 @@ def test_update_resume_only_notes():
     mock_resume.content = "Initial Content"
     mock_resume.introduction = "Initial Intro"
 
-    result = update_resume(db=mock_db, resume=mock_resume, notes="New Notes")
+    params = ResumeUpdateParams(notes="New Notes")
+    result = update_resume(db=mock_db, resume=mock_resume, params=params)
 
     assert result.name == "Initial Name"
     assert result.content == "Initial Content"

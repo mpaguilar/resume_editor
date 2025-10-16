@@ -1,5 +1,6 @@
 import logging
 from pathlib import Path
+from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -23,11 +24,14 @@ TEMPLATES_DIR = Path(__file__).resolve().parent.parent / "templates"
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 
 
-@router.get("/admin/users/create-form", response_class=HTMLResponse)
+@router.get("/admin/users/create-form", response_model=None)
 async def get_admin_create_user_form(
     request: Request,
-    current_user: User | None = Depends(get_optional_current_user_from_cookie),
-):
+    current_user: Annotated[
+        User | None,
+        Depends(get_optional_current_user_from_cookie),
+    ],
+) -> HTMLResponse | RedirectResponse:
     """Serves the form to create a new user.
 
     Args:
@@ -45,6 +49,7 @@ async def get_admin_create_user_form(
         2. If not authenticated, redirects to the login page.
         3. Verifies that the authenticated user has admin privileges.
         4. Renders the create user form template with the request context.
+
     """
     if not current_user:
         return RedirectResponse(
@@ -59,12 +64,15 @@ async def get_admin_create_user_form(
     )
 
 
-@router.post("/admin/users/create", response_class=HTMLResponse)
+@router.post("/admin/users/create", response_model=None)
 async def handle_admin_create_user_form(
     request: Request,
-    db: Session = Depends(get_db),
-    current_user: User | None = Depends(get_optional_current_user_from_cookie),
-):
+    db: Annotated[Session, Depends(get_db)],
+    current_user: Annotated[
+        User | None,
+        Depends(get_optional_current_user_from_cookie),
+    ],
+) -> HTMLResponse | RedirectResponse:
     """Handles the submission of the create user form.
 
     Args:
@@ -87,6 +95,7 @@ async def handle_admin_create_user_form(
         6. Calls the admin_crud.create_user_admin function to persist the new user to the database.
         7. Retrieves the updated list of users from the database.
         8. Renders the user list template with the updated user list and current user context.
+
     """
     if not current_user:
         return RedirectResponse(
@@ -118,13 +127,16 @@ async def handle_admin_create_user_form(
     )
 
 
-@router.get("/admin/users/{user_id}/edit-form", response_class=HTMLResponse)
+@router.get("/admin/users/{user_id}/edit-form", response_model=None)
 async def get_admin_edit_user_form(
     request: Request,
     user_id: int,
-    db: Session = Depends(get_db),
-    current_user: User | None = Depends(get_optional_current_user_from_cookie),
-):
+    db: Annotated[Session, Depends(get_db)],
+    current_user: Annotated[
+        User | None,
+        Depends(get_optional_current_user_from_cookie),
+    ],
+) -> HTMLResponse | RedirectResponse:
     """Serves the form to edit an existing user.
 
     Args:
@@ -146,6 +158,7 @@ async def get_admin_edit_user_form(
         4. Queries the database to retrieve the user with the given ID.
         5. If the user is not found, raises a 404 HTTP exception.
         6. Renders the edit user form template with the request context and user data.
+
     """
     if not current_user:
         return RedirectResponse(
@@ -164,13 +177,16 @@ async def get_admin_edit_user_form(
     )
 
 
-@router.post("/admin/users/{user_id}/edit", response_class=HTMLResponse)
+@router.post("/admin/users/{user_id}/edit", response_model=None)
 async def handle_admin_edit_user_form(
     request: Request,
     user_id: int,
-    db: Session = Depends(get_db),
-    current_user: User | None = Depends(get_optional_current_user_from_cookie),
-):
+    db: Annotated[Session, Depends(get_db)],
+    current_user: Annotated[
+        User | None,
+        Depends(get_optional_current_user_from_cookie),
+    ],
+) -> HTMLResponse | RedirectResponse:
     """Handles the submission of the edit user form.
 
     Args:
@@ -195,9 +211,9 @@ async def handle_admin_edit_user_form(
         7. Constructs an AdminUserUpdateRequest schema with the form data.
         8. Calls the admin_crud.update_user_admin function to update the user in the database.
         9. Retrieves the updated list of users from the database.
-        10. Finds the updated user in the list to pass to the template.
-        11. Renders the user list template with the updated user list and current user context.
-        12. Sends an HX-Trigger header to notify the frontend that the user list has changed.
+        10. Renders the user list template with the updated user list and current user context.
+        11. Sends an HX-Trigger header to notify the frontend that the user list has changed.
+
     """
     if not current_user:
         return RedirectResponse(
@@ -218,16 +234,13 @@ async def handle_admin_edit_user_form(
         email=email,
         force_password_change=force_password_change,
     )
-    updated_user = admin_crud.update_user_admin(
-        db=db, user=user, update_data=update_data,
+    admin_crud.update_user_admin(
+        db=db,
+        user=user,
+        update_data=update_data,
     )
 
     db_users = admin_crud.get_users_admin(db=db)
-    # Find the updated user in the list to pass to the template
-    user_for_template = next(
-        (u for u in db_users if u.id == updated_user.id),
-        None,
-    )
     return templates.TemplateResponse(
         request,
         "admin/partials/user_list.html",

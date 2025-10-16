@@ -1,7 +1,7 @@
 import logging
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Form, Request
+from fastapi import APIRouter, Depends, Form, Request, Response
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
@@ -16,9 +16,11 @@ templates = Jinja2Templates(directory="resume_editor/app/templates")
 
 
 @router.get("/setup", response_class=HTMLResponse)
-async def get_setup_page(request: Request, db: Session = Depends(get_db)):
-    """
-    Renders the initial setup page for creating the first admin user.
+async def get_setup_page(
+    request: Request,
+    db: Annotated[Session, Depends(get_db)],
+) -> Response:
+    """Renders the initial setup page for creating the first admin user.
 
     If users already exist in the database, it redirects to the login page.
 
@@ -29,6 +31,7 @@ async def get_setup_page(request: Request, db: Session = Depends(get_db)):
     Returns:
         HTMLResponse: The rendered setup page.
         RedirectResponse: A redirect to the login page if setup is not needed.
+
     """
     _msg = "GET /setup starting"
     log.debug(_msg)
@@ -49,10 +52,9 @@ async def handle_setup_form(
     username: Annotated[str, Form()],
     password: Annotated[str, Form()],
     confirm_password: Annotated[str, Form()],
-    db: Session = Depends(get_db),
-):
-    """
-    Handles the submission of the initial admin user creation form.
+    db: Annotated[Session, Depends(get_db)],
+) -> Response:
+    """Handles the submission of the initial admin user creation form.
 
     Validates form data, creates the admin user if no other users exist,
     and redirects to the login page on success.
@@ -67,6 +69,7 @@ async def handle_setup_form(
     Returns:
         RedirectResponse: Redirects to the login page on success or if setup is not needed.
         HTMLResponse: Re-renders the setup page with an error message on failure.
+
     """
     _msg = "POST /setup starting"
     log.debug(_msg)

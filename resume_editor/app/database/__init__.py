@@ -1,5 +1,4 @@
-"""
-This module provides database configuration and session management for the application.
+"""This module provides database configuration and session management for the application.
 
 The module sets up the database engine and session factory, which are used to interact with the database.
 It includes utilities for getting the database engine and a session local factory for creating database sessions.

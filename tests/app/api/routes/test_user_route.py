@@ -16,7 +16,7 @@ from resume_editor.app.api.routes.user import (
 )
 from resume_editor.app.core.config import get_settings
 from resume_editor.app.models.role import Role
-from resume_editor.app.models.user import User as DBUser
+from resume_editor.app.models.user import User as DBUser, UserData
 from resume_editor.app.schemas.user import UserCreate, UserResponse
 
 
@@ -317,28 +317,35 @@ def test_get_user_by_email_helper(test_user):
 
 
 @patch("resume_editor.app.api.routes.user.get_password_hash")
-def test_create_new_user_helper(mock_get_password_hash):
+@patch("resume_editor.app.api.routes.user.User")
+def test_create_new_user_helper(mock_user_class, mock_get_password_hash):
     """Test creating a new user helper."""
     mock_db = Mock(spec=Session)
     mock_get_password_hash.return_value = "hashed_password"
-    user_data = UserCreate(
+    user_create_data = UserCreate(
         username="newuser",
         email="new@example.com",
         password="password",
     )
 
-    new_user = create_new_user(mock_db, user_data)
+    mock_user_instance = Mock(spec=DBUser)
+    mock_user_class.return_value = mock_user_instance
+
+    new_user = create_new_user(mock_db, user_create_data)
 
     mock_get_password_hash.assert_called_once_with("password")
-    mock_db.add.assert_called_once()
-    added_user = mock_db.add.call_args[0][0]
-    assert isinstance(added_user, DBUser)
-    assert added_user.username == "newuser"
-    assert added_user.email == "new@example.com"
-    assert added_user.hashed_password == "hashed_password"
+    mock_user_class.assert_called_once()
+    call_args = mock_user_class.call_args.kwargs
+    assert "data" in call_args
+    user_data_arg = call_args["data"]
+    assert isinstance(user_data_arg, UserData)
+    assert user_data_arg.username == "newuser"
+    assert user_data_arg.email == "new@example.com"
+    assert user_data_arg.hashed_password == "hashed_password"
+    mock_db.add.assert_called_once_with(mock_user_instance)
     mock_db.commit.assert_called_once()
-    mock_db.refresh.assert_called_once_with(added_user)
-    assert new_user == added_user
+    mock_db.refresh.assert_called_once_with(mock_user_instance)
+    assert new_user == mock_user_instance
 
 
 def test_get_users_helper(test_user):
@@ -382,13 +389,14 @@ def test_user_response_schema_with_data():
     mock_role.name = "admin"
 
     # 2. Create a mock user model instance with data
-    mock_user = DBUser(
+    user_data = UserData(
         username="test_user_with_data",
         email="data@example.com",
         hashed_password="hashed_password",
         attributes={"is_cool": True, "level": 99},
+        id_=99,
     )
-    mock_user.id = 99
+    mock_user = DBUser(data=user_data)
     mock_user.is_active = True
     mock_user.roles = [mock_role]
 

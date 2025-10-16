@@ -5,16 +5,18 @@ from fastapi.testclient import TestClient
 
 from resume_editor.app.main import create_app
 from resume_editor.app.models.role import Role
-from resume_editor.app.models.user import User
+from resume_editor.app.models.user import User, UserData
 
 
 def setup_admin_user_mock() -> User:
     """Helper to create a mock admin user."""
     admin_user = User(
-        id=1,
-        username="admin",
-        email="admin@test.com",
-        hashed_password="hashed",
+        data=UserData(
+            id_=1,
+            username="admin",
+            email="admin@test.com",
+            hashed_password="hashed",
+        )
     )
     admin_user.roles = [Role(name="admin")]
     return admin_user
@@ -34,10 +36,12 @@ def test_get_admin_create_user_form_non_admin():
     app = create_app()
     # non-admin user has no roles
     non_admin_user = User(
-        id=2,
-        username="testuser",
-        email="test@test.com",
-        hashed_password="pw",
+        data=UserData(
+            id_=2,
+            username="testuser",
+            email="test@test.com",
+            hashed_password="pw",
+        )
     )
 
     from resume_editor.app.core.auth import get_optional_current_user_from_cookie
@@ -96,7 +100,12 @@ async def test_handle_admin_create_user_form(mock_create_user_admin: MagicMock):
     )
 
     new_user = User(
-        id=2, username="newuser", email="new@test.com", hashed_password="pw",
+        data=UserData(
+            id_=2,
+            username="newuser",
+            email="new@test.com",
+            hashed_password="pw",
+        )
     )
     mock_create_user_admin.return_value = new_user
 
@@ -139,10 +148,12 @@ def test_get_admin_edit_user_form(mock_get_user: MagicMock):
     app = create_app()
     admin_user = setup_admin_user_mock()
     target_user = User(
-        id=2,
-        username="testuser",
-        email="test@test.com",
-        hashed_password="pw",
+        data=UserData(
+            id_=2,
+            username="testuser",
+            email="test@test.com",
+            hashed_password="pw",
+        )
     )
     mock_get_user.return_value = target_user
 
@@ -184,10 +195,12 @@ async def test_handle_admin_edit_user_form(
     app = create_app()
     admin_user = setup_admin_user_mock()
     target_user = User(
-        id=2,
-        username="testuser",
-        email="test@test.com",
-        hashed_password="pw",
+        data=UserData(
+            id_=2,
+            username="testuser",
+            email="test@test.com",
+            hashed_password="pw",
+        )
     )
     mock_get_user.return_value = target_user
 
@@ -202,10 +215,12 @@ async def test_handle_admin_edit_user_form(
 
     # This will be the "updated" user object returned by the update_user_admin mock
     updated_target_user = User(
-        id=2,
-        username="testuser",
-        email="updated@test.com",
-        hashed_password="pw",
+        data=UserData(
+            id_=2,
+            username="testuser",
+            email="updated@test.com",
+            hashed_password="pw",
+        )
     )
     mock_update_user.return_value = updated_target_user
 

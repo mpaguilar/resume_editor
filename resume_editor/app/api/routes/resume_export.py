@@ -1,6 +1,6 @@
-import io
 import logging
-from datetime import date, datetime
+from datetime import date
+from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from fastapi.responses import StreamingResponse
@@ -22,7 +22,6 @@ from resume_editor.app.api.routes.route_logic.resume_serialization import (
     extract_personal_info,
 )
 from resume_editor.app.api.routes.route_models import (
-    DocxFormat,
     RenderFormat,
     RenderSettingsName,
 )
@@ -35,7 +34,8 @@ router = APIRouter()
 
 
 def _parse_date_range(
-    start_date: str | None, end_date: str | None
+    start_date: str | None,
+    end_date: str | None,
 ) -> tuple[date | None, date | None]:
     """Parses start and end date strings into date objects."""
     parsed_start_date: date | None = None
@@ -47,13 +47,16 @@ def _parse_date_range(
             parsed_end_date = date.fromisoformat(end_date)
     except ValueError:
         raise HTTPException(
-            status_code=400, detail="Invalid date format. Please use YYYY-MM-DD."
+            status_code=400,
+            detail="Invalid date format. Please use YYYY-MM-DD.",
         )
     return parsed_start_date, parsed_end_date
 
 
 def _get_filtered_resume_content(
-    resume_content: str, start_date: date | None, end_date: date | None
+    resume_content: str,
+    start_date: date | None,
+    end_date: date | None,
 ) -> str:
     """Filters resume content by date range if dates are provided."""
     if not start_date and not end_date:
@@ -80,12 +83,11 @@ def _get_filtered_resume_content(
 
 @router.get("/{resume_id}/export/markdown")
 async def export_resume_markdown(
-    resume: DatabaseResume = Depends(get_resume_for_user),
-    start_date: str | None = Query(default=None),
-    end_date: str | None = Query(default=None),
-):
-    """
-    Export a resume as a Markdown file.
+    resume: Annotated[DatabaseResume, Depends(get_resume_for_user)],
+    start_date: Annotated[str | None, Query()] = None,
+    end_date: Annotated[str | None, Query()] = None,
+) -> Response:
+    """Export a resume as a Markdown file.
 
     Args:
         resume (DatabaseResume): The resume object, injected by dependency.
@@ -111,7 +113,9 @@ async def export_resume_markdown(
 
     try:
         content_to_export = _get_filtered_resume_content(
-            resume.content, parsed_start_date, parsed_end_date
+            resume.content,
+            parsed_start_date,
+            parsed_end_date,
         )
     except (ValueError, TypeError) as e:
         detail = getattr(e, "detail", str(e))
@@ -129,18 +133,15 @@ async def export_resume_markdown(
     )
 
 
-
-
 @router.get("/{resume_id}/download")
 async def download_rendered_resume(
     render_format: RenderFormat,
     settings_name: RenderSettingsName,
-    resume: DatabaseResume = Depends(get_resume_for_user),
-    start_date: str | None = Query(default=None),
-    end_date: str | None = Query(default=None),
-):
-    """
-    Download a rendered resume as a DOCX file.
+    resume: Annotated[DatabaseResume, Depends(get_resume_for_user)],
+    start_date: Annotated[str | None, Query()] = None,
+    end_date: Annotated[str | None, Query()] = None,
+) -> StreamingResponse:
+    """Download a rendered resume as a DOCX file.
 
     This endpoint generates and streams a DOCX file for the specified resume,
     using the given render format and settings.
@@ -157,6 +158,7 @@ async def download_rendered_resume(
 
     Raises:
         HTTPException: If the resume is not found, or if rendering fails.
+
     """
     _msg = (
         f"download_rendered_resume starting for format {render_format.value}, "
@@ -168,7 +170,9 @@ async def download_rendered_resume(
 
     try:
         content_to_parse = _get_filtered_resume_content(
-            resume.content, parsed_start_date, parsed_end_date
+            resume.content,
+            parsed_start_date,
+            parsed_end_date,
         )
     except (ValueError, TypeError) as e:
         detail = getattr(e, "detail", str(e))

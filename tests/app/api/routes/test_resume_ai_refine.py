@@ -4,12 +4,16 @@ import pytest
 from fastapi import Request, Response
 from fastapi.testclient import TestClient
 
+from resume_editor.app.api.routes.route_models import (
+    RefineTargetSection,
+    SyncRefinementParams,
+)
 from resume_editor.app.core.auth import get_current_user_from_cookie
 from resume_editor.app.core.config import get_settings
 from resume_editor.app.database.database import get_db
 from resume_editor.app.main import create_app
-from resume_editor.app.models.resume_model import Resume as DatabaseResume
-from resume_editor.app.models.user import User as DBUser
+from resume_editor.app.models.resume_model import Resume as DatabaseResume, ResumeData
+from resume_editor.app.models.user import User as DBUser, UserData
 
 
 VALID_MINIMAL_RESUME_CONTENT = """# Personal
@@ -50,22 +54,25 @@ Start date: 01/2024
 def test_user():
     """Fixture for a test user."""
     user = DBUser(
-        username="testuser",
-        email="test@example.com",
-        hashed_password="hashed_password",
+        data=UserData(
+            username="testuser",
+            email="test@example.com",
+            hashed_password="hashed_password",
+            id_=1,
+        )
     )
-    user.id = 1
     return user
 
 
 @pytest.fixture
 def test_resume(test_user):
     """Fixture for a test resume."""
-    resume = DatabaseResume(
+    resume_data = ResumeData(
         user_id=test_user.id,
         name="Test Resume",
         content=VALID_MINIMAL_RESUME_CONTENT,
     )
+    resume = DatabaseResume(data=resume_data)
     resume.id = 1
     return resume
 
@@ -117,8 +124,7 @@ def test_refine_resume_delegates_for_non_experience_section(
     job_desc = "A cool job"
     target_section = "personal"
     gen_intro = "true"  # Form data will be a string
-    from resume_editor.app.api.routes.route_models import RefineTargetSection
-
+    
     mock_handle_sync.return_value = Response(status_code=204)
 
     # Act
@@ -134,14 +140,15 @@ def test_refine_resume_delegates_for_non_experience_section(
     # Assert
     assert response.status_code == 204
     mock_handle_sync.assert_called_once()
-    call_args = mock_handle_sync.call_args.kwargs
-    assert isinstance(call_args["request"], Request)
-    assert call_args["db"] is not None
-    assert call_args["user"] == test_user
-    assert call_args["resume"] == test_resume
-    assert call_args["job_description"] == job_desc
-    assert call_args["target_section"] == RefineTargetSection.PERSONAL
-    assert call_args["generate_introduction"] is True
+    params_arg = mock_handle_sync.call_args.args[0]
+    assert isinstance(params_arg, SyncRefinementParams)
+    assert isinstance(params_arg.request, Request)
+    assert params_arg.db is not None
+    assert params_arg.user == test_user
+    assert params_arg.resume == test_resume
+    assert params_arg.job_description == job_desc
+    assert params_arg.target_section == RefineTargetSection.PERSONAL
+    assert params_arg.generate_introduction is True
 
 
 @patch("resume_editor.app.api.routes.resume_ai.templates.TemplateResponse")

@@ -16,7 +16,7 @@ from resume_editor.app.api.routes.route_logic.admin_crud import (
     update_user_admin,
 )
 from resume_editor.app.models.role import Role
-from resume_editor.app.models.user import User
+from resume_editor.app.models.user import User, UserData
 from resume_editor.app.schemas.user import AdminUserCreate, AdminUserUpdateRequest
 
 
@@ -44,15 +44,22 @@ def test_update_user_admin(
     original_email = "test@test.com"
 
     # User object passed to the function
-    user_to_update = User(username="test", email=original_email, hashed_password="pw")
-    user_to_update.id = 1
+    user_to_update = User(
+        data=UserData(
+            username="test",
+            email=original_email,
+            hashed_password="pw",
+            id_=1,
+        )
+    )
     user_to_update.attributes = (
         existing_attributes.copy() if existing_attributes is not None else None
     )
 
     # Mock the re-fetched user object to reflect expected state
-    refetched_user = User(username="test", email=original_email, hashed_password="pw")
-    refetched_user.id = 1
+    refetched_user = User(
+        data=UserData(username="test", email=original_email, hashed_password="pw", id_=1)
+    )
 
     expected_attributes = (
         existing_attributes.copy() if existing_attributes is not None else {}
@@ -107,9 +114,11 @@ def test_get_user_by_id_admin(mock_selectinload, user_exists: bool):
     mock_db = MagicMock(spec=Session)
     expected_user = (
         User(
-            username="testuser",
-            email="test@example.com",
-            hashed_password="hashed_password",
+            data=UserData(
+                username="testuser",
+                email="test@example.com",
+                hashed_password="hashed_password",
+            )
         )
         if user_exists
         else None
@@ -138,9 +147,11 @@ def test_get_user_by_username_admin(user_exists: bool):
     mock_db = MagicMock(spec=Session)
     expected_user = (
         User(
-            username="testuser",
-            email="test@example.com",
-            hashed_password="hashed_password",
+            data=UserData(
+                username="testuser",
+                email="test@example.com",
+                hashed_password="hashed_password",
+            )
         )
         if user_exists
         else None
@@ -159,8 +170,16 @@ def test_get_users_admin(mock_selectinload):
     """Test retrieving all users as an admin."""
     mock_db = MagicMock(spec=Session)
     users = [
-        User(username="test1", email="test1@example.com", hashed_password="pw1"),
-        User(username="test2", email="test2@example.com", hashed_password="pw2"),
+        User(
+            data=UserData(
+                username="test1", email="test1@example.com", hashed_password="pw1"
+            )
+        ),
+        User(
+            data=UserData(
+                username="test2", email="test2@example.com", hashed_password="pw2"
+            )
+        ),
     ]
     mock_db.query.return_value.options.return_value.all.return_value = users
 
@@ -179,9 +198,11 @@ def test_delete_user_admin():
     """Test deleting a user as an admin."""
     mock_db = MagicMock(spec=Session)
     user = User(
-        username="testuser",
-        email="test@example.com",
-        hashed_password="hashed_password",
+        data=UserData(
+            username="testuser",
+            email="test@example.com",
+            hashed_password="hashed_password",
+        )
     )
 
     delete_user_admin(mock_db, user)
@@ -213,11 +234,13 @@ def test_assign_role_to_user_admin(
     mock_db = MagicMock(spec=Session)
     mock_role = Role(name="admin")
     initial_user = User(
-        username="testuser",
-        email="test@test.com",
-        hashed_password="hashed",
+        data=UserData(
+            username="testuser",
+            email="test@test.com",
+            hashed_password="hashed",
+            id_=1,
+        )
     )
-    initial_user.id = 1
     initial_user.roles = [mock_role] if role_already_assigned else []
     mock_get_user_by_id_admin.return_value = initial_user
 
@@ -247,11 +270,13 @@ def test_remove_role_from_user_admin(
     mock_db = MagicMock(spec=Session)
     mock_role = Role(name="admin")
     initial_user = User(
-        username="testuser",
-        email="test@test.com",
-        hashed_password="hashed",
+        data=UserData(
+            username="testuser",
+            email="test@test.com",
+            hashed_password="hashed",
+            id_=1,
+        )
     )
-    initial_user.id = 1
     initial_user.roles = [mock_role] if role_is_assigned else []
     mock_get_user_by_id_admin.return_value = initial_user
 
@@ -298,14 +323,15 @@ def test_create_user_admin(
     )
     mock_get_password_hash.return_value = "hashed_password"
     # Mock the user instance that is added to the db
-    mock_user_instance = User(
+    user_init_data = UserData(
         username=user_data.username,
         email=user_data.email,
         hashed_password="hashed_password",
         is_active=is_active,
         attributes=attributes,
+        id_=1,
     )
-    mock_user_instance.id = 1
+    mock_user_instance = User(data=user_init_data)
     # Mock the re-fetched user
     mock_get_user_by_id_admin.return_value = mock_user_instance
 
@@ -316,13 +342,16 @@ def test_create_user_admin(
         created_user = create_user_admin(mock_db, user_data)
 
         mock_get_password_hash.assert_called_once_with("password")
-        mock_user_class.assert_called_once_with(
-            username=user_data.username,
-            email=user_data.email,
-            hashed_password="hashed_password",
-            is_active=is_active,
-            attributes=attributes,
-        )
+        mock_user_class.assert_called_once()
+        call_args = mock_user_class.call_args.kwargs
+        assert "data" in call_args
+        user_data_arg = call_args["data"]
+        assert isinstance(user_data_arg, UserData)
+        assert user_data_arg.username == user_data.username
+        assert user_data_arg.email == user_data.email
+        assert user_data_arg.hashed_password == "hashed_password"
+        assert user_data_arg.is_active is is_active
+        assert user_data_arg.attributes == attributes
         mock_db.add.assert_called_once_with(mock_user_instance)
         mock_db.commit.assert_called_once()
         mock_get_user_by_id_admin.assert_called_once_with(db=mock_db, user_id=1)
@@ -347,18 +376,22 @@ def test_create_initial_admin_success(
 
     # User object that's "created" and passed to add()
     created_db_user = User(
-        username=username,
-        email=f"{username}@placeholder.email",
-        hashed_password="hashed_password",
-        id=1,
+        data=UserData(
+            username=username,
+            email=f"{username}@placeholder.email",
+            hashed_password="hashed_password",
+            id_=1,
+        )
     )
 
     # Fully formed user object that is returned by get_user_by_id_admin
     mock_returned_user = User(
-        id=1,
-        username=username,
-        email=f"{username}@placeholder.email",
-        hashed_password="hashed_password",
+        data=UserData(
+            id_=1,
+            username=username,
+            email=f"{username}@placeholder.email",
+            hashed_password="hashed_password",
+        )
     )
     mock_returned_user.roles.append(mock_role)
 
@@ -375,6 +408,17 @@ def test_create_initial_admin_success(
         )
 
         mock_get_password_hash.assert_called_once_with(password)
+        mock_user_class.assert_called_once()
+        call_args = mock_user_class.call_args.kwargs
+        assert "data" in call_args
+        user_data_arg = call_args["data"]
+        assert isinstance(user_data_arg, UserData)
+        assert user_data_arg.username == username
+        assert user_data_arg.email == f"{username}@placeholder.email"
+        assert user_data_arg.hashed_password == "hashed_password"
+        assert user_data_arg.is_active is True
+        assert user_data_arg.attributes == {}
+
         mock_get_role_by_name_admin.assert_called_once_with(db=mock_db, name="admin")
         mock_db.add.assert_called_once_with(created_db_user)
         mock_db.commit.assert_called_once()
@@ -417,8 +461,11 @@ def test_create_initial_admin_role_not_found(
 def test_update_user_admin_refetch_fails(mock_get_user_by_id_admin: MagicMock):
     """Test update_user_admin raises RuntimeError if re-fetch fails."""
     mock_db = MagicMock(spec=Session)
-    user_to_update = User(username="test", email="test@test.com", hashed_password="pw")
-    user_to_update.id = 1
+    user_to_update = User(
+        data=UserData(
+            username="test", email="test@test.com", hashed_password="pw", id_=1
+        )
+    )
     mock_get_user_by_id_admin.return_value = None
     update_data = AdminUserUpdateRequest()
 
@@ -443,9 +490,10 @@ def test_assign_role_to_user_admin_refetch_fails(
     mock_db = MagicMock(spec=Session)
     mock_role = Role(name="admin")
     initial_user = User(
-        username="testuser", email="test@test.com", hashed_password="hashed"
+        data=UserData(
+            username="testuser", email="test@test.com", hashed_password="hashed", id_=1
+        )
     )
-    initial_user.id = 1
     initial_user.roles = []  # Role not assigned
     mock_get_user_by_id_admin.return_value = None
 
@@ -466,9 +514,10 @@ def test_remove_role_from_user_admin_refetch_fails(
     mock_db = MagicMock(spec=Session)
     mock_role = Role(name="admin")
     initial_user = User(
-        username="testuser", email="test@test.com", hashed_password="hashed"
+        data=UserData(
+            username="testuser", email="test@test.com", hashed_password="hashed", id_=1
+        )
     )
-    initial_user.id = 1
     initial_user.roles = [mock_role]  # Role is assigned
     mock_get_user_by_id_admin.return_value = None
 
@@ -496,11 +545,13 @@ def test_create_user_admin_refetch_fails(
     )
     mock_get_password_hash.return_value = "hashed_password"
     mock_user_instance = User(
-        username=user_data.username,
-        email=user_data.email,
-        hashed_password="hashed_password",
+        data=UserData(
+            username=user_data.username,
+            email=user_data.email,
+            hashed_password="hashed_password",
+            id_=1,
+        )
     )
-    mock_user_instance.id = 1
     mock_get_user_by_id_admin.return_value = None
 
     with patch(
@@ -532,10 +583,12 @@ def test_create_initial_admin_refetch_fails(
     password = "password"
 
     created_db_user = User(
-        username=username,
-        email=f"{username}@placeholder.email",
-        hashed_password="hashed_password",
-        id=1,
+        data=UserData(
+            username=username,
+            email=f"{username}@placeholder.email",
+            hashed_password="hashed_password",
+            id_=1,
+        )
     )
 
     mock_get_password_hash.return_value = "hashed_password"
@@ -543,7 +596,7 @@ def test_create_initial_admin_refetch_fails(
     mock_get_user_by_id_admin.return_value = None
 
     with patch(
-        "resume_editor.app.api.routes.route_logoic.admin_crud.User",
+        "resume_editor.app.api.routes.route_logic.admin_crud.User",
         return_value=created_db_user,
     ):
         with pytest.raises(
@@ -560,8 +613,11 @@ def test_create_initial_admin_refetch_fails(
 def test_update_user_admin_refetch_fails(mock_get_user_by_id_admin: MagicMock):
     """Test update_user_admin raises RuntimeError if re-fetch fails."""
     mock_db = MagicMock(spec=Session)
-    user_to_update = User(username="test", email="test@test.com", hashed_password="pw")
-    user_to_update.id = 1
+    user_to_update = User(
+        data=UserData(
+            username="test", email="test@test.com", hashed_password="pw", id_=1
+        )
+    )
     mock_get_user_by_id_admin.return_value = None
     update_data = AdminUserUpdateRequest()
 
@@ -586,9 +642,10 @@ def test_assign_role_to_user_admin_refetch_fails(
     mock_db = MagicMock(spec=Session)
     mock_role = Role(name="admin")
     initial_user = User(
-        username="testuser", email="test@test.com", hashed_password="hashed"
+        data=UserData(
+            username="testuser", email="test@test.com", hashed_password="hashed", id_=1
+        )
     )
-    initial_user.id = 1
     initial_user.roles = []  # Role not assigned
     mock_get_user_by_id_admin.return_value = None
 
@@ -609,9 +666,10 @@ def test_remove_role_from_user_admin_refetch_fails(
     mock_db = MagicMock(spec=Session)
     mock_role = Role(name="admin")
     initial_user = User(
-        username="testuser", email="test@test.com", hashed_password="hashed"
+        data=UserData(
+            username="testuser", email="test@test.com", hashed_password="hashed", id_=1
+        )
     )
-    initial_user.id = 1
     initial_user.roles = [mock_role]  # Role is assigned
     mock_get_user_by_id_admin.return_value = None
 
@@ -639,11 +697,13 @@ def test_create_user_admin_refetch_fails(
     )
     mock_get_password_hash.return_value = "hashed_password"
     mock_user_instance = User(
-        username=user_data.username,
-        email=user_data.email,
-        hashed_password="hashed_password",
+        data=UserData(
+            username=user_data.username,
+            email=user_data.email,
+            hashed_password="hashed_password",
+            id_=1,
+        )
     )
-    mock_user_instance.id = 1
     mock_get_user_by_id_admin.return_value = None
 
     with patch(
@@ -675,10 +735,12 @@ def test_create_initial_admin_refetch_fails(
     password = "password"
 
     created_db_user = User(
-        username=username,
-        email=f"{username}@placeholder.email",
-        hashed_password="hashed_password",
-        id=1,
+        data=UserData(
+            username=username,
+            email=f"{username}@placeholder.email",
+            hashed_password="hashed_password",
+            id_=1,
+        )
     )
 
     mock_get_password_hash.return_value = "hashed_password"

@@ -6,30 +6,33 @@ from fastapi.testclient import TestClient
 from resume_editor.app.core.auth import get_current_user_from_cookie
 from resume_editor.app.database.database import get_db
 from resume_editor.app.main import create_app
-from resume_editor.app.models.resume_model import Resume as DatabaseResume
-from resume_editor.app.models.user import User as DBUser
+from resume_editor.app.models.resume_model import Resume as DatabaseResume, ResumeData
+from resume_editor.app.models.user import User as DBUser, UserData
 
 
 @pytest.fixture
 def test_user():
     """Fixture for a test user."""
     user = DBUser(
-        username="testuser",
-        email="test@example.com",
-        hashed_password="hashed_password",
+        data=UserData(
+            username="testuser",
+            email="test@example.com",
+            hashed_password="hashed_password",
+            id_=1,
+        )
     )
-    user.id = 1
     return user
 
 
 @pytest.fixture
 def test_resume(test_user):
     """Fixture for a test resume."""
-    resume = DatabaseResume(
+    resume_data = ResumeData(
         user_id=test_user.id,
         name="Test Resume",
         content="some content",
     )
+    resume = DatabaseResume(data=resume_data)
     resume.id = 1
     return resume
 

@@ -108,7 +108,7 @@ class TestExtractCertificationsInfo:
     """Test cases for certifications info extraction functions."""
 
     @patch(
-        "resume_editor.app.api.routes.route_logic.resume_serialization.WriterResume.parse",
+        "resume_editor.app.api.routes.route_logic.resume_parsing.WriterResume.parse",
     )
     def test_extract_certifications_info_no_certifications(self, mock_parse):
         """Test certifications extraction when certifications section is missing."""
@@ -120,7 +120,7 @@ class TestExtractCertificationsInfo:
         assert response.certifications == []
 
     @patch(
-        "resume_editor.app.api.routes.route_logic.resume_serialization.WriterResume.parse",
+        "resume_editor.app.api.routes.route_logic.resume_parsing.WriterResume.parse",
     )
     def test_extract_certifications_info_partial_data(self, mock_parse):
         """Test certifications extraction with partial data in a certification."""
@@ -145,7 +145,7 @@ class TestExtractCertificationsInfo:
         assert cert.expires is None
 
     @patch(
-        "resume_editor.app.api.routes.route_logic.resume_serialization.WriterResume.parse",
+        "resume_editor.app.api.routes.route_logic.resume_parsing.WriterResume.parse",
         side_effect=Exception("mock parse error"),
     )
     def test_extract_certifications_info_parse_fails(self, mock_parse):

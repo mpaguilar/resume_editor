@@ -1,4 +1,5 @@
 import logging
+from dataclasses import dataclass
 from typing import Any
 
 from sqlalchemy import (
@@ -19,6 +20,18 @@ from resume_editor.app.models import Base
 log = logging.getLogger(__name__)
 
 
+@dataclass
+class UserData:
+    """Dataclass for holding user initialization data."""
+
+    username: str
+    email: str
+    hashed_password: str
+    is_active: bool = True
+    attributes: dict[str, Any] | None = None
+    id_: int | None = None
+
+
 user_roles = Table(
     "user_roles",
     Base.metadata,
@@ -28,8 +41,7 @@ user_roles = Table(
 
 
 class User(Base):
-    """
-    User model for authentication and session management.
+    """User model for authentication and session management.
 
     Attributes:
         id (int): Unique identifier for the user.
@@ -79,25 +91,11 @@ class User(Base):
         uselist=False,
     )
 
-    def __init__(
-        self,
-        username: str,
-        email: str,
-        hashed_password: str,
-        is_active: bool = True,
-        attributes: dict[str, Any] | None = None,
-        id: int | None = None,
-    ):
-        """
-        Initialize a User instance.
+    def __init__(self, data: UserData):
+        """Initialize a User instance.
 
         Args:
-            username (str): Unique username for the user. Must be a non-empty string.
-            email (str): Unique email address for the user. Must be a non-empty string.
-            hashed_password (str): Hashed password for the user. Must be a non-empty string.
-            is_active (bool): Whether the user account is active. Must be a boolean.
-            attributes (dict | None): Flexible key-value attributes for the user.
-            id (int | None): The unique identifier of the user, for testing purposes.
+            data (UserData): An object containing all initialization data for the user.
 
         Returns:
             None
@@ -113,24 +111,23 @@ class User(Base):
             8. This operation does not involve network, disk, or database access.
 
         """
-        _msg = f"Initializing User with username: {username}"
+        _msg = f"Initializing User with username: {data.username}"
         log.debug(_msg)
 
-        if id is not None:
-            self.id = id
-        self.username = username
-        self.email = email
-        self.hashed_password = hashed_password
-        self.is_active = is_active
-        self.attributes = attributes
+        if data.id_ is not None:
+            self.id = data.id_
+        self.username = data.username
+        self.email = data.email
+        self.hashed_password = data.hashed_password
+        self.is_active = data.is_active
+        self.attributes = data.attributes
 
     @validates("username")
-    def validate_username(self, key, username):
-        """
-        Validate the username field.
+    def validate_username(self, _key: str, username: str) -> str:
+        """Validate the username field.
 
         Args:
-            key (str): The field name being validated (should be 'username').
+            _key (str): The field name being validated (should be 'username').
             username (str): The username value to validate. Must be a non-empty string.
 
         Returns:
@@ -149,12 +146,11 @@ class User(Base):
         return username.strip()
 
     @validates("email")
-    def validate_email(self, key, email):
-        """
-        Validate the email field.
+    def validate_email(self, _key: str, email: str) -> str:
+        """Validate the email field.
 
         Args:
-            key (str): The field name being validated (should be 'email').
+            _key (str): The field name being validated (should be 'email').
             email (str): The email value to validate. Must be a non-empty string.
 
         Returns:
@@ -173,12 +169,11 @@ class User(Base):
         return email.strip()
 
     @validates("hashed_password")
-    def validate_hashed_password(self, key, hashed_password):
-        """
-        Validate the hashed_password field.
+    def validate_hashed_password(self, _key: str, hashed_password: str) -> str:
+        """Validate the hashed_password field.
 
         Args:
-            key (str): The field name being validated (should be 'hashed_password').
+            _key (str): The field name being validated (should be 'hashed_password').
             hashed_password (str): The hashed password value to validate. Must be a non-empty string.
 
         Returns:
@@ -197,12 +192,11 @@ class User(Base):
         return hashed_password.strip()
 
     @validates("is_active")
-    def validate_is_active(self, key, is_active):
-        """
-        Validate the is_active field.
+    def validate_is_active(self, _key: str, is_active: bool) -> bool:
+        """Validate the is_active field.
 
         Args:
-            key (str): The field name being validated (should be 'is_active').
+            _key (str): The field name being validated (should be 'is_active').
             is_active (bool): The is_active value to validate. Must be a boolean.
 
         Returns:
@@ -218,12 +212,15 @@ class User(Base):
         return is_active
 
     @validates("attributes")
-    def validate_attributes(self, key, attributes):
-        """
-        Validate the attributes field.
+    def validate_attributes(
+        self,
+        _key: str,
+        attributes: dict[str, Any] | None,
+    ) -> dict[str, Any] | None:
+        """Validate the attributes field.
 
         Args:
-            key (str): The field name being validated (should be 'attributes').
+            _key (str): The field name being validated (should be 'attributes').
             attributes (dict | None): The attributes value to validate. Must be a dictionary or None.
 
         Returns:

@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Form, HTTPException, Request, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.security import OAuth2PasswordRequestForm
 from fastapi.templating import Jinja2Templates
@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 
 from resume_editor.app.api.routes.route_logic import settings_crud
 from resume_editor.app.api.routes.route_logic import user as user_logic
+from resume_editor.app.api.routes.route_models import ChangePasswordForm
 from resume_editor.app.core.auth import get_current_user, get_current_user_from_cookie
 from resume_editor.app.core.config import Settings, get_settings
 from resume_editor.app.core.security import (
@@ -19,7 +20,7 @@ from resume_editor.app.core.security import (
     get_password_hash,
 )
 from resume_editor.app.database.database import get_db
-from resume_editor.app.models.user import User
+from resume_editor.app.models.user import User, UserData
 from resume_editor.app.schemas.user import (
     Token,
     UserCreate,
@@ -49,6 +50,7 @@ def get_user_by_username(db: Session, username: str) -> User | None:
         1. Query the database for a user with the given username.
         2. Return the first match or None if no user is found.
         3. Database access: Performs a read operation on the User table.
+
     """
     _msg = f"Querying database for username: {username}"
     log.debug(_msg)
@@ -72,6 +74,7 @@ def get_user_by_email(db: Session, email: str) -> User | None:
         1. Query the database for a user with the given email.
         2. Return the first match or None if no user is found.
         3. Database access: Performs a read operation on the User table.
+
     """
     _msg = f"Querying database for email: {email}"
     log.debug(_msg)
@@ -98,6 +101,7 @@ def create_new_user(db: Session, user_data: UserCreate) -> User:
         4. Commit the transaction to persist the user to the database.
         5. Refresh the object to ensure it contains the latest state from the database.
         6. Database access: Performs a write operation on the User table.
+
     """
     _msg = f"Hashing password for user: {user_data.username}"
     log.debug(_msg)
@@ -106,9 +110,11 @@ def create_new_user(db: Session, user_data: UserCreate) -> User:
     _msg = f"Creating new user: {user_data.username}"
     log.debug(_msg)
     db_user = User(
-        username=user_data.username,
-        email=user_data.email,
-        hashed_password=hashed_password,
+        data=UserData(
+            username=user_data.username,
+            email=user_data.email,
+            hashed_password=hashed_password,
+        ),
     )
 
     _msg = f"Adding user {user_data.username} to database"
@@ -134,6 +140,7 @@ def get_users(db: Session) -> list[User]:
 
     Returns:
         list[User]: A list of all user objects.
+
     """
     return db.query(User).all()
 
@@ -147,6 +154,7 @@ def get_user_by_id(db: Session, user_id: int) -> User | None:
 
     Returns:
         User | None: The user object if found, otherwise None.
+
     """
     return db.query(User).filter(User.id == user_id).first()
 
@@ -168,8 +176,11 @@ def delete_user(db: Session, user: User) -> None:
     db.commit()
 
 
-@router.post("/register", response_model=UserResponse)
-def register_user(user: UserCreate, db: Session = Depends(get_db)) -> UserResponse:
+@router.post("/register")
+def register_user(
+    user: UserCreate,
+    db: Annotated[Session, Depends(get_db)],
+) -> UserResponse:
     """Register a new user with the provided credentials.
 
     Args:
@@ -190,6 +201,7 @@ def register_user(user: UserCreate, db: Session = Depends(get_db)) -> UserRespon
         5. Create a new user with the provided data and store it in the database.
         6. Return the newly created user's data (without the password).
         7. Database access: Performs read and write operations on the User table.
+
     """
     _msg = f"Starting register_user for username: {user.username}"
     log.debug(_msg)
@@ -227,11 +239,11 @@ def register_user(user: UserCreate, db: Session = Depends(get_db)) -> UserRespon
     return db_user
 
 
-@router.get("/settings", response_model=UserSettingsResponse)
+@router.get("/settings")
 def get_user_settings(
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-):
+    db: Annotated[Session, Depends(get_db)],
+    current_user: Annotated[User, Depends(get_current_user)],
+) -> UserSettingsResponse:
     """Get the current user's settings.
 
     Args:
@@ -245,6 +257,7 @@ def get_user_settings(
         1. Retrieve the user's settings from the database.
         2. If no settings exist, return an empty response.
         3. Database access: Performs a read operation on the UserSettings table.
+
     """
     _msg = "Getting settings for current user"
     log.debug(_msg)
@@ -258,12 +271,12 @@ def get_user_settings(
     )
 
 
-@router.put("/settings", response_model=UserSettingsResponse)
+@router.put("/settings")
 def update_user_settings(
     settings_data: UserSettingsUpdateRequest,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-):
+    db: Annotated[Session, Depends(get_db)],
+    current_user: Annotated[User, Depends(get_current_user)],
+) -> UserSettingsResponse:
     """Update the current user's settings.
 
     Args:
@@ -278,6 +291,7 @@ def update_user_settings(
         1. Update the user's settings in the database with the provided data.
         2. Return the updated settings.
         3. Database access: Performs a write operation on the UserSettings table.
+
     """
     _msg = "Updating settings for current user"
     log.debug(_msg)
@@ -291,12 +305,10 @@ def update_user_settings(
 @router.post("/change-password")
 def change_password(
     request: Request,
-    new_password: str = Form(),
-    confirm_new_password: str = Form(),
-    current_password: str | None = Form(None),
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user_from_cookie),
-):
+    form_data: Annotated[ChangePasswordForm, Depends()],
+    db: Annotated[Session, Depends(get_db)],
+    current_user: Annotated[User, Depends(get_current_user_from_cookie)],
+) -> Response:
     """Change the current user's password.
 
     This endpoint handles both standard and forced password changes. It also handles
@@ -307,15 +319,14 @@ def change_password(
 
     Args:
         request (Request): The request object.
-        new_password (str): The new password from the form.
-        confirm_new_password (str): The new password confirmation from the form.
-        current_password (str | None): The user's current password. Optional for forced changes.
+        form_data (ChangePasswordForm): The form data with new and current passwords.
         db (Session): The database session.
         current_user (User): The authenticated user.
 
     Returns:
         Response: A response appropriate for a request type (JSON, HTML snippet,
                   full page render, or redirect).
+
     """
     _msg = "Changing password for current user"
     log.debug(_msg)
@@ -325,15 +336,15 @@ def change_password(
 
     error_detail = None
     status_code = status.HTTP_400_BAD_REQUEST
-    if new_password != confirm_new_password:
+    if form_data.new_password != form_data.confirm_new_password:
         error_detail = "New passwords do not match."
     else:
         try:
             user_logic.change_password(
                 db=db,
                 user=current_user,
-                new_password=new_password,
-                current_password=current_password,
+                new_password=form_data.new_password,
+                current_password=form_data.current_password,
             )
         except HTTPException as e:
             error_detail = e.detail
@@ -348,14 +359,20 @@ def change_password(
         if is_partial_htmx:
             return HTMLResponse(content=error_snippet, status_code=status_code)
         else:
-            is_forced_change = current_user.attributes is not None and current_user.attributes.get("force_password_change", False)
+            is_forced_change = (
+                current_user.attributes is not None
+                and current_user.attributes.get("force_password_change", False)
+            )
             context = {
                 "user": current_user,
                 "error": error_detail,
                 "is_forced_change": is_forced_change,
             }
             return templates.TemplateResponse(
-                request, "pages/change_password.html", context, status_code=status_code
+                request,
+                "pages/change_password.html",
+                context,
+                status_code=status_code,
             )
 
     # Success
@@ -364,7 +381,7 @@ def change_password(
 
     if is_partial_htmx:
         return HTMLResponse(
-            '<div class="p-4 mb-4 text-sm text-green-800 rounded-lg bg-green-50" role="alert"><span class="font-medium">Success!</span> Your password has been changed.</div>'
+            '<div class="p-4 mb-4 text-sm text-green-800 rounded-lg bg-green-50" role="alert"><span class="font-medium">Success!</span> Your password has been changed.</div>',
         )
 
     redirect_url = "/dashboard"
@@ -373,9 +390,7 @@ def change_password(
         response.headers["HX-Redirect"] = redirect_url
         return response
     else:
-        return RedirectResponse(
-            url=redirect_url, status_code=status.HTTP_303_SEE_OTHER
-        )
+        return RedirectResponse(url=redirect_url, status_code=status.HTTP_303_SEE_OTHER)
 
 
 @router.get(
@@ -386,10 +401,9 @@ def change_password(
 )
 def get_change_password_page(
     request: Request,
-    user: User = Depends(get_current_user_from_cookie),
-):
-    """
-    Renders the page for changing a password.
+    user: Annotated[User, Depends(get_current_user_from_cookie)],
+) -> HTMLResponse:
+    """Renders the page for changing a password.
 
     This page can be used for both forced and standard password changes. The
     template will conditionally render fields based on whether the user is
@@ -412,7 +426,8 @@ def get_change_password_page(
     _msg = "Rendering change password page"
     log.debug(_msg)
     is_forced_change = user.attributes is not None and user.attributes.get(
-        "force_password_change", False,
+        "force_password_change",
+        False,
     )
     context = {
         "user": user,
@@ -421,17 +436,18 @@ def get_change_password_page(
     return templates.TemplateResponse(request, "pages/change_password.html", context)
 
 
-@router.post("/login", response_model=Token)
+@router.post("/login")
 def login_user(
     form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
-    db: Session = Depends(get_db),
-    settings: Settings = Depends(get_settings),
+    db: Annotated[Session, Depends(get_db)],
+    settings: Annotated[Settings, Depends(get_settings)],
 ) -> Token:
     """Authenticate a user and return an access token.
 
     Args:
         form_data: Form data containing username and password for authentication.
         db: Database session dependency used to verify user credentials.
+        settings: Application settings used for token creation and configuration.
 
     Returns:
         Token: An access token for the authenticated user, formatted as a JWT.
@@ -447,6 +463,7 @@ def login_user(
         5. Generate a JWT access token with a defined expiration time.
         6. Return the access token to the client.
         7. Database access: Performs read and write operations on the User table.
+
     """
     _msg = f"Starting login_user for username: {form_data.username}"
     log.debug(_msg)

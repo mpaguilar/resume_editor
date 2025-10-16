@@ -4,9 +4,13 @@ import pytest
 from fastapi.testclient import TestClient
 
 from resume_editor.app.api.dependencies import get_db, get_resume_for_user
+from resume_editor.app.api.routes.route_logic.resume_crud import ResumeUpdateParams
 from resume_editor.app.api.routes.route_models import ExperienceResponse
 from resume_editor.app.main import create_app
-from resume_editor.app.models.resume_model import Resume as DatabaseResume
+from resume_editor.app.models.resume_model import (
+    Resume as DatabaseResume,
+    ResumeData,
+)
 
 
 @pytest.fixture
@@ -49,12 +53,13 @@ A description of the project.
 @pytest.fixture
 def test_resume(valid_minimal_resume_content: str) -> DatabaseResume:
     """A test resume object."""
-    resume = DatabaseResume(
+    resume_data = ResumeData(
         user_id=1,
         name="Test Resume",
         content=valid_minimal_resume_content,
         is_active=True,
     )
+    resume = DatabaseResume(data=resume_data)
     resume.id = 1
     return resume
 
@@ -148,7 +153,9 @@ def test_update_experience_info_structured_success(
 
     mock_update_db.assert_called_once()
     assert mock_update_db.call_args.args[1] == test_resume
-    assert mock_update_db.call_args.kwargs["content"] == "new updated content"
+    params = mock_update_db.call_args.kwargs["params"]
+    assert isinstance(params, ResumeUpdateParams)
+    assert params.content == "new updated content"
 
 
 @patch("resume_editor.app.api.routes.resume_edit.update_resume_db")
@@ -203,9 +210,10 @@ def test_update_experience_success_form(
     client_with_auth_and_resume: TestClient,
     test_resume,
 ):
-    """Test successful form update of experience info."""
+    """Test adding a new experience role via form submission."""
     from resume_editor.app.api.routes.route_models import ExperienceResponse
 
+    mock_reconstruct.return_value = "Updated Content"
     mock_extract.return_value = ExperienceResponse(roles=[], projects=[])
 
     form_data = {
@@ -234,7 +242,7 @@ def test_update_experience_invalid_data_form(
     client_with_auth_and_resume: TestClient,
     test_resume,
 ):
-    """Test invalid data for experience form update."""
+    """Test that invalid form data for experience role creation is handled."""
     form_data = {"company": "New Co", "title": "Dev", "start_date": "invalid"}
     response = client_with_auth_and_resume.post(
         f"/api/resumes/{test_resume.id}/edit/experience",
@@ -250,7 +258,7 @@ def test_update_experience_extraction_fails_form(
     client_with_auth_and_resume: TestClient,
     test_resume,
 ):
-    """Test that a parsing failure during experience form update is handled."""
+    """Test that a parsing failure during experience role creation via form is handled."""
     from resume_editor.app.api.routes.route_models import ExperienceResponse
 
     mock_extract.side_effect = ValueError("Bad experience section")

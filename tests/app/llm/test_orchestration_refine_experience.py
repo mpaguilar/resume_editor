@@ -7,7 +7,7 @@ import json
 
 from resume_editor.app.api.routes.route_models import ExperienceResponse
 from resume_editor.app.llm.orchestration import async_refine_experience_section
-from resume_editor.app.llm.models import JobAnalysis, RefinedRole
+from resume_editor.app.llm.models import JobAnalysis, LLMConfig, RefinedRole
 from resume_editor.app.models.resume.experience import (
     Role,
     RoleBasics,
@@ -107,12 +107,13 @@ async def test_async_refine_experience_section_execution(
 
     # Act
     events = []
+    llm_config = LLMConfig(
+        llm_endpoint=llm_endpoint, api_key=api_key, llm_model_name=llm_model_name
+    )
     async for event in async_refine_experience_section(
         resume_content=resume_content,
         job_description=job_description,
-        llm_endpoint=llm_endpoint,
-        api_key=api_key,
-        llm_model_name=llm_model_name,
+        llm_config=llm_config,
         generate_introduction=False,
         max_concurrency=max_concurrency,
     ):
@@ -123,9 +124,7 @@ async def test_async_refine_experience_section_execution(
     mock_extract_experience.assert_called_once_with(resume_content)
     mock_analyze_job.assert_awaited_once_with(
         job_description=job_description,
-        llm_endpoint=llm_endpoint,
-        api_key=api_key,
-        llm_model_name=llm_model_name,
+        llm_config=llm_config,
         resume_content_for_intro=None,
     )
     assert mock_refine_role.call_count == len(mock_roles)
@@ -200,9 +199,7 @@ async def test_async_refine_experience_section_with_introduction(
     async for event in async_refine_experience_section(
         resume_content=resume_content,
         job_description=job_description,
-        llm_endpoint=None,
-        api_key=None,
-        llm_model_name=None,
+        llm_config=LLMConfig(),
         generate_introduction=True,
     ):
         events.append(event)
@@ -256,12 +253,13 @@ async def test_async_refine_experience_section_execution_no_roles(
 
     # Act
     events = []
+    llm_config = LLMConfig(
+        llm_endpoint=llm_endpoint, api_key=api_key, llm_model_name=llm_model_name
+    )
     async for event in async_refine_experience_section(
         resume_content=resume_content,
         job_description=job_description,
-        llm_endpoint=llm_endpoint,
-        api_key=api_key,
-        llm_model_name=llm_model_name,
+        llm_config=llm_config,
         generate_introduction=True,
         max_concurrency=max_concurrency,
     ):
@@ -329,9 +327,7 @@ async def test_async_refine_experience_section_concurrency(
     async for event in async_refine_experience_section(
         resume_content=resume_content,
         job_description=job_description,
-        llm_endpoint=None,
-        api_key=None,
-        llm_model_name=None,
+        llm_config=LLMConfig(),
         generate_introduction=True,
         max_concurrency=max_concurrency,
     ):
@@ -375,9 +371,7 @@ async def test_async_refine_experience_section_role_refinement_fails(
         async for event in async_refine_experience_section(
             resume_content="resume",
             job_description="job",
-            llm_endpoint=None,
-            api_key=None,
-            llm_model_name=None,
+            llm_config=LLMConfig(),
             generate_introduction=True,
         ):
             events.append(event)
@@ -417,9 +411,7 @@ async def test_async_refine_experience_section_job_analysis_fails(
         async for event in async_refine_experience_section(
             resume_content="resume",
             job_description="job",
-            llm_endpoint=None,
-            api_key=None,
-            llm_model_name=None,
+            llm_config=LLMConfig(),
             generate_introduction=True,
         ):
             events.append(event)

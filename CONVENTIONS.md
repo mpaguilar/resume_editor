@@ -86,6 +86,7 @@
 * `datetime.datetime.utcnow()` is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: `datetime.datetime.now(datetime.UTC)`
 * IMPORTANT: DeprecationWarning: The `name` is not the first parameter anymore. The first parameter should be the `Request` instance.
   Replace `TemplateResponse(name, {"request": request})` by `TemplateResponse(request, name)`.
+* PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use `ConfigDict` instead. Deprecated in Pydantic V2.0 to be removed in V3.0.
 
 # Docstrings
 * Every function should have a docstring.
@@ -108,17 +109,6 @@
 
     ```
 
-# Unit tests
-* Unit tests are run with `pytest`.
-* Tests are located in `./tests` and its subdirectories.
-    * NEVER create a directory named `./resume_editor/tests`
-* Tests should be written as functions, do **not** use test classes.
-* Each `*.py` file should have its own test file.
-* Unit tests should be run with a logging level of DEBUG
-* Unit tests should be written before the code, and they should fail if the code is incorrect.
-* IMPORTANT: Do not use duplicate file names for tests, even in separate paths. This causes errors.
-    * All test files **must** have unique filenames
-
 # HTML considerations
 * Prefer putting HTML into templates
 * Putting HTML into Python code is discouraged
@@ -130,7 +120,47 @@ It is **important** to keep the size of individual files manageable.
 * Try to keep individual files under 1000 lines
 * Create new files and libraries as necessary
 
-# Special considerations for FastAPI route dependency injection
+# FastAPI dependency injection
+
+When using `Depends` dependency injection, it should use `Annotated`.
+
+When not using `Annotated`, `ruff` will issue a `FAST002` error.
+
+This is an example of correct usage:
+
+```
+from typing import Annotated
+
+from fastapi import Depends, FastAPI
+
+app = FastAPI()
+
+async def common_parameters(q: str | None = None, skip: int = 0, limit: int = 100):
+    return {"q": q, "skip": skip, "limit": limit}
+
+@app.get("/items/")
+async def read_items(commons: Annotated[dict, Depends(common_parameters)]):
+    return commons
+```
+
+# FastAPI Response Types
+
+Due to some versioning conflicts, using `TemplateResponse` as a return type is currently broken.
+
+Set `response_class=HTMLResponse` and `response_model
+
+# Unit tests
+* Unit tests are run with `pytest`.
+* Tests are located in `./tests` and its subdirectories.
+    * NEVER create a directory named `./resume_editor/tests`
+* Tests should be written as functions, do **not** use test classes.
+* Each `*.py` file should have its own test file.
+* Unit tests should be run with a logging level of DEBUG
+* Unit tests should be written before the code, and they should fail if the code is incorrect.
+* IMPORTANT: Do not use duplicate file names for tests, even in separate paths. This causes errors.
+    * All test files **must** have unique filenames
+
+## Special considerations for FastAPI route dependency injection
 
 To successfully mock FastAPI route calls with dependency injection, `app.dependency_overrides` **must** be used.
 
@@ -173,7 +203,7 @@ def test_something():
     app.dependency_overrides.clear()
 ```
 
-# Test file name exception
+## Test file name exception
 
 There are several cases where test files may not be named exactly the same as the python file. For example, the tests for `app/api/routes/user.py` are in `tests/app/api/routes/test_user_route.py`, not in `tests/app/api/routes/test_user.py`. This is to prevent a naming collision which causes errors during test collection. 
 

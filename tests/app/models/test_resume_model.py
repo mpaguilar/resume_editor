@@ -1,9 +1,9 @@
-from resume_editor.app.models.resume_model import Resume
+from resume_editor.app.models.resume_model import Resume, ResumeData
 
 
 def test_resume_initialization_with_new_fields():
     """Test that a Resume object can be initialized with the new fields."""
-    resume = Resume(
+    data = ResumeData(
         user_id=1,
         name="Test Resume",
         content="Some content",
@@ -13,6 +13,7 @@ def test_resume_initialization_with_new_fields():
         notes="These are some notes.",
         introduction="This is an introduction.",
     )
+    resume = Resume(data=data)
     assert resume.user_id == 1
     assert resume.name == "Test Resume"
     assert resume.content == "Some content"
@@ -26,7 +27,7 @@ def test_resume_initialization_with_new_fields():
 
 def test_resume_initialization_defaults_for_new_fields():
     """Test that a Resume object can be initialized with default None for new fields."""
-    resume = Resume(
+    data = ResumeData(
         user_id=1,
         name="Test Resume",
         content="Some content",
@@ -34,11 +35,13 @@ def test_resume_initialization_defaults_for_new_fields():
         job_description="A job description",
         parent_id=1,
     )
+    resume = Resume(data=data)
     assert resume.notes is None
     assert resume.introduction is None
 
 
 def test_resume_is_base_defaults_to_true():
     """Test that is_base defaults to True if not provided."""
-    resume = Resume(user_id=1, name="Test Resume", content="Some content")
+    data = ResumeData(user_id=1, name="Test Resume", content="Some content")
+    resume = Resume(data=data)
     assert resume.is_base is True

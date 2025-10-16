@@ -3,7 +3,7 @@ import logging
 from typing import AsyncGenerator
 
 from cryptography.fernet import InvalidToken
-from fastapi import HTTPException, Request, Response
+from fastapi import HTTPException, Response
 from fastapi.responses import HTMLResponse
 from openai import AuthenticationError
 from sqlalchemy.orm import Session
@@ -11,7 +11,13 @@ from starlette.middleware.base import ClientDisconnect
 
 from resume_editor.app.api.routes.html_fragments import _create_refine_result_html
 from resume_editor.app.api.routes.route_logic.resume_crud import (
+    ResumeCreateParams,
+    ResumeUpdateParams,
+)
+from resume_editor.app.api.routes.route_logic.resume_crud import (
     create_resume as create_resume_db,
+)
+from resume_editor.app.api.routes.route_logic.resume_crud import (
     update_resume as update_resume_db,
 )
 from resume_editor.app.api.routes.route_logic.resume_reconstruction import (
@@ -31,8 +37,11 @@ from resume_editor.app.api.routes.route_models import (
     ExperienceResponse,
     RefineResponse,
     RefineTargetSection,
+    SaveAsNewParams,
+    SyncRefinementParams,
 )
 from resume_editor.app.core.security import decrypt_data
+from resume_editor.app.llm.models import LLMConfig
 from resume_editor.app.llm.orchestration import (
     async_refine_experience_section,
     refine_resume_section_with_llm,
@@ -45,7 +54,8 @@ log = logging.getLogger(__name__)
 
 
 def get_llm_config(
-    db: Session, user_id: int
+    db: Session,
+    user_id: int,
 ) -> tuple[str | None, str | None, str | None]:
     """Retrieves LLM configuration for a user.
 
@@ -90,6 +100,7 @@ def create_sse_message(event: str, data: str) -> str:
 
     Returns:
         str: The formatted SSE message string.
+
     """
     if "\n" in data:
         data_payload = "\n".join(f"data: {line}" for line in data.splitlines())
@@ -105,6 +116,7 @@ def create_sse_progress_message(message: str) -> str:
 
     Returns:
         str: The formatted SSE 'progress' message.
+
     """
     _msg = f"create_sse_progress_message with message: {message}"
     log.debug(_msg)
@@ -120,6 +132,7 @@ def create_sse_introduction_message(introduction: str) -> str:
 
     Returns:
         str: The formatted SSE 'introduction_generated' message.
+
     """
     intro_html = f"""<div id="introduction-container" hx-swap-oob="true">
 <h4 class="text-lg font-semibold text-gray-700">Suggested Introduction:</h4>
@@ -137,6 +150,7 @@ def create_sse_error_message(message: str, is_warning: bool = False) -> str:
 
     Returns:
         str: The formatted SSE 'error' message.
+
     """
     color_class = "text-yellow-500" if is_warning else "text-red-500"
     error_html = (
@@ -153,6 +167,7 @@ def create_sse_done_message(html_content: str) -> str:
 
     Returns:
         str: The formatted SSE 'done' message.
+
     """
     return create_sse_message(event="done", data=html_content)
 
@@ -162,6 +177,7 @@ def create_sse_close_message() -> str:
 
     Returns:
         str: The formatted SSE 'close' message.
+
     """
     return create_sse_message(event="close", data="stream complete")
 
@@ -187,6 +203,7 @@ def process_refined_experience_result(
 
     Returns:
         str: The complete HTML content for the body of the `done` event.
+
     """
     _msg = "process_refined_experience_result starting"
     log.debug(_msg)
@@ -200,7 +217,8 @@ def process_refined_experience_result(
     roles_to_reconstruct = [Role.model_validate(data) for data in sorted_roles_data]
 
     refined_experience = ExperienceResponse(
-        roles=roles_to_reconstruct, projects=experience_info.projects
+        roles=roles_to_reconstruct,
+        projects=experience_info.projects,
     )
 
     updated_resume_content = build_complete_resume_from_sections(
@@ -225,7 +243,8 @@ def process_refined_experience_result(
 
 
 def _process_sse_event(
-    event: dict, refined_roles: dict
+    event: dict,
+    refined_roles: dict,
 ) -> tuple[str | None, str | None]:
     """Processes a single SSE event from the experience refinement stream.
 
@@ -239,6 +258,7 @@ def _process_sse_event(
     Returns:
         tuple[str | None, str | None]: A tuple containing an optional SSE message
                                        to yield and optional new introduction text.
+
     """
     _msg = f"_process_sse_event starting with event: {event}"
     log.debug(_msg)
@@ -248,10 +268,7 @@ def _process_sse_event(
 
     if isinstance(event, dict) and event.get("status") == "in_progress":
         sse_message = create_sse_progress_message(event.get("message", ""))
-    elif (
-        isinstance(event, dict)
-        and event.get("status") == "introduction_generated"
-    ):
+    elif isinstance(event, dict) and event.get("status") == "introduction_generated":
         new_introduction = event.get("data")
         if new_introduction:
             sse_message = create_sse_introduction_message(new_introduction)
@@ -282,6 +299,7 @@ def _handle_sse_exception(e: Exception, resume_id: int) -> str:
 
     Returns:
         str: A formatted SSE error message string.
+
     """
     _msg = f"_handle_sse_exception starting for resume ID: {resume_id}"
     log.debug(_msg)
@@ -321,6 +339,7 @@ def reconstruct_resume_from_refined_section(
 
     Returns:
         str: The full markdown content of the reconstructed resume.
+
     """
     _msg = f"reconstruct_resume_from_refined_section starting for section {target_section.value}"
     log.debug(_msg)
@@ -363,48 +382,48 @@ def reconstruct_resume_from_refined_section(
     return updated_content
 
 
-async def handle_sync_refinement(
-    request: Request,
-    db: Session,
-    user: User,
-    resume: DatabaseResume,
-    job_description: str,
-    target_section: RefineTargetSection,
-    generate_introduction: bool,
-) -> Response:
+async def handle_sync_refinement(params: SyncRefinementParams) -> Response:
     """Handles synchronous (non-streaming) resume section refinement."""
     try:
-        llm_endpoint, llm_model_name, api_key = get_llm_config(db, user.id)
+        llm_endpoint, llm_model_name, api_key = get_llm_config(
+            params.db,
+            params.user.id,
+        )
 
-        # Handle other sections synchronously
-        refined_content, introduction = refine_resume_section_with_llm(
-            resume_content=resume.content,
-            job_description=job_description,
-            target_section=target_section.value,
+        llm_config = LLMConfig(
             llm_endpoint=llm_endpoint,
             api_key=api_key,
             llm_model_name=llm_model_name,
-            generate_introduction=generate_introduction,
         )
 
-        if "HX-Request" in request.headers:
+        # Handle other sections synchronously
+        refined_content, introduction = refine_resume_section_with_llm(
+            resume_content=params.resume.content,
+            job_description=params.job_description,
+            target_section=params.target_section.value,
+            llm_config=llm_config,
+            generate_introduction=params.generate_introduction,
+        )
+
+        if "HX-Request" in params.request.headers:
             html_content = _create_refine_result_html(
-                resume_id=resume.id,
-                target_section_val=target_section.value,
+                resume_id=params.resume.id,
+                target_section_val=params.target_section.value,
                 refined_content=refined_content,
-                job_description=job_description,
+                job_description=params.job_description,
                 introduction=introduction,
             )
             return HTMLResponse(content=html_content)
 
         return RefineResponse(
-            refined_content=refined_content, introduction=introduction
+            refined_content=refined_content,
+            introduction=introduction,
         )
     except InvalidToken:
         detail = "Invalid API key. Please update your settings."
-        _msg = f"API key decryption failed for user {user.id}"
+        _msg = f"API key decryption failed for user {params.user.id}"
         log.warning(_msg)
-        if "HX-Request" in request.headers:
+        if "HX-Request" in params.request.headers:
             return HTMLResponse(
                 f'<div role="alert" class="text-red-500 p-2">{detail}</div>',
                 status_code=200,
@@ -412,9 +431,9 @@ async def handle_sync_refinement(
         raise HTTPException(status_code=400, detail=detail)
     except AuthenticationError as e:
         detail = "LLM authentication failed. Please check your API key in settings."
-        _msg = f"LLM authentication failed for user {user.id}: {e!s}"
+        _msg = f"LLM authentication failed for user {params.user.id}: {e!s}"
         log.warning(_msg)
-        if "HX-Request" in request.headers:
+        if "HX-Request" in params.request.headers:
             return HTMLResponse(
                 f'<div role="alert" class="text-red-500 p-2">{detail}</div>',
                 status_code=200,
@@ -422,9 +441,9 @@ async def handle_sync_refinement(
         raise HTTPException(status_code=401, detail=detail)
     except ValueError as e:
         detail = str(e)
-        _msg = f"LLM refinement failed for resume {resume.id} with ValueError: {detail}"
+        _msg = f"LLM refinement failed for resume {params.resume.id} with ValueError: {detail}"
         log.warning(_msg)
-        if "HX-Request" in request.headers:
+        if "HX-Request" in params.request.headers:
             return HTMLResponse(
                 f'<div role="alert" class="text-red-500 p-2">Refinement failed: {detail}</div>',
                 status_code=200,
@@ -432,9 +451,9 @@ async def handle_sync_refinement(
         raise HTTPException(status_code=400, detail=detail)
     except Exception as e:
         detail = f"An unexpected error occurred during refinement: {e!s}"
-        _msg = f"LLM refinement failed for resume {resume.id}: {e!s}"
+        _msg = f"LLM refinement failed for resume {params.resume.id}: {e!s}"
         log.exception(_msg)
-        if "HX-Request" in request.headers:
+        if "HX-Request" in params.request.headers:
             return HTMLResponse(
                 f'<div role="alert" class="text-red-500 p-2">{detail}</div>',
                 status_code=200,
@@ -456,15 +475,18 @@ async def experience_refinement_sse_generator(
     try:
         llm_endpoint, llm_model_name, api_key = get_llm_config(db, user.id)
 
+        llm_config = LLMConfig(
+            llm_endpoint=llm_endpoint,
+            api_key=api_key,
+            llm_model_name=llm_model_name,
+        )
         refined_roles = {}
         introduction = None
 
         async for event in async_refine_experience_section(
             resume_content=resume.content,
             job_description=job_description,
-            llm_endpoint=llm_endpoint,
-            api_key=api_key,
-            llm_model_name=llm_model_name,
+            llm_config=llm_config,
             generate_introduction=generate_introduction,
         ):
             sse_message, new_introduction = _process_sse_event(event, refined_roles)
@@ -475,7 +497,10 @@ async def experience_refinement_sse_generator(
 
         if refined_roles:
             result_html = process_refined_experience_result(
-                resume, refined_roles, job_description, introduction
+                resume,
+                refined_roles,
+                job_description,
+                introduction,
             )
             yield create_sse_done_message(result_html)
         else:
@@ -516,6 +541,7 @@ def handle_accept_refinement(
 
     Raises:
         HTTPException: If reconstruction or validation fails.
+
     """
     _msg = "handle_accept_refinement starting"
     log.debug(_msg)
@@ -526,15 +552,21 @@ def handle_accept_refinement(
             refined_content=refined_content,
             target_section=target_section,
         )
-        perform_pre_save_validation(updated_content, resume.content)
+        perform_pre_save_validation(updated_content)
     except (ValueError, TypeError, HTTPException) as e:
         detail = getattr(e, "detail", str(e))
         _msg = f"Failed to reconstruct resume from refined section: {detail}"
         log.exception(_msg)
         raise HTTPException(status_code=422, detail=_msg)
 
+    update_params = ResumeUpdateParams(
+        content=updated_content,
+        introduction=introduction,
+    )
     updated_resume = update_resume_db(
-        db=db, resume=resume, content=updated_content, introduction=introduction
+        db=db,
+        resume=resume,
+        params=update_params,
     )
 
     _msg = "handle_accept_refinement returning"
@@ -542,61 +574,49 @@ def handle_accept_refinement(
     return updated_resume
 
 
-def handle_save_as_new_refinement(
-    db: Session,
-    user: User,
-    resume: DatabaseResume,
-    refined_content: str,
-    target_section: RefineTargetSection,
-    new_resume_name: str,
-    job_description: str | None,
-    introduction: str | None,
-) -> DatabaseResume:
+def handle_save_as_new_refinement(params: SaveAsNewParams) -> DatabaseResume:
     """Orchestrates saving a refined resume as a new resume.
 
     This involves reconstructing the resume, validating it, and creating a new record in the database.
 
     Args:
-        db (Session): The database session.
-        user (User): The current user.
-        resume (DatabaseResume): The original resume to base the new one on.
-        refined_content (str): The refined content for the target section.
-        target_section (RefineTargetSection): The section that was refined.
-        new_resume_name (str): The name for the new resume.
-        job_description (str | None): An optional job description.
-        introduction (str | None): An optional new introduction.
+        params (SaveAsNewParams): The parameters for saving the new resume.
 
     Returns:
         DatabaseResume: The newly created resume object.
 
     Raises:
         HTTPException: If reconstruction or validation fails.
+
     """
     _msg = "handle_save_as_new_refinement starting"
     log.debug(_msg)
 
     try:
         updated_content = reconstruct_resume_from_refined_section(
-            original_resume_content=resume.content,
-            refined_content=refined_content,
-            target_section=target_section,
+            original_resume_content=params.resume.content,
+            refined_content=params.form_data.refined_content,
+            target_section=params.form_data.target_section,
         )
-        perform_pre_save_validation(updated_content, resume.content)
+        perform_pre_save_validation(updated_content)
     except (ValueError, TypeError, HTTPException) as e:
         detail = getattr(e, "detail", str(e))
         _msg = f"Failed to reconstruct resume from refined section: {detail}"
         log.exception(_msg)
         raise HTTPException(status_code=422, detail=_msg)
 
-    new_resume = create_resume_db(
-        db=db,
-        user_id=user.id,
-        name=new_resume_name,
+    create_params = ResumeCreateParams(
+        user_id=params.user.id,
+        name=params.form_data.new_resume_name,
         content=updated_content,
         is_base=False,
-        parent_id=resume.id,
-        job_description=job_description,
-        introduction=introduction,
+        parent_id=params.resume.id,
+        job_description=params.form_data.job_description,
+        introduction=params.form_data.introduction,
+    )
+    new_resume = create_resume_db(
+        db=params.db,
+        params=create_params,
     )
 
     _msg = "handle_save_as_new_refinement returning"

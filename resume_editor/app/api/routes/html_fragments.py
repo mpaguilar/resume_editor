@@ -30,13 +30,14 @@ def _generate_resume_list_html(
     sort_by: str | None = None,
     wrap_in_div: bool = False,
 ) -> str:
-    """
-    Generates HTML for a list of resumes, optionally marking one as selected.
+    """Generates HTML for a list of resumes, optionally marking one as selected.
 
     Args:
         base_resumes (list[DatabaseResume]): The list of base resumes to display.
         refined_resumes (list[DatabaseResume]): The list of refined resumes to display.
         selected_resume_id (int | None): The ID of the resume to mark as selected.
+        sort_by (str | None): The current sorting key applied to the resume list, if any.
+        wrap_in_div (bool): If True, wrap the generated HTML in a div with id 'resume-list'.
 
     Returns:
         str: HTML string for the resume list.
@@ -58,8 +59,7 @@ def _generate_resume_list_html(
 
 
 def _generate_resume_detail_html(resume: DatabaseResume) -> str:
-    """
-    Generate the HTML for the resume detail view.
+    """Generate the HTML for the resume detail view.
 
     Args:
         resume (DatabaseResume): The resume object to generate HTML for.
@@ -69,6 +69,7 @@ def _generate_resume_detail_html(resume: DatabaseResume) -> str:
 
     Notes:
         1. Renders the `partials/resume/_resume_detail.html` template.
+
     """
     template = env.get_template("partials/resume/_resume_detail.html")
     return template.render(resume=resume)
@@ -81,8 +82,7 @@ def _create_refine_result_html(
     job_description: str | None = None,
     introduction: str | None = None,
 ) -> str:
-    """
-    Creates the HTML for the refinement result container with controls.
+    """Creates the HTML for the refinement result container with controls.
 
     Args:
         resume_id (int): The ID of the resume being refined.

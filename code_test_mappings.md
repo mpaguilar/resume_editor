@@ -24,7 +24,12 @@ These are known mappings:
 - `resume_editor/app/api/routes/resume_edit.py` -> `tests/app/api/routes/test_resume_edit_experience.py`
 - `resume_editor/app/api/routes/resume_edit.py` -> `tests/app/api/routes/test_resume_edit_projects.py`
 - `resume_editor/app/api/routes/resume_export.py` -> `tests/app/api/routes/test_resume_export_route.py`
-- `resume_editor/app/api/routes/route_logic/resume_ai_logic.py` -> `tests/app/api/routes/route_logic/test_resume_ai_logic.py`
+- `resume_editor/app/api/routes/route_logic/resume_ai_logic.py` -> `tests/app/api/routes/route_logic/test_resume_ai_logic_actions.py`
+- `resume_editor/app/api/routes/route_logic/resume_ai_logic.py` -> `tests/app/api/routes/route_logic/test_resume_ai_logic_config.py`
+- `resume_editor/app/api/routes/route_logic/resume_ai_logic.py` -> `tests/app/api/routes/route_logic/test_resume_ai_logic_reconstruction.py`
+- `resume_editor/app/api/routes/route_logic/resume_ai_logic.py` -> `tests/app/api/routes/route_logic/test_resume_ai_logic_sse_generator.py`
+- `resume_editor/app/api/routes/route_logic/resume_ai_logic.py` -> `tests/app/api/routes/route_logic/test_resume_ai_logic_sse_helpers.py`
+- `resume_editor/app/api/routes/route_logic/resume_ai_logic.py` -> `tests/app/api/routes/route_logic/test_resume_ai_logic_sync.py`
 - `resume_editor/app/api/routes/route_logic/resume_export.py` -> `tests/app/api/routes/route_logic/test_resume_export.py`
 - `resume_editor/app/api/routes/user.py` -> `tests/app/api/routes/test_user_route.py`
 - `resume_editor/app/api/routes/user.py` -> `tests/app/api/routes/test_user_routes_password.py`
@@ -32,8 +37,10 @@ These are known mappings:
 - `resume_editor/app/api/routes/admin.py` -> `tests/app/api/routes/test_admin.py`
 - `resume_editor/app/api/routes/admin.py` -> `tests/app/api/routes/test_admin_impersonate.py`
 - `resume_editor/app/main.py` -> `tests/app/web/test_main_web.py`
-- `resume_editor/app/main.py` -> `tests/app/web/test_resume_web.py`
+- `resume_editor/app/web/pages.py` -> `tests/app/web/test_main_web.py`
+- `resume_editor/app/web/pages.py` -> `tests/app/web/test_resume_web.py`
 - `resume_editor/app/models/resume_model.py` -> `tests/app/models/test_resume_model.py`
+- `resume_editor/app/models/user.py` -> `tests/app/models/test_user.py`
 - `resume_editor/app/models/user_settings.py` -> `tests/app/models/test_user_settings.py`
 - `resume_editor/app/api/routes/route_logic/resume_crud.py` -> `tests/app/api/routes/route_logic/test_resume_crud.py`
 - `resume_editor/app/api/routes/route_logic/settings_crud.py` -> `tests/app/api/routes/route_logic/test_settings_crud.py`
@@ -42,6 +49,7 @@ These are known mappings:
 - `resume_editor/app/llm/orchestration.py` -> `tests/app/llm/test_orchestration_refine_experience.py`
 - `resume_editor/app/llm/orchestration.py` -> `tests/app/llm/test_orchestration_refine_generic.py`
 - `resume_editor/app/llm/orchestration.py` -> `tests/app/llm/test_orchestration_refine_role.py`
+- `resume_editor/app/api/routes/route_logic/resume_serialization.py` -> `tests/app/api/routes/route_logic/test_resume_certifications_serialization.py`
 - `resume_editor/app/api/routes/route_logic/resume_serialization.py` -> `tests/app/api/routes/route_logic/test_resume_content_update.py`
 - `resume_editor/app/api/routes/route_logic/resume_serialization.py` -> `tests/app/api/routes/route_logic/test_resume_education_serialization.py`
 - `resume_editor/app/api/routes/route_logic/resume_serialization.py` -> `tests/app/api/routes/route_logic/test_resume_experience_extraction.py`
@@ -53,3 +61,4 @@ These are known mappings:
 - `resume_editor/app/middleware.py` -> `tests/app/test_middleware.py`
 - `resume_editor/app/core/rendering_settings.py` -> `tests/app/core/test_rendering_settings.py`
 - `resume_editor/app/api/routes/route_logic/resume_serialization_helpers.py` -> `tests/app/api/routes/route_logic/test_resume_serialization_helpers.py`
+- `resume_editor/app/api/routes/route_logic/resume_validation.py` -> `tests/test_resume_validation.py`

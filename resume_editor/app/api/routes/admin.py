@@ -1,4 +1,5 @@
 import logging
+from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
@@ -28,12 +29,13 @@ router = APIRouter(
 
 @router.post(
     "/users/",
-    response_model=AdminUserResponse,
     status_code=status.HTTP_201_CREATED,
 )
-def admin_create_user(user_data: AdminUserCreate, db: Session = Depends(get_db)):
-    """
-    Admin endpoint to create a new user.
+def admin_create_user(
+    user_data: AdminUserCreate,
+    db: Annotated[Session, Depends(get_db)],
+) -> AdminUserResponse:
+    """Admin endpoint to create a new user.
 
     Args:
         user_data (AdminUserCreate): The data required to create a new user, including username, password, and optional email.
@@ -58,10 +60,9 @@ def admin_create_user(user_data: AdminUserCreate, db: Session = Depends(get_db))
     return db_user
 
 
-@router.get("/users/", response_model=list[AdminUserResponse])
-def admin_get_users(db: Session = Depends(get_db)):
-    """
-    Admin endpoint to list all users.
+@router.get("/users/")
+def admin_get_users(db: Annotated[Session, Depends(get_db)]) -> list[AdminUserResponse]:
+    """Admin endpoint to list all users.
 
     Args:
         db (Session): The database session used to interact with the database.
@@ -85,10 +86,12 @@ def admin_get_users(db: Session = Depends(get_db)):
     return users
 
 
-@router.get("/users/{user_id}", response_model=AdminUserResponse)
-def admin_get_user(user_id: int, db: Session = Depends(get_db)):
-    """
-    Admin endpoint to get a single user by ID.
+@router.get("/users/{user_id}")
+def admin_get_user(
+    user_id: int,
+    db: Annotated[Session, Depends(get_db)],
+) -> AdminUserResponse:
+    """Admin endpoint to get a single user by ID.
 
     Args:
         user_id (int): The unique identifier of the user to retrieve.
@@ -118,14 +121,13 @@ def admin_get_user(user_id: int, db: Session = Depends(get_db)):
     return db_user
 
 
-@router.put("/users/{user_id}", response_model=AdminUserResponse)
+@router.put("/users/{user_id}")
 def admin_update_user(
     user_id: int,
     update_data: AdminUserUpdateRequest,
-    db: Session = Depends(get_db),
-):
-    """
-    Admin endpoint to update a user's attributes.
+    db: Annotated[Session, Depends(get_db)],
+) -> AdminUserResponse:
+    """Admin endpoint to update a user's attributes.
 
     Args:
         user_id (int): The unique identifier of the user to update.
@@ -167,15 +169,15 @@ def admin_update_user(
 @router.delete("/users/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
 def admin_delete_user(
     user_id: int,
-    db: Session = Depends(get_db),
-    admin_user: User = Depends(get_current_admin_user),
-):
-    """
-    Admin endpoint to delete a user.
+    db: Annotated[Session, Depends(get_db)],
+    admin_user: Annotated[User, Depends(get_current_admin_user)],
+) -> None:
+    """Admin endpoint to delete a user.
 
     Args:
         user_id (int): The unique identifier of the user to delete.
         db (Session): The database session used to interact with the database.
+        admin_user (User): The currently authenticated admin user performing the deletion.
 
     Raises:
         HTTPException: If the user with the given ID is not found, raises a 404 error.
@@ -210,16 +212,14 @@ def admin_delete_user(
 
 @router.post(
     "/users/{user_id}/roles/{role_name}",
-    response_model=AdminUserResponse,
     status_code=status.HTTP_200_OK,
 )
 def admin_assign_role_to_user(
     user_id: int,
     role_name: str,
-    db: Session = Depends(get_db),
-):
-    """
-    Admin endpoint to assign a role to a user.
+    db: Annotated[Session, Depends(get_db)],
+) -> AdminUserResponse:
+    """Admin endpoint to assign a role to a user.
 
     Args:
         user_id (int): The unique identifier of the user to assign the role to.
@@ -271,16 +271,14 @@ def admin_assign_role_to_user(
 
 @router.delete(
     "/users/{user_id}/roles/{role_name}",
-    response_model=AdminUserResponse,
     status_code=status.HTTP_200_OK,
 )
 def admin_remove_role_from_user(
     user_id: int,
     role_name: str,
-    db: Session = Depends(get_db),
-):
-    """
-    Admin endpoint to remove a role from a user.
+    db: Annotated[Session, Depends(get_db)],
+) -> AdminUserResponse:
+    """Admin endpoint to remove a role from a user.
 
     Args:
         user_id (int): The unique identifier of the user to remove the role from.
@@ -332,20 +330,20 @@ def admin_remove_role_from_user(
     return updated_user
 
 
-@router.post("/impersonate/{username}", response_model=Token)
+@router.post("/impersonate/{username}")
 def admin_impersonate_user(
     username: str,
-    db: Session = Depends(get_db),
-    admin_user: User = Depends(get_current_admin_user),
-    settings: Settings = Depends(get_settings),
-):
-    """
-    Admin endpoint to impersonate a user.
+    db: Annotated[Session, Depends(get_db)],
+    admin_user: Annotated[User, Depends(get_current_admin_user)],
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> Token:
+    """Admin endpoint to impersonate a user.
 
     Args:
         username (str): The username of the user to impersonate.
         db (Session): The database session used to interact with the database.
         admin_user (User): The currently authenticated admin user.
+        settings (Settings): Application settings used for token creation and configuration.
 
     Returns:
         Token: A JWT access token for the impersonated user, with the admin's username as the impersonator.

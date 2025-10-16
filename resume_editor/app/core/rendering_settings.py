@@ -1,4 +1,5 @@
 """This module stores the rendering settings for the resume writer."""
+
 GENERAL_SETTINGS = {
     "personal": True,
     "certifications": True,
@@ -40,12 +41,12 @@ GENERAL_SETTINGS = {
                     "url_description": True,
                     "start_date": False,
                     "end_date": False,
-                }
-            }
+                },
+            },
         },
         "skills_matrix": {"all_skills": True},
         "executive_summary": {
-            "categories": "Architecture\nConsulting\nDevOps\nDevelopment\nProduct Support\n"
+            "categories": "Architecture\nConsulting\nDevOps\nDevelopment\nProduct Support\n",
         },
     },
     "skills_matrix": False,
@@ -81,12 +82,12 @@ EXEC_SUMMARY_SETTINGS = {
                     "include_tasks": True,
                     "location": True,
                     "months_ago": "0",
-                }
-            }
+                },
+            },
         },
         "skills_matrix": {"all_skills": True},
         "executive_summary": {
-            "categories": "Architecture\nConsulting\nDevOps\nDevelopment\nProduct Support\n"
+            "categories": "Architecture\nConsulting\nDevOps\nDevelopment\nProduct Support\n",
         },
     },
     "skills_matrix": True,
@@ -109,6 +110,7 @@ def get_render_settings(name: str) -> dict:
 
     Returns:
         dict: the settings
+
     """
     if name == "general":
         return GENERAL_SETTINGS

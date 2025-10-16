@@ -11,30 +11,33 @@ from resume_editor.app.api.routes.html_fragments import (
     _generate_resume_detail_html,
     _generate_resume_list_html,
 )
-from resume_editor.app.models.resume_model import Resume as DatabaseResume
-from resume_editor.app.models.user import User as DBUser
+from resume_editor.app.models.resume_model import Resume as DatabaseResume, ResumeData
+from resume_editor.app.models.user import User as DBUser, UserData
 
 
 @pytest.fixture
 def test_user():
     """Fixture for a test user."""
     user = DBUser(
-        username="testuser",
-        email="test@example.com",
-        hashed_password="hashed_password",
+        data=UserData(
+            username="testuser",
+            email="test@example.com",
+            hashed_password="hashed_password",
+            id_=1,
+        )
     )
-    user.id = 1
     return user
 
 
 @pytest.fixture
 def test_resume(test_user):
     """Fixture for a test resume."""
-    resume = DatabaseResume(
+    resume_data = ResumeData(
         user_id=test_user.id,
         name="Test Resume",
         content="some content",
     )
+    resume = DatabaseResume(data=resume_data)
     resume.id = 1
     resume.created_at = datetime(2023, 1, 15)
     resume.updated_at = datetime(2023, 1, 16)
@@ -44,13 +47,14 @@ def test_resume(test_user):
 @pytest.fixture
 def test_refined_resume(test_user):
     """Fixture for a test refined resume."""
-    resume = DatabaseResume(
+    resume_data = ResumeData(
         user_id=test_user.id,
         name="Refined Resume",
         content="some refined content",
         is_base=False,
         parent_id=1,
     )
+    resume = DatabaseResume(data=resume_data)
     resume.id = 2
     resume.created_at = datetime(2023, 2, 20)
     resume.updated_at = datetime(2023, 2, 21)
@@ -226,11 +230,12 @@ def test_generate_resume_list_html_output(test_resume, test_refined_resume):
 
 def test_generate_resume_list_html_output_no_dates(test_user):
     """Test that _generate_resume_list_html renders correctly with no date stamps."""
-    base_resume_no_dates = DatabaseResume(
+    resume_data = ResumeData(
         user_id=test_user.id,
         name="Test Resume No Dates",
         content="some content",
     )
+    base_resume_no_dates = DatabaseResume(data=resume_data)
     base_resume_no_dates.id = 3
     base_resume_no_dates.created_at = None
     base_resume_no_dates.updated_at = None

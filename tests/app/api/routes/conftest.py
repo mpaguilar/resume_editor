@@ -7,8 +7,8 @@ from resume_editor.app.core.config import get_settings
 from resume_editor.app.core.security import get_password_hash
 from resume_editor.app.database.database import get_db
 from resume_editor.app.main import create_app
-from resume_editor.app.models.resume_model import Resume as DatabaseResume
-from resume_editor.app.models.user import User as DBUser
+from resume_editor.app.models.resume_model import Resume as DatabaseResume, ResumeData
+from resume_editor.app.models.user import User as DBUser, UserData
 
 
 VALID_MINIMAL_RESUME_CONTENT = """# Personal
@@ -49,23 +49,26 @@ Start date: 01/2024
 def test_user():
     """Fixture for a test user."""
     user = DBUser(
-        username="testuser",
-        email="test@example.com",
-        hashed_password=get_password_hash("testpassword"),
-        attributes={},
+        data=UserData(
+            username="testuser",
+            email="test@example.com",
+            hashed_password=get_password_hash("testpassword"),
+            attributes={},
+            id_=1,
+        )
     )
-    user.id = 1
     return user
 
 
 @pytest.fixture
 def test_resume(test_user):
     """Fixture for a test resume."""
-    resume = DatabaseResume(
+    resume_data = ResumeData(
         user_id=test_user.id,
         name="Test Resume",
         content=VALID_MINIMAL_RESUME_CONTENT,
     )
+    resume = DatabaseResume(data=resume_data)
     resume.id = 1
     return resume
 
