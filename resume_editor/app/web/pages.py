@@ -8,11 +8,13 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
 from resume_editor.app.api.routes.route_logic.resume_crud import (
-    create_resume as create_resume_db,
-)
-from resume_editor.app.api.routes.route_logic.resume_crud import (
+    ResumeCreateParams,
+    ResumeUpdateParams,
     get_resume_by_id_and_user,
     update_resume,
+)
+from resume_editor.app.api.routes.route_logic.resume_crud import (
+    create_resume as create_resume_db,
 )
 from resume_editor.app.api.routes.route_logic.resume_parsing import (
     validate_resume_content,
@@ -257,11 +259,12 @@ async def handle_resume_view_update(
     introduction = form_data.get("introduction")
     notes = form_data.get("notes")
 
+    update_params = ResumeUpdateParams(introduction=introduction, notes=notes)
+
     update_resume(
         db=db,
         resume=resume,
-        introduction=introduction,
-        notes=notes,
+        params=update_params,
     )
     return RedirectResponse(
         url=f"/resumes/{resume_id}/view",
@@ -311,11 +314,12 @@ async def handle_create_resume(
             status_code=422,
         )
 
+    create_params = ResumeCreateParams(
+        user_id=current_user.id, name=name, content=content,
+    )
     resume = create_resume_db(
         db=db,
-        user_id=current_user.id,
-        name=name,
-        content=content,
+        params=create_params,
     )
     return RedirectResponse(
         url=f"/resumes/{resume.id}/edit",

@@ -20,7 +20,6 @@ from resume_editor.app.api.routes.route_models import (
     SaveAsNewParams,
     SyncRefinementParams,
 )
-from resume_editor.app.api.routes.route_models import RefineTargetSection
 from resume_editor.app.core.auth import get_current_user_from_cookie
 from resume_editor.app.database.database import get_db
 from resume_editor.app.models.resume_model import Resume as DatabaseResume

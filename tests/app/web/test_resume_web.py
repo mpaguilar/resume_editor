@@ -8,6 +8,10 @@ from fastapi.testclient import TestClient
 from resume_editor.app.core.auth import get_current_user_from_cookie
 from resume_editor.app.database.database import get_db
 from resume_editor.app.main import create_app
+from resume_editor.app.api.routes.route_logic.resume_crud import (
+    ResumeCreateParams,
+    ResumeUpdateParams,
+)
 from resume_editor.app.models.resume_model import (
     Resume as DatabaseResume,
     ResumeData,
@@ -393,11 +397,11 @@ def test_update_resume_view_page_post():
         mock_get_resume.assert_called_once_with(
             db=mock_db_session, resume_id=1, user_id=1
         )
+        expected_params = ResumeUpdateParams(introduction="New Intro", notes="New Notes")
         mock_update_resume.assert_called_once_with(
             db=mock_db_session,
             resume=mock_resume,
-            introduction="New Intro",
-            notes="New Notes",
+            params=expected_params,
         )
 
     app.dependency_overrides.clear()
@@ -541,8 +545,12 @@ def test_handle_create_resume_success():
         assert response.status_code == 303
         assert response.headers["location"] == "/resumes/2/edit"
         mock_validate.assert_called_once_with("Some content")
+
+        expected_params = ResumeCreateParams(
+            user_id=1, name="New Resume", content="Some content"
+        )
         mock_create_resume.assert_called_once_with(
-            db=mock_db_session, user_id=1, name="New Resume", content="Some content"
+            db=mock_db_session, params=expected_params
         )
 
     app.dependency_overrides.clear()
