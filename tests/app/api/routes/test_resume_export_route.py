@@ -3,9 +3,12 @@ from datetime import date
 from unittest.mock import ANY, MagicMock, patch
 
 import pytest
+from fastapi import FastAPI
 from fastapi.testclient import TestClient
+from sqlalchemy.orm import Session
 
 from resume_editor.app.api.dependencies import get_resume_for_user
+from resume_editor.app.database.database import get_db
 from resume_editor.app.api.routes.route_models import RenderFormat, RenderSettingsName
 from resume_editor.app.main import create_app
 from resume_editor.app.models.resume_model import (
@@ -47,13 +50,37 @@ def client(app):
 
 
 @pytest.fixture
-def setup_resume_dependency(app):
-    """Fixture to set up database resume dependency override."""
+def mock_db():
+    """Fixture for a mock database session."""
+    return MagicMock(spec=Session)
+
+
+@pytest.fixture
+def setup_db_dependency(app: "FastAPI", mock_db: MagicMock):
+    """Fixture to set up database dependency override."""
+
+    def get_mock_db():
+        yield mock_db
+
+    app.dependency_overrides[get_db] = get_mock_db
+    yield
+    app.dependency_overrides.clear()
+
+
+@pytest.fixture
+def mock_resume():
+    """Fixture for a mock resume object."""
     resume_data = ResumeData(
         user_id=1, name="Test Resume", content=VALID_RESUME_CONTENT
     )
-    mock_resume = DatabaseResume(data=resume_data)
-    mock_resume.id = 1
+    _mock_resume = DatabaseResume(data=resume_data)
+    _mock_resume.id = 1
+    return _mock_resume
+
+
+@pytest.fixture
+def setup_resume_dependency(app, mock_resume):
+    """Fixture to set up database resume dependency override."""
 
     def override_get_resume_for_user():
         return mock_resume
@@ -172,6 +199,19 @@ def test_export_resume_markdown_invalid_date_format(
     assert response.json()["detail"] == "Invalid date format. Please use YYYY-MM-DD."
 
 
+@patch("resume_editor.app.api.routes.resume_export.render_resume_to_docx_stream")
+def test_download_rendered_resume_unauthenticated(
+    mock_render_stream: MagicMock, client: TestClient
+):
+    """Test that unauthenticated access to download is forbidden."""
+    response = client.post(
+        "/api/resumes/1/download?render_format=ats&settings_name=general",
+        headers={"Accept": "application/json"},
+    )
+    assert response.status_code == 401
+    mock_render_stream.assert_not_called()
+
+
 
 
 @pytest.mark.parametrize(
@@ -188,29 +228,44 @@ def test_download_rendered_resume(
     mock_render_stream,
     mock_get_settings,
     client: TestClient,
+    mock_resume: DatabaseResume,
+    mock_db: MagicMock,
     setup_resume_dependency,
+    setup_db_dependency,
     render_format,
     settings_name,
 ):
-    """Test downloading a rendered resume without filtering."""
+    """Test downloading a rendered resume saves default export settings."""
     mock_settings_dict = {"some_setting": "some_value"}
     mock_get_settings.return_value = mock_settings_dict
     mock_render_stream.return_value = io.BytesIO(b"test download docx")
 
-    response = client.get(
+    response = client.post(
         f"/api/resumes/1/download?render_format={render_format.value}&settings_name={settings_name.value}"
     )
 
     assert response.status_code == 200
     assert response.content == b"test download docx"
 
-    # Ensure filtering logic was NOT called - this is now handled inside _get_filtered_resume_content
+    # Assert settings were saved with defaults (False for checkboxes)
+    assert mock_resume.export_settings_include_projects is False
+    assert mock_resume.export_settings_render_projects_first is False
+    assert mock_resume.export_settings_include_education is False
+    mock_db.add.assert_called_once_with(mock_resume)
+    mock_db.commit.assert_called_once()
 
     mock_get_settings.assert_called_once_with(settings_name.value)
+
+    # settings_form has defaults of False, which are saved to the resume object
+    expected_settings_dict = mock_settings_dict.copy()
+    expected_settings_dict["education"] = False
+    expected_settings_dict["projects"] = False
+    expected_settings_dict["render_projects_first"] = False
+
     mock_render_stream.assert_called_once_with(
         resume_content=VALID_RESUME_CONTENT,
         render_format=render_format.value,
-        settings_dict=mock_settings_dict,
+        settings_dict=expected_settings_dict,
     )
 
     expected_filename = (
@@ -222,13 +277,6 @@ def test_download_rendered_resume(
     )
 
 
-def test_download_rendered_resume_unauthenticated(client: TestClient):
-    """Test that unauthenticated access to download is forbidden."""
-    response = client.get(
-        "/api/resumes/1/download?render_format=ats&settings_name=general",
-        headers={"Accept": "application/json"},
-    )
-    assert response.status_code == 401
 
 
 @patch("resume_editor.app.api.routes.resume_export.render_resume_to_docx_stream")
@@ -242,14 +290,16 @@ def test_download_rendered_resume_with_filter(
     mock_get_filtered_content,
     mock_render_stream,
     client: TestClient,
+    mock_db: MagicMock,
     setup_resume_dependency,
+    setup_db_dependency,
 ):
     """Test downloading a rendered resume with date filtering."""
     mock_render_stream.return_value = io.BytesIO(b"filtered docx")
     mock_settings_dict = {"some_setting": "some_value"}
     mock_get_settings.return_value = mock_settings_dict
 
-    response = client.get(
+    response = client.post(
         "/api/resumes/1/download?render_format=ats&settings_name=general&start_date=2021-01-01"
     )
 
@@ -267,20 +317,29 @@ def test_download_rendered_resume_with_filter(
         settings_dict=mock_settings_dict,
     )
 
+    mock_db.add.assert_called_once()
+    mock_db.commit.assert_called_once()
+
 
 @patch(
     "resume_editor.app.api.routes.resume_export.render_resume_to_docx_stream",
     side_effect=ValueError("parsing failed"),
 )
 def test_download_rendered_resume_rendering_value_error(
-    mock_render, client: TestClient, setup_resume_dependency
+    mock_render,
+    client: TestClient,
+    mock_db: MagicMock,
+    setup_resume_dependency,
+    setup_db_dependency,
 ):
     """Test error handling during download when rendering raises ValueError."""
-    response = client.get(
+    response = client.post(
         "/api/resumes/1/download?render_format=ats&settings_name=general"
     )
     assert response.status_code == 400
     assert "parsing failed" in response.json()["detail"]
+    mock_db.add.assert_called_once()
+    mock_db.commit.assert_called_once()
 
 
 @patch(
@@ -288,14 +347,20 @@ def test_download_rendered_resume_rendering_value_error(
     side_effect=Exception("some other error"),
 )
 def test_download_rendered_resume_rendering_other_error(
-    mock_render, client: TestClient, setup_resume_dependency
+    mock_render,
+    client: TestClient,
+    mock_db: MagicMock,
+    setup_resume_dependency,
+    setup_db_dependency,
 ):
     """Test error handling during download when rendering raises any other exception."""
-    response = client.get(
+    response = client.post(
         "/api/resumes/1/download?render_format=ats&settings_name=general"
     )
     assert response.status_code == 500
     assert "Failed to generate docx during rendering" in response.json()["detail"]
+    mock_db.add.assert_called_once()
+    mock_db.commit.assert_called_once()
 
 
 @patch(
@@ -305,25 +370,130 @@ def test_download_rendered_resume_rendering_other_error(
 def test_download_rendered_resume_filtering_error(
     mock_get_filtered_content,
     client: TestClient,
+    mock_db: MagicMock,
     setup_resume_dependency,
+    setup_db_dependency,
 ):
     """Test error handling during download when filtering/parsing raises an error."""
-    response = client.get(
+    response = client.post(
         "/api/resumes/1/download?render_format=ats&settings_name=general&start_date=2021-01-01"
     )
     assert response.status_code == 422
     assert "Failed to generate docx" in response.json()["detail"]
+    # DB calls happen before filtering
+    mock_db.add.assert_called_once()
+    mock_db.commit.assert_called_once()
 
 
 def test_download_rendered_resume_invalid_date_format(
-    client: TestClient, setup_resume_dependency
+    client: TestClient,
+    mock_db: MagicMock,
+    setup_resume_dependency,
+    setup_db_dependency,
 ):
     """Test that an invalid date format returns a 400 error."""
-    response = client.get(
+    response = client.post(
         "/api/resumes/1/download?render_format=ats&settings_name=general&start_date=invalid-date"
     )
     assert response.status_code == 400
     assert response.json()["detail"] == "Invalid date format. Please use YYYY-MM-DD."
+
+    # The exception is raised after db commit
+    mock_db.add.assert_called_once()
+    mock_db.commit.assert_called_once()
+
+
+@pytest.mark.parametrize(
+    "form_data, expected_projects, expected_render_first, expected_education",
+    [
+        (
+            {"include_projects": "true"},
+            True,
+            False,
+            False,
+        ),
+        (
+            {"render_projects_first": "true"},
+            False,
+            True,
+            False,
+        ),
+        (
+            {"include_education": "true"},
+            False,
+            False,
+            True,
+        ),
+        (
+            {
+                "include_projects": "true",
+                "render_projects_first": "true",
+                "include_education": "true",
+            },
+            True,
+            True,
+            True,
+        ),
+        (
+            {},  # Empty form data, defaults should be False
+            False,
+            False,
+            False,
+        ),
+    ],
+)
+@patch("resume_editor.app.api.routes.resume_export.get_render_settings")
+@patch("resume_editor.app.api.routes.resume_export.render_resume_to_docx_stream")
+def test_download_resume_saves_settings(
+    mock_render_stream,
+    mock_get_settings: MagicMock,
+    client: TestClient,
+    mock_resume: DatabaseResume,
+    mock_db: MagicMock,
+    setup_resume_dependency,
+    setup_db_dependency,
+    form_data: dict,
+    expected_projects: bool,
+    expected_render_first: bool,
+    expected_education: bool,
+):
+    """Test that download_resume saves the export settings from the form."""
+    import copy
+
+    base_settings = {"some_setting": "some_value"}
+    mock_get_settings.return_value = copy.deepcopy(base_settings)
+    mock_render_stream.return_value = io.BytesIO(b"test docx")
+
+    # The form fields are boolean, but are sent as strings by html forms.
+    # FastAPI handles this conversion.
+    query_params = {
+        "render_format": "ats",
+        "settings_name": "general",
+    }
+    response = client.post(
+        "/api/resumes/1/download",
+        params=query_params,
+        data=form_data,
+    )
+
+    assert response.status_code == 200
+    assert mock_resume.export_settings_include_projects is expected_projects
+    assert mock_resume.export_settings_render_projects_first is expected_render_first
+    assert mock_resume.export_settings_include_education is expected_education
+
+    mock_db.add.assert_called_once_with(mock_resume)
+    mock_db.commit.assert_called_once()
+
+    expected_settings = base_settings.copy()
+    expected_settings["education"] = expected_education
+    expected_settings["projects"] = expected_projects
+    expected_settings["render_projects_first"] = expected_render_first
+
+    mock_render_stream.assert_called_once_with(
+        resume_content=VALID_RESUME_CONTENT,
+        render_format="ats",
+        settings_dict=expected_settings,
+    )
 
 
 def test_download_rendered_resume_invalid_params(
@@ -331,14 +501,14 @@ def test_download_rendered_resume_invalid_params(
 ):
     """Test downloading with invalid query parameters."""
     # Invalid render_format
-    response = client.get(
+    response = client.post(
         "/api/resumes/1/download?render_format=invalid&settings_name=general"
     )
     assert response.status_code == 422
     assert "Input should be 'plain' or 'ats'" in response.text
 
     # Invalid settings_name
-    response = client.get(
+    response = client.post(
         "/api/resumes/1/download?render_format=ats&settings_name=invalid"
     )
     assert response.status_code == 422

@@ -315,7 +315,9 @@ async def handle_create_resume(
         )
 
     create_params = ResumeCreateParams(
-        user_id=current_user.id, name=name, content=content,
+        user_id=current_user.id,
+        name=name,
+        content=content,
     )
     resume = create_resume_db(
         db=db,

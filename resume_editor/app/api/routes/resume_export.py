@@ -2,8 +2,9 @@ import logging
 from datetime import date
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Response
+from fastapi import APIRouter, Depends, Form, HTTPException, Query, Response
 from fastapi.responses import StreamingResponse
+from sqlalchemy.orm import Session
 
 from resume_editor.app.api.dependencies import get_resume_for_user
 from resume_editor.app.api.routes.route_logic.resume_export import (
@@ -26,11 +27,42 @@ from resume_editor.app.api.routes.route_models import (
     RenderSettingsName,
 )
 from resume_editor.app.core.rendering_settings import get_render_settings
+from resume_editor.app.database.database import get_db
 from resume_editor.app.models.resume_model import Resume as DatabaseResume
 
 log = logging.getLogger(__name__)
 
 router = APIRouter()
+
+
+class ResumeExportSettingsForm:
+    """Form data for resume export settings."""
+
+    def __init__(
+        self,
+        include_projects: bool = Form(False),
+        render_projects_first: bool = Form(False),
+        include_education: bool = Form(False),
+    ):
+        self.include_projects = include_projects
+        self.render_projects_first = render_projects_first
+        self.include_education = include_education
+
+
+class DownloadParams:
+    """Parameters for downloading a rendered resume."""
+
+    def __init__(
+        self,
+        render_format: RenderFormat,
+        settings_name: RenderSettingsName,
+        start_date: Annotated[str | None, Query()] = None,
+        end_date: Annotated[str | None, Query()] = None,
+    ):
+        self.render_format = render_format
+        self.settings_name = settings_name
+        self.start_date = start_date
+        self.end_date = end_date
 
 
 def _parse_date_range(
@@ -133,13 +165,12 @@ async def export_resume_markdown(
     )
 
 
-@router.get("/{resume_id}/download")
+@router.post("/{resume_id}/download")
 async def download_rendered_resume(
-    render_format: RenderFormat,
-    settings_name: RenderSettingsName,
+    download_params: Annotated[DownloadParams, Depends()],
     resume: Annotated[DatabaseResume, Depends(get_resume_for_user)],
-    start_date: Annotated[str | None, Query()] = None,
-    end_date: Annotated[str | None, Query()] = None,
+    settings_form: Annotated[ResumeExportSettingsForm, Depends()],
+    db: Annotated[Session, Depends(get_db)],
 ) -> StreamingResponse:
     """Download a rendered resume as a DOCX file.
 
@@ -147,11 +178,10 @@ async def download_rendered_resume(
     using the given render format and settings.
 
     Args:
-        render_format (RenderFormat): The rendering format for the DOCX file.
-        settings_name (RenderSettingsName): The name of the render settings to apply.
+        download_params (DownloadParams): Parameters for the download, including format, settings, and date range.
         resume (DatabaseResume): The resume object, injected by dependency.
-        start_date (str | None): Optional start date to filter experience (YYYY-MM-DD).
-        end_date (str | None): Optional end date to filter experience (YYYY-MM-DD).
+        settings_form (ResumeExportSettingsForm): Form data with export settings.
+        db (Session): The database session, injected by dependency.
 
     Returns:
         StreamingResponse: A streaming response with the generated DOCX file.
@@ -161,12 +191,21 @@ async def download_rendered_resume(
 
     """
     _msg = (
-        f"download_rendered_resume starting for format {render_format.value}, "
-        f"settings: {settings_name.value}"
+        f"download_rendered_resume starting for format {download_params.render_format.value}, "
+        f"settings: {download_params.settings_name.value}"
     )
     log.debug(_msg)
 
-    parsed_start_date, parsed_end_date = _parse_date_range(start_date, end_date)
+    resume.export_settings_include_projects = settings_form.include_projects
+    resume.export_settings_render_projects_first = settings_form.render_projects_first
+    resume.export_settings_include_education = settings_form.include_education
+    db.add(resume)
+    db.commit()
+
+    parsed_start_date, parsed_end_date = _parse_date_range(
+        download_params.start_date,
+        download_params.end_date,
+    )
 
     try:
         content_to_parse = _get_filtered_resume_content(
@@ -183,11 +222,17 @@ async def download_rendered_resume(
         raise HTTPException(status_code=422, detail=_msg)
 
     try:
-        settings_dict = get_render_settings(settings_name.value)
+        settings_dict = get_render_settings(download_params.settings_name.value)
+        # Override with per-resume settings
+        settings_dict["education"] = resume.export_settings_include_education
+        settings_dict["projects"] = resume.export_settings_include_projects
+        settings_dict["render_projects_first"] = (
+            resume.export_settings_render_projects_first
+        )
 
         file_stream = render_resume_to_docx_stream(
             resume_content=content_to_parse,
-            render_format=render_format.value,
+            render_format=download_params.render_format.value,
             settings_dict=settings_dict,
         )
     except ValueError as e:
@@ -201,7 +246,7 @@ async def download_rendered_resume(
 
     filename = (
         f"{resume.name.replace(' ', '_')}-"
-        f"{render_format.value}-{settings_name.value}.docx"
+        f"{download_params.render_format.value}-{download_params.settings_name.value}.docx"
     )
 
     headers = {

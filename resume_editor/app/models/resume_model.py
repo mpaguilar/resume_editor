@@ -2,6 +2,7 @@ import logging
 from dataclasses import dataclass
 from datetime import datetime, timezone
 
+import sqlalchemy as sa
 from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import relationship
 
@@ -23,6 +24,9 @@ class ResumeData:
     parent_id: int | None = None
     notes: str | None = None
     introduction: str | None = None
+    export_settings_include_projects: bool = True
+    export_settings_render_projects_first: bool = True
+    export_settings_include_education: bool = True
 
 
 class Resume(Base):
@@ -70,6 +74,25 @@ class Resume(Base):
     notes = Column(Text, nullable=True)
     introduction = Column(Text, nullable=True)
 
+    export_settings_include_projects = Column(
+        Boolean,
+        default=True,
+        server_default=sa.true(),
+        nullable=False,
+    )
+    export_settings_render_projects_first = Column(
+        Boolean,
+        default=True,
+        server_default=sa.true(),
+        nullable=False,
+    )
+    export_settings_include_education = Column(
+        Boolean,
+        default=True,
+        server_default=sa.true(),
+        nullable=False,
+    )
+
     # Relationship to User
     user = relationship("User", back_populates="resumes")
 
@@ -109,3 +132,8 @@ class Resume(Base):
         self.parent_id = data.parent_id
         self.notes = data.notes
         self.introduction = data.introduction
+        self.export_settings_include_projects = data.export_settings_include_projects
+        self.export_settings_render_projects_first = (
+            data.export_settings_render_projects_first
+        )
+        self.export_settings_include_education = data.export_settings_include_education

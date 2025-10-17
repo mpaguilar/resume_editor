@@ -45,3 +45,32 @@ def test_resume_is_base_defaults_to_true():
     data = ResumeData(user_id=1, name="Test Resume", content="Some content")
     resume = Resume(data=data)
     assert resume.is_base is True
+
+
+def test_resume_initialization_with_export_settings():
+    """Test Resume initialization with export settings."""
+    data = ResumeData(
+        user_id=1,
+        name="Test Resume",
+        content="Some content",
+        export_settings_include_projects=False,
+        export_settings_render_projects_first=False,
+        export_settings_include_education=False,
+    )
+    resume = Resume(data=data)
+    assert resume.export_settings_include_projects is False
+    assert resume.export_settings_render_projects_first is False
+    assert resume.export_settings_include_education is False
+
+
+def test_resume_initialization_with_export_settings_defaults():
+    """Test Resume initialization with default export settings."""
+    data = ResumeData(
+        user_id=1,
+        name="Test Resume",
+        content="Some content",
+    )
+    resume = Resume(data=data)
+    assert resume.export_settings_include_projects is True
+    assert resume.export_settings_render_projects_first is True
+    assert resume.export_settings_include_education is True
