@@ -2,6 +2,7 @@
 
 GENERAL_SETTINGS = {
     "personal": True,
+    "education": True,
     "certifications": True,
     "experience": True,
     "section": {
@@ -18,6 +19,13 @@ GENERAL_SETTINGS = {
             "website": True,
         },
         "certifications": {"name": True, "issuer": True},
+        "education": {
+            "degrees": True,
+            "school": True,
+            "degree": True,
+            "start_date": True,
+            "end_date": True,
+        },
         "experience": {
             "roles": True,
             "projects": True,
@@ -59,6 +67,9 @@ GENERAL_SETTINGS = {
 
 EXEC_SUMMARY_SETTINGS = {
     "personal": True,
+    "education": True,
+    "certifications": True,
+    "experience": True,
     "section": {
         "personal": {
             "contact_info": True,
@@ -73,6 +84,13 @@ EXEC_SUMMARY_SETTINGS = {
             "website": True,
         },
         "certifications": {"name": True, "issuer": True},
+        "education": {
+            "degrees": True,
+            "school": True,
+            "degree": True,
+            "start_date": True,
+            "end_date": True,
+        },
         "experience": {
             "section": {
                 "roles": {

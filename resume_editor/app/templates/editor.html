@@ -67,36 +67,58 @@
         </div>
 
         <!-- Export Modal -->
-        <div id="export-modal-{{ resume.id }}"
-            class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full hidden z-50">
+        <div id="export-modal-{{ resume.id }}" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full hidden z-50">
             <div class="relative top-20 mx-auto p-5 border w-1/2 shadow-lg rounded-md bg-white">
                 <div class="mt-3">
                     <h3 class="text-lg leading-6 font-medium text-gray-900 text-center">Export Resume</h3>
                     <div class="mt-2 px-7 py-3">
-                        <form id="export-form-{{ resume.id }}" method="GET"
-                            action="/api/resumes/{{ resume.id }}/download">
-                            <p class="text-sm text-gray-600 mb-4">You can optionally filter the 'Experience' section by a
-                                date range.</p>
+                        <form id="export-form-{{ resume.id }}" method="GET" action="/api/resumes/{{ resume.id }}/download" target="_blank">
+                            <p class="text-sm text-gray-600 mb-4">You can optionally filter the 'Experience' section by a date range.</p>
 
                             <div class="grid grid-cols-2 gap-4">
                                 <div>
-                                    <label for="start_date_{{ resume.id }}"
-                                        class="block text-sm font-medium text-gray-700">Start Date</label>
-                                    <input type="date" name="start_date" id="start_date_{{ resume.id }}"
-                                        class="mt-1 p-2 border border-gray-300 rounded w-full">
+                                    <label for="start_date_{{ resume.id }}" class="block text-sm font-medium text-gray-700">Start Date</label>
+                                    <input type="date" name="start_date" id="start_date_{{ resume.id }}" class="mt-1 p-2 border border-gray-300 rounded w-full">
                                 </div>
                                 <div>
-                                    <label for="end_date_{{ resume.id }}"
-                                        class="block text-sm font-medium text-gray-700">End Date</label>
-                                    <input type="date" name="end_date" id="end_date_{{ resume.id }}"
-                                        class="mt-1 p-2 border border-gray-300 rounded w-full">
+                                    <label for="end_date_{{ resume.id }}" class="block text-sm font-medium text-gray-700">End Date</label>
+                                    <input type="date" name="end_date" id="end_date_{{ resume.id }}" class="mt-1 p-2 border border-gray-300 rounded w-full">
+                                </div>
+                            </div>
+
+                            <div class="mt-6 border-t pt-4">
+                                <h4 class="font-medium text-gray-800 mb-2">Export Settings</h4>
+                                <div class="space-y-2">
+                                    <div class="flex items-start">
+                                        <div class="flex items-center h-5">
+                                            <input id="include_projects-{{ resume.id }}" name="include_projects" type="checkbox" value="true" {% if resume.export_settings_include_projects %}checked{% endif %} class="focus:ring-indigo-500 h-4 w-4 text-indigo-600 border-gray-300 rounded">
+                                        </div>
+                                        <div class="ml-3 text-sm">
+                                            <label for="include_projects-{{ resume.id }}" class="font-medium text-gray-700">Include Projects</label>
+                                        </div>
+                                    </div>
+                                    <div class="flex items-start">
+                                        <div class="flex items-center h-5">
+                                            <input id="render_projects_first-{{ resume.id }}" name="render_projects_first" type="checkbox" value="true" {% if resume.export_settings_render_projects_first %}checked{% endif %} class="focus:ring-indigo-500 h-4 w-4 text-indigo-600 border-gray-300 rounded">
+                                        </div>
+                                        <div class="ml-3 text-sm">
+                                            <label for="render_projects_first-{{ resume.id }}" class="font-medium text-gray-700">Render Projects First</label>
+                                        </div>
+                                    </div>
+                                    <div class="flex items-start">
+                                        <div class="flex items-center h-5">
+                                            <input id="include_education-{{ resume.id }}" name="include_education" type="checkbox" value="true" {% if resume.export_settings_include_education %}checked{% endif %} class="focus:ring-indigo-500 h-4 w-4 text-indigo-600 border-gray-300 rounded">
+                                        </div>
+                                        <div class="ml-3 text-sm">
+                                            <label for="include_education-{{ resume.id }}" class="font-medium text-gray-700">Include Education</label>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
 
                             <div class="mt-6 border-t pt-4">
                                 <h4 class="font-medium text-gray-800 mb-2">Markdown Export</h4>
-                                <button type="submit" formaction="/api/resumes/{{ resume.id }}/export/markdown"
-                                    class="w-full px-4 py-2 bg-gray-600 text-white text-base font-medium rounded-md shadow-sm hover:bg-gray-700">
+                                <button type="submit" formaction="/api/resumes/{{ resume.id }}/export/markdown" class="w-full px-4 py-2 bg-gray-600 text-white text-base font-medium rounded-md shadow-sm hover:bg-gray-700">
                                     Download Markdown
                                 </button>
                             </div>
@@ -106,19 +128,15 @@
 
                                 <div class="grid grid-cols-2 gap-4 mt-4">
                                     <div>
-                                        <label for="render_format_{{ resume.id }}"
-                                            class="block text-sm font-medium text-gray-700">Render Format</label>
-                                        <select name="render_format" id="render_format_{{ resume.id }}"
-                                            class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md">
+                                        <label for="render_format_{{ resume.id }}" class="block text-sm font-medium text-gray-700">Render Format</label>
+                                        <select name="render_format" id="render_format_{{ resume.id }}" class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md">
                                             <option value="plain">Plain</option>
                                             <option value="ats">ATS</option>
                                         </select>
                                     </div>
                                     <div>
-                                        <label for="settings_name_{{ resume.id }}"
-                                            class="block text-sm font-medium text-gray-700">Settings</label>
-                                        <select name="settings_name" id="settings_name_{{ resume.id }}"
-                                            class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md">
+                                        <label for="settings_name_{{ resume.id }}" class="block text-sm font-medium text-gray-700">Settings</label>
+                                        <select name="settings_name" id="settings_name_{{ resume.id }}" class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md">
                                             <option value="general">General</option>
                                             <option value="executive_summary">Executive Summary</option>
                                         </select>
@@ -126,8 +144,7 @@
                                 </div>
 
                                 <div class="mt-4">
-                                    <button type="submit"
-                                        class="w-full px-4 py-2 bg-indigo-500 text-white text-base font-medium rounded-md shadow-sm hover:bg-indigo-600">Download DOCX</button>
+                                    <button type="submit" class="w-full px-4 py-2 bg-indigo-500 text-white text-base font-medium rounded-md shadow-sm hover:bg-indigo-600">Download DOCX</button>
                                 </div>
                             </div>
                         </form>

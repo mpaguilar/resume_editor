@@ -54,12 +54,12 @@ def test_resume_initialization_with_export_settings():
         name="Test Resume",
         content="Some content",
         export_settings_include_projects=False,
-        export_settings_render_projects_first=False,
+        export_settings_render_projects_first=True,
         export_settings_include_education=False,
     )
     resume = Resume(data=data)
     assert resume.export_settings_include_projects is False
-    assert resume.export_settings_render_projects_first is False
+    assert resume.export_settings_render_projects_first is True
     assert resume.export_settings_include_education is False
 
 
@@ -72,5 +72,5 @@ def test_resume_initialization_with_export_settings_defaults():
     )
     resume = Resume(data=data)
     assert resume.export_settings_include_projects is True
-    assert resume.export_settings_render_projects_first is True
+    assert resume.export_settings_render_projects_first is False
     assert resume.export_settings_include_education is True

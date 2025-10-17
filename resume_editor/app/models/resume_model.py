@@ -25,7 +25,7 @@ class ResumeData:
     notes: str | None = None
     introduction: str | None = None
     export_settings_include_projects: bool = True
-    export_settings_render_projects_first: bool = True
+    export_settings_render_projects_first: bool = False
     export_settings_include_education: bool = True
 
 
@@ -82,8 +82,8 @@ class Resume(Base):
     )
     export_settings_render_projects_first = Column(
         Boolean,
-        default=True,
-        server_default=sa.true(),
+        default=False,
+        server_default=sa.false(),
         nullable=False,
     )
     export_settings_include_education = Column(

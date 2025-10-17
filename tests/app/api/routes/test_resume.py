@@ -595,6 +595,7 @@ def test_get_resume(client_with_auth_and_resume, test_resume):
     export_form = soup.find("form", id=f"export-form-{test_resume.id}")
     assert export_form is not None
     assert export_form.get("method") == "GET"
+    assert export_form.get("target") == "_blank"
     assert export_form.get("action") == f"/api/resumes/{test_resume.id}/download"
 
     # Check for Markdown download button

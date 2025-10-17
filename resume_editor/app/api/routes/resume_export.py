@@ -1,8 +1,9 @@
 import logging
+from copy import deepcopy
 from datetime import date
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Form, HTTPException, Query, Response
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
@@ -40,9 +41,9 @@ class ResumeExportSettingsForm:
 
     def __init__(
         self,
-        include_projects: bool = Form(False),
-        render_projects_first: bool = Form(False),
-        include_education: bool = Form(False),
+        include_projects: bool = Query(False),
+        render_projects_first: bool = Query(False),
+        include_education: bool = Query(False),
     ):
         self.include_projects = include_projects
         self.render_projects_first = render_projects_first
@@ -165,8 +166,8 @@ async def export_resume_markdown(
     )
 
 
-@router.post("/{resume_id}/download")
-async def download_rendered_resume(
+@router.get("/{resume_id}/download")
+async def download_resume(
     download_params: Annotated[DownloadParams, Depends()],
     resume: Annotated[DatabaseResume, Depends(get_resume_for_user)],
     settings_form: Annotated[ResumeExportSettingsForm, Depends()],
@@ -175,7 +176,8 @@ async def download_rendered_resume(
     """Download a rendered resume as a DOCX file.
 
     This endpoint generates and streams a DOCX file for the specified resume,
-    using the given render format and settings.
+    using the given render format and settings. It also persists the user's
+    chosen export settings for future use.
 
     Args:
         download_params (DownloadParams): Parameters for the download, including format, settings, and date range.
@@ -191,7 +193,7 @@ async def download_rendered_resume(
 
     """
     _msg = (
-        f"download_rendered_resume starting for format {download_params.render_format.value}, "
+        f"download_resume starting for format {download_params.render_format.value}, "
         f"settings: {download_params.settings_name.value}"
     )
     log.debug(_msg)
@@ -222,11 +224,15 @@ async def download_rendered_resume(
         raise HTTPException(status_code=422, detail=_msg)
 
     try:
-        settings_dict = get_render_settings(download_params.settings_name.value)
+        settings_dict = deepcopy(
+            get_render_settings(download_params.settings_name.value),
+        )
         # Override with per-resume settings
         settings_dict["education"] = resume.export_settings_include_education
-        settings_dict["projects"] = resume.export_settings_include_projects
-        settings_dict["render_projects_first"] = (
+        settings_dict["section"]["experience"]["projects"] = (
+            resume.export_settings_include_projects
+        )
+        settings_dict["section"]["experience"]["render_projects_first"] = (
             resume.export_settings_render_projects_first
         )
 

@@ -18,7 +18,7 @@ These are the known mappings:
 - `/login->resume_editor/app/web/pages.py`
 - `/resumes/{resume_id}/edit->resume_editor/app/web/pages.py`
 - `/resumes/{resume_id}/view->resume_editor/app/web/pages.py`
-- `POST /api/resumes/{resume_id}/download->resume_editor/app/api/routes/resume_export.py`
+- `GET /api/resumes/{resume_id}/download->resume_editor/app/api/routes/resume_export.py`
 - `/api/resumes->resume_editor/app/api/routes/resume.py`
 - `/api/resumes/parse->resume_editor/app/api/routes/resume.py`
 - `/api/resumes/{resume_id}/export/markdown->resume_editor/app/api/routes/resume_export.py`

@@ -408,6 +408,21 @@ def test_generate_resume_detail_html_for_base_resume(test_resume):
     export_modal = soup.find("div", id="export-modal-1")
     assert export_modal is not None
 
+    # Check form method is GET and target is _blank
+    export_form = export_modal.find("form")
+    assert export_form["method"] == "GET"
+    assert export_form["target"] == "_blank"
+
+    # Check export settings checkboxes (default values)
+    include_projects_cb = export_modal.find("input", {"name": "include_projects"})
+    assert include_projects_cb and include_projects_cb.has_attr("checked")
+    render_first_cb = export_modal.find(
+        "input", {"name": "render_projects_first"}
+    )
+    assert render_first_cb and not render_first_cb.has_attr("checked")
+    include_education_cb = export_modal.find("input", {"name": "include_education"})
+    assert include_education_cb and include_education_cb.has_attr("checked")
+
     # Check that job description details are not present
     assert "Job Description Used for Refinement" not in html_output
 
@@ -596,3 +611,26 @@ def test_generate_resume_detail_html_base_resume_does_not_show_introduction(
     assert intro_heading not in html_output
     assert "whitespace-pre-wrap" not in html_output
     assert "This is an introduction on a base resume." not in html_output
+
+
+def test_generate_resume_detail_html_export_settings_not_default(test_resume):
+    """Test that export settings checkboxes reflect non-default resume values."""
+    # Set non-default values on the resume object
+    test_resume.export_settings_include_projects = False
+    test_resume.export_settings_render_projects_first = True
+    test_resume.export_settings_include_education = False
+
+    html_output = _generate_resume_detail_html(test_resume)
+    soup = BeautifulSoup(html_output, "html.parser")
+    export_modal = soup.find("div", id="export-modal-1")
+    assert export_modal is not None
+
+    # Check export settings checkboxes in the modal reflect the new values
+    include_projects_cb = export_modal.find("input", {"name": "include_projects"})
+    assert not include_projects_cb.has_attr("checked")
+
+    render_first_cb = export_modal.find("input", {"name": "render_projects_first"})
+    assert render_first_cb.has_attr("checked")
+
+    include_education_cb = export_modal.find("input", {"name": "include_education"})
+    assert not include_education_cb.has_attr("checked")
