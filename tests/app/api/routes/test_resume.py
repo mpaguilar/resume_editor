@@ -307,10 +307,10 @@ def test_update_resume_htmx(
 
 
 @patch("resume_editor.app.api.routes.resume.validate_resume_content")
-def test_update_resume_from_editor(
+def test_update_resume_details_from_editor(
     mock_validate, client_with_auth_and_resume, test_resume
 ):
-    """Test updating a resume with HTMX from the editor page returns 200 OK."""
+    """Test updating from the editor returns an HX-Redirect to the dashboard."""
     mock_validate.return_value = None
     updated_name = "Updated From Editor"
     updated_content = "some new content from editor"
@@ -326,7 +326,8 @@ def test_update_resume_from_editor(
     )
 
     assert response.status_code == 200
-    assert response.text == ""
+    assert response.headers["HX-Redirect"] == "/dashboard"
+    assert not response.content
     mock_validate.assert_called_once_with(updated_content)
 
 

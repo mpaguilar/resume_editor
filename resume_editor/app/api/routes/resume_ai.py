@@ -128,7 +128,7 @@ async def accept_refined_resume(
         introduction (str | None): An optional new introduction.
 
     Returns:
-        Response: A response with an `HX-Redirect` header to the dashboard.
+        Response: A response with an `HX-Redirect` header to the new resume's view page.
 
     """
     handle_accept_refinement(
@@ -157,7 +157,7 @@ async def save_refined_resume_as_new(
         form_data (SaveAsNewForm): The form data for saving as new.
 
     Returns:
-        Response: A response with an `HX-Redirect` header to the dashboard.
+        Response: A response with an `HX-Redirect` header to the new resume's view page.
 
     """
     if not form_data.new_resume_name:
@@ -172,9 +172,9 @@ async def save_refined_resume_as_new(
         resume=resume,
         form_data=form_data,
     )
-    handle_save_as_new_refinement(params)
+    new_resume = handle_save_as_new_refinement(params)
 
-    return Response(headers={"HX-Redirect": "/dashboard"})
+    return Response(headers={"HX-Redirect": f"/resumes/{new_resume.id}/view"})
 
 
 @router.post("/{resume_id}/refine/discard", response_class=HTMLResponse)

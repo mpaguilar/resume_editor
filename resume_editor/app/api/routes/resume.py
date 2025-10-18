@@ -160,7 +160,7 @@ class UpdateResumeForm:
 
 
 @router.put("/{resume_id}", response_model=ResumeResponse)
-async def update_resume(
+async def update_resume_details(
     http_request: Request,
     db: Annotated[Session, Depends(get_db)],
     resume: Annotated[DatabaseResume, Depends(get_resume_for_user)],
@@ -178,9 +178,9 @@ async def update_resume(
 
 
     Returns:
-        Response | ResumeResponse: A generic `Response` for successful saves from the editor,
-                                   an `HTMLResponse` for other HTMX calls, or `ResumeResponse`
-                                   for standard API calls.
+        Response | ResumeResponse: For HTMX requests from the editor, returns a response with
+                                   an `HX-Redirect` header. For other HTMX requests, returns
+                                   an `HTMLResponse`. For standard API calls, returns `ResumeResponse`.
 
     Raises:
         HTTPException: If validation fails or an error occurs during the update.
@@ -188,10 +188,11 @@ async def update_resume(
     Notes:
         1. Validates resume content if it is being updated.
         2. Updates the resume's name and/or content.
-        3. For HTMX requests, returns an HTML response containing both the updated resume
+        3. For HTMX requests from the editor page, returns an `HX-Redirect` to the dashboard.
+        4. For other HTMX requests, returns an HTML response containing both the updated resume
            list (for OOB swap) and the updated detail view.
-        4. For regular API calls, returns a JSON response with the updated resume's ID and name.
-        5. Performs database reads and writes.
+        5. For regular API calls, returns a JSON response with the updated resume's ID and name.
+        6. Performs database reads and writes.
 
     """
     # Validate Markdown content only if it's a non-empty string
@@ -212,9 +213,8 @@ async def update_resume(
 
     if "HX-Request" in http_request.headers:
         if form_data.from_editor:
-            # When saving from the editor, just return a success status.
-            # The client-side script will show a "Saved!" message.
-            return Response(status_code=200)
+            # When saving from the editor, redirect back to the dashboard.
+            return Response(headers={"HX-Redirect": "/dashboard"})
 
         # After an update, we need to regenerate both the list and the detail view
         sort_by_val = form_data.sort_by.value if form_data.sort_by else None

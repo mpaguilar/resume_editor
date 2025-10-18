@@ -125,6 +125,7 @@ def test_save_refined_resume_as_new_full(
 
     # Arrange
     refined_content = "# Personal\n..."
+    mock_handle_save.return_value = test_resume
 
     form_data = {
         "refined_content": refined_content,
@@ -143,7 +144,7 @@ def test_save_refined_resume_as_new_full(
 
     # Assert
     assert response.status_code == 200
-    assert response.headers["HX-Redirect"] == "/dashboard"
+    assert response.headers["HX-Redirect"] == f"/resumes/{test_resume.id}/view"
     assert not response.content
 
     mock_handle_save.assert_called_once()
@@ -178,6 +179,7 @@ def test_save_refined_resume_as_new_partial_with_job_desc(
 
     # Arrange
     refined_content = "# Personal\nname: Refined New"
+    mock_handle_save.return_value = test_resume
 
     form_data = {
         "refined_content": refined_content,
@@ -196,7 +198,7 @@ def test_save_refined_resume_as_new_partial_with_job_desc(
 
     # Assert
     assert response.status_code == 200
-    assert response.headers["HX-Redirect"] == "/dashboard"
+    assert response.headers["HX-Redirect"] == f"/resumes/{test_resume.id}/view"
     assert not response.content
 
     mock_handle_save.assert_called_once()
@@ -228,6 +230,7 @@ def test_save_refined_resume_as_new_no_intro_no_jd(
 
     # Arrange
     refined_content = "# Personal\nname: Refined New"
+    mock_handle_save.return_value = test_resume
 
     form_data = {
         "refined_content": refined_content,
@@ -246,7 +249,7 @@ def test_save_refined_resume_as_new_no_intro_no_jd(
 
     # Assert
     assert response.status_code == 200
-    assert response.headers["HX-Redirect"] == "/dashboard"
+    assert response.headers["HX-Redirect"] == f"/resumes/{test_resume.id}/view"
     assert not response.content
 
     mock_handle_save.assert_called_once()
