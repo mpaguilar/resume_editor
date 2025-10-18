@@ -6438,6 +6438,26 @@ Filters resume content by date range if dates are provided.
 
 ---
 
+## `ResumeExportSettingsForm` class
+
+Form data for resume export settings.
+
+---
+## method: `ResumeExportSettingsForm.__init__(self: UnknownType, include_projects: bool, render_projects_first: bool, include_education: bool) -> UnknownType`
+
+
+
+---
+## `DownloadParams` class
+
+Parameters for downloading a rendered resume.
+
+---
+## method: `DownloadParams.__init__(self: UnknownType, render_format: RenderFormat, settings_name: RenderSettingsName, start_date: Annotated[str | None, Query()], end_date: Annotated[str | None, Query()]) -> UnknownType`
+
+
+
+---
 
 ===
 

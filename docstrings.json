@@ -1988,7 +1988,26 @@
         "Filters resume content by date range if dates are provided."
       ]
     ],
-    "classes": {}
+    "classes": {
+      "ResumeExportSettingsForm": [
+        "Form data for resume export settings.",
+        [
+          [
+            "__init__(self: UnknownType, include_projects: bool, render_projects_first: bool, include_education: bool) -> UnknownType",
+            ""
+          ]
+        ]
+      ],
+      "DownloadParams": [
+        "Parameters for downloading a rendered resume.",
+        [
+          [
+            "__init__(self: UnknownType, render_format: RenderFormat, settings_name: RenderSettingsName, start_date: Annotated[str | None, Query()], end_date: Annotated[str | None, Query()]) -> UnknownType",
+            ""
+          ]
+        ]
+      ]
+    }
   },
   "resume_editor/app/api/routes/html_fragments.py": {
     "filepath": "resume_editor/app/api/routes/html_fragments.py",
