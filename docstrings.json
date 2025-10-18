@@ -986,7 +986,7 @@
         "Form data for refining a resume section.",
         [
           [
-            "__init__(self: UnknownType, job_description: str, target_section: RefineTargetSection, generate_introduction: bool) -> UnknownType",
+            "__init__(self: UnknownType, job_description: str, target_section: RefineTargetSection, generate_introduction: bool | None, limit_refinement_years: str | None) -> UnknownType",
             ""
           ]
         ]
@@ -2212,8 +2212,8 @@
         "Creates an SSE 'close' message.\n\nReturns:\n    str: The formatted SSE 'close' message."
       ],
       [
-        "process_refined_experience_result(resume: DatabaseResume, refined_roles: dict, job_description: str, introduction: str | None) -> str",
-        "Processes refined experience roles and generates final HTML.\n\nThis function takes the refined roles from the LLM, reconstructs the full\nresume content, and then generates the final HTML result to be sent in the\n'done' SSE event.\n\nArgs:\n    resume (DatabaseResume): The original resume object.\n    refined_roles (dict): A dictionary of refined role data from the LLM,\n                          keyed by their original index.\n    job_description (str): The job description used for refinement.\n    introduction (str | None): The LLM-generated introduction, if any.\n\nReturns:\n    str: The complete HTML content for the body of the `done` event."
+        "process_refined_experience_result(resume_id: int, resume_content_to_refine: str, refined_roles: dict, job_description: str, introduction: str | None) -> str",
+        "Processes refined experience roles and generates final HTML.\n\nThis function takes the refined roles from the LLM, reconstructs the\nexperience section from the content that was provided to the LLM, and then\ngenerates the final HTML result to be sent in the 'done' SSE event.\n\nArgs:\n    resume_id (int): The ID of the original resume object.\n    resume_content_to_refine (str): The resume content that was sent for refinement (potentially filtered).\n    refined_roles (dict): A dictionary of refined role data from the LLM,\n                          keyed by their original index.\n    job_description (str): The job description used for refinement.\n    introduction (str | None): The LLM-generated introduction, if any.\n\nReturns:\n    str: The complete HTML content for the body of the `done` event.\n\nNotes:\n    1.  Extracts the experience section from the `resume_content_to_refine`.\n    2.  Updates the roles from the extracted experience with the `refined_roles` data.\n        Projects are not modified by the refinement process.\n    3.  Serializes the updated experience section to Markdown.\n    4.  This Markdown is used to create the final HTML for the 'Save as New' form."
       ],
       [
         "_process_sse_event(event: dict, refined_roles: dict) -> tuple[str | None, str | None]",

@@ -11,6 +11,7 @@ from starlette.middleware.base import ClientDisconnect
 from resume_editor.app.api.routes.route_logic.resume_ai_logic import (
     experience_refinement_sse_generator,
 )
+from resume_editor.app.api.routes.route_models import ExperienceRefinementParams
 from resume_editor.app.llm.models import LLMConfig
 from resume_editor.app.models.resume.experience import (
     Role,
@@ -21,6 +22,10 @@ from resume_editor.app.models.resume.experience import (
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "gen_intro, expected_intro, intro_event_present",
+    [(True, "Generated Intro", True), (False, None, False)],
+)
 @patch(
     "resume_editor.app.api.routes.route_logic.resume_ai_logic.process_refined_experience_result"
 )
@@ -32,6 +37,9 @@ async def test_experience_refinement_sse_generator_happy_path(
     mock_get_llm_config,
     mock_async_refine_experience,
     mock_process_result,
+    gen_intro,
+    expected_intro,
+    intro_event_present,
     test_user,
     test_resume,
 ):
@@ -63,7 +71,8 @@ async def test_experience_refinement_sse_generator_happy_path(
 
     async def mock_async_generator():
         yield {"status": "in_progress", "message": "doing stuff"}
-        yield {"status": "introduction_generated", "data": "Generated Intro"}
+        if gen_intro:
+            yield {"status": "introduction_generated", "data": "Generated Intro"}
         yield {
             "status": "role_refined",
             "data": refined_role2_data,
@@ -79,25 +88,34 @@ async def test_experience_refinement_sse_generator_happy_path(
     mock_process_result.return_value = "<html>final refined html</html>"
 
     mock_db = Mock()
+    params = ExperienceRefinementParams(
+        db=mock_db,
+        user=test_user,
+        resume=test_resume,
+        resume_content_to_refine=test_resume.content,
+        job_description="a new job",
+        generate_introduction=gen_intro,
+    )
     results = [
-        item
-        async for item in experience_refinement_sse_generator(
-            db=mock_db,
-            user=test_user,
-            resume=test_resume,
-            job_description="a new job",
-            generate_introduction=True,
-        )
+        item async for item in experience_refinement_sse_generator(params=params)
     ]
 
-    assert len(results) == 4, f"Expected 4 events, got {len(results)}: {results}"
-    assert "event: progress" in results[0]
-    assert "data: <li>doing stuff</li>" in results[0]
-    assert "event: introduction_generated" in results[1]
-    assert 'id="introduction-container"' in results[1]
-    assert "event: done" in results[2]
-    assert "data: <html>final refined html</html>" in results[2]
-    assert "event: close" in results[3]
+    expected_events = 3 + (1 if intro_event_present else 0)
+    assert (
+        len(results) == expected_events
+    ), f"Expected {expected_events} events, got {len(results)}: {results}"
+    results_str = "".join(results)
+    assert "event: progress" in results_str
+    assert "data: <li>doing stuff</li>" in results_str
+    assert "event: done" in results_str
+    assert "data: <html>final refined html</html>" in results_str
+    assert "event: close" in results_str
+
+    if intro_event_present:
+        assert "event: introduction_generated" in results_str
+        assert 'id="introduction-container"' in results_str
+    else:
+        assert "event: introduction_generated" not in results_str
 
     mock_get_llm_config.assert_called_once_with(mock_db, test_user.id)
     expected_llm_config = LLMConfig(
@@ -109,71 +127,16 @@ async def test_experience_refinement_sse_generator_happy_path(
         resume_content=test_resume.content,
         job_description="a new job",
         llm_config=expected_llm_config,
-        generate_introduction=True,
+        generate_introduction=gen_intro,
     )
     mock_process_result.assert_called_once_with(
-        test_resume,
-        {1: refined_role2_data, 0: refined_role1_data},
-        "a new job",
-        "Generated Intro",
+        resume_id=test_resume.id,
+        resume_content_to_refine=test_resume.content,
+        refined_roles={1: refined_role2_data, 0: refined_role1_data},
+        job_description="a new job",
+        introduction=expected_intro,
     )
 
-
-@pytest.mark.asyncio
-@patch(
-    "resume_editor.app.api.routes.route_logic.resume_ai_logic.process_refined_experience_result"
-)
-@patch(
-    "resume_editor.app.api.routes.route_logic.resume_ai_logic.async_refine_experience_section"
-)
-@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.get_llm_config")
-async def test_experience_refinement_sse_generator_gen_intro_false(
-    mock_get_llm_config,
-    mock_async_refine_experience,
-    mock_process_result,
-    test_user,
-    test_resume,
-):
-    """Test SSE generator when generate_introduction is false."""
-    mock_get_llm_config.return_value = (None, None, None)
-    refined_role1_data = {"test": "data"}
-
-    async def mock_async_generator():
-        yield {"status": "role_refined", "data": refined_role1_data, "original_index": 0}
-
-    mock_async_refine_experience.return_value = mock_async_generator()
-    mock_process_result.return_value = "final html"
-
-    results = [
-        item
-        async for item in experience_refinement_sse_generator(
-            db=Mock(),
-            user=test_user,
-            resume=test_resume,
-            job_description="a job",
-            generate_introduction=False,
-        )
-    ]
-
-    assert len(results) == 2
-    assert "event: done" in results[0]
-    assert "data: final html" in results[0]
-    assert "event: close" in results[1]
-
-    expected_llm_config = LLMConfig(
-        llm_endpoint=None,
-        api_key=None,
-        llm_model_name=None,
-    )
-    mock_async_refine_experience.assert_called_once_with(
-        resume_content=test_resume.content,
-        job_description="a job",
-        llm_config=expected_llm_config,
-        generate_introduction=False,
-    )
-    mock_process_result.assert_called_once_with(
-        test_resume, {0: refined_role1_data}, "a job", None
-    )
 
 
 @pytest.mark.asyncio
@@ -193,15 +156,16 @@ async def test_experience_refinement_sse_generator_introduction_is_none(
 
     mock_async_refine_experience.return_value = mock_generator()
 
+    params = ExperienceRefinementParams(
+        db=Mock(),
+        user=test_user,
+        resume=test_resume,
+        resume_content_to_refine=test_resume.content,
+        job_description="job",
+        generate_introduction=True,
+    )
     results = [
-        item
-        async for item in experience_refinement_sse_generator(
-            db=Mock(),
-            user=test_user,
-            resume=test_resume,
-            job_description="job",
-            generate_introduction=True,
-        )
+        item async for item in experience_refinement_sse_generator(params=params)
     ]
 
     assert len(results) == 3
@@ -230,15 +194,17 @@ async def test_experience_refinement_sse_generator_orchestration_error(
     mock_async_refine_experience.side_effect = error
     mock_handle_exception.return_value = "formatted error"
 
+    params = ExperienceRefinementParams(
+        db=Mock(),
+        user=test_user,
+        resume=test_resume,
+        resume_content_to_refine=test_resume.content,
+        job_description="job",
+        generate_introduction=True,
+        limit_refinement_years=None,
+    )
     results = [
-        item
-        async for item in experience_refinement_sse_generator(
-            db=Mock(),
-            user=test_user,
-            resume=test_resume,
-            job_description="job",
-            generate_introduction=True,
-        )
+        item async for item in experience_refinement_sse_generator(params=params)
     ]
 
     assert len(results) == 2
@@ -273,15 +239,16 @@ async def test_experience_refinement_sse_generator_malformed_events(
 
     mock_async_refine_experience.return_value = mock_async_generator()
 
+    params = ExperienceRefinementParams(
+        db=Mock(),
+        user=test_user,
+        resume=test_resume,
+        resume_content_to_refine=test_resume.content,
+        job_description="a new job",
+        generate_introduction=True,
+    )
     results = [
-        item
-        async for item in experience_refinement_sse_generator(
-            db=Mock(),
-            user=test_user,
-            resume=test_resume,
-            job_description="a new job",
-            generate_introduction=True,
-        )
+        item async for item in experience_refinement_sse_generator(params=params)
     ]
 
     assert len(results) == 2
@@ -307,15 +274,17 @@ async def test_experience_refinement_sse_generator_empty_generator(
 
     mock_async_refine_experience.return_value = mock_empty_async_generator()
 
+    params = ExperienceRefinementParams(
+        db=Mock(),
+        user=test_user,
+        resume=test_resume,
+        resume_content_to_refine=test_resume.content,
+        job_description="a job",
+        generate_introduction=True,
+        limit_refinement_years=None,
+    )
     results = [
-        item
-        async for item in experience_refinement_sse_generator(
-            db=Mock(),
-            user=test_user,
-            resume=test_resume,
-            job_description="a job",
-            generate_introduction=True,
-        )
+        item async for item in experience_refinement_sse_generator(params=params)
     ]
 
     assert len(results) == 2
@@ -335,15 +304,17 @@ async def test_experience_refinement_sse_generator_invalid_token(
     mock_get_llm_config.side_effect = error
     mock_handle_exception.return_value = "formatted error"
 
+    params = ExperienceRefinementParams(
+        db=Mock(),
+        user=test_user,
+        resume=test_resume,
+        resume_content_to_refine=test_resume.content,
+        job_description="job",
+        generate_introduction=True,
+        limit_refinement_years=None,
+    )
     results = [
-        item
-        async for item in experience_refinement_sse_generator(
-            db=Mock(),
-            user=test_user,
-            resume=test_resume,
-            job_description="job",
-            generate_introduction=True,
-        )
+        item async for item in experience_refinement_sse_generator(params=params)
     ]
 
     assert len(results) == 2
@@ -371,15 +342,17 @@ async def test_experience_refinement_sse_generator_auth_error(
     mock_async_refine_experience.side_effect = error
     mock_handle_exception.return_value = "formatted error"
 
+    params = ExperienceRefinementParams(
+        db=Mock(),
+        user=test_user,
+        resume=test_resume,
+        resume_content_to_refine=test_resume.content,
+        job_description="job",
+        generate_introduction=True,
+        limit_refinement_years=None,
+    )
     results = [
-        item
-        async for item in experience_refinement_sse_generator(
-            db=Mock(),
-            user=test_user,
-            resume=test_resume,
-            job_description="job",
-            generate_introduction=True,
-        )
+        item async for item in experience_refinement_sse_generator(params=params)
     ]
 
     assert len(results) == 2
@@ -407,15 +380,17 @@ async def test_experience_refinement_sse_generator_generic_exception(
     mock_async_refine_experience.side_effect = error
     mock_handle_exception.return_value = "formatted error"
 
+    params = ExperienceRefinementParams(
+        db=Mock(),
+        user=test_user,
+        resume=test_resume,
+        resume_content_to_refine=test_resume.content,
+        job_description="job",
+        generate_introduction=True,
+        limit_refinement_years=None,
+    )
     results = [
-        item
-        async for item in experience_refinement_sse_generator(
-            db=Mock(),
-            user=test_user,
-            resume=test_resume,
-            job_description="job",
-            generate_introduction=True,
-        )
+        item async for item in experience_refinement_sse_generator(params=params)
     ]
 
     assert len(results) == 2
@@ -442,15 +417,18 @@ async def test_experience_refinement_sse_generator_client_disconnect(
     mock_async_refine_experience.return_value = mock_generator_with_disconnect()
 
     with caplog.at_level(logging.WARNING):
+        params = ExperienceRefinementParams(
+            db=Mock(),
+            user=test_user,
+            resume=test_resume,
+            resume_content_to_refine=test_resume.content,
+            job_description="job",
+            generate_introduction=True,
+            limit_refinement_years=None,
+        )
         results = [
             item
-            async for item in experience_refinement_sse_generator(
-                db=Mock(),
-                user=test_user,
-                resume=test_resume,
-                job_description="job",
-                generate_introduction=True,
-            )
+            async for item in experience_refinement_sse_generator(params=params)
         ]
 
     assert len(results) == 1

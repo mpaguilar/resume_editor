@@ -16,13 +16,19 @@
         </header>
 
         <div id="refinement-container" class="bg-white rounded-lg shadow p-6">
-            <form hx-post="/api/resumes/{{ resume.id }}/refine"
+            <form hx-post="/api/resumes/{{ resume.id }}/refine/stream"
                   hx-target="#refine-sse-container"
                   hx-swap="innerHTML">
                 <input type="hidden" name="target_section" value="{{ target_section }}">
 
                 <h2 class="text-xl font-semibold mb-4">Refine {{ target_section | title }} Section</h2>
                 <p class="text-gray-600 mb-4">Paste the job description below to refine your resume's {{ target_section }} section to match.</p>
+
+                <div class="mb-4">
+                    <label for="limit_refinement_years" class="block text-sm font-medium text-gray-700">Limit experience refinement to the last (years):</label>
+                    <input type="number" id="limit_refinement_years" name="limit_refinement_years"
+                           class="mt-1 w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
 
                 <div class="mb-4">
                     <label for="job_description" class="block text-sm font-medium text-gray-700">Job Description</label>

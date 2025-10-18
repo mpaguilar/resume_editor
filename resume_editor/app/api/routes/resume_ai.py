@@ -1,5 +1,6 @@
 import logging
-from typing import Annotated
+from datetime import datetime, timedelta, timezone
+from typing import Annotated, AsyncGenerator
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Request, Response
 from fastapi.responses import HTMLResponse, StreamingResponse
@@ -8,12 +9,27 @@ from sqlalchemy.orm import Session
 
 from resume_editor.app.api.dependencies import get_resume_for_user
 from resume_editor.app.api.routes.route_logic.resume_ai_logic import (
+    create_sse_close_message,
+    create_sse_error_message,
     experience_refinement_sse_generator,
     handle_accept_refinement,
     handle_save_as_new_refinement,
     handle_sync_refinement,
 )
+from resume_editor.app.api.routes.route_logic.resume_filtering import (
+    filter_experience_by_date,
+)
+from resume_editor.app.api.routes.route_logic.resume_reconstruction import (
+    build_complete_resume_from_sections,
+)
+from resume_editor.app.api.routes.route_logic.resume_serialization import (
+    extract_certifications_info,
+    extract_education_info,
+    extract_experience_info,
+    extract_personal_info,
+)
 from resume_editor.app.api.routes.route_models import (
+    ExperienceRefinementParams,
     RefineForm,
     RefineTargetSection,
     SaveAsNewForm,
@@ -36,26 +52,77 @@ router = APIRouter()
 templates = Jinja2Templates(directory="resume_editor/app/templates")
 
 
-@router.get("/{resume_id}/refine/stream")
+@router.post("/{resume_id}/refine/stream", response_class=StreamingResponse)
 async def refine_resume_stream(
     db: Annotated[Session, Depends(get_db)],
     current_user: Annotated[User, Depends(get_current_user_from_cookie)],
     resume: Annotated[DatabaseResume, Depends(get_resume_for_user)],
-    job_description: str = "",
-    generate_introduction: bool = True,
+    form_data: Annotated[RefineForm, Depends()],
 ) -> StreamingResponse:
     """Refine the experience section of a resume using an LLM stream.
     This endpoint uses Server-Sent Events (SSE) to provide real-time feedback.
     """
-    generator = experience_refinement_sse_generator(
-        db=db,
-        user=current_user,
-        resume=resume,
-        job_description=job_description,
-        generate_introduction=generate_introduction,
-    )
+
+    async def sse_generator_wrapper() -> AsyncGenerator[str, None]:
+        _msg = "Starting SSE wrapper for experience refinement"
+        log.debug(_msg)
+        if (
+            form_data.limit_refinement_years is not None
+            and form_data.limit_refinement_years <= 0
+        ):
+            yield create_sse_error_message(
+                "Limit refinement years must be a positive number.",
+            )
+            yield create_sse_close_message()
+            return
+
+        content_to_refine = resume.content
+        if form_data.limit_refinement_years:
+            try:
+                start_date = datetime.now(timezone.utc).date() - timedelta(
+                    days=int(form_data.limit_refinement_years * 365.25),
+                )
+
+                personal_info = extract_personal_info(resume.content)
+                education_info = extract_education_info(resume.content)
+                experience_info = extract_experience_info(resume.content)
+                certifications_info = extract_certifications_info(resume.content)
+
+                filtered_experience = filter_experience_by_date(
+                    experience=experience_info,
+                    start_date=start_date,
+                    end_date=None,
+                )
+
+                content_to_refine = build_complete_resume_from_sections(
+                    personal_info=personal_info,
+                    education=education_info,
+                    experience=filtered_experience,
+                    certifications=certifications_info,
+                )
+            except Exception as e:
+                _msg = f"Error during experience filtering: {e!s}"
+                log.exception(_msg)
+                yield create_sse_error_message(
+                    "An error occurred while filtering experience.",
+                )
+                yield create_sse_close_message()
+                return
+
+        params = ExperienceRefinementParams(
+            db=db,
+            user=current_user,
+            resume=resume,
+            resume_content_to_refine=content_to_refine,
+            job_description=form_data.job_description,
+            generate_introduction=form_data.generate_introduction,
+        )
+        generator = experience_refinement_sse_generator(params=params)
+        async for item in generator:
+            yield item
+
     return StreamingResponse(
-        generator,
+        sse_generator_wrapper(),
         media_type="text/event-stream",
     )
 
@@ -95,6 +162,7 @@ async def refine_resume(
                 "resume_id": resume.id,
                 "job_description": form_data.job_description,
                 "generate_introduction": form_data.generate_introduction,
+                "limit_refinement_years": form_data.limit_refinement_years,
             },
         )
 
@@ -107,7 +175,7 @@ async def refine_resume(
         target_section=form_data.target_section,
         generate_introduction=form_data.generate_introduction,
     )
-    return await handle_sync_refinement(params)
+    return await handle_sync_refinement(sync_params=params)
 
 
 @router.post("/{resume_id}/refine/accept", status_code=200)

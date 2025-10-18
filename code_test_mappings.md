@@ -26,7 +26,7 @@ These are known mappings:
 - `resume_editor/app/api/routes/resume_export.py` -> `tests/app/api/routes/test_resume_export_route.py`
 - `resume_editor/app/api/routes/route_logic/resume_ai_logic.py` -> `tests/app/api/routes/route_logic/test_resume_ai_logic_actions.py`
 - `resume_editor/app/api/routes/route_logic/resume_ai_logic.py` -> `tests/app/api/routes/route_logic/test_resume_ai_logic_config.py`
-- `resume_editor/app/api/routes/route_logic/resume_ai_logic.py` -> `tests/app/api/routes/route_logic/test_resume_ai_logic_reconstruction.py`
+- `resume_editor/app/api/routes/route_logic/resume_ai_logic.py` -> `tests/app/api/routes/route_logic/test_resume_ai_logic_processing.py`
 - `resume_editor/app/api/routes/route_logic/resume_ai_logic.py` -> `tests/app/api/routes/route_logic/test_resume_ai_logic_sse_generator.py`
 - `resume_editor/app/api/routes/route_logic/resume_ai_logic.py` -> `tests/app/api/routes/route_logic/test_resume_ai_logic_sse_helpers.py`
 - `resume_editor/app/api/routes/route_logic/resume_ai_logic.py` -> `tests/app/api/routes/route_logic/test_resume_ai_logic_sync.py`

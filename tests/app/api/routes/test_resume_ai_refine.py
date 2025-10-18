@@ -128,19 +128,23 @@ def test_refine_resume_delegates_for_non_experience_section(
     mock_handle_sync.return_value = Response(status_code=204)
 
     # Act
+    # Pass limit_refinement_years to ensure it is ignored for non-experience sections
     response = client_with_auth_and_resume.post(
         "/api/resumes/1/refine",
         data={
             "job_description": job_desc,
             "target_section": target_section,
             "generate_introduction": gen_intro,
+            "limit_refinement_years": "5",
         },
     )
 
     # Assert
     assert response.status_code == 204
     mock_handle_sync.assert_called_once()
-    params_arg = mock_handle_sync.call_args.args[0]
+    call_kwargs = mock_handle_sync.call_args.kwargs
+    assert "sync_params" in call_kwargs
+    params_arg = call_kwargs["sync_params"]
     assert isinstance(params_arg, SyncRefinementParams)
     assert isinstance(params_arg.request, Request)
     assert params_arg.db is not None
@@ -151,24 +155,40 @@ def test_refine_resume_delegates_for_non_experience_section(
     assert params_arg.generate_introduction is True
 
 
+@pytest.mark.parametrize(
+    "limit_years, expected_limit_years",
+    [(None, None), ("5", 5), ("", None)],
+)
+@pytest.mark.parametrize(
+    "gen_intro, expected_gen_intro",
+    [("true", True), (None, False)],  # None means the form field is absent
+)
 @patch("resume_editor.app.api.routes.resume_ai.templates.TemplateResponse")
 def test_refine_resume_post_for_experience_returns_sse_loader(
     mock_template_response,
+    limit_years,
+    expected_limit_years,
+    gen_intro,
+    expected_gen_intro,
     client_with_auth_and_resume,
 ):
     """Test that POST /refine for 'experience' returns the SSE loader partial."""
     # Arrange
     job_desc = "A cool job"
     mock_template_response.return_value = "sse loader html"
+    form_data = {
+        "job_description": job_desc,
+        "target_section": "experience",
+    }
+    if gen_intro is not None:
+        form_data["generate_introduction"] = gen_intro
+    if limit_years is not None:
+        form_data["limit_refinement_years"] = limit_years
 
     # Act
     response = client_with_auth_and_resume.post(
         "/api/resumes/1/refine",
-        data={
-            "job_description": job_desc,
-            "target_section": "experience",
-            "generate_introduction": "true",
-        },
+        data=form_data,
     )
 
     # Assert
@@ -180,39 +200,12 @@ def test_refine_resume_post_for_experience_returns_sse_loader(
         {
             "resume_id": 1,
             "job_description": job_desc,
-            "generate_introduction": True,
+            "generate_introduction": expected_gen_intro,
+            "limit_refinement_years": expected_limit_years,
         },
     )
 
 
-@patch("resume_editor.app.api.routes.resume_ai.templates.TemplateResponse")
-def test_refine_resume_post_for_experience_gen_intro_false(
-    mock_template_response,
-    client_with_auth_and_resume,
-):
-    """Test POST /refine for 'experience' with generate_introduction false."""
-    # Arrange
-    job_desc = "A cool job"
-    mock_template_response.return_value = "sse loader html"
-
-    # Act
-    response = client_with_auth_and_resume.post(
-        "/api/resumes/1/refine",
-        data={"job_description": job_desc, "target_section": "experience"},
-    )
-
-    # Assert
-    assert response.status_code == 200
-    assert response.text == '"sse loader html"'
-    mock_template_response.assert_called_once_with(
-        ANY,
-        "partials/resume/_refine_sse_loader.html",
-        {
-            "resume_id": 1,
-            "job_description": job_desc,
-            "generate_introduction": False,
-        },
-    )
 
 
 def test_refine_resume_invalid_section(client_with_auth_and_resume, test_resume):

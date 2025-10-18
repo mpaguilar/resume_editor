@@ -662,7 +662,7 @@ def test_refine_resume_page_loads_correctly():
 
         form = soup.find("form")
         assert form is not None
-        assert form["hx-post"] == "/api/resumes/1/refine"
+        assert form["hx-post"] == "/api/resumes/1/refine/stream"
         assert form.find("textarea", {"name": "job_description"}) is not None
 
         mock_get_resume.assert_called_once_with(mock_db_session, 1, 1)

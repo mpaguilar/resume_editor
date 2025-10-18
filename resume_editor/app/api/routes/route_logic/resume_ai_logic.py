@@ -28,6 +28,7 @@ from resume_editor.app.api.routes.route_logic.resume_serialization import (
     extract_education_info,
     extract_experience_info,
     extract_personal_info,
+    serialize_experience_to_markdown,
 )
 from resume_editor.app.api.routes.route_logic.resume_validation import (
     perform_pre_save_validation,
@@ -48,7 +49,6 @@ from resume_editor.app.llm.orchestration import (
 )
 from resume_editor.app.models.resume.experience import Role
 from resume_editor.app.models.resume_model import Resume as DatabaseResume
-from resume_editor.app.models.user import User
 
 log = logging.getLogger(__name__)
 
@@ -183,19 +183,21 @@ def create_sse_close_message() -> str:
 
 
 def process_refined_experience_result(
-    resume: DatabaseResume,
+    resume_id: int,
+    resume_content_to_refine: str,
     refined_roles: dict,
     job_description: str,
     introduction: str | None,
 ) -> str:
     """Processes refined experience roles and generates final HTML.
 
-    This function takes the refined roles from the LLM, reconstructs the full
-    resume content, and then generates the final HTML result to be sent in the
-    'done' SSE event.
+    This function takes the refined roles from the LLM, reconstructs the
+    experience section from the content that was provided to the LLM, and then
+    generates the final HTML result to be sent in the 'done' SSE event.
 
     Args:
-        resume (DatabaseResume): The original resume object.
+        resume_id (int): The ID of the original resume object.
+        resume_content_to_refine (str): The resume content that was sent for refinement (potentially filtered).
         refined_roles (dict): A dictionary of refined role data from the LLM,
                               keyed by their original index.
         job_description (str): The job description used for refinement.
@@ -204,34 +206,41 @@ def process_refined_experience_result(
     Returns:
         str: The complete HTML content for the body of the `done` event.
 
+    Notes:
+        1.  Extracts the experience section from the `resume_content_to_refine`.
+        2.  Updates the roles from the extracted experience with the `refined_roles` data.
+            Projects are not modified by the refinement process.
+        3.  Serializes the updated experience section to Markdown.
+        4.  This Markdown is used to create the final HTML for the 'Save as New' form.
+
     """
     _msg = "process_refined_experience_result starting"
     log.debug(_msg)
-    personal_info = extract_personal_info(resume.content)
-    education_info = extract_education_info(resume.content)
-    experience_info = extract_experience_info(resume.content)
-    certifications_info = extract_certifications_info(resume.content)
 
-    # Sort roles by original index to preserve order
-    sorted_roles_data = [role_data for _, role_data in sorted(refined_roles.items())]
-    roles_to_reconstruct = [Role.model_validate(data) for data in sorted_roles_data]
+    # The content passed here is already filtered, so just extract from it.
+    experience_info = extract_experience_info(resume_content_to_refine)
 
+    # Create a mutable copy of the roles list from the (potentially filtered) experience
+    final_roles = list(experience_info.roles)
+
+    # Update the roles in the list with the refined data from the LLM
+    for index, role_data in refined_roles.items():
+        if 0 <= index < len(final_roles):
+            final_roles[index] = Role.model_validate(role_data)
+
+    # Create the final ExperienceResponse object with the updated roles
     refined_experience = ExperienceResponse(
-        roles=roles_to_reconstruct,
+        roles=final_roles,
         projects=experience_info.projects,
     )
 
-    updated_resume_content = build_complete_resume_from_sections(
-        personal_info=personal_info,
-        education=education_info,
-        experience=refined_experience,
-        certifications=certifications_info,
-    )
+    # For the "Save as New" form, we only need the markdown of the refined experience section
+    updated_resume_content = serialize_experience_to_markdown(refined_experience)
 
     result_html = _create_refine_result_html(
-        resume.id,
-        "experience",
-        updated_resume_content,
+        resume_id=resume_id,
+        target_section_val=RefineTargetSection.EXPERIENCE.value,
+        refined_content=updated_resume_content,
         job_description=job_description,
         introduction=introduction,
     )
@@ -382,8 +391,92 @@ def reconstruct_resume_from_refined_section(
     return updated_content
 
 
-async def handle_sync_refinement(params: SyncRefinementParams) -> Response:
+async def handle_sync_refinement(sync_params: SyncRefinementParams) -> Response:
     """Handles synchronous (non-streaming) resume section refinement."""
+    try:
+        llm_endpoint, llm_model_name, api_key = get_llm_config(
+            sync_params.db,
+            sync_params.user.id,
+        )
+
+        llm_config = LLMConfig(
+            llm_endpoint=llm_endpoint,
+            api_key=api_key,
+            llm_model_name=llm_model_name,
+        )
+
+        # Handle other sections synchronously
+        refined_content, introduction = refine_resume_section_with_llm(
+            resume_content=sync_params.resume.content,
+            job_description=sync_params.job_description,
+            target_section=sync_params.target_section.value,
+            llm_config=llm_config,
+            generate_introduction=sync_params.generate_introduction,
+        )
+
+        if "HX-Request" in sync_params.request.headers:
+            html_content = _create_refine_result_html(
+                resume_id=sync_params.resume.id,
+                target_section_val=sync_params.target_section.value,
+                refined_content=refined_content,
+                job_description=sync_params.job_description,
+                introduction=introduction,
+            )
+            return HTMLResponse(content=html_content)
+
+        return RefineResponse(
+            refined_content=refined_content,
+            introduction=introduction,
+        )
+    except InvalidToken:
+        detail = "Invalid API key. Please update your settings."
+        _msg = f"API key decryption failed for user {sync_params.user.id}"
+        log.warning(_msg)
+        if "HX-Request" in sync_params.request.headers:
+            return HTMLResponse(
+                f'<div role="alert" class="text-red-500 p-2">{detail}</div>',
+                status_code=200,
+            )
+        raise HTTPException(status_code=400, detail=detail)
+    except AuthenticationError as e:
+        detail = "LLM authentication failed. Please check your API key in settings."
+        _msg = f"LLM authentication failed for user {sync_params.user.id}: {e!s}"
+        log.warning(_msg)
+        if "HX-Request" in sync_params.request.headers:
+            return HTMLResponse(
+                f'<div role="alert" class="text-red-500 p-2">{detail}</div>',
+                status_code=200,
+            )
+        raise HTTPException(status_code=401, detail=detail)
+    except ValueError as e:
+        detail = str(e)
+        _msg = f"LLM refinement failed for resume {sync_params.resume.id} with ValueError: {detail}"
+        log.warning(_msg)
+        if "HX-Request" in sync_params.request.headers:
+            return HTMLResponse(
+                f'<div role="alert" class="text-red-500 p-2">Refinement failed: {detail}</div>',
+                status_code=200,
+            )
+        raise HTTPException(status_code=400, detail=detail)
+    except Exception as e:
+        detail = f"An unexpected error occurred during refinement: {e!s}"
+        _msg = f"LLM refinement failed for resume {sync_params.resume.id}: {e!s}"
+        log.exception(_msg)
+        if "HX-Request" in sync_params.request.headers:
+            return HTMLResponse(
+                f'<div role="alert" class="text-red-500 p-2">{detail}</div>',
+                status_code=200,
+            )
+        raise HTTPException(status_code=500, detail=f"LLM refinement failed: {e!s}")
+
+
+async def experience_refinement_sse_generator(
+    params: "ExperienceRefinementParams",
+) -> AsyncGenerator[str, None]:
+    """Generates SSE events for the experience refinement process."""
+    _msg = f"Streaming refinement for resume {params.resume.id} for section experience"
+    log.debug(_msg)
+
     try:
         llm_endpoint, llm_model_name, api_key = get_llm_config(
             params.db,
@@ -395,99 +488,14 @@ async def handle_sync_refinement(params: SyncRefinementParams) -> Response:
             api_key=api_key,
             llm_model_name=llm_model_name,
         )
-
-        # Handle other sections synchronously
-        refined_content, introduction = refine_resume_section_with_llm(
-            resume_content=params.resume.content,
-            job_description=params.job_description,
-            target_section=params.target_section.value,
-            llm_config=llm_config,
-            generate_introduction=params.generate_introduction,
-        )
-
-        if "HX-Request" in params.request.headers:
-            html_content = _create_refine_result_html(
-                resume_id=params.resume.id,
-                target_section_val=params.target_section.value,
-                refined_content=refined_content,
-                job_description=params.job_description,
-                introduction=introduction,
-            )
-            return HTMLResponse(content=html_content)
-
-        return RefineResponse(
-            refined_content=refined_content,
-            introduction=introduction,
-        )
-    except InvalidToken:
-        detail = "Invalid API key. Please update your settings."
-        _msg = f"API key decryption failed for user {params.user.id}"
-        log.warning(_msg)
-        if "HX-Request" in params.request.headers:
-            return HTMLResponse(
-                f'<div role="alert" class="text-red-500 p-2">{detail}</div>',
-                status_code=200,
-            )
-        raise HTTPException(status_code=400, detail=detail)
-    except AuthenticationError as e:
-        detail = "LLM authentication failed. Please check your API key in settings."
-        _msg = f"LLM authentication failed for user {params.user.id}: {e!s}"
-        log.warning(_msg)
-        if "HX-Request" in params.request.headers:
-            return HTMLResponse(
-                f'<div role="alert" class="text-red-500 p-2">{detail}</div>',
-                status_code=200,
-            )
-        raise HTTPException(status_code=401, detail=detail)
-    except ValueError as e:
-        detail = str(e)
-        _msg = f"LLM refinement failed for resume {params.resume.id} with ValueError: {detail}"
-        log.warning(_msg)
-        if "HX-Request" in params.request.headers:
-            return HTMLResponse(
-                f'<div role="alert" class="text-red-500 p-2">Refinement failed: {detail}</div>',
-                status_code=200,
-            )
-        raise HTTPException(status_code=400, detail=detail)
-    except Exception as e:
-        detail = f"An unexpected error occurred during refinement: {e!s}"
-        _msg = f"LLM refinement failed for resume {params.resume.id}: {e!s}"
-        log.exception(_msg)
-        if "HX-Request" in params.request.headers:
-            return HTMLResponse(
-                f'<div role="alert" class="text-red-500 p-2">{detail}</div>',
-                status_code=200,
-            )
-        raise HTTPException(status_code=500, detail=f"LLM refinement failed: {e!s}")
-
-
-async def experience_refinement_sse_generator(
-    db: Session,
-    user: User,
-    resume: DatabaseResume,
-    job_description: str,
-    generate_introduction: bool,
-) -> AsyncGenerator[str, None]:
-    """Generates SSE events for the experience refinement process."""
-    _msg = f"Streaming refinement for resume {resume.id} for section experience"
-    log.debug(_msg)
-
-    try:
-        llm_endpoint, llm_model_name, api_key = get_llm_config(db, user.id)
-
-        llm_config = LLMConfig(
-            llm_endpoint=llm_endpoint,
-            api_key=api_key,
-            llm_model_name=llm_model_name,
-        )
         refined_roles = {}
         introduction = None
 
         async for event in async_refine_experience_section(
-            resume_content=resume.content,
-            job_description=job_description,
+            resume_content=params.resume_content_to_refine,
+            job_description=params.job_description,
             llm_config=llm_config,
-            generate_introduction=generate_introduction,
+            generate_introduction=params.generate_introduction,
         ):
             sse_message, new_introduction = _process_sse_event(event, refined_roles)
             if sse_message:
@@ -497,10 +505,11 @@ async def experience_refinement_sse_generator(
 
         if refined_roles:
             result_html = process_refined_experience_result(
-                resume,
-                refined_roles,
-                job_description,
-                introduction,
+                resume_id=params.resume.id,
+                resume_content_to_refine=params.resume_content_to_refine,
+                refined_roles=refined_roles,
+                job_description=params.job_description,
+                introduction=introduction,
             )
             yield create_sse_done_message(result_html)
         else:
@@ -510,10 +519,10 @@ async def experience_refinement_sse_generator(
             )
 
     except ClientDisconnect:
-        _msg = f"Client disconnected from SSE stream for resume {resume.id}."
+        _msg = f"Client disconnected from SSE stream for resume {params.resume.id}."
         log.warning(_msg)
     except (InvalidToken, AuthenticationError, ValueError, Exception) as e:
-        yield _handle_sse_exception(e, resume.id)
+        yield _handle_sse_exception(e, params.resume.id)
     finally:
         yield create_sse_close_message()
 

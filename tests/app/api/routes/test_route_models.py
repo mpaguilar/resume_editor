@@ -3,6 +3,7 @@ import pytest
 from resume_editor.app.api.routes.route_models import (
     RefineAcceptRequest,
     RefineAction,
+    RefineForm,
     RefineRequest,
     RefineTargetSection,
     RenderFormat,
@@ -141,3 +142,33 @@ def test_resume_detail_response_without_new_fields():
     assert resp.content == "Resume content."
     assert resp.notes is None
     assert resp.introduction is None
+
+
+def test_refine_form_instantiation():
+    """
+    Test RefineForm can be instantiated with all fields,
+    including the new optional field.
+    """
+    # Test with the optional field provided
+    form_with_limit = RefineForm(
+        job_description="A job.",
+        target_section=RefineTargetSection.EXPERIENCE,
+        generate_introduction=True,
+        limit_refinement_years=5,
+    )
+    assert form_with_limit.job_description == "A job."
+    assert form_with_limit.target_section == RefineTargetSection.EXPERIENCE
+    assert form_with_limit.generate_introduction is True
+    assert form_with_limit.limit_refinement_years == 5
+
+    # Test without the optional field (it's passed as None by Depends default)
+    form_without_limit = RefineForm(
+        job_description="Another job.",
+        target_section=RefineTargetSection.PERSONAL,
+        generate_introduction=False,
+        limit_refinement_years=None,
+    )
+    assert form_without_limit.job_description == "Another job."
+    assert form_without_limit.target_section == RefineTargetSection.PERSONAL
+    assert form_without_limit.generate_introduction is False
+    assert form_without_limit.limit_refinement_years is None

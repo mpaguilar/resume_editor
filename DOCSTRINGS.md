@@ -3275,7 +3275,7 @@ Notes:
 Form data for refining a resume section.
 
 ---
-## method: `RefineForm.__init__(self: UnknownType, job_description: str, target_section: RefineTargetSection, generate_introduction: bool) -> UnknownType`
+## method: `RefineForm.__init__(self: UnknownType, job_description: str, target_section: RefineTargetSection, generate_introduction: bool | None, limit_refinement_years: str | None) -> UnknownType`
 
 
 
@@ -7000,16 +7000,17 @@ Returns:
 
 ---
 
-## function: `process_refined_experience_result(resume: DatabaseResume, refined_roles: dict, job_description: str, introduction: str | None) -> str`
+## function: `process_refined_experience_result(resume_id: int, resume_content_to_refine: str, refined_roles: dict, job_description: str, introduction: str | None) -> str`
 
 Processes refined experience roles and generates final HTML.
 
-This function takes the refined roles from the LLM, reconstructs the full
-resume content, and then generates the final HTML result to be sent in the
-'done' SSE event.
+This function takes the refined roles from the LLM, reconstructs the
+experience section from the content that was provided to the LLM, and then
+generates the final HTML result to be sent in the 'done' SSE event.
 
 Args:
-    resume (DatabaseResume): The original resume object.
+    resume_id (int): The ID of the original resume object.
+    resume_content_to_refine (str): The resume content that was sent for refinement (potentially filtered).
     refined_roles (dict): A dictionary of refined role data from the LLM,
                           keyed by their original index.
     job_description (str): The job description used for refinement.
@@ -7017,6 +7018,13 @@ Args:
 
 Returns:
     str: The complete HTML content for the body of the `done` event.
+
+Notes:
+    1.  Extracts the experience section from the `resume_content_to_refine`.
+    2.  Updates the roles from the extracted experience with the `refined_roles` data.
+        Projects are not modified by the refinement process.
+    3.  Serializes the updated experience section to Markdown.
+    4.  This Markdown is used to create the final HTML for the 'Save as New' form.
 
 ---
 

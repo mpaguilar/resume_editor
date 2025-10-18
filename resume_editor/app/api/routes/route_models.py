@@ -355,11 +355,16 @@ class RefineForm:
         self,
         job_description: str = Form(...),
         target_section: RefineTargetSection = Form(...),
-        generate_introduction: bool = Form(False),
+        generate_introduction: bool | None = Form(False),
+        limit_refinement_years: str | None = Form(None),
     ):
         self.job_description = job_description
         self.target_section = target_section
-        self.generate_introduction = generate_introduction
+        self.generate_introduction = bool(generate_introduction)
+        try:
+            self.limit_refinement_years = int(limit_refinement_years)
+        except (ValueError, TypeError):
+            self.limit_refinement_years = None
 
 
 class SaveAsNewForm:
@@ -744,3 +749,16 @@ class SaveAsNewParams(BaseModel):
     user: Any
     resume: Any
     form_data: SaveAsNewForm
+
+
+class ExperienceRefinementParams(BaseModel):
+    """Parameters for experience refinement SSE generator."""
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    db: Any
+    user: Any
+    resume: Any
+    resume_content_to_refine: str
+    job_description: str
+    generate_introduction: bool
