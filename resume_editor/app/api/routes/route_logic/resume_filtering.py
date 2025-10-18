@@ -43,7 +43,7 @@ def _is_in_date_range(
     Notes:
         1. If the filter has a start date and the item ends before that date, the item is out of range.
         2. If the filter has an end date and the item starts after that date, the item is out of range.
-        3. Otherwise, the item is considered to be in range.
+        3. Otherwise, the item is considered to be in range. This includes ongoing items (those with no end date).
 
     """
     # An item is considered OUT of range if it ends before the filter starts...
@@ -58,8 +58,8 @@ def _is_in_date_range(
 
 def filter_experience_by_date(
     experience: ExperienceResponse,
-    start_date: date | None = None,
-    end_date: date | None = None,
+    start_date: date | None,
+    end_date: date | None,
 ) -> ExperienceResponse:
     """Filter roles and projects in an ExperienceResponse based on a date range.
 
@@ -76,22 +76,29 @@ def filter_experience_by_date(
         2. Iterate through the roles in the experience object and check if each role's date range overlaps with the filter range using _is_in_date_range.
         3. For each role that overlaps, add it to the filtered_roles list.
         4. Iterate through the projects in the experience object and check if each project's date range overlaps with the filter range.
-        5. Projects without an end date are treated as single-day events occurring on their start date.
+        5. Projects without an end date are treated as ongoing.
         6. For each project that overlaps, add it to the filtered_projects list.
         7. Return a new ExperienceResponse object with the filtered roles and projects.
 
     """
+    _msg = f"filter_experience_by_date starting: start={start_date}, end={end_date}"
+    log.debug(_msg)
     if not start_date and not end_date:
+        log.debug("filter_experience_by_date returning: no dates, returning original.")
         return experience
 
     filtered_roles = []
     if experience.roles:
         for role in experience.roles:
-            role_start = _get_date_from_optional_datetime(
-                getattr(role.basics, "start_date", None),
+            role_start = (
+                _get_date_from_optional_datetime(role.basics.start_date)
+                if role.basics
+                else None
             )
-            role_end = _get_date_from_optional_datetime(
-                getattr(role.basics, "end_date", None),
+            role_end = (
+                _get_date_from_optional_datetime(role.basics.end_date)
+                if role.basics
+                else None
             )
             if _is_in_date_range(role_start, role_end, start_date, end_date):
                 filtered_roles.append(role)
@@ -99,17 +106,20 @@ def filter_experience_by_date(
     filtered_projects = []
     if experience.projects:
         for project in experience.projects:
-            project_start = _get_date_from_optional_datetime(
-                getattr(project.overview, "start_date", None),
+            project_start = (
+                _get_date_from_optional_datetime(project.overview.start_date)
+                if project.overview
+                else None
             )
-            project_end = _get_date_from_optional_datetime(
-                getattr(project.overview, "end_date", None),
+            project_end = (
+                _get_date_from_optional_datetime(project.overview.end_date)
+                if project.overview
+                else None
             )
 
-            # Treat projects without an end date as point-in-time events
-            if project_end is None:
-                project_end = project_start
             if _is_in_date_range(project_start, project_end, start_date, end_date):
                 filtered_projects.append(project)
 
+    _msg = f"filter_experience_by_date returning: {len(filtered_roles)} roles, {len(filtered_projects)} projects"
+    log.debug(_msg)
     return ExperienceResponse(roles=filtered_roles, projects=filtered_projects)

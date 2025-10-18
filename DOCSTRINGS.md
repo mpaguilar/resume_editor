@@ -3729,7 +3729,7 @@ Returns:
 Notes:
     1. If the filter has a start date and the item ends before that date, the item is out of range.
     2. If the filter has an end date and the item starts after that date, the item is out of range.
-    3. Otherwise, the item is considered to be in range.
+    3. Otherwise, the item is considered to be in range. This includes ongoing items (those with no end date).
 
 ---
 
@@ -3750,7 +3750,7 @@ Notes:
     2. Iterate through the roles in the experience object and check if each role's date range overlaps with the filter range using _is_in_date_range.
     3. For each role that overlaps, add it to the filtered_roles list.
     4. Iterate through the projects in the experience object and check if each project's date range overlaps with the filter range.
-    5. Projects without an end date are treated as single-day events occurring on their start date.
+    5. Projects without an end date are treated as ongoing.
     6. For each project that overlaps, add it to the filtered_projects list.
     7. Return a new ExperienceResponse object with the filtered roles and projects.
 
