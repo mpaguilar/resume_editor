@@ -1,5 +1,7 @@
+
 <div id="refine-sse-loader"
-     sse-connect="/api/resumes/{{ resume_id }}/refine/stream?job_description={{ job_description | urlencode }}"
+     hx-ext="sse"
+     sse-connect="/api/resumes/{{ resume_id }}/refine/stream?job_description={{ (job_description | urlencode) | replace('%20', '+') }}&generate_introduction={{ 'true' if generate_introduction else 'false' }}{% if limit_refinement_years %}&limit_refinement_years={{ limit_refinement_years | urlencode }}{% endif %}"
      sse-swap="done,error"
      sse-close="close"
      hx-swap="outerHTML"
@@ -20,5 +22,6 @@
             hx-swap="beforeend">
             <!-- progress items will be swapped here -->
         </ul>
+        <div sse-swap="introduction_generated" class="hidden"></div>
     </div>
 </div>

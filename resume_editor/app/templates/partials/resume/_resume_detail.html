@@ -1,3 +1,4 @@
+
 <div class="h-full flex flex-col">
     <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
         <h2 class="text-xl font-semibold">{{ resume.name }}</h2>
@@ -111,6 +112,7 @@
                 </button>
             </div>
         </form>
+        <div id="introduction-container" class="hidden"></div>
         <div id="refine-sse-container">
             <!-- SSE loader will be placed here -->
         </div>
@@ -228,6 +230,11 @@ function handleAbort(event, resumeId) {
     const progressList = document.getElementById(`refine-progress-list-${resumeId}`);
     if (progressList) {
         progressList.innerHTML = "";
+    }
+    // Clear any suggested introduction that may have been injected out-of-band.
+    const introContainer = document.getElementById('introduction-container');
+    if (introContainer) {
+        introContainer.innerHTML = "";
     }
     // The SSE connection will be on an element inside #refine-sse-container,
     // which will be removed when cancelling, so htmx should handle closing the connection.

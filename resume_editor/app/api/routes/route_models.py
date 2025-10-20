@@ -367,6 +367,25 @@ class RefineForm:
             self.limit_refinement_years = None
 
 
+class SaveAsNewMetadata:
+    """Metadata for saving a new refined resume."""
+
+    def __init__(
+        self,
+        new_resume_name: str | None = Form(None),
+        job_description: str | None = Form(None),
+        introduction: str | None = Form(None),
+        limit_refinement_years: str | None = Form(None),
+    ):
+        self.new_resume_name = new_resume_name
+        self.job_description = job_description
+        self.introduction = introduction
+        try:
+            self.limit_refinement_years = int(limit_refinement_years)
+        except (ValueError, TypeError):
+            self.limit_refinement_years = None
+
+
 class SaveAsNewForm:
     """Form data for saving a refined resume as a new one."""
 
@@ -374,15 +393,14 @@ class SaveAsNewForm:
         self,
         refined_content: str = Form(...),
         target_section: RefineTargetSection = Form(...),
-        new_resume_name: str | None = Form(None),
-        job_description: str | None = Form(None),
-        introduction: str | None = Form(None),
+        metadata: SaveAsNewMetadata = Depends(),
     ):
         self.refined_content = refined_content
         self.target_section = target_section
-        self.new_resume_name = new_resume_name
-        self.job_description = job_description
-        self.introduction = introduction
+        self.new_resume_name = metadata.new_resume_name
+        self.job_description = metadata.job_description
+        self.introduction = metadata.introduction
+        self.limit_refinement_years = metadata.limit_refinement_years
 
 
 class ChangePasswordForm:
@@ -738,6 +756,7 @@ class SyncRefinementParams(BaseModel):
     job_description: str
     target_section: RefineTargetSection
     generate_introduction: bool
+    limit_refinement_years: int | None = None
 
 
 class SaveAsNewParams(BaseModel):
@@ -760,5 +779,7 @@ class ExperienceRefinementParams(BaseModel):
     user: Any
     resume: Any
     resume_content_to_refine: str
+    original_resume_content: str
     job_description: str
     generate_introduction: bool
+    limit_refinement_years: int | None = None

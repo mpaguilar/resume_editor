@@ -17,16 +17,23 @@ from resume_editor.app.api.routes.route_logic.resume_ai_logic import (
 )
 
 
-def test_create_sse_message_single_line():
-    """Test create_sse_message with single-line data."""
-    result = create_sse_message("test_event", "some data")
-    assert result == "event: test_event\ndata: some data\n\n"
-
-
-def test_create_sse_message_multi_line():
-    """Test create_sse_message with multi-line data."""
-    result = create_sse_message("test_event", "line1\nline2")
-    assert result == "event: test_event\ndata: line1\ndata: line2\n\n"
+@pytest.mark.parametrize(
+    "test_input, expected_output",
+    [
+        ("some data", "event: test_event\ndata: some data\n\n"),
+        (
+            "line1\nline2",
+            "event: test_event\ndata: line1\ndata: line2\n\n",
+        ),
+        ("", "event: test_event\ndata: \n\n"),
+        # Per SSE spec, a single newline in data should be sent as one data field.
+        ("\n", "event: test_event\ndata: \n\n"),
+    ],
+)
+def test_create_sse_message_variations(test_input, expected_output):
+    """Test create_sse_message with various inputs."""
+    result = create_sse_message("test_event", test_input)
+    assert result == expected_output
 
 
 def test_create_sse_progress_message():

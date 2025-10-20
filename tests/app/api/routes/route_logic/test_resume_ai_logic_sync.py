@@ -6,6 +6,7 @@ from fastapi import HTTPException, Request
 from fastapi.responses import HTMLResponse
 from openai import AuthenticationError
 
+from resume_editor.app.api.routes.html_fragments import RefineResultParams
 from resume_editor.app.api.routes.route_logic.resume_ai_logic import (
     handle_sync_refinement,
 )
@@ -103,13 +104,17 @@ async def test_handle_sync_refinement_htmx_response(
     # Assert
     assert isinstance(response, HTMLResponse)
     assert response.body.decode("utf-8") == "<html>refine result</html>"
-    mock_create_html.assert_called_once_with(
-        resume_id=params.resume.id,
-        target_section_val=params.target_section.value,
-        refined_content="refined content",
-        job_description=params.job_description,
-        introduction="this is an intro",
-    )
+    mock_create_html.assert_called_once()
+    call_args = mock_create_html.call_args.kwargs
+    assert "params" in call_args
+    call_params = call_args["params"]
+    assert isinstance(call_params, RefineResultParams)
+    assert call_params.resume_id == params.resume.id
+    assert call_params.target_section_val == params.target_section.value
+    assert call_params.refined_content == "refined content"
+    assert call_params.job_description == params.job_description
+    assert call_params.introduction == "this is an intro"
+    assert call_params.limit_refinement_years is None
 
 
 @pytest.mark.asyncio

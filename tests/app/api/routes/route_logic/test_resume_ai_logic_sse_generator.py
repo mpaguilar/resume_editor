@@ -1,3 +1,4 @@
+import asyncio
 from unittest.mock import Mock, patch
 
 import pytest
@@ -9,6 +10,7 @@ from openai import AuthenticationError
 from starlette.middleware.base import ClientDisconnect
 
 from resume_editor.app.api.routes.route_logic.resume_ai_logic import (
+    ProcessExperienceResultParams,
     experience_refinement_sse_generator,
 )
 from resume_editor.app.api.routes.route_models import ExperienceRefinementParams
@@ -93,6 +95,7 @@ async def test_experience_refinement_sse_generator_happy_path(
         user=test_user,
         resume=test_resume,
         resume_content_to_refine=test_resume.content,
+        original_resume_content=test_resume.content,
         job_description="a new job",
         generate_introduction=gen_intro,
     )
@@ -129,13 +132,19 @@ async def test_experience_refinement_sse_generator_happy_path(
         llm_config=expected_llm_config,
         generate_introduction=gen_intro,
     )
-    mock_process_result.assert_called_once_with(
-        resume_id=test_resume.id,
-        resume_content_to_refine=test_resume.content,
-        refined_roles={1: refined_role2_data, 0: refined_role1_data},
-        job_description="a new job",
-        introduction=expected_intro,
-    )
+    mock_process_result.assert_called_once()
+    call_args = mock_process_result.call_args.args
+    assert len(call_args) == 1
+    params = call_args[0]
+
+    assert isinstance(params, ProcessExperienceResultParams)
+    assert params.resume_id == test_resume.id
+    assert params.original_resume_content == test_resume.content
+    assert params.resume_content_to_refine == test_resume.content
+    assert params.refined_roles == {1: refined_role2_data, 0: refined_role1_data}
+    assert params.job_description == "a new job"
+    assert params.introduction == expected_intro
+    assert params.limit_refinement_years is None
 
 
 
@@ -161,6 +170,7 @@ async def test_experience_refinement_sse_generator_introduction_is_none(
         user=test_user,
         resume=test_resume,
         resume_content_to_refine=test_resume.content,
+        original_resume_content=test_resume.content,
         job_description="job",
         generate_introduction=True,
     )
@@ -199,6 +209,7 @@ async def test_experience_refinement_sse_generator_orchestration_error(
         user=test_user,
         resume=test_resume,
         resume_content_to_refine=test_resume.content,
+        original_resume_content=test_resume.content,
         job_description="job",
         generate_introduction=True,
         limit_refinement_years=None,
@@ -244,6 +255,7 @@ async def test_experience_refinement_sse_generator_malformed_events(
         user=test_user,
         resume=test_resume,
         resume_content_to_refine=test_resume.content,
+        original_resume_content=test_resume.content,
         job_description="a new job",
         generate_introduction=True,
     )
@@ -279,6 +291,7 @@ async def test_experience_refinement_sse_generator_empty_generator(
         user=test_user,
         resume=test_resume,
         resume_content_to_refine=test_resume.content,
+        original_resume_content=test_resume.content,
         job_description="a job",
         generate_introduction=True,
         limit_refinement_years=None,
@@ -309,6 +322,7 @@ async def test_experience_refinement_sse_generator_invalid_token(
         user=test_user,
         resume=test_resume,
         resume_content_to_refine=test_resume.content,
+        original_resume_content=test_resume.content,
         job_description="job",
         generate_introduction=True,
         limit_refinement_years=None,
@@ -347,6 +361,7 @@ async def test_experience_refinement_sse_generator_auth_error(
         user=test_user,
         resume=test_resume,
         resume_content_to_refine=test_resume.content,
+        original_resume_content=test_resume.content,
         job_description="job",
         generate_introduction=True,
         limit_refinement_years=None,
@@ -385,6 +400,7 @@ async def test_experience_refinement_sse_generator_generic_exception(
         user=test_user,
         resume=test_resume,
         resume_content_to_refine=test_resume.content,
+        original_resume_content=test_resume.content,
         job_description="job",
         generate_introduction=True,
         limit_refinement_years=None,
@@ -401,36 +417,160 @@ async def test_experience_refinement_sse_generator_generic_exception(
 
 @pytest.mark.asyncio
 @patch(
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic.create_sse_close_message",
+    return_value="not a close message",
+)
+@patch(
     "resume_editor.app.api.routes.route_logic.resume_ai_logic.async_refine_experience_section"
 )
 @patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.get_llm_config")
-async def test_experience_refinement_sse_generator_client_disconnect(
-    mock_get_llm_config, mock_async_refine_experience, test_user, test_resume, caplog
+async def test_generator_breaks_on_timeout_if_task_done(
+    mock_get_llm_config,
+    mock_async_refine_experience,
+    mock_create_close,
+    test_user,
+    test_resume,
+    caplog,
 ):
-    """Test that the SSE generator handles a ClientDisconnect gracefully."""
+    """Test generator breaks on TimeoutError if the background task is done and the queue is empty."""
     mock_get_llm_config.return_value = (None, None, None)
 
-    async def mock_generator_with_disconnect():
-        raise ClientDisconnect()
-        yield
+    async def mock_generator():
+        yield {"status": "in_progress", "message": "done"}
 
-    mock_async_refine_experience.return_value = mock_generator_with_disconnect()
+    mock_async_refine_experience.return_value = mock_generator()
 
-    with caplog.at_level(logging.WARNING):
-        params = ExperienceRefinementParams(
-            db=Mock(),
-            user=test_user,
-            resume=test_resume,
-            resume_content_to_refine=test_resume.content,
-            job_description="job",
-            generate_introduction=True,
-            limit_refinement_years=None,
-        )
+    params = ExperienceRefinementParams(
+        db=Mock(),
+        user=test_user,
+        resume=test_resume,
+        resume_content_to_refine=test_resume.content,
+        original_resume_content=test_resume.content,
+        job_description="job",
+        generate_introduction=False,
+    )
+
+    with caplog.at_level(logging.DEBUG):
         results = [
-            item
-            async for item in experience_refinement_sse_generator(params=params)
+            item async for item in experience_refinement_sse_generator(params=params)
         ]
 
-    assert len(results) == 1
-    assert "event: close" in results[0]
-    assert f"Client disconnected from SSE stream for resume {test_resume.id}." in caplog.text
+    assert len(results) == 3
+    assert "event: progress" in results[0]
+    assert "event: error" in results[1]
+    assert "Refinement finished, but no roles were found to refine." in results[1]
+    assert "not a close message" in results[2]
+    assert "LLM task finished and queue is empty. Closing stream." in caplog.text
+
+
+@pytest.mark.asyncio
+@patch(
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic.async_refine_experience_section"
+)
+@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.get_llm_config")
+async def test_generator_cancels_task_on_client_disconnect(
+    mock_get_llm_config,
+    mock_async_refine_experience,
+    test_user,
+    test_resume,
+    caplog,
+):
+    """Test that the background LLM task is cancelled when the client disconnects from the generator."""
+    mock_get_llm_config.return_value = (None, None, None)
+
+    task_was_cancelled = asyncio.Event()
+
+    async def slow_generator():
+        """A mock generator that runs slowly and signals when cancelled."""
+        try:
+            yield {"status": "in_progress", "message": "starting"}
+            await asyncio.sleep(10)  # Simulate a long-running process
+        except asyncio.CancelledError:
+            task_was_cancelled.set()
+            raise
+
+    mock_async_refine_experience.return_value = slow_generator()
+
+    params = ExperienceRefinementParams(
+        db=Mock(),
+        user=test_user,
+        resume=test_resume,
+        resume_content_to_refine=test_resume.content,
+        original_resume_content=test_resume.content,
+        job_description="job",
+        generate_introduction=False,
+    )
+
+    sse_generator = experience_refinement_sse_generator(params=params)
+
+    with caplog.at_level(logging.WARNING):
+        # Start iterating the generator to kick off the background task
+        first_item = await sse_generator.__anext__()
+        assert "event: progress" in first_item
+        assert "starting" in first_item
+
+        # Simulate the client disconnecting by throwing an exception into the generator.
+        # The generator will catch GeneratorExit, log a warning, and then finish,
+        # which causes athrow to raise StopAsyncIteration.
+        with pytest.raises(StopAsyncIteration):
+            await sse_generator.athrow(GeneratorExit)
+
+    assert f"SSE stream closed for resume {test_resume.id}." in caplog.text
+
+    # Check that the underlying llm_task was cancelled
+    try:
+        await asyncio.wait_for(task_was_cancelled.wait(), timeout=1.0)
+    except asyncio.TimeoutError:
+        pytest.fail("The llm_task was not cancelled.")
+
+
+@pytest.mark.asyncio
+@patch(
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic.async_refine_experience_section"
+)
+@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.get_llm_config")
+async def test_generator_continues_on_timeout_if_task_not_done(
+    mock_get_llm_config,
+    mock_async_refine_experience,
+    test_user,
+    test_resume,
+    caplog,
+):
+    """Test that the generator continues on TimeoutError if the background task is not yet done."""
+    mock_get_llm_config.return_value = (None, None, None)
+
+    async def slow_generator():
+        """A generator that waits before yielding a message."""
+        await asyncio.sleep(1.2)  # longer than the timeout
+        yield {"status": "in_progress", "message": "I was slow"}
+
+    mock_async_refine_experience.return_value = slow_generator()
+
+    params = ExperienceRefinementParams(
+        db=Mock(),
+        user=test_user,
+        resume=test_resume,
+        resume_content_to_refine=test_resume.content,
+        original_resume_content=test_resume.content,
+        job_description="job",
+        generate_introduction=False,
+    )
+
+    with caplog.at_level(logging.DEBUG):
+        # This will iterate through the generator. It should experience at least one timeout
+        # while waiting for the slow generator.
+        results = [
+            item async for item in experience_refinement_sse_generator(params=params)
+        ]
+
+    # The loop should have timed out at least once, but continued because main_task wasn't done.
+    # We should have one progress message, one error (no roles refined), and one close event.
+    assert len(results) == 3
+    results_str = "".join(results)
+    assert "event: progress" in results_str
+    assert "I was slow" in results_str
+    assert "event: error" in results_str
+    assert "Refinement finished, but no roles were found to refine" in results_str
+    assert "event: close" in results_str
+    # Check that we did not prematurely log the "task finished" message
+    assert "LLM task finished and queue is empty" not in caplog.text

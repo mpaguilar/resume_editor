@@ -367,14 +367,8 @@ def test_accept_refined_resume_invalid_section(
     )
 
 
-@patch("resume_editor.app.api.routes.resume_ai._generate_resume_detail_html")
-def test_discard_refined_resume(
-    mock_generate_html, client_with_auth_and_resume, test_resume
-):
-    """Test the discard endpoint returns the original resume detail HTML."""
-    # Arrange
-    mock_generate_html.return_value = "<div>Original Detail HTML</div>"
-
+def test_discard_refined_resume(client_with_auth_and_resume, test_resume):
+    """Test the discard endpoint returns an HX-Redirect to the resume view page."""
     # Act
     response = client_with_auth_and_resume.post(
         f"/api/resumes/{test_resume.id}/refine/discard"
@@ -382,5 +376,5 @@ def test_discard_refined_resume(
 
     # Assert
     assert response.status_code == 200
-    assert response.text == "<div>Original Detail HTML</div>"
-    mock_generate_html.assert_called_once_with(test_resume)
+    assert response.headers["HX-Redirect"] == f"/resumes/{test_resume.id}/view"
+    assert not response.content

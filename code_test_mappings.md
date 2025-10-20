@@ -30,6 +30,7 @@ These are known mappings:
 - `resume_editor/app/api/routes/route_logic/resume_ai_logic.py` -> `tests/app/api/routes/route_logic/test_resume_ai_logic_sse_generator.py`
 - `resume_editor/app/api/routes/route_logic/resume_ai_logic.py` -> `tests/app/api/routes/route_logic/test_resume_ai_logic_sse_helpers.py`
 - `resume_editor/app/api/routes/route_logic/resume_ai_logic.py` -> `tests/app/api/routes/route_logic/test_resume_ai_logic_sync.py`
+- `resume_editor/app/api/routes/route_logic/resume_ai_logic.py` -> `tests/app/api/routes/route_logic/test_resume_ai_logic_fallback.py`
 - `resume_editor/app/api/routes/route_logic/resume_export.py` -> `tests/app/api/routes/route_logic/test_resume_export.py`
 - `resume_editor/app/api/routes/route_logic/resume_filtering.py` -> `tests/app/api/routes/route_logic/test_resume_filtering.py`
 - `resume_editor/app/api/routes/user.py` -> `tests/app/api/routes/test_user_route.py`

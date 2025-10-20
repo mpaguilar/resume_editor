@@ -1,35 +1,48 @@
-<div id="resume-content">
 <div id="refine-result" class="mt-4 p-4 border rounded-lg bg-gray-50">
     <h4 class="font-semibold text-lg mb-2">AI Refinement Suggestion</h4>
     <form id="accept-overwrite-form-{{ resume_id }}">
         <input type="hidden" name="target_section" value="{{ target_section_val }}">
         {% if job_description %}<input type="hidden" name="job_description" value="{{ job_description }}">{% endif %}
+        {% if limit_refinement_years %}<input type="hidden" name="limit_refinement_years" value="{{ limit_refinement_years }}">{% endif %}
 
         {% if introduction %}
         <div class="mb-4">
             <label for="introduction" class="block font-semibold text-md mb-1">Introduction</label>
-            <textarea id="introduction" name="introduction" class="w-full h-32 p-2 border rounded font-mono text-sm">{{ introduction }}</textarea>
+            <textarea id="introduction" name="introduction" class="w-full h-32 p-2 border rounded font-mono text-sm" placeholder="AI-generated introduction will appear here, or add your own summary.">{{ introduction }}</textarea>
         </div>
+        <script>
+        (function () {
+            try {
+                var introTextarea = document.getElementById("introduction");
+                if (!introTextarea || (introTextarea.value && introTextarea.value.trim().length > 0)) {
+                    return;
+                }
+                var suggested = document.querySelector("#introduction-container p");
+                var text = suggested ? (suggested.textContent || "").trim() : "";
+                if (text) {
+                    introTextarea.value = text;
+                }
+                var container = document.getElementById("introduction-container");
+                if (container && container.parentNode) {
+                    container.parentNode.removeChild(container);
+                }
+            } catch (e) {
+                // swallow any errors to avoid disrupting UX
+            }
+        })();
+        </script>
         {% endif %}
 
         <h4 class="font-semibold text-md mb-1">Refined '{{ target_section_val }}' section</h4>
         <textarea name="refined_content" class="w-full h-48 p-2 border rounded font-mono text-sm">{{ refined_content }}</textarea>
         <div class="mt-4 flex items-center justify-between">
             <div>
-                <button type="button"
-                        hx-post="/api/resumes/{{ resume_id }}/refine/accept"
-                        hx-target="#resume-content"
-                        hx-swap="outerHTML"
-                        hx-include="closest form"
-                        class="bg-green-500 text-white px-3 py-1 rounded text-sm hover:bg-green-600">
-                    Accept & Overwrite
-                </button>
                 <button
                     type="button"
                     hx-post="/api/resumes/{{ resume_id }}/refine/discard"
-                    hx-target="#resume-content"
+                    hx-target="#refine-sse-container"
                     hx-swap="outerHTML"
-                    class="bg-red-500 text-white px-3 py-1 rounded text-sm hover:bg-red-600 ml-2">
+                    class="bg-red-500 text-white px-3 py-1 rounded text-sm hover:bg-red-600">
                     Discard
                 </button>
             </div>
@@ -38,7 +51,7 @@
                 <button type="button"
                         hx-post="/api/resumes/{{ resume_id }}/refine/save_as_new"
                         hx-include="closest form"
-                        hx-target="#resume-content"
+                        hx-target="#refine-sse-container"
                         hx-swap="outerHTML"
                         class="bg-blue-500 text-white px-3 py-1 rounded text-sm hover:bg-blue-600 ml-2">
                     Save as New
@@ -46,5 +59,4 @@
             </div>
         </div>
     </form>
-</div>
 </div>

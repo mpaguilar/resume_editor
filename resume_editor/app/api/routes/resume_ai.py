@@ -2,9 +2,10 @@ import logging
 from datetime import datetime, timedelta, timezone
 from typing import Annotated, AsyncGenerator
 
-from fastapi import APIRouter, Depends, Form, HTTPException, Request, Response
-from fastapi.responses import HTMLResponse, StreamingResponse
+from fastapi import APIRouter, Depends, Form, HTTPException, Query, Request, Response
+from fastapi.responses import StreamingResponse
 from fastapi.templating import Jinja2Templates
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from resume_editor.app.api.dependencies import get_resume_for_user
@@ -41,10 +42,6 @@ from resume_editor.app.database.database import get_db
 from resume_editor.app.models.resume_model import Resume as DatabaseResume
 from resume_editor.app.models.user import User
 
-from .html_fragments import (
-    _generate_resume_detail_html,
-)
-
 log = logging.getLogger(__name__)
 
 router = APIRouter()
@@ -52,70 +49,241 @@ router = APIRouter()
 templates = Jinja2Templates(directory="resume_editor/app/templates")
 
 
-@router.post("/{resume_id}/refine/stream", response_class=StreamingResponse)
-async def refine_resume_stream(
+class RefineStreamQueryParams(BaseModel):
+    """Query parameters for GET /{resume_id}/refine/stream.
+
+    Args:
+        job_description (str): The job description to align the resume with.
+        generate_introduction (bool): Whether to generate an introduction. Defaults to True.
+        limit_refinement_years (str | None): Optional year limit for experience filtering as a string.
+
+    Notes:
+        1. Acts as a container for query parameters to keep route signatures small.
+        2. No network, disk, or database access is performed.
+
+    """
+
+    job_description: str
+    generate_introduction: bool = True
+    limit_refinement_years: str | None = None
+
+
+def get_refine_stream_query(
+    job_description: Annotated[str, Query(...)],
+    generate_introduction: Annotated[bool, Query()] = True,
+    limit_refinement_years: Annotated[str | None, Query()] = None,
+) -> RefineStreamQueryParams:
+    """Dependency to collect and validate refine/stream query parameters.
+
+    Args:
+        job_description (str): The job description to align the resume with.
+        generate_introduction (bool): Whether to generate an introduction.
+        limit_refinement_years (str | None): Year limit for filtering experience, if provided.
+
+    Returns:
+        RefineStreamQueryParams: Aggregated query parameters object.
+
+    Notes:
+        1. Performs only basic typing via FastAPI's Query parameters.
+        2. No disk, network, or database access is performed.
+
+    """
+    _msg = "get_refine_stream_query starting"
+    log.debug(_msg)
+
+    params = RefineStreamQueryParams(
+        job_description=job_description,
+        generate_introduction=generate_introduction,
+        limit_refinement_years=limit_refinement_years,
+    )
+
+    _msg = "get_refine_stream_query returning"
+    log.debug(_msg)
+    return params
+
+
+def _make_early_error_stream_response(message: str) -> StreamingResponse:
+    """Create a short SSE stream response that sends an error and closes.
+
+    Args:
+        message (str): The error message to send.
+
+    Returns:
+        StreamingResponse: A streaming response that emits an error and close event.
+
+    Notes:
+        1. Builds a minimal async generator to emit two SSE events.
+        2. No disk, network, or database access is performed.
+
+    """
+    _msg = "make_early_error_stream_response starting"
+    log.debug(_msg)
+
+    async def _early_error_stream() -> AsyncGenerator[str, None]:
+        yield create_sse_error_message(message)
+        yield create_sse_close_message()
+
+    result = StreamingResponse(
+        _early_error_stream(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
+    _msg = "make_early_error_stream_response returning"
+    log.debug(_msg)
+    return result
+
+
+def _parse_limit_years_for_stream(
+    limit_refinement_years: str | None,
+) -> tuple[int | None, StreamingResponse | None]:
+    """Parse and validate the limit_refinement_years value for streaming endpoints.
+
+    Args:
+        limit_refinement_years (str | None): The user-supplied string for years.
+
+    Returns:
+        tuple[int | None, StreamingResponse | None]: The parsed positive integer years (or None),
+            and an optional early StreamingResponse if validation fails.
+
+    Notes:
+        1. Accepts None and returns (None, None) to indicate no limit.
+        2. Returns an early error StreamingResponse when invalid, to be returned directly by the route.
+
+    """
+    _msg = "parse_limit_years_for_stream starting"
+    log.debug(_msg)
+
+    if limit_refinement_years is None:
+        _msg = "parse_limit_years_for_stream returning"
+        log.debug(_msg)
+        return None, None
+
+    try:
+        years = int(limit_refinement_years)
+    except ValueError:
+        result = _make_early_error_stream_response(
+            "Limit refinement years must be a valid number.",
+        )
+        _msg = "parse_limit_years_for_stream returning"
+        log.debug(_msg)
+        return None, result
+
+    if years <= 0:
+        result = _make_early_error_stream_response(
+            "Limit refinement years must be a positive number.",
+        )
+        _msg = "parse_limit_years_for_stream returning"
+        log.debug(_msg)
+        return None, result
+
+    _msg = "parse_limit_years_for_stream returning"
+    log.debug(_msg)
+    return years, None
+
+
+def _build_filtered_content_if_needed(
+    resume_content: str,
+    limit_years: int | None,
+) -> str:
+    """Optionally filter experience by a date window and rebuild resume content.
+
+    Args:
+        resume_content (str): The original full resume content.
+        limit_years (int | None): The positive number of years to include, or None.
+
+    Returns:
+        str: The content to refine (filtered if a limit was supplied).
+
+    Notes:
+        1. If limit_years is None, returns the original content unchanged.
+        2. Otherwise:
+            a. Computes a start_date of (today - limit_years years).
+            b. Extracts all sections from the original content.
+            c. Filters experience by date range.
+            d. Rebuilds a complete resume from the sections.
+        3. This function may raise exceptions from extract/serialize helpers.
+
+    """
+    _msg = "build_filtered_content_if_needed starting"
+    log.debug(_msg)
+
+    if not limit_years:
+        _msg = "build_filtered_content_if_needed returning"
+        log.debug(_msg)
+        return resume_content
+
+    start_date = datetime.now(timezone.utc).date() - timedelta(
+        days=int(limit_years * 365.25),
+    )
+
+    personal_info = extract_personal_info(resume_content)
+    education_info = extract_education_info(resume_content)
+    experience_info = extract_experience_info(resume_content)
+    certifications_info = extract_certifications_info(resume_content)
+
+    filtered_experience = filter_experience_by_date(
+        experience=experience_info,
+        start_date=start_date,
+        end_date=None,
+    )
+
+    result = build_complete_resume_from_sections(
+        personal_info=personal_info,
+        education=education_info,
+        experience=filtered_experience,
+        certifications=certifications_info,
+    )
+    _msg = "build_filtered_content_if_needed returning"
+    log.debug(_msg)
+    return result
+
+
+@router.get("/{resume_id}/refine/stream", response_class=StreamingResponse)
+async def refine_resume_stream_get(
     db: Annotated[Session, Depends(get_db)],
     current_user: Annotated[User, Depends(get_current_user_from_cookie)],
     resume: Annotated[DatabaseResume, Depends(get_resume_for_user)],
-    form_data: Annotated[RefineForm, Depends()],
+    query: Annotated[RefineStreamQueryParams, Depends(get_refine_stream_query)],
 ) -> StreamingResponse:
-    """Refine the experience section of a resume using an LLM stream.
-    This endpoint uses Server-Sent Events (SSE) to provide real-time feedback.
-    """
+    """Refine the experience section of a resume using an LLM stream via GET."""
+
+    # Early validation of limit_refinement_years with immediate SSE error response on failure
+    parsed_limit_years, early_error_response = _parse_limit_years_for_stream(
+        query.limit_refinement_years,
+    )
+    if early_error_response is not None:
+        return early_error_response
 
     async def sse_generator_wrapper() -> AsyncGenerator[str, None]:
-        _msg = "Starting SSE wrapper for experience refinement"
+        _msg = "Starting SSE wrapper for experience refinement (GET)"
         log.debug(_msg)
-        if (
-            form_data.limit_refinement_years is not None
-            and form_data.limit_refinement_years <= 0
-        ):
+        try:
+            content_to_refine = _build_filtered_content_if_needed(
+                resume_content=resume.content,
+                limit_years=parsed_limit_years,
+            )
+        except Exception as e:
+            _msg = f"Error during experience filtering: {e!s}"
+            log.exception(_msg)
             yield create_sse_error_message(
-                "Limit refinement years must be a positive number.",
+                "An error occurred while filtering experience.",
             )
             yield create_sse_close_message()
             return
-
-        content_to_refine = resume.content
-        if form_data.limit_refinement_years:
-            try:
-                start_date = datetime.now(timezone.utc).date() - timedelta(
-                    days=int(form_data.limit_refinement_years * 365.25),
-                )
-
-                personal_info = extract_personal_info(resume.content)
-                education_info = extract_education_info(resume.content)
-                experience_info = extract_experience_info(resume.content)
-                certifications_info = extract_certifications_info(resume.content)
-
-                filtered_experience = filter_experience_by_date(
-                    experience=experience_info,
-                    start_date=start_date,
-                    end_date=None,
-                )
-
-                content_to_refine = build_complete_resume_from_sections(
-                    personal_info=personal_info,
-                    education=education_info,
-                    experience=filtered_experience,
-                    certifications=certifications_info,
-                )
-            except Exception as e:
-                _msg = f"Error during experience filtering: {e!s}"
-                log.exception(_msg)
-                yield create_sse_error_message(
-                    "An error occurred while filtering experience.",
-                )
-                yield create_sse_close_message()
-                return
 
         params = ExperienceRefinementParams(
             db=db,
             user=current_user,
             resume=resume,
             resume_content_to_refine=content_to_refine,
-            job_description=form_data.job_description,
-            generate_introduction=form_data.generate_introduction,
+            original_resume_content=resume.content,
+            job_description=query.job_description,
+            generate_introduction=query.generate_introduction,
+            limit_refinement_years=query.limit_refinement_years,
         )
         generator = experience_refinement_sse_generator(params=params)
         async for item in generator:
@@ -124,6 +292,89 @@ async def refine_resume_stream(
     return StreamingResponse(
         sse_generator_wrapper(),
         media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
+@router.post("/{resume_id}/refine/stream", response_class=StreamingResponse)
+async def refine_resume_stream(
+    http_request: Request,
+    db: Annotated[Session, Depends(get_db)],
+    current_user: Annotated[User, Depends(get_current_user_from_cookie)],
+    resume: Annotated[DatabaseResume, Depends(get_resume_for_user)],
+    form_data: Annotated[RefineForm, Depends()],
+) -> StreamingResponse:
+    """Refine the experience section of a resume using an LLM stream.
+
+    This endpoint uses Server-Sent Events (SSE) to provide real-time feedback.
+    It performs early validation of query parameters and optionally filters
+    the experience section by a date window before invoking the SSE generator.
+
+    """
+    # If HTMX posts directly to this endpoint, return the loader fragment so the browser opens a GET EventSource.
+    if "HX-Request" in http_request.headers:
+        return templates.TemplateResponse(
+            http_request,
+            "partials/resume/_refine_sse_loader.html",
+            {
+                "resume_id": resume.id,
+                "job_description": form_data.job_description,
+                "generate_introduction": form_data.generate_introduction,
+                "limit_refinement_years": form_data.limit_refinement_years,
+            },
+        )
+
+    # Early validation of limit_refinement_years with immediate SSE error response on failure
+    parsed_limit_years, early_error_response = _parse_limit_years_for_stream(
+        form_data.limit_refinement_years,
+    )
+    if early_error_response is not None:
+        return early_error_response
+
+    async def sse_generator_wrapper() -> AsyncGenerator[str, None]:
+        _msg = "Starting SSE wrapper for experience refinement"
+        log.debug(_msg)
+
+        try:
+            content_to_refine = _build_filtered_content_if_needed(
+                resume_content=resume.content,
+                limit_years=parsed_limit_years,
+            )
+        except Exception as e:
+            _msg = f"Error during experience filtering: {e!s}"
+            log.exception(_msg)
+            yield create_sse_error_message(
+                "An error occurred while filtering experience.",
+            )
+            yield create_sse_close_message()
+            return
+
+        params = ExperienceRefinementParams(
+            db=db,
+            user=current_user,
+            resume=resume,
+            resume_content_to_refine=content_to_refine,
+            original_resume_content=resume.content,
+            job_description=form_data.job_description,
+            generate_introduction=form_data.generate_introduction,
+            limit_refinement_years=form_data.limit_refinement_years,
+        )
+        generator = experience_refinement_sse_generator(params=params)
+        async for item in generator:
+            yield item
+
+    return StreamingResponse(
+        sse_generator_wrapper(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
     )
 
 
@@ -174,6 +425,7 @@ async def refine_resume(
         job_description=form_data.job_description,
         target_section=form_data.target_section,
         generate_introduction=form_data.generate_introduction,
+        limit_refinement_years=form_data.limit_refinement_years,
     )
     return await handle_sync_refinement(sync_params=params)
 
@@ -245,14 +497,13 @@ async def save_refined_resume_as_new(
     return Response(headers={"HX-Redirect": f"/resumes/{new_resume.id}/view"})
 
 
-@router.post("/{resume_id}/refine/discard", response_class=HTMLResponse)
+@router.post("/{resume_id}/refine/discard")
 async def discard_refined_resume(
     resume: Annotated[DatabaseResume, Depends(get_resume_for_user)],
-) -> HTMLResponse:
+) -> Response:
     """Discards a refinement and returns the original resume detail view.
 
     This is used when a user rejects an AI suggestion, and it re-renders
     the resume detail partial to clear the suggestion from the UI.
     """
-    detail_html = _generate_resume_detail_html(resume)
-    return HTMLResponse(content=detail_html)
+    return Response(headers={"HX-Redirect": f"/resumes/{resume.id}/view"})

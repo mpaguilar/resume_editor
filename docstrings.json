@@ -991,11 +991,20 @@
           ]
         ]
       ],
+      "SaveAsNewMetadata": [
+        "Metadata for saving a new refined resume.",
+        [
+          [
+            "__init__(self: UnknownType, new_resume_name: str | None, job_description: str | None, introduction: str | None, limit_refinement_years: str | None) -> UnknownType",
+            ""
+          ]
+        ]
+      ],
       "SaveAsNewForm": [
         "Form data for saving a refined resume as a new one.",
         [
           [
-            "__init__(self: UnknownType, refined_content: str, target_section: RefineTargetSection, new_resume_name: str | None, job_description: str | None, introduction: str | None) -> UnknownType",
+            "__init__(self: UnknownType, refined_content: str, target_section: RefineTargetSection, metadata: SaveAsNewMetadata) -> UnknownType",
             ""
           ]
         ]
@@ -2026,8 +2035,8 @@
         "Generate the HTML for the resume detail view.\n\nArgs:\n    resume (DatabaseResume): The resume object to generate HTML for.\n\nReturns:\n    str: HTML string for the resume detail view.\n\nNotes:\n    1. Renders the `partials/resume/_resume_detail.html` template."
       ],
       [
-        "_create_refine_result_html(resume_id: int, target_section_val: str, refined_content: str, job_description: str | None, introduction: str | None) -> str",
-        "Creates the HTML for the refinement result container with controls.\n\nArgs:\n    resume_id (int): The ID of the resume being refined.\n    target_section_val (str): The name of the section that was refined.\n    refined_content (str): The new Markdown content for the section.\n    job_description (str | None): The job description used for refinement.\n    introduction (str | None): An optional AI-generated introduction.\n\nReturns:\n    str: An HTML snippet containing a form with the refined content\n         in a textarea and buttons to accept, reject, or save as new.\n\nNotes:\n    1. Renders the `partials/resume/_refine_result.html` template."
+        "_create_refine_result_html(params: RefineResultParams) -> str",
+        "Creates the HTML for the refinement result container with controls.\n\nArgs:\n    params (RefineResultParams): Parameters for rendering the template.\n\nReturns:\n    str: An HTML snippet containing a form with the refined content\n         in a textarea and buttons to accept, reject, or save as new.\n\nNotes:\n    1. Renders the `partials/resume/_refine_result.html` template."
       ]
     ],
     "classes": {}
@@ -2035,7 +2044,24 @@
   "resume_editor/app/api/routes/resume_ai.py": {
     "filepath": "resume_editor/app/api/routes/resume_ai.py",
     "filename": "resume_ai.py",
-    "functions": [],
+    "functions": [
+      [
+        "get_refine_stream_query(job_description: Annotated[str, Query(...)], generate_introduction: Annotated[bool, Query()], limit_refinement_years: Annotated[str | None, Query()]) -> RefineStreamQueryParams",
+        "Dependency to collect and validate refine/stream query parameters.\n\nArgs:\n    job_description (str): The job description to align the resume with.\n    generate_introduction (bool): Whether to generate an introduction.\n    limit_refinement_years (str | None): Year limit for filtering experience, if provided.\n\nReturns:\n    RefineStreamQueryParams: Aggregated query parameters object.\n\nNotes:\n    1. Performs only basic typing via FastAPI's Query parameters.\n    2. No disk, network, or database access is performed."
+      ],
+      [
+        "_make_early_error_stream_response(message: str) -> StreamingResponse",
+        "Create a short SSE stream response that sends an error and closes.\n\nArgs:\n    message (str): The error message to send.\n\nReturns:\n    StreamingResponse: A streaming response that emits an error and close event.\n\nNotes:\n    1. Builds a minimal async generator to emit two SSE events.\n    2. No disk, network, or database access is performed."
+      ],
+      [
+        "_parse_limit_years_for_stream(limit_refinement_years: str | None) -> tuple[int | None, StreamingResponse | None]",
+        "Parse and validate the limit_refinement_years value for streaming endpoints.\n\nArgs:\n    limit_refinement_years (str | None): The user-supplied string for years.\n\nReturns:\n    tuple[int | None, StreamingResponse | None]: The parsed positive integer years (or None),\n        and an optional early StreamingResponse if validation fails.\n\nNotes:\n    1. Accepts None and returns (None, None) to indicate no limit.\n    2. Returns an early error StreamingResponse when invalid, to be returned directly by the route."
+      ],
+      [
+        "_build_filtered_content_if_needed(resume_content: str, limit_years: int | None) -> str",
+        "Optionally filter experience by a date window and rebuild resume content.\n\nArgs:\n    resume_content (str): The original full resume content.\n    limit_years (int | None): The positive number of years to include, or None.\n\nReturns:\n    str: The content to refine (filtered if a limit was supplied).\n\nNotes:\n    1. If limit_years is None, returns the original content unchanged.\n    2. Otherwise:\n        a. Computes a start_date of (today - limit_years years).\n        b. Extracts all sections from the original content.\n        c. Filters experience by date range.\n        d. Rebuilds a complete resume from the sections.\n    3. This function may raise exceptions from extract/serialize helpers."
+      ]
+    ],
     "classes": {}
   },
   "resume_editor/app/middleware.py": {
@@ -2212,8 +2238,8 @@
         "Creates an SSE 'close' message.\n\nReturns:\n    str: The formatted SSE 'close' message."
       ],
       [
-        "process_refined_experience_result(resume_id: int, resume_content_to_refine: str, refined_roles: dict, job_description: str, introduction: str | None) -> str",
-        "Processes refined experience roles and generates final HTML.\n\nThis function takes the refined roles from the LLM, reconstructs the\nexperience section from the content that was provided to the LLM, and then\ngenerates the final HTML result to be sent in the 'done' SSE event.\n\nArgs:\n    resume_id (int): The ID of the original resume object.\n    resume_content_to_refine (str): The resume content that was sent for refinement (potentially filtered).\n    refined_roles (dict): A dictionary of refined role data from the LLM,\n                          keyed by their original index.\n    job_description (str): The job description used for refinement.\n    introduction (str | None): The LLM-generated introduction, if any.\n\nReturns:\n    str: The complete HTML content for the body of the `done` event.\n\nNotes:\n    1.  Extracts the experience section from the `resume_content_to_refine`.\n    2.  Updates the roles from the extracted experience with the `refined_roles` data.\n        Projects are not modified by the refinement process.\n    3.  Serializes the updated experience section to Markdown.\n    4.  This Markdown is used to create the final HTML for the 'Save as New' form."
+        "process_refined_experience_result(params: ProcessExperienceResultParams) -> str",
+        "Processes refined experience roles and generates final HTML.\n\nThis function takes the refined roles from the LLM, reconstructs the\nexperience section from the content that was provided to the LLM, and then\ngenerates the final HTML result to be sent in the 'done' SSE event.\n\nArgs:\n    params (ProcessExperienceResultParams): An object containing all parameters\n        needed for processing the result, including resume IDs, content,\n        refined roles, and other metadata.\n\nReturns:\n    str: The complete HTML content for the body of the `done` event.\n\nNotes:\n    1.  Extracts the experience section from the `resume_content_to_refine`.\n    2.  Updates the roles from the extracted experience with the `refined_roles` data.\n        Projects are not modified by the refinement process.\n    3.  Serializes the updated experience section to Markdown.\n    4.  This Markdown is used to create the final HTML for the 'Save as New' form."
       ],
       [
         "_process_sse_event(event: dict, refined_roles: dict) -> tuple[str | None, str | None]",

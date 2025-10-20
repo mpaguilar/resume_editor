@@ -6,6 +6,7 @@ import pytest
 from bs4 import BeautifulSoup
 
 from resume_editor.app.api.routes.html_fragments import (
+    RefineResultParams,
     _create_refine_result_html,
     _date_format_filter,
     _generate_resume_detail_html,
@@ -268,48 +269,37 @@ def test_generate_resume_detail_html_template_usage(test_resume):
 
 def test_create_refine_result_html_template():
     """Test that _create_refine_result_html renders the correct template."""
-    resume_id = 123
-    target_section_val = "experience"
-    refined_content = "some <refined> content"
-    job_description = "A great job"
+    params = RefineResultParams(
+        resume_id=123,
+        target_section_val="experience",
+        refined_content="some <refined> content",
+        job_description="A great job",
+        introduction=None,
+        limit_refinement_years=5,
+    )
 
     with patch("resume_editor.app.api.routes.html_fragments.env") as mock_env:
         mock_template = MagicMock()
         mock_env.get_template.return_value = mock_template
-        _create_refine_result_html(
-            resume_id,
-            target_section_val,
-            refined_content,
-            job_description,
-            introduction=None,
-        )
+        _create_refine_result_html(params=params)
         mock_env.get_template.assert_called_once_with(
             "partials/resume/_refine_result.html"
         )
-        mock_template.render.assert_called_once_with(
-            resume_id=resume_id,
-            target_section_val=target_section_val,
-            refined_content=refined_content,
-            job_description=job_description,
-            introduction=None,
-        )
+        mock_template.render.assert_called_once_with(**params.model_dump())
 
 
 def test_create_refine_result_html_output():
     """Test that the rendered HTML from _create_refine_result_html is correct."""
-    resume_id = 42
-    target_section_val = "experience"
-    refined_content = "This is *refined* markdown."
-    job_description = "A job description"
-    introduction = "This is an intro."
-
-    html_output = _create_refine_result_html(
-        resume_id,
-        target_section_val,
-        refined_content,
-        job_description=job_description,
-        introduction=introduction,
+    params = RefineResultParams(
+        resume_id=42,
+        target_section_val="experience",
+        refined_content="This is *refined* markdown.",
+        job_description="A job description",
+        introduction="This is an intro.",
+        limit_refinement_years=5,
     )
+
+    html_output = _create_refine_result_html(params=params)
 
     assert 'id="refine-result"' in html_output
     assert (
@@ -320,17 +310,18 @@ def test_create_refine_result_html_output():
     assert 'class="prose prose-sm' not in html_output
     assert ">This is an intro.</textarea>" in html_output
     assert '<input type="hidden" name="introduction"' not in html_output
-    assert 'hx-post="/api/resumes/42/refine/accept"' in html_output
+    assert 'hx-post="/api/resumes/42/refine/accept"' not in html_output
     assert 'name="target_section" value="experience"' in html_output
     assert '<textarea name="refined_content"' in html_output
     assert ">This is *refined* markdown.</textarea>" in html_output
     assert 'hx-post="/api/resumes/42/refine/save_as_new"' in html_output
-    assert "Accept & Overwrite" in html_output
+    assert "Accept & Overwrite" not in html_output
     assert 'hx-post="/api/resumes/42/refine/discard"' in html_output
     assert "Discard" in html_output
     assert "Save as New" in html_output
     assert "Reject" not in html_output
     assert 'name="job_description" value="A job description"' in html_output
+    assert 'name="limit_refinement_years" value="5"' in html_output
 
 
 def test_generate_resume_list_html_with_refined(test_refined_resume):
@@ -493,18 +484,16 @@ def test_generate_resume_detail_html_for_refined_resume(test_refined_resume):
 @pytest.mark.parametrize("intro", [None, ""])
 def test_create_refine_result_html_output_no_introduction(intro):
     """Test that the rendered HTML from _create_refine_result_html is correct when no introduction is provided."""
-    resume_id = 42
-    target_section_val = "experience"
-    refined_content = "This is *refined* markdown."
-    job_description = "A job description"
-
-    html_output = _create_refine_result_html(
-        resume_id,
-        target_section_val,
-        refined_content,
-        job_description=job_description,
+    params = RefineResultParams(
+        resume_id=42,
+        target_section_val="experience",
+        refined_content="This is *refined* markdown.",
+        job_description="A job description",
         introduction=intro,
+        limit_refinement_years=None,
     )
+
+    html_output = _create_refine_result_html(params=params)
 
     assert 'id="refine-result"' in html_output
 
@@ -514,7 +503,7 @@ def test_create_refine_result_html_output_no_introduction(intro):
     assert "Introduction</h4>" not in html_output
 
     # Check that other elements are present
-    assert 'hx-post="/api/resumes/42/refine/accept"' in html_output
+    assert 'hx-post="/api/resumes/42/refine/accept"' not in html_output
     assert 'name="target_section" value="experience"' in html_output
     assert '<textarea name="refined_content"' in html_output
     assert ">This is *refined* markdown.</textarea>" in html_output

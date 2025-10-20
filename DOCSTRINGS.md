@@ -3280,12 +3280,22 @@ Form data for refining a resume section.
 
 
 ---
+## `SaveAsNewMetadata` class
+
+Metadata for saving a new refined resume.
+
+---
+## method: `SaveAsNewMetadata.__init__(self: UnknownType, new_resume_name: str | None, job_description: str | None, introduction: str | None, limit_refinement_years: str | None) -> UnknownType`
+
+
+
+---
 ## `SaveAsNewForm` class
 
 Form data for saving a refined resume as a new one.
 
 ---
-## method: `SaveAsNewForm.__init__(self: UnknownType, refined_content: str, target_section: RefineTargetSection, new_resume_name: str | None, job_description: str | None, introduction: str | None) -> UnknownType`
+## method: `SaveAsNewForm.__init__(self: UnknownType, refined_content: str, target_section: RefineTargetSection, metadata: SaveAsNewMetadata) -> UnknownType`
 
 
 
@@ -6504,16 +6514,12 @@ Notes:
 
 ---
 
-## function: `_create_refine_result_html(resume_id: int, target_section_val: str, refined_content: str, job_description: str | None, introduction: str | None) -> str`
+## function: `_create_refine_result_html(params: RefineResultParams) -> str`
 
 Creates the HTML for the refinement result container with controls.
 
 Args:
-    resume_id (int): The ID of the resume being refined.
-    target_section_val (str): The name of the section that was refined.
-    refined_content (str): The new Markdown content for the section.
-    job_description (str | None): The job description used for refinement.
-    introduction (str | None): An optional AI-generated introduction.
+    params (RefineResultParams): Parameters for rendering the template.
 
 Returns:
     str: An HTML snippet containing a form with the refined content
@@ -6529,6 +6535,79 @@ Notes:
 
 ===
 # File: `resume_editor/app/api/routes/resume_ai.py`
+
+## function: `get_refine_stream_query(job_description: Annotated[str, Query(...)], generate_introduction: Annotated[bool, Query()], limit_refinement_years: Annotated[str | None, Query()]) -> RefineStreamQueryParams`
+
+Dependency to collect and validate refine/stream query parameters.
+
+Args:
+    job_description (str): The job description to align the resume with.
+    generate_introduction (bool): Whether to generate an introduction.
+    limit_refinement_years (str | None): Year limit for filtering experience, if provided.
+
+Returns:
+    RefineStreamQueryParams: Aggregated query parameters object.
+
+Notes:
+    1. Performs only basic typing via FastAPI's Query parameters.
+    2. No disk, network, or database access is performed.
+
+---
+
+## function: `_make_early_error_stream_response(message: str) -> StreamingResponse`
+
+Create a short SSE stream response that sends an error and closes.
+
+Args:
+    message (str): The error message to send.
+
+Returns:
+    StreamingResponse: A streaming response that emits an error and close event.
+
+Notes:
+    1. Builds a minimal async generator to emit two SSE events.
+    2. No disk, network, or database access is performed.
+
+---
+
+## function: `_parse_limit_years_for_stream(limit_refinement_years: str | None) -> tuple[int | None, StreamingResponse | None]`
+
+Parse and validate the limit_refinement_years value for streaming endpoints.
+
+Args:
+    limit_refinement_years (str | None): The user-supplied string for years.
+
+Returns:
+    tuple[int | None, StreamingResponse | None]: The parsed positive integer years (or None),
+        and an optional early StreamingResponse if validation fails.
+
+Notes:
+    1. Accepts None and returns (None, None) to indicate no limit.
+    2. Returns an early error StreamingResponse when invalid, to be returned directly by the route.
+
+---
+
+## function: `_build_filtered_content_if_needed(resume_content: str, limit_years: int | None) -> str`
+
+Optionally filter experience by a date window and rebuild resume content.
+
+Args:
+    resume_content (str): The original full resume content.
+    limit_years (int | None): The positive number of years to include, or None.
+
+Returns:
+    str: The content to refine (filtered if a limit was supplied).
+
+Notes:
+    1. If limit_years is None, returns the original content unchanged.
+    2. Otherwise:
+        a. Computes a start_date of (today - limit_years years).
+        b. Extracts all sections from the original content.
+        c. Filters experience by date range.
+        d. Rebuilds a complete resume from the sections.
+    3. This function may raise exceptions from extract/serialize helpers.
+
+---
 
 
 ===
@@ -7000,7 +7079,7 @@ Returns:
 
 ---
 
-## function: `process_refined_experience_result(resume_id: int, resume_content_to_refine: str, refined_roles: dict, job_description: str, introduction: str | None) -> str`
+## function: `process_refined_experience_result(params: ProcessExperienceResultParams) -> str`
 
 Processes refined experience roles and generates final HTML.
 
@@ -7009,12 +7088,9 @@ experience section from the content that was provided to the LLM, and then
 generates the final HTML result to be sent in the 'done' SSE event.
 
 Args:
-    resume_id (int): The ID of the original resume object.
-    resume_content_to_refine (str): The resume content that was sent for refinement (potentially filtered).
-    refined_roles (dict): A dictionary of refined role data from the LLM,
-                          keyed by their original index.
-    job_description (str): The job description used for refinement.
-    introduction (str | None): The LLM-generated introduction, if any.
+    params (ProcessExperienceResultParams): An object containing all parameters
+        needed for processing the result, including resume IDs, content,
+        refined roles, and other metadata.
 
 Returns:
     str: The complete HTML content for the body of the `done` event.

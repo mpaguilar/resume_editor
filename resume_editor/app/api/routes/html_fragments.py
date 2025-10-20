@@ -3,10 +3,23 @@ from datetime import datetime
 from pathlib import Path
 
 from jinja2 import Environment, FileSystemLoader
+from pydantic import BaseModel
 
 from resume_editor.app.models.resume_model import Resume as DatabaseResume
 
 log = logging.getLogger(__name__)
+
+
+class RefineResultParams(BaseModel):
+    """Parameters for creating the refine result HTML."""
+
+    resume_id: int
+    target_section_val: str
+    refined_content: str
+    job_description: str | None = None
+    introduction: str | None = None
+    limit_refinement_years: int | None = None
+
 
 TEMPLATES_DIR = Path(__file__).resolve().parent.parent.parent / "templates"
 env = Environment(loader=FileSystemLoader(str(TEMPLATES_DIR)), autoescape=True)
@@ -75,21 +88,11 @@ def _generate_resume_detail_html(resume: DatabaseResume) -> str:
     return template.render(resume=resume)
 
 
-def _create_refine_result_html(
-    resume_id: int,
-    target_section_val: str,
-    refined_content: str,
-    job_description: str | None = None,
-    introduction: str | None = None,
-) -> str:
+def _create_refine_result_html(params: RefineResultParams) -> str:
     """Creates the HTML for the refinement result container with controls.
 
     Args:
-        resume_id (int): The ID of the resume being refined.
-        target_section_val (str): The name of the section that was refined.
-        refined_content (str): The new Markdown content for the section.
-        job_description (str | None): The job description used for refinement.
-        introduction (str | None): An optional AI-generated introduction.
+        params (RefineResultParams): Parameters for rendering the template.
 
     Returns:
         str: An HTML snippet containing a form with the refined content
@@ -100,10 +103,4 @@ def _create_refine_result_html(
 
     """
     template = env.get_template("partials/resume/_refine_result.html")
-    return template.render(
-        resume_id=resume_id,
-        target_section_val=target_section_val,
-        refined_content=refined_content,
-        job_description=job_description,
-        introduction=introduction,
-    )
+    return template.render(**params.model_dump())
