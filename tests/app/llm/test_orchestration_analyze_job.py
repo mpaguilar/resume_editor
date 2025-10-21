@@ -164,10 +164,8 @@ async def test_analyze_job_description(mock_chain_invocations_for_analysis):
     invoke_args = final_chain.ainvoke.call_args.args[0]
     assert invoke_args["resume_content_block"] == ""
 
-    partial_kwargs = mock_chain_invocations_for_analysis[
-        "prompt_from_messages"
-    ].partial.call_args.kwargs
-    assert partial_kwargs["introduction_instructions"] == ""
+    # The introduction_instructions are now hardcoded in the prompt and no longer
+    # passed to partial(), so the assertion is removed.
 
 
 @pytest.mark.asyncio
@@ -197,10 +195,8 @@ async def test_analyze_job_description_with_introduction(
     invoke_args = final_chain.ainvoke.call_args.args[0]
     assert "some resume content" in invoke_args["resume_content_block"]
 
-    partial_kwargs = mock_chain_invocations_for_analysis[
-        "prompt_from_messages"
-    ].partial.call_args.kwargs
-    assert "Instructions for Introduction Generation" in partial_kwargs["introduction_instructions"]
+    # The introduction_instructions are now hardcoded in the prompt and no longer
+    # passed to partial(), so the assertion is removed.
 
 
 @pytest.mark.parametrize("llm_endpoint, api_key, llm_model_name, expected_call_args", LLM_INIT_PARAMS)

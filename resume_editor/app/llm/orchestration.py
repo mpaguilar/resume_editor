@@ -124,12 +124,10 @@ async def analyze_job_description(
 
     # Conditionally prepare prompt components for introduction generation
     if resume_content_for_intro:
-        introduction_instructions = "\n\n**Instructions for Introduction Generation (only perform if `Resume Content` is provided):**\n4.  Based on the `Resume Content`, write a brief (1-2 paragraph) professional introduction for the resume. Place it in the 'introduction' field of the JSON output."
         resume_content_block = (
             f"Resume Content:\n---\n{resume_content_for_intro}\n---\n\n"
         )
     else:
-        introduction_instructions = ""
         resume_content_block = ""
 
     prompt = ChatPromptTemplate.from_messages(
@@ -139,7 +137,6 @@ async def analyze_job_description(
         ],
     ).partial(
         format_instructions=parser.get_format_instructions(),
-        introduction_instructions=introduction_instructions,
     )
 
     model_name = llm_config.llm_model_name if llm_config.llm_model_name else "gpt-4o"

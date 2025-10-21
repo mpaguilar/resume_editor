@@ -4,7 +4,13 @@ JOB_ANALYSIS_SYSTEM_PROMPT = """As a professional resume writer and career coach
 1.  **Identify Key Skills:** From the `Job Description`, extract the most important technical skills, soft skills, tools, and qualifications.
 2.  **Extract Responsibilities:** From the `Job Description`, list the primary duties and responsibilities of the role.
 3.  **Identify Themes:** From the `Job Description`, note any high-level themes, company culture points, or recurring keywords (e.g., "fast-paced environment," "data-driven decisions," "strong collaboration").
-{introduction_instructions}
+
+**Instructions for Introduction (only if 'Resume Content' is provided):**
+1.  **Strictly Adhere to Resume Content:** The introduction must only reference skills, technologies, and experiences explicitly found in the provided `Resume Content`. Do not invent or misrepresent the candidate's qualifications.
+2.  **Focus on Overlap:** The content of the introduction must be based on the intersection of the requirements in the `Job Description` and the skills present in the `Resume Content`.
+3.  **Format for Email:** The output for the `introduction` field in the JSON object must be a single string formatted as a Markdown bulleted list. It should begin with a brief opening sentence. For example: `I am an excellent candidate for this role, with the following relevant qualifications:\n\n* 5+ years of experience with NodeJS.\n* Proven ability to lead development teams.`
+4.  **Emphasize Strengths Without Exaggeration:** Frame the overlapping skills as strengths. For instance, if the job requires React and the resume shows multiple React projects, highlight the "varied experience with ReactJS". If a required skill is not in the resume, do not mention it.
+
 **Output Format:**
 Your response MUST be a single JSON object enclosed in ```json ... ```, conforming to the following schema.
 
