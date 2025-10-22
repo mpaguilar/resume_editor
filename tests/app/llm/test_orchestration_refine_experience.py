@@ -114,7 +114,6 @@ async def test_async_refine_experience_section_execution(
         resume_content=resume_content,
         job_description=job_description,
         llm_config=llm_config,
-        generate_introduction=False,
         max_concurrency=max_concurrency,
     ):
         events.append(event)
@@ -125,7 +124,7 @@ async def test_async_refine_experience_section_execution(
     mock_analyze_job.assert_awaited_once_with(
         job_description=job_description,
         llm_config=llm_config,
-        resume_content_for_intro=None,
+        resume_content_for_intro=resume_content,
     )
     assert mock_refine_role.call_count == len(mock_roles)
 
@@ -200,7 +199,6 @@ async def test_async_refine_experience_section_with_introduction(
         resume_content=resume_content,
         job_description=job_description,
         llm_config=LLMConfig(),
-        generate_introduction=True,
     ):
         events.append(event)
 
@@ -260,7 +258,6 @@ async def test_async_refine_experience_section_execution_no_roles(
         resume_content=resume_content,
         job_description=job_description,
         llm_config=llm_config,
-        generate_introduction=True,
         max_concurrency=max_concurrency,
     ):
         events.append(event)
@@ -328,7 +325,6 @@ async def test_async_refine_experience_section_concurrency(
         resume_content=resume_content,
         job_description=job_description,
         llm_config=LLMConfig(),
-        generate_introduction=True,
         max_concurrency=max_concurrency,
     ):
         events.append(event)
@@ -372,7 +368,6 @@ async def test_async_refine_experience_section_role_refinement_fails(
             resume_content="resume",
             job_description="job",
             llm_config=LLMConfig(),
-            generate_introduction=True,
         ):
             events.append(event)
 
@@ -412,7 +407,6 @@ async def test_async_refine_experience_section_job_analysis_fails(
             resume_content="resume",
             job_description="job",
             llm_config=LLMConfig(),
-            generate_introduction=True,
         ):
             events.append(event)
 

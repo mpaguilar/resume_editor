@@ -90,10 +90,8 @@ async def test_refine_resume_stream_route(
 
     mock_sse_generator.return_value = mock_generator()
     job_desc = "a job"
-    gen_intro = False
     form_data = {
         "job_description": job_desc,
-        "generate_introduction": str(gen_intro),
         "target_section": "experience",
     }
 
@@ -118,7 +116,6 @@ async def test_refine_resume_stream_route(
     assert params_arg.resume == test_resume
     assert params_arg.resume_content_to_refine == test_resume.content
     assert params_arg.job_description == job_desc
-    assert params_arg.generate_introduction == gen_intro
 
 
 @pytest.mark.asyncio
@@ -142,7 +139,6 @@ async def test_refine_resume_stream_invalid_limit(
     # Arrange
     form_data = {
         "job_description": "a job",
-        "generate_introduction": "False",
         "target_section": "experience",
         "limit_refinement_years": limit_years_str,
     }
@@ -196,7 +192,6 @@ async def test_refine_resume_stream_with_filtering(
 
     form_data = {
         "job_description": "a job",
-        "generate_introduction": str(False),
         "target_section": "experience",
         "limit_refinement_years": "5",
     }
@@ -226,7 +221,6 @@ async def test_refine_resume_stream_with_filtering(
     assert params_arg.resume == test_resume
     assert params_arg.resume_content_to_refine == "filtered content"
     assert params_arg.job_description == "a job"
-    assert not params_arg.generate_introduction
 
 
 @pytest.mark.asyncio
@@ -246,7 +240,6 @@ async def test_refine_resume_stream_with_filtering_exception(
     # Arrange
     form_data = {
         "job_description": "a job",
-        "generate_introduction": str(False),
         "target_section": "experience",
         "limit_refinement_years": "5",
     }
@@ -277,7 +270,6 @@ def test_refine_resume_experience_returns_sse_loader_with_hx_ext(
     form_data = {
         "job_description": "A great job",
         "target_section": "experience",
-        "generate_introduction": "true",
     }
 
     # Act
@@ -290,7 +282,7 @@ def test_refine_resume_experience_returns_sse_loader_with_hx_ext(
     html = response.text
     assert 'id="refine-sse-loader"' in html
     assert (
-        f'sse-connect="/api/resumes/{test_resume.id}/refine/stream?job_description=A+great+job&generate_introduction=true"'
+        f'sse-connect="/api/resumes/{test_resume.id}/refine/stream?job_description=A+great+job"'
         in html
     )
     assert 'hx-ext="sse"' in html
@@ -308,7 +300,6 @@ def test_post_refine_stream_with_hx_request_returns_loader(
     form_data = {
         "job_description": "A job for POST",
         "target_section": "experience",
-        "generate_introduction": "true",
         "limit_refinement_years": "5",
     }
     headers = {"HX-Request": "true"}
@@ -326,6 +317,6 @@ def test_post_refine_stream_with_hx_request_returns_loader(
     assert 'id="refine-sse-loader"' in html
     assert 'hx-ext="sse"' in html
     assert (
-        f'sse-connect="/api/resumes/{test_resume.id}/refine/stream?job_description=A+job+for+POST&generate_introduction=true&limit_refinement_years=5"'
+        f'sse-connect="/api/resumes/{test_resume.id}/refine/stream?job_description=A+job+for+POST&limit_refinement_years=5"'
         in html
     )

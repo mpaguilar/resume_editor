@@ -87,7 +87,7 @@ def _get_section_content(resume_content: str, section_name: str) -> str:
 async def analyze_job_description(
     job_description: str,
     llm_config: LLMConfig,
-    resume_content_for_intro: str | None = None,
+    resume_content_for_intro: str,
 ) -> tuple[JobAnalysis, str | None]:
     """Uses an LLM to analyze a job description and optionally generate a resume introduction.
 
@@ -123,12 +123,7 @@ async def analyze_job_description(
     parser = PydanticOutputParser(pydantic_object=JobAnalysis)
 
     # Conditionally prepare prompt components for introduction generation
-    if resume_content_for_intro:
-        resume_content_block = (
-            f"Resume Content:\n---\n{resume_content_for_intro}\n---\n\n"
-        )
-    else:
-        resume_content_block = ""
+    resume_content_block = f"Resume Content:\n---\n{resume_content_for_intro}\n---\n\n"
 
     prompt = ChatPromptTemplate.from_messages(
         [
@@ -346,7 +341,6 @@ async def async_refine_experience_section(
     resume_content: str,
     job_description: str,
     llm_config: LLMConfig,
-    generate_introduction: bool,
     max_concurrency: int = 5,
 ) -> AsyncGenerator[dict[str, Any], None]:
     """Orchestrates the CONCURRENT refinement of the 'experience' section of a resume.
@@ -384,14 +378,10 @@ async def async_refine_experience_section(
     yield {"status": "in_progress", "message": "Analyzing job description..."}
     log.debug("Analyzing job description...")
 
-    resume_content_for_intro = None
-    if generate_introduction:
-        resume_content_for_intro = resume_content
-
     job_analysis, introduction = await analyze_job_description(
         job_description=job_description,
         llm_config=llm_config,
-        resume_content_for_intro=resume_content_for_intro,
+        resume_content_for_intro=resume_content,
     )
 
     if introduction:
@@ -444,7 +434,6 @@ def refine_resume_section_with_llm(
     job_description: str,
     target_section: str,
     llm_config: LLMConfig,
-    generate_introduction: bool,
 ) -> tuple[str, str | None]:
     """Uses an LLM to refine a specific non-experience section of a resume.
 
@@ -523,7 +512,7 @@ def refine_resume_section_with_llm(
             job_description=job_description,
             target_section=target_section,
             llm=llm,
-            generate_introduction=generate_introduction,
+            generate_introduction=True,
         )
 
         _msg = "refine_resume_section_with_llm returning"

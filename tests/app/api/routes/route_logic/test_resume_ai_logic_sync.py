@@ -37,7 +37,6 @@ async def test_handle_sync_refinement_success_with_key(
         resume=test_resume,
         job_description="job",
         target_section=RefineTargetSection.PERSONAL,
-        generate_introduction=True,
     )
     mock_get_llm_config.return_value = (
         "http://llm.test",
@@ -64,7 +63,6 @@ async def test_handle_sync_refinement_success_with_key(
         job_description=params.job_description,
         target_section=params.target_section.value,
         llm_config=expected_llm_config,
-        generate_introduction=params.generate_introduction,
     )
 
 
@@ -92,7 +90,6 @@ async def test_handle_sync_refinement_htmx_response(
         resume=test_resume,
         job_description="job",
         target_section=RefineTargetSection.PERSONAL,
-        generate_introduction=True,
     )
     mock_get_llm_config.return_value = ("http://llm.test", "test-model", "key")
     mock_refine_llm.return_value = ("refined content", "this is an intro")
@@ -135,7 +132,6 @@ async def test_handle_sync_refinement_decryption_failure_htmx(
         resume=test_resume,
         job_description="job",
         target_section=RefineTargetSection.PERSONAL,
-        generate_introduction=True,
     )
     mock_get_llm_config.side_effect = InvalidToken
 
@@ -164,7 +160,6 @@ async def test_handle_sync_refinement_decryption_failure_non_htmx(
         resume=test_resume,
         job_description="job",
         target_section=RefineTargetSection.PERSONAL,
-        generate_introduction=True,
     )
     mock_get_llm_config.side_effect = InvalidToken
 
@@ -196,7 +191,6 @@ async def test_handle_sync_refinement_auth_failure_htmx(
         resume=test_resume,
         job_description="job",
         target_section=RefineTargetSection.PERSONAL,
-        generate_introduction=True,
     )
     mock_get_llm_config.return_value = (None, None, None)
     mock_refine_llm.side_effect = AuthenticationError(
@@ -230,7 +224,6 @@ async def test_handle_sync_refinement_auth_failure_non_htmx(
         resume=test_resume,
         job_description="job",
         target_section=RefineTargetSection.PERSONAL,
-        generate_introduction=True,
     )
     mock_get_llm_config.return_value = (None, None, None)
     mock_refine_llm.side_effect = AuthenticationError(
@@ -265,7 +258,6 @@ async def test_handle_sync_refinement_value_error_htmx(
         resume=test_resume,
         job_description="job",
         target_section=RefineTargetSection.PERSONAL,
-        generate_introduction=True,
     )
     mock_get_llm_config.return_value = (None, None, None)
     error_message = "The AI service returned an unexpected response."
@@ -299,7 +291,6 @@ async def test_handle_sync_refinement_value_error_non_htmx(
         resume=test_resume,
         job_description="job",
         target_section=RefineTargetSection.PERSONAL,
-        generate_introduction=True,
     )
     mock_get_llm_config.return_value = (None, None, None)
     error_message = "The AI service returned an unexpected response."
@@ -333,7 +324,6 @@ async def test_handle_sync_refinement_generic_exception_htmx(
         resume=test_resume,
         job_description="job",
         target_section=RefineTargetSection.PERSONAL,
-        generate_introduction=True,
     )
     mock_get_llm_config.return_value = (None, None, None)
     mock_refine_llm.side_effect = Exception("LLM call failed")
@@ -368,7 +358,6 @@ async def test_handle_sync_refinement_generic_exception_non_htmx(
         resume=test_resume,
         job_description="job",
         target_section=RefineTargetSection.PERSONAL,
-        generate_introduction=True,
     )
     mock_get_llm_config.return_value = (None, None, None)
     mock_refine_llm.side_effect = Exception("LLM call failed")

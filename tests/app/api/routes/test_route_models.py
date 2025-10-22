@@ -1,8 +1,6 @@
 import pytest
 
 from resume_editor.app.api.routes.route_models import (
-    RefineAcceptRequest,
-    RefineAction,
     RefineForm,
     RefineRequest,
     RefineTargetSection,
@@ -15,56 +13,7 @@ from resume_editor.app.api.routes.route_models import (
 )
 
 
-def test_refine_accept_request_with_job_description():
-    """Test RefineAcceptRequest can be instantiated with job_description."""
-    data = {
-        "refined_content": "some content",
-        "target_section": RefineTargetSection.EXPERIENCE,
-        "action": RefineAction.SAVE_AS_NEW,
-        "new_resume_name": "New Resume",
-        "job_description": "A job description",
-    }
-    req = RefineAcceptRequest(**data)
-    assert req.job_description == "A job description"
-    assert req.new_resume_name == "New Resume"
 
-
-def test_refine_accept_request_without_job_description():
-    """Test RefineAcceptRequest can be instantiated without job_description."""
-    data = {
-        "refined_content": "some content",
-        "target_section": RefineTargetSection.PERSONAL,
-        "action": RefineAction.OVERWRITE,
-    }
-    req = RefineAcceptRequest(**data)
-    assert req.job_description is None
-    assert req.new_resume_name is None
-
-
-def test_refine_request_model_with_generate_introduction():
-    """Test RefineRequest model with generate_introduction field."""
-    # Test with default value (not provided)
-    data_default = {"job_description": "job", "target_section": "personal"}
-    req_default = RefineRequest(**data_default)
-    assert req_default.generate_introduction is True
-
-    # Test with explicit True
-    data_true = {
-        "job_description": "job",
-        "target_section": "personal",
-        "generate_introduction": True,
-    }
-    req_true = RefineRequest(**data_true)
-    assert req_true.generate_introduction is True
-
-    # Test with explicit False
-    data_false = {
-        "job_description": "job",
-        "target_section": "personal",
-        "generate_introduction": False,
-    }
-    req_false = RefineRequest(**data_false)
-    assert req_false.generate_introduction is False
 
 
 def test_render_format_enum():
@@ -155,24 +104,20 @@ def test_refine_form_instantiation():
     form_with_limit = RefineForm(
         job_description="A job.",
         target_section=RefineTargetSection.EXPERIENCE,
-        generate_introduction=True,
         limit_refinement_years=5,
     )
     assert form_with_limit.job_description == "A job."
     assert form_with_limit.target_section == RefineTargetSection.EXPERIENCE
-    assert form_with_limit.generate_introduction is True
     assert form_with_limit.limit_refinement_years == 5
 
     # Test without the optional field (it's passed as None by Depends default)
     form_without_limit = RefineForm(
         job_description="Another job.",
         target_section=RefineTargetSection.PERSONAL,
-        generate_introduction=False,
         limit_refinement_years=None,
     )
     assert form_without_limit.job_description == "Another job."
     assert form_without_limit.target_section == RefineTargetSection.PERSONAL
-    assert form_without_limit.generate_introduction is False
     assert form_without_limit.limit_refinement_years is None
 
 

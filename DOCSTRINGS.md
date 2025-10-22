@@ -3275,7 +3275,7 @@ Notes:
 Form data for refining a resume section.
 
 ---
-## method: `RefineForm.__init__(self: UnknownType, job_description: str, target_section: RefineTargetSection, generate_introduction: bool | None, limit_refinement_years: str | None) -> UnknownType`
+## method: `RefineForm.__init__(self: UnknownType, job_description: str, target_section: RefineTargetSection, limit_refinement_years: str | None) -> UnknownType`
 
 
 
@@ -6366,7 +6366,7 @@ Notes:
 
 ---
 
-## function: `refine_resume_section_with_llm(resume_content: str, job_description: str, target_section: str, llm_config: LLMConfig, generate_introduction: bool) -> tuple[str, str | None]`
+## function: `refine_resume_section_with_llm(resume_content: str, job_description: str, target_section: str, llm_config: LLMConfig) -> tuple[str, str | None]`
 
 Uses an LLM to refine a specific non-experience section of a resume.
 
@@ -6536,13 +6536,12 @@ Notes:
 ===
 # File: `resume_editor/app/api/routes/resume_ai.py`
 
-## function: `get_refine_stream_query(job_description: Annotated[str, Query(...)], generate_introduction: Annotated[bool, Query()], limit_refinement_years: Annotated[str | None, Query()]) -> RefineStreamQueryParams`
+## function: `get_refine_stream_query(job_description: Annotated[str, Query(...)], limit_refinement_years: Annotated[str | None, Query()]) -> RefineStreamQueryParams`
 
 Dependency to collect and validate refine/stream query parameters.
 
 Args:
     job_description (str): The job description to align the resume with.
-    generate_introduction (bool): Whether to generate an introduction.
     limit_refinement_years (str | None): Year limit for filtering experience, if provided.
 
 Returns:
@@ -7149,27 +7148,6 @@ Args:
 
 Returns:
     str: The full markdown content of the reconstructed resume.
-
----
-
-## function: `handle_accept_refinement(db: Session, resume: DatabaseResume, refined_content: str, target_section: RefineTargetSection, introduction: str | None) -> DatabaseResume`
-
-Orchestrates accepting a refined resume section.
-
-This involves reconstructing the resume, validating it, and updating the database.
-
-Args:
-    db (Session): The database session.
-    resume (DatabaseResume): The original resume to update.
-    refined_content (str): The refined content for the target section.
-    target_section (RefineTargetSection): The section that was refined.
-    introduction (str | None): An optional new introduction.
-
-Returns:
-    DatabaseResume: The updated resume object.
-
-Raises:
-    HTTPException: If reconstruction or validation fails.
 
 ---
 

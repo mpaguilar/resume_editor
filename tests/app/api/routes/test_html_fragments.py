@@ -384,8 +384,8 @@ def test_generate_resume_detail_html_for_base_resume(test_resume):
     assert soup.find("div", id="refine-form-container-1")
 
     # Check refine form for "Generate Introduction" checkbox
-    assert soup.find("label", attrs={"for": "generate_introduction"})
-    assert soup.find("input", attrs={"name": "generate_introduction", "type": "checkbox"})
+    assert not soup.find("label", attrs={"for": "generate_introduction"})
+    assert not soup.find("input", attrs={"name": "generate_introduction", "type": "checkbox"})
 
     # Check for export button and modal
     export_button = soup.find(
@@ -406,13 +406,13 @@ def test_generate_resume_detail_html_for_base_resume(test_resume):
 
     # Check export settings checkboxes (default values)
     include_projects_cb = export_modal.find("input", {"name": "include_projects"})
-    assert include_projects_cb and include_projects_cb.has_attr("checked")
+    assert "checked" in include_projects_cb.attrs
     render_first_cb = export_modal.find(
         "input", {"name": "render_projects_first"}
     )
-    assert render_first_cb and not render_first_cb.has_attr("checked")
+    assert "checked" not in render_first_cb.attrs
     include_education_cb = export_modal.find("input", {"name": "include_education"})
-    assert include_education_cb and include_education_cb.has_attr("checked")
+    assert "checked" in include_education_cb.attrs
 
     # Check that job description details are not present
     assert "Job Description Used for Refinement" not in html_output
@@ -616,10 +616,10 @@ def test_generate_resume_detail_html_export_settings_not_default(test_resume):
 
     # Check export settings checkboxes in the modal reflect the new values
     include_projects_cb = export_modal.find("input", {"name": "include_projects"})
-    assert not include_projects_cb.has_attr("checked")
+    assert "checked" not in include_projects_cb.attrs
 
     render_first_cb = export_modal.find("input", {"name": "render_projects_first"})
-    assert render_first_cb.has_attr("checked")
+    assert "checked" in render_first_cb.attrs
 
     include_education_cb = export_modal.find("input", {"name": "include_education"})
-    assert not include_education_cb.has_attr("checked")
+    assert "checked" not in include_education_cb.attrs

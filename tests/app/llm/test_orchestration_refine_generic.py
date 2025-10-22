@@ -178,7 +178,6 @@ def test_refine_resume_section_with_llm_dispatcher():
             job_description="job desc",
             target_section="personal",
             llm_config=LLMConfig(),
-            generate_introduction=True,
         )
         assert result_content == "refined content from helper"
         assert result_intro == "intro"
@@ -217,7 +216,6 @@ def test_refine_resume_section_with_llm_initialization(
                 api_key=api_key,
                 llm_model_name=llm_model_name,
             ),
-            generate_introduction=True,
         )
 
         # Assert ChatOpenAI was initialized correctly
@@ -246,7 +244,6 @@ def test_refine_resume_section_with_llm_experience_raises_error():
             job_description="job desc",
             target_section="experience",
             llm_config=LLMConfig(),
-            generate_introduction=True,
         )
 
 

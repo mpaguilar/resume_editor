@@ -355,12 +355,10 @@ class RefineForm:
         self,
         job_description: str = Form(...),
         target_section: RefineTargetSection = Form(...),
-        generate_introduction: bool | None = Form(False),
         limit_refinement_years: str | None = Form(None),
     ):
         self.job_description = job_description
         self.target_section = target_section
-        self.generate_introduction = bool(generate_introduction)
         try:
             self.limit_refinement_years = int(limit_refinement_years)
         except (ValueError, TypeError):
@@ -423,12 +421,10 @@ class RefineRequest(BaseModel):
     Attributes:
         job_description (str): The job description to align the resume with.
         target_section (RefineTargetSection): The section of the resume to refine.
-        generate_introduction (bool): Whether to generate an introduction. Defaults to True.
 
     Args:
         job_description (str): The full text of the job description to use as a reference for refinement.
         target_section (RefineTargetSection): The specific section of the resume to refine.
-        generate_introduction (bool): Whether to generate an introductory paragraph.
 
     Returns:
         RefineRequest: An instance of the model with the job description and target section.
@@ -441,7 +437,6 @@ class RefineRequest(BaseModel):
 
     job_description: str
     target_section: RefineTargetSection
-    generate_introduction: bool = True
 
 
 class RefineResponse(BaseModel):
@@ -466,55 +461,6 @@ class RefineResponse(BaseModel):
 
     refined_content: str
     introduction: str | None = None
-
-
-class RefineAction(str, Enum):
-    """Enum for actions after accepting LLM refinement.
-
-    Attributes:
-        OVERWRITE (str): Replace the original content with the refined version.
-        SAVE_AS_NEW (str): Save the refined content as a new resume.
-
-    """
-
-    OVERWRITE = "overwrite"
-    SAVE_AS_NEW = "save_as_new"
-
-
-class RefineAcceptRequest(BaseModel):
-    """Request model for accepting a refined resume section.
-
-    This model can be populated from form data.
-
-    Attributes:
-        refined_content (str): The markdown content of the refined section.
-        target_section (RefineTargetSection): The section that was refined.
-        action (RefineAction): The action to take (overwrite or save as new).
-        new_resume_name (str | None): The name for the new resume if action is 'save_as_new'.
-        job_description (str | None): The job description associated with the refinement.
-
-    Args:
-        refined_content (str): The Markdown content of the refined resume section.
-        target_section (RefineTargetSection): The section that was refined.
-        action (RefineAction): The action to perform after refinement.
-        new_resume_name (str | None): The name for the new resume if action is 'save_as_new'.
-        job_description (str | None): The job description associated with the refinement, used when saving as new.
-
-    Returns:
-        RefineAcceptRequest: An instance of the model with the refined content, target section, action, and optional new name.
-
-    Notes:
-        1. If action is OVERWRITE, the original resume is updated.
-        2. If action is SAVE_AS_NEW, a new resume is created with the refined content.
-        3. Database access is required to save or update the resume.
-
-    """
-
-    refined_content: str
-    target_section: RefineTargetSection
-    action: RefineAction
-    new_resume_name: str | None = None
-    job_description: str | None = None
 
 
 # Response models for structured data
@@ -755,7 +701,6 @@ class SyncRefinementParams(BaseModel):
     resume: Any  # Cannot be DatabaseResume, it's a Pydantic model
     job_description: str
     target_section: RefineTargetSection
-    generate_introduction: bool
     limit_refinement_years: int | None = None
 
 
@@ -781,5 +726,4 @@ class ExperienceRefinementParams(BaseModel):
     resume_content_to_refine: str
     original_resume_content: str
     job_description: str
-    generate_introduction: bool
     limit_refinement_years: int | None = None

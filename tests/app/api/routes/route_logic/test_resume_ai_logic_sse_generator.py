@@ -24,10 +24,6 @@ from resume_editor.app.models.resume.experience import (
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize(
-    "gen_intro, expected_intro, intro_event_present",
-    [(True, "Generated Intro", True), (False, None, False)],
-)
 @patch(
     "resume_editor.app.api.routes.route_logic.resume_ai_logic.process_refined_experience_result"
 )
@@ -39,13 +35,13 @@ async def test_experience_refinement_sse_generator_happy_path(
     mock_get_llm_config,
     mock_async_refine_experience,
     mock_process_result,
-    gen_intro,
-    expected_intro,
-    intro_event_present,
     test_user,
     test_resume,
 ):
     """Test successful SSE refinement via the SSE generator."""
+    expected_intro = "Generated Intro"
+    intro_event_present = True
+
     mock_get_llm_config.return_value = (
         "http://llm.test",
         "test-model",
@@ -73,8 +69,7 @@ async def test_experience_refinement_sse_generator_happy_path(
 
     async def mock_async_generator():
         yield {"status": "in_progress", "message": "doing stuff"}
-        if gen_intro:
-            yield {"status": "introduction_generated", "data": "Generated Intro"}
+        yield {"status": "introduction_generated", "data": "Generated Intro"}
         yield {
             "status": "role_refined",
             "data": refined_role2_data,
@@ -97,7 +92,6 @@ async def test_experience_refinement_sse_generator_happy_path(
         resume_content_to_refine=test_resume.content,
         original_resume_content=test_resume.content,
         job_description="a new job",
-        generate_introduction=gen_intro,
     )
     results = [
         item async for item in experience_refinement_sse_generator(params=params)
@@ -130,7 +124,6 @@ async def test_experience_refinement_sse_generator_happy_path(
         resume_content=test_resume.content,
         job_description="a new job",
         llm_config=expected_llm_config,
-        generate_introduction=gen_intro,
     )
     mock_process_result.assert_called_once()
     call_args = mock_process_result.call_args.args
@@ -172,7 +165,6 @@ async def test_experience_refinement_sse_generator_introduction_is_none(
         resume_content_to_refine=test_resume.content,
         original_resume_content=test_resume.content,
         job_description="job",
-        generate_introduction=True,
     )
     results = [
         item async for item in experience_refinement_sse_generator(params=params)
@@ -211,7 +203,6 @@ async def test_experience_refinement_sse_generator_orchestration_error(
         resume_content_to_refine=test_resume.content,
         original_resume_content=test_resume.content,
         job_description="job",
-        generate_introduction=True,
         limit_refinement_years=None,
     )
     results = [
@@ -257,7 +248,6 @@ async def test_experience_refinement_sse_generator_malformed_events(
         resume_content_to_refine=test_resume.content,
         original_resume_content=test_resume.content,
         job_description="a new job",
-        generate_introduction=True,
     )
     results = [
         item async for item in experience_refinement_sse_generator(params=params)
@@ -293,7 +283,6 @@ async def test_experience_refinement_sse_generator_empty_generator(
         resume_content_to_refine=test_resume.content,
         original_resume_content=test_resume.content,
         job_description="a job",
-        generate_introduction=True,
         limit_refinement_years=None,
     )
     results = [
@@ -324,7 +313,6 @@ async def test_experience_refinement_sse_generator_invalid_token(
         resume_content_to_refine=test_resume.content,
         original_resume_content=test_resume.content,
         job_description="job",
-        generate_introduction=True,
         limit_refinement_years=None,
     )
     results = [
@@ -363,7 +351,6 @@ async def test_experience_refinement_sse_generator_auth_error(
         resume_content_to_refine=test_resume.content,
         original_resume_content=test_resume.content,
         job_description="job",
-        generate_introduction=True,
         limit_refinement_years=None,
     )
     results = [
@@ -402,7 +389,6 @@ async def test_experience_refinement_sse_generator_generic_exception(
         resume_content_to_refine=test_resume.content,
         original_resume_content=test_resume.content,
         job_description="job",
-        generate_introduction=True,
         limit_refinement_years=None,
     )
     results = [
@@ -447,7 +433,6 @@ async def test_generator_breaks_on_timeout_if_task_done(
         resume_content_to_refine=test_resume.content,
         original_resume_content=test_resume.content,
         job_description="job",
-        generate_introduction=False,
     )
 
     with caplog.at_level(logging.DEBUG):
@@ -498,7 +483,6 @@ async def test_generator_cancels_task_on_client_disconnect(
         resume_content_to_refine=test_resume.content,
         original_resume_content=test_resume.content,
         job_description="job",
-        generate_introduction=False,
     )
 
     sse_generator = experience_refinement_sse_generator(params=params)
@@ -553,7 +537,6 @@ async def test_generator_continues_on_timeout_if_task_not_done(
         resume_content_to_refine=test_resume.content,
         original_resume_content=test_resume.content,
         job_description="job",
-        generate_introduction=False,
     )
 
     with caplog.at_level(logging.DEBUG):

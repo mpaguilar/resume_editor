@@ -86,7 +86,6 @@ def test_refine_resume_stream_post_without_limit(
 
     form_data = {
         "job_description": "a job",
-        "generate_introduction": "False",
         "target_section": "experience",
     }
 
@@ -106,7 +105,6 @@ def test_refine_resume_stream_post_without_limit(
     assert params_arg.resume == test_resume
     assert params_arg.resume_content_to_refine == test_resume.content
     assert params_arg.job_description == "a job"
-    assert params_arg.generate_introduction is False
 
 
 @pytest.mark.parametrize(
@@ -125,7 +123,6 @@ def test_refine_resume_stream_post_invalid_numeric_limit(
     """
     form_data = {
         "job_description": "a job",
-        "generate_introduction": "False",
         "target_section": "experience",
         "limit_refinement_years": limit_years_str,
     }
@@ -153,7 +150,6 @@ def test_refine_resume_stream_post_invalid_alpha_limit(
     limit_years_str = "abc"
     form_data = {
         "job_description": "a job",
-        "generate_introduction": "False",
         "target_section": "experience",
         "limit_refinement_years": limit_years_str,
     }
@@ -204,7 +200,6 @@ def test_refine_resume_stream_post_with_filtering(
 
     form_data = {
         "job_description": "a job",
-        "generate_introduction": "False",
         "target_section": "experience",
         "limit_refinement_years": "5",
     }
@@ -226,7 +221,6 @@ def test_refine_resume_stream_post_with_filtering(
     params_arg = call_kwargs["params"]
     assert params_arg.resume_content_to_refine == "filtered content"
     assert params_arg.job_description == "a job"
-    assert params_arg.generate_introduction is False
 
 
 @patch(
@@ -242,7 +236,6 @@ def test_refine_resume_stream_post_filtering_exception(
     """
     form_data = {
         "job_description": "a job",
-        "generate_introduction": "False",
         "target_section": "experience",
         "limit_refinement_years": "5",
     }

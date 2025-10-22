@@ -28,7 +28,6 @@ async def test_finalize_llm_refinement_intro_fallback_on_exception(
     message_queue = asyncio.Queue()
 
     params = Mock()
-    params.generate_introduction = True
     params.job_description = "a job"
     params.original_resume_content = "original content"
     params.limit_refinement_years = None
@@ -80,7 +79,6 @@ async def test_finalize_llm_refinement_intro_fallback_on_no_intro(
     message_queue = asyncio.Queue()
 
     params = Mock()
-    params.generate_introduction = True
     params.job_description = "a job"
     params.original_resume_content = "original content"
     params.limit_refinement_years = None

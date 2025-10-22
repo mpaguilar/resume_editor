@@ -2,8 +2,8 @@ import logging
 from datetime import datetime, timedelta, timezone
 from typing import Annotated, AsyncGenerator
 
-from fastapi import APIRouter, Depends, Form, HTTPException, Query, Request, Response
-from fastapi.responses import StreamingResponse
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
+from fastapi.responses import RedirectResponse, StreamingResponse
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
@@ -13,7 +13,6 @@ from resume_editor.app.api.routes.route_logic.resume_ai_logic import (
     create_sse_close_message,
     create_sse_error_message,
     experience_refinement_sse_generator,
-    handle_accept_refinement,
     handle_save_as_new_refinement,
     handle_sync_refinement,
 )
@@ -54,7 +53,6 @@ class RefineStreamQueryParams(BaseModel):
 
     Args:
         job_description (str): The job description to align the resume with.
-        generate_introduction (bool): Whether to generate an introduction. Defaults to True.
         limit_refinement_years (str | None): Optional year limit for experience filtering as a string.
 
     Notes:
@@ -64,20 +62,17 @@ class RefineStreamQueryParams(BaseModel):
     """
 
     job_description: str
-    generate_introduction: bool = True
     limit_refinement_years: str | None = None
 
 
 def get_refine_stream_query(
     job_description: Annotated[str, Query(...)],
-    generate_introduction: Annotated[bool, Query()] = True,
     limit_refinement_years: Annotated[str | None, Query()] = None,
 ) -> RefineStreamQueryParams:
     """Dependency to collect and validate refine/stream query parameters.
 
     Args:
         job_description (str): The job description to align the resume with.
-        generate_introduction (bool): Whether to generate an introduction.
         limit_refinement_years (str | None): Year limit for filtering experience, if provided.
 
     Returns:
@@ -93,7 +88,6 @@ def get_refine_stream_query(
 
     params = RefineStreamQueryParams(
         job_description=job_description,
-        generate_introduction=generate_introduction,
         limit_refinement_years=limit_refinement_years,
     )
 
@@ -282,7 +276,6 @@ async def refine_resume_stream_get(
             resume_content_to_refine=content_to_refine,
             original_resume_content=resume.content,
             job_description=query.job_description,
-            generate_introduction=query.generate_introduction,
             limit_refinement_years=query.limit_refinement_years,
         )
         generator = experience_refinement_sse_generator(params=params)
@@ -323,7 +316,6 @@ async def refine_resume_stream(
             {
                 "resume_id": resume.id,
                 "job_description": form_data.job_description,
-                "generate_introduction": form_data.generate_introduction,
                 "limit_refinement_years": form_data.limit_refinement_years,
             },
         )
@@ -360,7 +352,6 @@ async def refine_resume_stream(
             resume_content_to_refine=content_to_refine,
             original_resume_content=resume.content,
             job_description=form_data.job_description,
-            generate_introduction=form_data.generate_introduction,
             limit_refinement_years=form_data.limit_refinement_years,
         )
         generator = experience_refinement_sse_generator(params=params)
@@ -412,7 +403,6 @@ async def refine_resume(
             {
                 "resume_id": resume.id,
                 "job_description": form_data.job_description,
-                "generate_introduction": form_data.generate_introduction,
                 "limit_refinement_years": form_data.limit_refinement_years,
             },
         )
@@ -424,41 +414,9 @@ async def refine_resume(
         resume=resume,
         job_description=form_data.job_description,
         target_section=form_data.target_section,
-        generate_introduction=form_data.generate_introduction,
         limit_refinement_years=form_data.limit_refinement_years,
     )
     return await handle_sync_refinement(sync_params=params)
-
-
-@router.post("/{resume_id}/refine/accept", status_code=200)
-async def accept_refined_resume(
-    resume: Annotated[DatabaseResume, Depends(get_resume_for_user)],
-    db: Annotated[Session, Depends(get_db)],
-    refined_content: Annotated[str, Form(...)],
-    target_section: Annotated[RefineTargetSection, Form(...)],
-    introduction: Annotated[str | None, Form()] = None,
-) -> Response:
-    """Accept a refined resume section and persist the changes by overwriting.
-
-    Args:
-        resume (DatabaseResume): The original resume being modified.
-        db (Session): The database session.
-        refined_content (str): The refined markdown from the LLM.
-        target_section (RefineTargetSection): The section that was refined.
-        introduction (str | None): An optional new introduction.
-
-    Returns:
-        Response: A response with an `HX-Redirect` header to the new resume's view page.
-
-    """
-    handle_accept_refinement(
-        db=db,
-        resume=resume,
-        refined_content=refined_content,
-        target_section=target_section,
-        introduction=introduction,
-    )
-    return Response(headers={"HX-Redirect": "/dashboard"})
 
 
 @router.post("/{resume_id}/refine/save_as_new")
@@ -501,9 +459,10 @@ async def save_refined_resume_as_new(
 async def discard_refined_resume(
     resume: Annotated[DatabaseResume, Depends(get_resume_for_user)],
 ) -> Response:
-    """Discards a refinement and returns the original resume detail view.
+    """Discards a refinement and redirects to the resume editor.
 
-    This is used when a user rejects an AI suggestion, and it re-renders
-    the resume detail partial to clear the suggestion from the UI.
+    This is used when a user rejects an AI suggestion and is redirected
+    to the editor page for the original resume. A 303 See Other is used
+    to indicate that the client should make a GET request to the new URL.
     """
-    return Response(headers={"HX-Redirect": f"/resumes/{resume.id}/view"})
+    return RedirectResponse(url=f"/resumes/{resume.id}/edit", status_code=303)

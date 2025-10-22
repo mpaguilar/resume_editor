@@ -1,7 +1,7 @@
 
 <div id="refine-sse-loader"
      hx-ext="sse"
-     sse-connect="/api/resumes/{{ resume_id }}/refine/stream?job_description={{ (job_description | urlencode) | replace('%20', '+') }}&generate_introduction={{ 'true' if generate_introduction else 'false' }}{% if limit_refinement_years %}&limit_refinement_years={{ limit_refinement_years | urlencode }}{% endif %}"
+     sse-connect="/api/resumes/{{ resume_id }}/refine/stream?job_description={{ (job_description | urlencode) | replace('%20', '+') }}{% if limit_refinement_years is not none %}&limit_refinement_years={{ limit_refinement_years }}{% endif %}"
      sse-swap="done,error"
      sse-close="close"
      hx-swap="outerHTML"

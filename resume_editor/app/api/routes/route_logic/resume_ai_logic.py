@@ -16,13 +16,9 @@ from resume_editor.app.api.routes.html_fragments import (
 )
 from resume_editor.app.api.routes.route_logic.resume_crud import (
     ResumeCreateParams,
-    ResumeUpdateParams,
 )
 from resume_editor.app.api.routes.route_logic.resume_crud import (
     create_resume as create_resume_db,
-)
-from resume_editor.app.api.routes.route_logic.resume_crud import (
-    update_resume as update_resume_db,
 )
 from resume_editor.app.api.routes.route_logic.resume_reconstruction import (
     build_complete_resume_from_sections,
@@ -365,7 +361,6 @@ async def _process_llm_stream_events(
         resume_content=params.resume_content_to_refine,
         job_description=params.job_description,
         llm_config=llm_config,
-        generate_introduction=params.generate_introduction,
     ):
         sse_message, new_introduction = _process_sse_event(event, refined_roles)
         if sse_message:
@@ -385,29 +380,28 @@ async def _finalize_llm_refinement(
 ):
     """Finalize refinement, process results, and queue done/error messages."""
     if refined_roles:
-        # Always ensure an introduction is produced when requested.
-        if getattr(params, "generate_introduction", False):
-            needs_intro = introduction is None or (
-                isinstance(introduction, str) and not introduction.strip()
-            )
-            if needs_intro:
-                _msg = "No introduction captured from stream; generating introduction fallback."
-                log.debug(_msg)
-                try:
-                    _analysis, intro_text = await analyze_job_description(
-                        job_description=params.job_description,
-                        llm_config=llm_config,
-                        resume_content_for_intro=params.original_resume_content,
-                    )
-                    introduction = intro_text
-                except Exception as e:
-                    _msg = f"Failed to generate introduction fallback: {e!s}"
-                    log.exception(_msg)
-            # If still missing, provide a deterministic default introduction.
-            if introduction is None or (
-                isinstance(introduction, str) and not introduction.strip()
-            ):
-                introduction = "Professional summary tailored to the provided job description. Customize this section to emphasize your most relevant experience, accomplishments, and skills."
+        # Always ensure an introduction is produced.
+        needs_intro = introduction is None or (
+            isinstance(introduction, str) and not introduction.strip()
+        )
+        if needs_intro:
+            _msg = "No introduction captured from stream; generating introduction fallback."
+            log.debug(_msg)
+            try:
+                _analysis, intro_text = await analyze_job_description(
+                    job_description=params.job_description,
+                    llm_config=llm_config,
+                    resume_content_for_intro=params.original_resume_content,
+                )
+                introduction = intro_text
+            except Exception as e:
+                _msg = f"Failed to generate introduction fallback: {e!s}"
+                log.exception(_msg)
+        # If still missing, provide a deterministic default introduction.
+        if introduction is None or (
+            isinstance(introduction, str) and not introduction.strip()
+        ):
+            introduction = "Professional summary tailored to the provided job description. Customize this section to emphasize your most relevant experience, accomplishments, and skills."
 
         limit_years_int = (
             int(params.limit_refinement_years)
@@ -567,7 +561,6 @@ async def handle_sync_refinement(sync_params: SyncRefinementParams) -> Response:
             job_description=sync_params.job_description,
             target_section=sync_params.target_section.value,
             llm_config=llm_config,
-            generate_introduction=sync_params.generate_introduction,
         )
 
         if "HX-Request" in sync_params.request.headers:
@@ -651,62 +644,6 @@ async def experience_refinement_sse_generator(
             main_task.cancel()
         _msg = "SSE generator finished."
         log.debug(_msg)
-
-
-def handle_accept_refinement(
-    db: Session,
-    resume: DatabaseResume,
-    refined_content: str,
-    target_section: RefineTargetSection,
-    introduction: str | None,
-) -> DatabaseResume:
-    """Orchestrates accepting a refined resume section.
-
-    This involves reconstructing the resume, validating it, and updating the database.
-
-    Args:
-        db (Session): The database session.
-        resume (DatabaseResume): The original resume to update.
-        refined_content (str): The refined content for the target section.
-        target_section (RefineTargetSection): The section that was refined.
-        introduction (str | None): An optional new introduction.
-
-    Returns:
-        DatabaseResume: The updated resume object.
-
-    Raises:
-        HTTPException: If reconstruction or validation fails.
-
-    """
-    _msg = "handle_accept_refinement starting"
-    log.debug(_msg)
-
-    try:
-        updated_content = reconstruct_resume_from_refined_section(
-            original_resume_content=resume.content,
-            refined_content=refined_content,
-            target_section=target_section,
-        )
-        perform_pre_save_validation(updated_content)
-    except (ValueError, TypeError, HTTPException) as e:
-        detail = getattr(e, "detail", str(e))
-        _msg = f"Failed to reconstruct resume from refined section: {detail}"
-        log.exception(_msg)
-        raise HTTPException(status_code=422, detail=_msg)
-
-    update_params = ResumeUpdateParams(
-        content=updated_content,
-        introduction=introduction,
-    )
-    updated_resume = update_resume_db(
-        db=db,
-        resume=resume,
-        params=update_params,
-    )
-
-    _msg = "handle_accept_refinement returning"
-    log.debug(_msg)
-    return updated_resume
 
 
 def handle_save_as_new_refinement(params: SaveAsNewParams) -> DatabaseResume:

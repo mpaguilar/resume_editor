@@ -123,7 +123,6 @@ def test_refine_resume_delegates_for_non_experience_section(
     # Arrange
     job_desc = "A cool job"
     target_section = "personal"
-    gen_intro = "true"  # Form data will be a string
     
     mock_handle_sync.return_value = Response(status_code=204)
 
@@ -134,7 +133,6 @@ def test_refine_resume_delegates_for_non_experience_section(
         data={
             "job_description": job_desc,
             "target_section": target_section,
-            "generate_introduction": gen_intro,
             "limit_refinement_years": "5",
         },
     )
@@ -152,24 +150,17 @@ def test_refine_resume_delegates_for_non_experience_section(
     assert params_arg.resume == test_resume
     assert params_arg.job_description == job_desc
     assert params_arg.target_section == RefineTargetSection.PERSONAL
-    assert params_arg.generate_introduction is True
 
 
 @pytest.mark.parametrize(
     "limit_years, expected_limit_years",
     [(None, None), ("5", 5), ("", None)],
 )
-@pytest.mark.parametrize(
-    "gen_intro, expected_gen_intro",
-    [("true", True), (None, False)],  # None means the form field is absent
-)
 @patch("resume_editor.app.api.routes.resume_ai.templates.TemplateResponse")
 def test_refine_resume_post_for_experience_returns_sse_loader(
     mock_template_response,
     limit_years,
     expected_limit_years,
-    gen_intro,
-    expected_gen_intro,
     client_with_auth_and_resume,
 ):
     """Test that POST /refine for 'experience' returns the SSE loader partial."""
@@ -180,8 +171,6 @@ def test_refine_resume_post_for_experience_returns_sse_loader(
         "job_description": job_desc,
         "target_section": "experience",
     }
-    if gen_intro is not None:
-        form_data["generate_introduction"] = gen_intro
     if limit_years is not None:
         form_data["limit_refinement_years"] = limit_years
 
@@ -200,7 +189,6 @@ def test_refine_resume_post_for_experience_returns_sse_loader(
         {
             "resume_id": 1,
             "job_description": job_desc,
-            "generate_introduction": expected_gen_intro,
             "limit_refinement_years": expected_limit_years,
         },
     )
