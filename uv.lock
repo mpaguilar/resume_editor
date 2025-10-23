@@ -2411,7 +2411,7 @@ requires-dist = [
     { name = "python-dotenv", specifier = ">=1.1.1" },
     { name = "python-jose", extras = ["cryptography"], specifier = ">=3.5.0" },
     { name = "python-multipart", specifier = ">=0.0.20" },
-    { name = "resume-writer", git = "https://github.com/mpaguilar/resume_writer.git?rev=e1b780c" },
+    { name = "resume-writer", git = "https://github.com/mpaguilar/resume_writer.git?rev=6fbbdf8" },
     { name = "sqlalchemy", specifier = ">=2.0.42" },
     { name = "starlette", specifier = ">=0.47.2" },
     { name = "typing-extensions", specifier = ">=4.14.1" },
@@ -2433,7 +2433,7 @@ dev = [
 [[package]]
 name = "resume-writer"
 version = "0.1.4"
-source = { git = "https://github.com/mpaguilar/resume_writer.git?rev=e1b780c#e1b780c970b03e0de78a6d3abd92d39e98036d3e" }
+source = { git = "https://github.com/mpaguilar/resume_writer.git?rev=6fbbdf8#6fbbdf81660bce7499bd7af85328edec6f4f4eb8" }
 dependencies = [
     { name = "aider-chat" },
     { name = "click" },
