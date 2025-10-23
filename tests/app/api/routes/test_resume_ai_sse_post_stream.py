@@ -71,9 +71,14 @@ def client_with_auth_and_resume(app, client, test_user, test_resume):
     return client
 
 
+@patch("resume_editor.app.api.routes.resume_ai.extract_experience_info")
 @patch("resume_editor.app.api.routes.resume_ai.experience_refinement_sse_generator")
 def test_refine_resume_stream_post_without_limit(
-    mock_sse_generator, client_with_auth_and_resume, test_user, test_resume
+    mock_sse_generator,
+    mock_extract_exp,
+    client_with_auth_and_resume,
+    test_user,
+    test_resume,
 ):
     """
     Test that the POST /refine/stream route (no limit) streams content and passes original content.
@@ -83,6 +88,7 @@ def test_refine_resume_stream_post_without_limit(
         yield "event: two\ndata: 2\n\n"
 
     mock_sse_generator.return_value = mock_generator()
+    mock_extract_exp.return_value = Mock(roles=[Mock()])
 
     form_data = {
         "job_description": "a job",
@@ -144,8 +150,11 @@ def test_refine_resume_stream_post_invalid_alpha_limit(
     mock_sse_generator, client_with_auth_and_resume
 ):
     """
-    Test that POST stream route with an invalid non-numeric limit (e.g. 'abc')
-    skips validation and returns an empty stream due to a form parsing quirk.
+    Test POST stream with non-numeric limit is treated as no limit.
+
+    Due to a form parsing quirk, a non-numeric value for `limit_refinement_years`
+    is treated as None. The stream then proceeds without filtering, and in this
+    test case, fails because no roles are available.
     """
     limit_years_str = "abc"
     form_data = {
@@ -154,21 +163,16 @@ def test_refine_resume_stream_post_invalid_alpha_limit(
         "limit_refinement_years": limit_years_str,
     }
 
-    async def mock_generator():
-        if False:
-            yield
-
-    mock_sse_generator.return_value = mock_generator()
-
     with client_with_auth_and_resume.stream(
         "POST", "/api/resumes/1/refine/stream", data=form_data
     ) as response:
         assert response.status_code == 200
         content = response.read().decode("utf-8")
-        assert content == ""
+        assert "event: error" in content
+        assert "No roles available to refine" in content
+        assert "event: close" in content
 
-    # The generator is still called because validation is skipped.
-    mock_sse_generator.assert_called_once()
+    mock_sse_generator.assert_not_called()
 
 
 @patch("resume_editor.app.api.routes.resume_ai.build_complete_resume_from_sections")
@@ -212,7 +216,7 @@ def test_refine_resume_stream_post_with_filtering(
 
     mock_extract_personal.assert_called_once_with(test_resume.content)
     mock_extract_edu.assert_called_once_with(test_resume.content)
-    mock_extract_exp.assert_called_once_with(test_resume.content)
+    assert mock_extract_exp.call_count == 2
     mock_extract_certs.assert_called_once_with(test_resume.content)
     mock_filter_exp.assert_called_once()
     mock_build_resume.assert_called_once()

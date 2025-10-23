@@ -19,7 +19,7 @@ from resume_editor.app.models.resume.experience import (
     RoleBasics,
     RoleSummary,
 )
-from resume_editor.app.models.resume_model import Resume as DatabaseResume, ResumeData
+from resume_editor.app.models.resume_model import Resume as DatabaseResume
 
 
 @pytest.fixture
@@ -30,173 +30,217 @@ def mock_resume() -> DatabaseResume:
     return resume
 
 
-@pytest.fixture
-def mock_experience_info() -> ExperienceResponse:
-    """Provides a mock ExperienceResponse object with roles and projects."""
-    return ExperienceResponse(
-        roles=[
-            Role(
-                basics=RoleBasics(
-                    company="Old Company 1",
-                    title="Old Role 1",
-                    start_date=date(2018, 1, 1),
-                )
-            ),
-            Role(
-                basics=RoleBasics(
-                    company="Old Company 2",
-                    title="Old Role 2",
-                    start_date=date(2022, 1, 1),
-                )
-            ),
-        ],
-        projects=[
-            Project(
-                overview=ProjectOverview(
-                    title="Old Project 1", start_date=date(2018, 1, 1)
-                )
-            ),
-            Project(
-                overview=ProjectOverview(
-                    title="Old Project 2", start_date=date(2022, 1, 1)
-                )
-            ),
-        ],
-    )
-
-
 @patch(
     "resume_editor.app.api.routes.route_logic.resume_ai_logic._create_refine_result_html"
 )
 @patch(
-    "resume_editor.app.api.routes.route_logic.resume_ai_logic.reconstruct_resume_from_refined_section"
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic.build_complete_resume_from_sections"
 )
 @patch(
-    "resume_editor.app.api.routes.route_logic.resume_ai_logic.serialize_experience_to_markdown"
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic.extract_certifications_info"
+)
+@patch(
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic.extract_education_info"
 )
 @patch(
     "resume_editor.app.api.routes.route_logic.resume_ai_logic.extract_experience_info"
 )
+@patch(
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic.extract_personal_info"
+)
 def test_process_refined_experience_result(
-    mock_extract,
-    mock_serialize,
-    mock_reconstruct,
+    mock_extract_personal,
+    mock_extract_experience,
+    mock_extract_education,
+    mock_extract_certifications,
+    mock_build_complete,
     mock_create_html,
     mock_resume,
-    mock_experience_info,
 ):
     """
-    Test that roles are correctly updated.
+    Test that process_refined_experience_result correctly reconstructs a full
+    resume with refined roles and original projects.
     """
     # Arrange
-    test_content = "some resume content"
-    mock_extract.return_value = mock_experience_info
-    refined_roles = {
-        1: Role(
-            basics=RoleBasics(
-                company="Refined Company 2",
-                title="Refined Role 2",
-                start_date=date(2022, 1, 1),
-            )
-        ).model_dump()
-    }
-    mock_serialize.return_value = "serialized_markdown"
-    mock_reconstruct.return_value = "reconstructed content"
+    original_content = "original resume content"
+    content_to_refine = "filtered resume content"
+
+    # Mocks for extractors
+    mock_personal = MagicMock()
+    mock_education = MagicMock()
+    mock_certifications = MagicMock()
+    mock_extract_personal.return_value = mock_personal
+    mock_extract_education.return_value = mock_education
+    mock_extract_certifications.return_value = mock_certifications
+
+    original_project = Project(overview=ProjectOverview(title="Original Project"))
+    original_experience = ExperienceResponse(
+        roles=[
+            Role(
+                basics=RoleBasics(
+                    company="Company A", title="Dev", start_date=date(2020, 1, 1)
+                )
+            ),
+            Role(
+                basics=RoleBasics(
+                    company="Company B", title="Sr. Dev", start_date=date(2022, 1, 1)
+                )
+            ),
+        ],
+        projects=[original_project],
+    )
+
+    # This is the filtered experience that was sent for refinement
+    refinement_base_experience = ExperienceResponse(
+        roles=[
+            Role(
+                basics=RoleBasics(
+                    company="Company B", title="Sr. Dev", start_date=date(2022, 1, 1)
+                )
+            ),
+        ],
+        projects=[],  # Projects might be filtered out
+    )
+
+    mock_extract_experience.side_effect = [
+        original_experience,  # First call on original_resume_content
+        refinement_base_experience,  # Second call on resume_content_to_refine
+    ]
+
+    refined_role_data = Role(
+        basics=RoleBasics(
+            company="Company B Refined",
+            title="Sr. Dev Refined",
+            start_date=date(2022, 1, 1),
+        )
+    ).model_dump()
+    refined_roles = {0: refined_role_data}  # Index 0 of the filtered list
+
+    mock_build_complete.return_value = "fully reconstructed resume"
+    mock_create_html.return_value = "final html"
 
     # Act
     params = ProcessExperienceResultParams(
         resume_id=mock_resume.id,
-        original_resume_content="original content",
-        resume_content_to_refine=test_content,
+        original_resume_content=original_content,
+        resume_content_to_refine=content_to_refine,
         refined_roles=refined_roles,
         job_description="job desc",
         introduction="intro",
         limit_refinement_years=5,
     )
-    process_refined_experience_result(params)
+    result = process_refined_experience_result(params)
 
     # Assert
-    mock_extract.assert_called_once_with(test_content)
+    assert result == "final html"
 
-    mock_serialize.assert_called_once()
-    experience_arg: ExperienceResponse = mock_serialize.call_args.args[0]
+    # Check extractors were called correctly
+    mock_extract_personal.assert_called_once_with(original_content)
+    mock_extract_education.assert_called_once_with(original_content)
+    mock_extract_certifications.assert_called_once_with(original_content)
+    assert mock_extract_experience.call_count == 2
+    mock_extract_experience.assert_any_call(original_content)
+    mock_extract_experience.assert_any_call(content_to_refine)
 
-    assert len(experience_arg.roles) == 2
-    assert experience_arg.roles[0].basics.company == "Old Company 1"
-    assert experience_arg.roles[1].basics.company == "Refined Company 2"
-    assert len(experience_arg.projects) == 2  # Projects are preserved
-    assert experience_arg.projects[0].overview.title == "Old Project 1"
+    # Check that `build_complete_resume_from_sections` was called with correct data
+    mock_build_complete.assert_called_once()
+    build_args = mock_build_complete.call_args.kwargs
+    assert build_args["personal_info"] == mock_personal
+    assert build_args["education"] == mock_education
+    assert build_args["certifications"] == mock_certifications
 
-    mock_reconstruct.assert_called_once_with(
-        original_resume_content="original content",
-        refined_content="serialized_markdown",
-        target_section=RefineTargetSection.EXPERIENCE,
-    )
+    # Check experience object passed to builder
+    experience_arg = build_args["experience"]
+    assert isinstance(experience_arg, ExperienceResponse)
+    assert len(experience_arg.roles) == 1
+    assert (
+        experience_arg.roles[0].basics.company == "Company B Refined"
+    )  # The refined role
+    assert len(experience_arg.projects) == 1
+    assert (
+        experience_arg.projects[0].overview.title == "Original Project"
+    )  # The original project
 
+    # Check that the final HTML generator was called correctly
     mock_create_html.assert_called_once()
-    call_args = mock_create_html.call_args.kwargs
-    assert "params" in call_args
-    call_params = call_args["params"]
-    assert isinstance(call_params, RefineResultParams)
-    assert call_params.resume_id == mock_resume.id
-    assert call_params.target_section_val == RefineTargetSection.EXPERIENCE.value
-    assert call_params.refined_content == "reconstructed content"
-    assert call_params.job_description == "job desc"
-    assert call_params.introduction == "intro"
-    assert call_params.limit_refinement_years == 5
+    html_params = mock_create_html.call_args.kwargs["params"]
+    assert isinstance(html_params, RefineResultParams)
+    assert html_params.refined_content == "fully reconstructed resume"
+    assert html_params.introduction == "intro"
+    assert html_params.limit_refinement_years == 5
+    assert html_params.resume_id == mock_resume.id
 
 
 @patch(
     "resume_editor.app.api.routes.route_logic.resume_ai_logic._create_refine_result_html"
 )
 @patch(
-    "resume_editor.app.api.routes.route_logic.resume_ai_logic.reconstruct_resume_from_refined_section"
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic.build_complete_resume_from_sections"
 )
 @patch(
-    "resume_editor.app.api.routes.route_logic.resume_ai_logic.serialize_experience_to_markdown"
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic.extract_certifications_info"
+)
+@patch(
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic.extract_education_info"
 )
 @patch(
     "resume_editor.app.api.routes.route_logic.resume_ai_logic.extract_experience_info"
 )
+@patch(
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic.extract_personal_info"
+)
 def test_process_refined_experience_result_out_of_bounds_index(
+    mock_extract_personal,
     mock_extract_experience,
-    mock_serialize_experience,
-    mock_reconstruct,
+    mock_extract_education,
+    mock_extract_certifications,
+    mock_build_complete,
     mock_create_html,
+    mock_resume,
 ):
     """Test process_refined_experience_result ignores out-of-bounds indices."""
     # Arrange
-    resume_data = ResumeData(user_id=1, name="Test", content="Original content")
-    resume = DatabaseResume(data=resume_data)
-    resume.id = 1
+    original_content = "original resume content"
+    content_to_refine = "filtered resume content"
 
-    original_role = Role(
-        basics=RoleBasics(
-            company="Original Co", title="Original Role", start_date=date(2022, 1, 1)
-        )
+    # Mock extractors
+    mock_extract_personal.return_value = MagicMock()
+    mock_extract_education.return_value = MagicMock()
+    mock_extract_certifications.return_value = MagicMock()
+
+    original_experience = ExperienceResponse(roles=[], projects=[])
+    # The filtered content has one role, which is the one we expect to see
+    refinement_base_experience = ExperienceResponse(
+        roles=[
+            Role(
+                basics=RoleBasics(
+                    company="Original Co", title="Original Role", start_date=date(2022, 1, 1)
+                )
+            )
+        ],
+        projects=[],
     )
+    mock_extract_experience.side_effect = [
+        original_experience,
+        refinement_base_experience,
+    ]
+
+    # Use an out-of-bounds index (e.g., 1, when there is only one role in filtered list)
     refined_role_llm = Role(
         basics=RoleBasics(
             company="Refined Co", title="Refined Role", start_date=date(2023, 1, 1)
         ),
         summary=RoleSummary(text="Refined Summary"),
     )
-    # Use an out-of-bounds index (e.g., 1, when there is only one role)
     refined_roles_from_llm = {1: refined_role_llm.model_dump(mode="json")}
-
-    original_experience = ExperienceResponse(roles=[original_role], projects=[])
-
-    mock_extract_experience.return_value = original_experience
-    mock_serialize_experience.return_value = "markdown content"
+    mock_build_complete.return_value = "reconstructed content"
     mock_create_html.return_value = "final html"
-
-    mock_reconstruct.return_value = "reconstructed content"
 
     # Act
     params = ProcessExperienceResultParams(
-        resume_id=resume.id,
-        original_resume_content=resume.content,
-        resume_content_to_refine=resume.content,
+        resume_id=mock_resume.id,
+        original_resume_content=original_content,
+        resume_content_to_refine=content_to_refine,
         refined_roles=refined_roles_from_llm,
         job_description="A job",
         introduction="An intro",
@@ -206,28 +250,18 @@ def test_process_refined_experience_result_out_of_bounds_index(
 
     # Assert
     assert result == "final html"
+    mock_build_complete.assert_called_once()
+    build_args = mock_build_complete.call_args.kwargs
+    experience_arg = build_args["experience"]
 
-    mock_extract_experience.assert_called_once_with(resume.content)
-    mock_serialize_experience.assert_called_once()
-    experience_arg: ExperienceResponse = mock_serialize_experience.call_args.args[0]
-
-    assert len(experience_arg.roles) == 1
     # The out-of-bounds index should be ignored, so the role is not updated.
+    assert len(experience_arg.roles) == 1
     assert experience_arg.roles[0].basics.company == "Original Co"
 
-    mock_reconstruct.assert_called_once_with(
-        original_resume_content=resume.content,
-        refined_content="markdown content",
-        target_section=RefineTargetSection.EXPERIENCE,
-    )
+    # Check call to HTML generator
     mock_create_html.assert_called_once()
-    call_args = mock_create_html.call_args.kwargs
-    assert "params" in call_args
-    call_params = call_args["params"]
-    assert isinstance(call_params, RefineResultParams)
-    assert call_params.resume_id == resume.id
-    assert call_params.target_section_val == RefineTargetSection.EXPERIENCE.value
-    assert call_params.refined_content == "reconstructed content"
-    assert call_params.job_description == "A job"
-    assert call_params.introduction == "An intro"
-    assert call_params.limit_refinement_years is None
+    html_params = mock_create_html.call_args.kwargs["params"]
+    assert isinstance(html_params, RefineResultParams)
+    assert html_params.refined_content == "reconstructed content"
+    assert html_params.introduction == "An intro"
+    assert html_params.resume_id == mock_resume.id

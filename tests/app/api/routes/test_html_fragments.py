@@ -274,7 +274,7 @@ def test_create_refine_result_html_template():
         target_section_val="experience",
         refined_content="some <refined> content",
         job_description="A great job",
-        introduction=None,
+        introduction="",
         limit_refinement_years=5,
     )
 
@@ -481,15 +481,14 @@ def test_generate_resume_detail_html_for_refined_resume(test_refined_resume):
     assert notes_textarea["hx-post"] == f"/api/resumes/{test_refined_resume.id}/notes"
 
 
-@pytest.mark.parametrize("intro", [None, ""])
-def test_create_refine_result_html_output_no_introduction(intro):
-    """Test that the rendered HTML from _create_refine_result_html is correct when no introduction is provided."""
+def test_create_refine_result_html_output_no_introduction():
+    """Test that the rendered HTML from _create_refine_result_html is correct when an empty introduction is provided."""
     params = RefineResultParams(
         resume_id=42,
         target_section_val="experience",
         refined_content="This is *refined* markdown.",
         job_description="A job description",
-        introduction=intro,
+        introduction="",
         limit_refinement_years=None,
     )
 

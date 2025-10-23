@@ -1,6 +1,6 @@
 [project]
 name = "resume-editor"
-version = "0.69.2"
+version = "0.70.2"
 description = "Edits and refines resumes"
 readme = "README.md"
 requires-python = ">=3.12"
@@ -46,7 +46,7 @@ addopts = "-rx"
 log_cli_level = "DEBUG"
 
 [tool.uv.sources]
-resume-writer = { git = "https://github.com/mpaguilar/resume_writer.git", rev = "44084d1" }
+resume-writer = { git = "https://github.com/mpaguilar/resume_writer.git", rev = "e1b780c" }
 
 [tool.ruff]
 exclude = ["temporal-samples-python"]

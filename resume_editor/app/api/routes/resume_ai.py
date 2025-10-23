@@ -236,6 +236,73 @@ def _build_filtered_content_if_needed(
     return result
 
 
+async def _experience_refinement_stream(
+    resume: DatabaseResume,
+    parsed_limit_years: int | None,
+    db: Session,
+    current_user: User,
+    job_description: str,
+    limit_refinement_years: str | None,
+) -> AsyncGenerator[str, None]:
+    """Core SSE generator for experience refinement, handling filtering and error reporting.
+
+    Args:
+        resume (DatabaseResume): The full resume object.
+        parsed_limit_years (int | None): Validated positive integer for year limiting, or None.
+        db (Session): The database session.
+        current_user (User): The authenticated user.
+        job_description (str): The job description for refinement.
+        limit_refinement_years (str | None): Original string for year limit for metadata.
+
+    Yields:
+        str: Server-Sent Events for progress, data, or errors.
+
+    Notes:
+        1. Calls `_build_filtered_content_if_needed` to get content to refine.
+        2. Handles exceptions during filtering and sends an SSE error.
+        3. Validates that roles exist to refine after filtering, sending an SSE warning if not.
+        4. Invokes `experience_refinement_sse_generator` with prepared parameters.
+
+    """
+    _msg = "Starting SSE stream for experience refinement"
+    log.debug(_msg)
+    try:
+        content_to_refine = _build_filtered_content_if_needed(
+            resume_content=resume.content,
+            limit_years=parsed_limit_years,
+        )
+    except Exception as e:
+        _msg = f"Error during experience filtering: {e!s}"
+        log.exception(_msg)
+        yield create_sse_error_message(
+            "An error occurred while filtering experience.",
+        )
+        yield create_sse_close_message()
+        return
+
+    experience = extract_experience_info(content_to_refine)
+    if not experience.roles:
+        yield create_sse_error_message(
+            "No roles available to refine within the specified date range.",
+            is_warning=True,
+        )
+        yield create_sse_close_message()
+        return
+
+    params = ExperienceRefinementParams(
+        db=db,
+        user=current_user,
+        resume=resume,
+        resume_content_to_refine=content_to_refine,
+        original_resume_content=resume.content,
+        job_description=job_description,
+        limit_refinement_years=limit_refinement_years,
+    )
+    generator = experience_refinement_sse_generator(params=params)
+    async for item in generator:
+        yield item
+
+
 @router.get("/{resume_id}/refine/stream", response_class=StreamingResponse)
 async def refine_resume_stream_get(
     db: Annotated[Session, Depends(get_db)],
@@ -252,38 +319,15 @@ async def refine_resume_stream_get(
     if early_error_response is not None:
         return early_error_response
 
-    async def sse_generator_wrapper() -> AsyncGenerator[str, None]:
-        _msg = "Starting SSE wrapper for experience refinement (GET)"
-        log.debug(_msg)
-        try:
-            content_to_refine = _build_filtered_content_if_needed(
-                resume_content=resume.content,
-                limit_years=parsed_limit_years,
-            )
-        except Exception as e:
-            _msg = f"Error during experience filtering: {e!s}"
-            log.exception(_msg)
-            yield create_sse_error_message(
-                "An error occurred while filtering experience.",
-            )
-            yield create_sse_close_message()
-            return
-
-        params = ExperienceRefinementParams(
-            db=db,
-            user=current_user,
+    return StreamingResponse(
+        _experience_refinement_stream(
             resume=resume,
-            resume_content_to_refine=content_to_refine,
-            original_resume_content=resume.content,
+            parsed_limit_years=parsed_limit_years,
+            db=db,
+            current_user=current_user,
             job_description=query.job_description,
             limit_refinement_years=query.limit_refinement_years,
-        )
-        generator = experience_refinement_sse_generator(params=params)
-        async for item in generator:
-            yield item
-
-    return StreamingResponse(
-        sse_generator_wrapper(),
+        ),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",
@@ -327,39 +371,15 @@ async def refine_resume_stream(
     if early_error_response is not None:
         return early_error_response
 
-    async def sse_generator_wrapper() -> AsyncGenerator[str, None]:
-        _msg = "Starting SSE wrapper for experience refinement"
-        log.debug(_msg)
-
-        try:
-            content_to_refine = _build_filtered_content_if_needed(
-                resume_content=resume.content,
-                limit_years=parsed_limit_years,
-            )
-        except Exception as e:
-            _msg = f"Error during experience filtering: {e!s}"
-            log.exception(_msg)
-            yield create_sse_error_message(
-                "An error occurred while filtering experience.",
-            )
-            yield create_sse_close_message()
-            return
-
-        params = ExperienceRefinementParams(
-            db=db,
-            user=current_user,
+    return StreamingResponse(
+        _experience_refinement_stream(
             resume=resume,
-            resume_content_to_refine=content_to_refine,
-            original_resume_content=resume.content,
+            parsed_limit_years=parsed_limit_years,
+            db=db,
+            current_user=current_user,
             job_description=form_data.job_description,
             limit_refinement_years=form_data.limit_refinement_years,
-        )
-        generator = experience_refinement_sse_generator(params=params)
-        async for item in generator:
-            yield item
-
-    return StreamingResponse(
-        sse_generator_wrapper(),
+        ),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",

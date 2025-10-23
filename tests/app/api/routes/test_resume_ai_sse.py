@@ -73,11 +73,16 @@ def client_with_auth_and_resume(app, client, test_user, test_resume):
 
 
 @pytest.mark.asyncio
+@patch("resume_editor.app.api.routes.resume_ai.extract_experience_info")
 @patch(
     "resume_editor.app.api.routes.resume_ai.experience_refinement_sse_generator",
 )
 async def test_refine_resume_stream_route(
-    mock_sse_generator, client_with_auth_and_resume, test_user, test_resume
+    mock_sse_generator,
+    mock_extract_exp,
+    client_with_auth_and_resume,
+    test_user,
+    test_resume,
 ):
     """
     Test that the GET /refine/stream route correctly calls the SSE generator
@@ -89,6 +94,7 @@ async def test_refine_resume_stream_route(
         yield "event: two\ndata: 2\n\n"
 
     mock_sse_generator.return_value = mock_generator()
+    mock_extract_exp.return_value = Mock(roles=[Mock()])  # Ensure roles are present
     job_desc = "a job"
     form_data = {
         "job_description": job_desc,
@@ -116,6 +122,7 @@ async def test_refine_resume_stream_route(
     assert params_arg.resume == test_resume
     assert params_arg.resume_content_to_refine == test_resume.content
     assert params_arg.job_description == job_desc
+    mock_extract_exp.assert_called_once_with(test_resume.content)
 
 
 @pytest.mark.asyncio
@@ -206,7 +213,9 @@ async def test_refine_resume_stream_with_filtering(
 
     mock_extract_personal.assert_called_once_with(test_resume.content)
     mock_extract_edu.assert_called_once_with(test_resume.content)
-    mock_extract_exp.assert_called_once_with(test_resume.content)
+    # extract_experience_info is called in _build_filtered_content_if_needed,
+    # and again in _experience_refinement_stream
+    assert mock_extract_exp.call_count == 2
     mock_extract_certs.assert_called_once_with(test_resume.content)
     mock_filter_exp.assert_called_once()
     mock_build_resume.assert_called_once()
@@ -256,6 +265,109 @@ async def test_refine_resume_stream_with_filtering_exception(
         assert "event: close" in content
 
     mock_extract_personal.assert_called_once()
+    mock_sse_generator.assert_not_called()
+
+
+@pytest.mark.asyncio
+@patch("resume_editor.app.api.routes.resume_ai.build_complete_resume_from_sections")
+@patch("resume_editor.app.api.routes.resume_ai.filter_experience_by_date")
+@patch("resume_editor.app.api.routes.resume_ai.extract_certifications_info")
+@patch("resume_editor.app.api.routes.resume_ai.extract_experience_info")
+@patch("resume_editor.app.api.routes.resume_ai.extract_education_info")
+@patch("resume_editor.app.api.routes.resume_ai.extract_personal_info")
+@patch(
+    "resume_editor.app.api.routes.resume_ai.experience_refinement_sse_generator",
+)
+async def test_refine_resume_stream_get_no_roles_after_filtering(
+    mock_sse_generator,
+    mock_extract_personal,
+    mock_extract_edu,
+    mock_extract_exp,
+    mock_extract_certs,
+    mock_filter_exp,
+    mock_build_resume,
+    client_with_auth_and_resume,
+):
+    """
+    Test that the GET SSE stream sends a warning and closes if no roles are left after filtering.
+    """
+    # Arrange
+    # This mock now applies to both calls to extract_experience_info
+    mock_extract_exp.side_effect = [
+        Mock(roles=[Mock()]),  # First call in _build_filtered_content_if_needed
+        Mock(roles=[]),  # Second call in _experience_refinement_stream
+    ]
+    mock_build_resume.return_value = "filtered content with no roles"
+
+    params = {
+        "job_description": "a job",
+        "limit_refinement_years": "5",
+    }
+
+    # Act
+    with client_with_auth_and_resume.stream(
+        "GET", "/api/resumes/1/refine/stream", params=params
+    ) as response:
+        # Assert
+        assert response.status_code == 200
+        content = response.read().decode("utf-8")
+        assert "event: error" in content
+        assert "No roles available to refine within the specified date range." in content
+        assert "event: close" in content
+
+    assert mock_extract_exp.call_count == 2
+    mock_sse_generator.assert_not_called()
+
+
+@pytest.mark.asyncio
+@patch("resume_editor.app.api.routes.resume_ai.build_complete_resume_from_sections")
+@patch("resume_editor.app.api.routes.resume_ai.filter_experience_by_date")
+@patch("resume_editor.app.api.routes.resume_ai.extract_certifications_info")
+@patch("resume_editor.app.api.routes.resume_ai.extract_experience_info")
+@patch("resume_editor.app.api.routes.resume_ai.extract_education_info")
+@patch("resume_editor.app.api.routes.resume_ai.extract_personal_info")
+@patch(
+    "resume_editor.app.api.routes.resume_ai.experience_refinement_sse_generator",
+)
+async def test_refine_resume_stream_post_no_roles_after_filtering(
+    mock_sse_generator,
+    mock_extract_personal,
+    mock_extract_edu,
+    mock_extract_exp,
+    mock_extract_certs,
+    mock_filter_exp,
+    mock_build_resume,
+    client_with_auth_and_resume,
+):
+    """
+    Test that the POST SSE stream sends a warning and closes if no roles are left after filtering.
+    """
+    # Arrange
+    # First call inside _build_filtered_content_if_needed, second call in wrapper
+    mock_extract_exp.side_effect = [
+        Mock(roles=[Mock()]),  # has roles initially
+        Mock(roles=[]),  # no roles after filtering/parsing
+    ]
+    mock_build_resume.return_value = "filtered content with no roles"
+
+    form_data = {
+        "job_description": "a job",
+        "limit_refinement_years": "5",
+        "target_section": "experience",
+    }
+
+    # Act
+    with client_with_auth_and_resume.stream(
+        "POST", "/api/resumes/1/refine/stream", data=form_data
+    ) as response:
+        # Assert
+        assert response.status_code == 200
+        content = response.read().decode("utf-8")
+        assert "event: error" in content
+        assert "No roles available to refine within the specified date range." in content
+        assert "event: close" in content
+
+    assert mock_extract_exp.call_count == 2
     mock_sse_generator.assert_not_called()
 
 

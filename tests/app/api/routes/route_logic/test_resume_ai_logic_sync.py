@@ -115,6 +115,54 @@ async def test_handle_sync_refinement_htmx_response(
 
 
 @pytest.mark.asyncio
+@patch(
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic._create_refine_result_html"
+)
+@patch(
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic.refine_resume_section_with_llm"
+)
+@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.get_llm_config")
+async def test_handle_sync_refinement_htmx_response_no_intro(
+    mock_get_llm_config, mock_refine_llm, mock_create_html, test_user, test_resume
+):
+    """Test that handle_sync_refinement returns HTML for an HTMX request with no introduction."""
+    # Arrange
+    mock_request = Request(
+        scope={"type": "http", "headers": [(b"hx-request", b"true")]}
+    )
+    mock_db = Mock()
+    params = SyncRefinementParams(
+        request=mock_request,
+        db=mock_db,
+        user=test_user,
+        resume=test_resume,
+        job_description="job",
+        target_section=RefineTargetSection.PERSONAL,
+    )
+    mock_get_llm_config.return_value = ("http://llm.test", "test-model", "key")
+    mock_refine_llm.return_value = ("refined content", None)
+    mock_create_html.return_value = "<html>refine result</html>"
+
+    # Act
+    response = await handle_sync_refinement(params)
+
+    # Assert
+    assert isinstance(response, HTMLResponse)
+    assert response.body.decode("utf-8") == "<html>refine result</html>"
+    mock_create_html.assert_called_once()
+    call_args = mock_create_html.call_args.kwargs
+    assert "params" in call_args
+    call_params = call_args["params"]
+    assert isinstance(call_params, RefineResultParams)
+    assert call_params.resume_id == params.resume.id
+    assert call_params.target_section_val == params.target_section.value
+    assert call_params.refined_content == "refined content"
+    assert call_params.job_description == params.job_description
+    assert call_params.introduction == ""
+    assert call_params.limit_refinement_years is None
+
+
+@pytest.mark.asyncio
 @patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.get_llm_config")
 async def test_handle_sync_refinement_decryption_failure_htmx(
     mock_get_llm_config, test_user, test_resume

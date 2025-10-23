@@ -17,7 +17,7 @@ class RefineResultParams(BaseModel):
     target_section_val: str
     refined_content: str
     job_description: str | None = None
-    introduction: str | None = None
+    introduction: str
     limit_refinement_years: int | None = None
 
 

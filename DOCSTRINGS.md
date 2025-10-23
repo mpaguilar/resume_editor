@@ -7080,26 +7080,26 @@ Returns:
 
 ## function: `process_refined_experience_result(params: ProcessExperienceResultParams) -> str`
 
-Processes refined experience roles and generates final HTML.
+Processes refined experience roles and reconstructs the full resume.
 
-This function takes the refined roles from the LLM, reconstructs the
-experience section from the content that was provided to the LLM, and then
-generates the final HTML result to be sent in the 'done' SSE event.
+This function takes the refined roles from the LLM, combines them with the
+original projects, and reconstructs the entire resume. It then generates
+the final HTML result to be sent in the 'done' SSE event.
 
 Args:
     params (ProcessExperienceResultParams): An object containing all parameters
-        needed for processing the result, including resume IDs, content,
-        refined roles, and other metadata.
+        needed for processing the result.
 
 Returns:
     str: The complete HTML content for the body of the `done` event.
 
 Notes:
-    1.  Extracts the experience section from the `resume_content_to_refine`.
-    2.  Updates the roles from the extracted experience with the `refined_roles` data.
-        Projects are not modified by the refinement process.
-    3.  Serializes the updated experience section to Markdown.
-    4.  This Markdown is used to create the final HTML for the 'Save as New' form.
+    1.  Extracts personal, education, and certification sections from `original_resume_content`.
+    2.  Extracts projects from `original_resume_content` and roles from `resume_content_to_refine`.
+    3.  Updates the roles with the `refined_roles` data from the LLM.
+    4.  Creates a new `ExperienceResponse` with refined roles and original projects.
+    5.  Calls `build_complete_resume_from_sections` to reconstruct the full resume markdown.
+    6.  This full markdown is passed to `_create_refine_result_html` to generate the final HTML.
 
 ---
 
