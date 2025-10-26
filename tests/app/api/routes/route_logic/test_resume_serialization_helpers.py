@@ -25,6 +25,7 @@ from resume_editor.app.api.routes.route_logic.resume_serialization_helpers impor
 )
 from resume_editor.app.api.routes.route_models import PersonalInfoResponse
 from resume_editor.app.models.resume.experience import InclusionStatus
+from resume_editor.app.models.resume.personal import Banner, Note
 
 
 @patch(
@@ -417,6 +418,34 @@ class TestAddBannerMarkdown:
         _add_banner_markdown(personal_info, lines)
         assert lines == []
 
+    def test_with_banner_object(self):
+        """Test that _add_banner_markdown handles a Banner object correctly."""
+        banner_obj = Banner(text="This is a banner from an object")
+        personal_info = PersonalInfoResponse(banner=banner_obj)
+
+        lines = []
+        _add_banner_markdown(personal_info, lines)
+
+        expected = ["## Banner", "", "This is a banner from an object", ""]
+        assert lines == expected
+
+    def test_with_empty_banner_object(self):
+        """Test _add_banner_markdown with a Banner object with empty text."""
+        banner_obj = Banner(text="")
+        personal_info = PersonalInfoResponse(banner=banner_obj)
+
+        lines = []
+        _add_banner_markdown(personal_info, lines)
+
+        assert lines == []
+
+    def test_with_unsupported_object_type(self):
+        """Test _add_banner_markdown ignores unsupported object types."""
+        personal_info = PersonalInfoResponse(banner=123)
+        lines = []
+        _add_banner_markdown(personal_info, lines)
+        assert lines == []
+
 
 class TestAddNoteMarkdown:
     def test_with_note(self):
@@ -428,6 +457,34 @@ class TestAddNoteMarkdown:
 
     def test_with_no_note(self):
         personal_info = PersonalInfoResponse()
+        lines = []
+        _add_note_markdown(personal_info, lines)
+        assert lines == []
+
+    def test_with_note_object(self):
+        """Test that _add_note_markdown handles a Note object correctly."""
+        note_obj = Note(text="This is a note from an object")
+        personal_info = PersonalInfoResponse(note=note_obj)
+
+        lines = []
+        _add_note_markdown(personal_info, lines)
+
+        expected = ["## Note", "", "This is a note from an object", ""]
+        assert lines == expected
+
+    def test_with_empty_note_object(self):
+        """Test _add_note_markdown with a Note object with empty text."""
+        note_obj = Note(text="")
+        personal_info = PersonalInfoResponse(note=note_obj)
+
+        lines = []
+        _add_note_markdown(personal_info, lines)
+
+        assert lines == []
+
+    def test_with_unsupported_object_type(self):
+        """Test _add_note_markdown ignores unsupported object types."""
+        personal_info = PersonalInfoResponse(note=object())
         lines = []
         _add_note_markdown(personal_info, lines)
         assert lines == []

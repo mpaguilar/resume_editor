@@ -24,14 +24,11 @@ from resume_editor.app.api.routes.route_models import (
 
 
 @patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.create_resume_db")
-@patch(
-    "resume_editor.app.api.routes.route_logic.resume_ai_logic.perform_pre_save_validation"
-)
-@patch(
-    "resume_editor.app.api.routes.route_logic.resume_ai_logic.reconstruct_resume_from_refined_section"
-)
+@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.perform_pre_save_validation")
+@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.reconstruct_resume_from_refined_section")
+@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic._replace_resume_banner")
 def test_handle_save_as_new_refinement_success(
-    mock_reconstruct, mock_validate, mock_create, test_user, test_resume
+    mock_replace_banner, mock_reconstruct, mock_validate, mock_create, test_user, test_resume
 ):
     """Test handle_save_as_new_refinement successfully creates a new resume."""
     # Arrange
@@ -49,8 +46,9 @@ def test_handle_save_as_new_refinement_success(
     params = SaveAsNewParams(db=db, user=test_user, resume=test_resume, form_data=form_data)
 
     mock_reconstruct.return_value = "updated content"
+    mock_replace_banner.return_value = "updated content"
     resume_data = ResumeData(
-        user_id=test_user.id, name=form_data.new_resume_name, content="updated content"
+        user_id=test_user.id, name=metadata.new_resume_name, content="updated content"
     )
     new_resume = DatabaseResume(data=resume_data)
     mock_create.return_value = new_resume
@@ -65,28 +63,29 @@ def test_handle_save_as_new_refinement_success(
         refined_content=form_data.refined_content,
         target_section=form_data.target_section,
     )
+    mock_replace_banner.assert_called_once_with(
+        resume_content="updated content",
+        introduction="intro",
+    )
     mock_validate.assert_called_once_with("updated content")
     expected_create_params = ResumeCreateParams(
         user_id=test_user.id,
-        name=form_data.new_resume_name,
+        name=metadata.new_resume_name,
         content="updated content",
         is_base=False,
         parent_id=test_resume.id,
-        job_description=form_data.job_description,
-        introduction=form_data.introduction,
+        job_description=metadata.job_description,
+        introduction=metadata.introduction,
     )
     mock_create.assert_called_once_with(db=db, params=expected_create_params)
 
 
 @patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.create_resume_db")
-@patch(
-    "resume_editor.app.api.routes.route_logic.resume_ai_logic.perform_pre_save_validation"
-)
-@patch(
-    "resume_editor.app.api.routes.route_logic.resume_ai_logic.reconstruct_resume_from_refined_section"
-)
+@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.perform_pre_save_validation")
+@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.reconstruct_resume_from_refined_section")
+@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic._replace_resume_banner")
 def test_handle_save_as_new_refinement_failure_on_validation(
-    mock_reconstruct, mock_validate, mock_create, test_user, test_resume
+    mock_replace_banner, mock_reconstruct, mock_validate, mock_create, test_user, test_resume
 ):
     """Test handle_save_as_new_refinement failure on validation."""
     # Arrange
@@ -104,6 +103,7 @@ def test_handle_save_as_new_refinement_failure_on_validation(
     )
     params = SaveAsNewParams(db=db, user=test_user, resume=test_resume, form_data=form_data)
     mock_reconstruct.return_value = "updated content"
+    mock_replace_banner.return_value = "updated content"
     mock_validate.side_effect = ValueError("validation failed")
 
     # Act & Assert
@@ -156,25 +156,15 @@ def test_handle_save_as_new_refinement_failure_on_reconstruction(
 
 
 @patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.create_resume_db")
-@patch(
-    "resume_editor.app.api.routes.route_logic.resume_ai_logic.perform_pre_save_validation"
-)
-@patch(
-    "resume_editor.app.api.routes.route_logic.resume_ai_logic.build_complete_resume_from_sections"
-)
-@patch(
-    "resume_editor.app.api.routes.route_logic.resume_ai_logic.extract_certifications_info"
-)
-@patch(
-    "resume_editor.app.api.routes.route_logic.resume_ai_logic.extract_experience_info"
-)
-@patch(
-    "resume_editor.app.api.routes.route_logic.resume_ai_logic.extract_education_info"
-)
-@patch(
-    "resume_editor.app.api.routes.route_logic.resume_ai_logic.extract_personal_info"
-)
+@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.perform_pre_save_validation")
+@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.build_complete_resume_from_sections")
+@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.extract_certifications_info")
+@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.extract_experience_info")
+@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.extract_education_info")
+@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.extract_personal_info")
+@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic._replace_resume_banner")
 def test_handle_save_as_new_refinement_with_filtered_content(
+    mock_replace_banner,
     mock_extract_personal,
     mock_extract_education,
     mock_extract_experience,
@@ -227,6 +217,7 @@ def test_handle_save_as_new_refinement_with_filtered_content(
     # Mock the final reconstruction
     final_content = "Final Reconstructed Content"
     mock_build_complete.return_value = final_content
+    mock_replace_banner.return_value = final_content
     mock_create.return_value = MagicMock(spec=DatabaseResume)
 
     # Act

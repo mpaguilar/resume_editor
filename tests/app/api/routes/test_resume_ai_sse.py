@@ -2,10 +2,12 @@ from unittest.mock import ANY, AsyncMock, Mock, patch
 
 import pytest
 from fastapi.testclient import TestClient
+from starlette.requests import Request as StarletteRequest
 
 from resume_editor.app.core.auth import get_current_user_from_cookie
 from resume_editor.app.database.database import get_db
 from resume_editor.app.api.routes.route_models import ExperienceRefinementParams
+from resume_editor.app.api.routes.resume_ai import _ExperienceStreamParams
 from resume_editor.app.main import create_app
 from resume_editor.app.models.resume_model import Resume as DatabaseResume, ResumeData
 from resume_editor.app.models.user import User as DBUser, UserData
@@ -73,13 +75,9 @@ def client_with_auth_and_resume(app, client, test_user, test_resume):
 
 
 @pytest.mark.asyncio
-@patch("resume_editor.app.api.routes.resume_ai.extract_experience_info")
-@patch(
-    "resume_editor.app.api.routes.resume_ai.experience_refinement_sse_generator",
-)
+@patch("resume_editor.app.api.routes.resume_ai._experience_refinement_stream")
 async def test_refine_resume_stream_route(
-    mock_sse_generator,
-    mock_extract_exp,
+    mock_stream,
     client_with_auth_and_resume,
     test_user,
     test_resume,
@@ -93,8 +91,7 @@ async def test_refine_resume_stream_route(
         yield "event: one\ndata: 1\n\n"
         yield "event: two\ndata: 2\n\n"
 
-    mock_sse_generator.return_value = mock_generator()
-    mock_extract_exp.return_value = Mock(roles=[Mock()])  # Ensure roles are present
+    mock_stream.return_value = mock_generator()
     job_desc = "a job"
     form_data = {
         "job_description": job_desc,
@@ -112,23 +109,21 @@ async def test_refine_resume_stream_route(
         assert "event: one" in content
         assert "event: two" in content
 
-    mock_sse_generator.assert_called_once()
-    # The generator is called with a keyword argument `params`.
-    call_kwargs = mock_sse_generator.call_args.kwargs
+    mock_stream.assert_called_once()
+    # The stream helper is called with a keyword argument `params`.
+    call_kwargs = mock_stream.call_args.kwargs
     assert "params" in call_kwargs
     params_arg = call_kwargs["params"]
-    assert isinstance(params_arg, ExperienceRefinementParams)
-    assert params_arg.user == test_user
+    assert isinstance(params_arg, _ExperienceStreamParams)
+    assert params_arg.current_user == test_user
     assert params_arg.resume == test_resume
-    assert params_arg.resume_content_to_refine == test_resume.content
+    assert params_arg.parsed_limit_years is None
     assert params_arg.job_description == job_desc
-    mock_extract_exp.assert_called_once_with(test_resume.content)
+    assert params_arg.limit_refinement_years is None
 
 
 @pytest.mark.asyncio
-@patch(
-    "resume_editor.app.api.routes.resume_ai.experience_refinement_sse_generator",
-)
+@patch("resume_editor.app.api.routes.resume_ai._experience_refinement_stream")
 @pytest.mark.parametrize(
     "limit_years_str, error_msg_part",
     [
@@ -138,7 +133,7 @@ async def test_refine_resume_stream_route(
     ],
 )
 async def test_refine_resume_stream_invalid_limit(
-    mock_sse_generator, client_with_auth_and_resume, limit_years_str, error_msg_part
+    mock_stream, client_with_auth_and_resume, limit_years_str, error_msg_part
 ):
     """
     Test that the stream refinement route returns an error for invalid limit_refinement_years.
@@ -161,7 +156,7 @@ async def test_refine_resume_stream_invalid_limit(
         assert error_msg_part in content
         assert "event: close" in content
 
-    mock_sse_generator.assert_not_called()
+    mock_stream.assert_not_called()
 
 
 @pytest.mark.asyncio
@@ -402,8 +397,9 @@ def test_refine_resume_experience_returns_sse_loader_with_hx_ext(
     assert 'sse-close="close"' in html
 
 
+@patch("resume_editor.app.api.routes.resume_ai._experience_refinement_stream")
 def test_post_refine_stream_with_hx_request_returns_loader(
-    client_with_auth_and_resume, test_resume
+    mock_stream, client_with_auth_and_resume, test_resume
 ):
     """
     Test POST /refine/stream with HX-Request returns the SSE loader.
@@ -432,3 +428,100 @@ def test_post_refine_stream_with_hx_request_returns_loader(
         f'sse-connect="/api/resumes/{test_resume.id}/refine/stream?job_description=A+job+for+POST&limit_refinement_years=5"'
         in html
     )
+    mock_stream.assert_not_called()
+
+
+@patch("resume_editor.app.api.routes.resume_ai._experience_refinement_stream")
+def test_refine_resume_stream_post_form_read_exception_preserves_none(
+    mock_stream, client_with_auth_and_resume, test_user, test_resume
+):
+    """
+    Cover the exception path when reading the raw form fails inside the route.
+    Ensures parsed_limit_years remains None and original_limit_str stays None.
+    """
+    async def mock_generator():
+        yield "data: ok\n\n"
+
+    mock_stream.return_value = mock_generator()
+
+    orig_form = StarletteRequest.form
+
+    async def form_side_effect(self, *args, **kwargs):
+        calls = getattr(self.state, "_test_form_calls", 0)
+        calls += 1
+        self.state._test_form_calls = calls
+        if calls == 1:
+            return await orig_form(self, *args, **kwargs)
+        raise Exception("Form read error")
+
+    form_data = {
+        "job_description": "a job",
+        "target_section": "experience",
+        # Intentionally omit limit_refinement_years to force manual raw read
+    }
+
+    with patch.object(StarletteRequest, "form", form_side_effect):
+        with client_with_auth_and_resume.stream(
+            "POST", "/api/resumes/1/refine/stream", data=form_data
+        ) as response:
+            assert response.status_code == 200
+            content = response.read().decode("utf-8")
+            assert "data: ok" in content
+
+    call_kwargs = mock_stream.call_args.kwargs
+    assert "params" in call_kwargs
+    params_arg = call_kwargs["params"]
+    assert isinstance(params_arg, _ExperienceStreamParams)
+    assert params_arg.parsed_limit_years is None
+    assert params_arg.limit_refinement_years is None
+    assert params_arg.job_description == "a job"
+    assert params_arg.resume == test_resume
+    assert params_arg.current_user == test_user
+
+
+@patch("resume_editor.app.api.routes.resume_ai._experience_refinement_stream")
+def test_refine_resume_stream_post_empty_limit_string_ignored(
+    mock_stream, client_with_auth_and_resume, test_user, test_resume
+):
+    """
+    Cover the branch where a whitespace-only raw value is ignored after strip,
+    leaving original_limit_str as None.
+    """
+    async def mock_generator():
+        yield "data: ok\n\n"
+
+    mock_stream.return_value = mock_generator()
+
+    orig_form = StarletteRequest.form
+
+    async def form_side_effect(self, *args, **kwargs):
+        calls = getattr(self.state, "_test_form_calls", 0)
+        calls += 1
+        self.state._test_form_calls = calls
+        if calls == 1:
+            return await orig_form(self, *args, **kwargs)
+        return {"limit_refinement_years": "   "}
+
+    form_data = {
+        "job_description": "a job",
+        "target_section": "experience",
+        # Omit limit_refinement_years to force manual raw read
+    }
+
+    with patch.object(StarletteRequest, "form", form_side_effect):
+        with client_with_auth_and_resume.stream(
+            "POST", "/api/resumes/1/refine/stream", data=form_data
+        ) as response:
+            assert response.status_code == 200
+            content = response.read().decode("utf-8")
+            assert "data: ok" in content
+
+    call_kwargs = mock_stream.call_args.kwargs
+    assert "params" in call_kwargs
+    params_arg = call_kwargs["params"]
+    assert isinstance(params_arg, _ExperienceStreamParams)
+    assert params_arg.parsed_limit_years is None
+    assert params_arg.limit_refinement_years is None
+    assert params_arg.job_description == "a job"
+    assert params_arg.resume == test_resume
+    assert params_arg.current_user == test_user

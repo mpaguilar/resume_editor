@@ -1,7 +1,7 @@
 import asyncio
 import html
 import logging
-from typing import AsyncGenerator
+from typing import Any, AsyncGenerator
 
 from cryptography.fernet import InvalidToken
 from fastapi import HTTPException, Response
@@ -48,9 +48,106 @@ from resume_editor.app.llm.orchestration import (
     refine_resume_section_with_llm,
 )
 from resume_editor.app.models.resume.experience import Role
+from resume_editor.app.models.resume.personal import Banner
 from resume_editor.app.models.resume_model import Resume as DatabaseResume
 
 log = logging.getLogger(__name__)
+
+
+def reconstruct_resume_markdown(
+    personal_info: Any,
+    education: Any,
+    experience: Any,
+    certifications: Any,
+) -> str:
+    """Wrapper delegating to build_complete_resume_from_sections.
+    Args:
+        personal_info (Any): The personal information section model.
+        education (Any): The education section model.
+        experience (Any): The experience section model.
+        certifications (Any): The certifications section model.
+    Returns:
+        str: The reconstructed resume markdown.
+    Notes:
+        1. This wrapper exists to provide a stable name for tests that patch 'reconstruct_resume_markdown'.
+        2. It simply calls 'build_complete_resume_from_sections' with the same arguments.
+
+    """
+    _msg = "reconstruct_resume_markdown starting"
+    log.debug(_msg)
+    result = build_complete_resume_from_sections(
+        personal_info=personal_info,
+        education=education,
+        experience=experience,
+        certifications=certifications,
+    )
+    _msg = "reconstruct_resume_markdown returning"
+    log.debug(_msg)
+    return result
+
+
+def _replace_resume_banner(resume_content: str, introduction: str | None) -> str:
+    """Parse a resume, replace its banner, and reconstruct it.
+
+    This function takes resume content and an introduction string, and returns
+    the resume content with the banner section updated to contain the new introduction.
+
+    Args:
+        resume_content (str): The full markdown content of the resume.
+        introduction (str | None): The new introduction text for the banner.
+            If None or whitespace-only, the original content is returned unchanged.
+
+    Returns:
+        str: The reconstructed markdown string with the updated banner.
+
+    Notes:
+        1.  If the `introduction` is `None` or whitespace, return the original `resume_content` unchanged.
+        2.  Parse the `resume_content` into its constituent sections (personal, education, etc.) using `extract_*` helper functions.
+        3.  If the `personal_info` section is successfully parsed, update its `banner` attribute with a new `Banner` object containing the `introduction` text.
+        4.  Reconstruct the full resume markdown by calling `reconstruct_resume_markdown` with the updated `personal_info` and the original other sections.
+        5.  Return the reconstructed markdown content.
+
+    """
+    _msg = "_replace_resume_banner starting"
+    log.debug(_msg)
+
+    # Step 1: If introduction is None or consists only of whitespace, return original content
+    if introduction is None or not introduction.strip():
+        _msg = "_replace_resume_banner returning original content (no introduction)"
+        log.debug(_msg)
+        return resume_content
+
+    # Step 2: Parse the resume content into constituent sections
+    try:
+        personal_info = extract_personal_info(resume_content)
+        education_info = extract_education_info(resume_content)
+        experience_info = extract_experience_info(resume_content)
+        certifications_info = extract_certifications_info(resume_content)
+    except Exception as e:
+        _msg = f"_replace_resume_banner failed to parse resume content: {e!s}"
+        log.exception(_msg)
+        raise
+
+    # Step 3: Update the banner in personal_info if it exists
+    if personal_info is not None:
+        personal_info.banner = Banner(text=introduction)
+
+    # Step 4: Reconstruct the resume with the updated personal_info
+    try:
+        updated_content = reconstruct_resume_markdown(
+            personal_info=personal_info,
+            education=education_info,
+            experience=experience_info,
+            certifications=certifications_info,
+        )
+    except Exception as e:
+        _msg = f"_replace_resume_banner failed to reconstruct resume: {e!s}"
+        log.exception(_msg)
+        raise
+
+    _msg = "_replace_resume_banner returning"
+    log.debug(_msg)
+    return updated_content
 
 
 def get_llm_config(
@@ -214,10 +311,11 @@ def process_refined_experience_result(params: ProcessExperienceResultParams) -> 
     Notes:
         1.  Extracts personal, education, and certification sections from `original_resume_content`.
         2.  Extracts projects from `original_resume_content` and roles from `resume_content_to_refine`.
-        3.  Updates the roles with the `refined_roles` data from the LLM.
-        4.  Creates a new `ExperienceResponse` with refined roles and original projects.
-        5.  Calls `build_complete_resume_from_sections` to reconstruct the full resume markdown.
-        6.  This full markdown is passed to `_create_refine_result_html` to generate the final HTML.
+        3.  Updates the roles list with the `refined_roles` data from the LLM.
+        4.  Creates a new `ExperienceResponse` with the refined roles and original projects.
+        5.  Calls `build_complete_resume_from_sections` to reconstruct the resume markdown.
+        6.  If an introduction is provided in `params`, calls `_replace_resume_banner` to insert it into the reconstructed markdown.
+        7.  The final, complete markdown is passed to `_create_refine_result_html` to generate the HTML for the UI.
 
     """
     _msg = "process_refined_experience_result starting"
@@ -248,18 +346,24 @@ def process_refined_experience_result(params: ProcessExperienceResultParams) -> 
     )
 
     # 5. Reconstruct the full resume markdown string
-    updated_resume_content = build_complete_resume_from_sections(
+    reconstructed_content = reconstruct_resume_markdown(
         personal_info=personal_info,
         education=education_info,
         experience=updated_experience,
         certifications=certifications_info,
     )
 
-    # 6. Generate the final HTML for the refinement result UI
+    # 6. If an introduction was generated, replace the banner with it.
+    final_content = _replace_resume_banner(
+        resume_content=reconstructed_content,
+        introduction=params.introduction,
+    )
+
+    # 7. Generate the final HTML for the refinement result UI
     result_html_params = RefineResultParams(
         resume_id=params.resume_id,
         target_section_val=RefineTargetSection.EXPERIENCE.value,
-        refined_content=updated_resume_content,
+        refined_content=final_content,
         job_description=params.job_description,
         introduction=params.introduction or "",
         limit_refinement_years=params.limit_refinement_years,
@@ -627,7 +731,25 @@ async def handle_sync_refinement(sync_params: SyncRefinementParams) -> Response:
 async def experience_refinement_sse_generator(
     params: "ExperienceRefinementParams",
 ) -> AsyncGenerator[str, None]:
-    """Generates SSE events for the experience refinement process."""
+    """Generates SSE events for the experience refinement process.
+
+    This function orchestrates the asynchronous experience refinement by running a
+    background task (`_llm_task`) that performs the LLM calls. It yields
+    messages from a queue, including progress, generated introductions, and the
+    final result.
+
+    The background task captures the introduction from the LLM stream and passes
+    it to `process_refined_experience_result` to ensure the final preview
+    includes it.
+
+    Args:
+        params (ExperienceRefinementParams): An object containing all parameters
+            needed for the SSE generation.
+
+    Yields:
+        str: Formatted SSE message strings.
+
+    """
     _msg = f"Streaming refinement for resume {params.resume.id} for section experience"
     log.debug(_msg)
     message_queue: asyncio.Queue = asyncio.Queue()
@@ -652,7 +774,9 @@ async def experience_refinement_sse_generator(
 def handle_save_as_new_refinement(params: SaveAsNewParams) -> DatabaseResume:
     """Orchestrates saving a refined resume as a new resume.
 
-    This involves reconstructing the resume, validating it, and creating a new record in the database.
+    This involves reconstructing the resume, replacing the banner with any provided
+    introduction, validating the final content, and creating a new record in the
+    database, persisting the introduction to its dedicated field.
 
     Args:
         params (SaveAsNewParams): The parameters for saving the new resume.
@@ -673,21 +797,42 @@ def handle_save_as_new_refinement(params: SaveAsNewParams) -> DatabaseResume:
             refined_content=params.form_data.refined_content,
             target_section=params.form_data.target_section,
         )
-        perform_pre_save_validation(updated_content)
+        # Support both nested metadata and flat form fields for backward compatibility
+        if (
+            hasattr(params.form_data, "metadata")
+            and params.form_data.metadata is not None
+        ):
+            introduction_value = params.form_data.metadata.introduction
+        else:
+            introduction_value = getattr(params.form_data, "introduction", None)
+
+        final_content = _replace_resume_banner(
+            resume_content=updated_content,
+            introduction=introduction_value,
+        )
+        perform_pre_save_validation(final_content)
     except (ValueError, TypeError, HTTPException) as e:
         detail = getattr(e, "detail", str(e))
         _msg = f"Failed to reconstruct resume from refined section: {detail}"
         log.exception(_msg)
         raise HTTPException(status_code=422, detail=_msg)
 
+    # Derive name and job_description from metadata if present, else from flat fields
+    if hasattr(params.form_data, "metadata") and params.form_data.metadata is not None:
+        new_resume_name = params.form_data.metadata.new_resume_name
+        job_description_val = params.form_data.metadata.job_description
+    else:
+        new_resume_name = getattr(params.form_data, "new_resume_name", None)
+        job_description_val = getattr(params.form_data, "job_description", None)
+
     create_params = ResumeCreateParams(
         user_id=params.user.id,
-        name=params.form_data.new_resume_name,
-        content=updated_content,
+        name=new_resume_name,
+        content=final_content,
         is_base=False,
         parent_id=params.resume.id,
-        job_description=params.form_data.job_description,
-        introduction=params.form_data.introduction,
+        job_description=job_description_val,
+        introduction=introduction_value,
     )
     new_resume = create_resume_db(
         db=params.db,

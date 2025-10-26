@@ -28,6 +28,7 @@ These are known mappings:
 - `resume_editor/app/api/routes/route_logic/resume_ai_logic.py` -> `tests/app/api/routes/route_logic/test_resume_ai_logic_actions.py`
 - `resume_editor/app/api/routes/route_logic/resume_ai_logic.py` -> `tests/app/api/routes/route_logic/test_resume_ai_logic_config.py`
 - `resume_editor/app/api/routes/route_logic/resume_ai_logic.py` -> `tests/app/api/routes/route_logic/test_resume_ai_logic_processing.py`
+- `resume_editor/app/api/routes/route_logic/resume_ai_logic.py` -> `tests/app/api/routes/route_logic/test_resume_ai_logic.py`
 - `resume_editor/app/api/routes/route_logic/resume_ai_logic.py` -> `tests/app/api/routes/route_logic/test_resume_ai_logic_sse_generator.py`
 - `resume_editor/app/api/routes/route_logic/resume_ai_logic.py` -> `tests/app/api/routes/route_logic/test_resume_ai_logic_sse_helpers.py`
 - `resume_editor/app/api/routes/route_logic/resume_ai_logic.py` -> `tests/app/api/routes/route_logic/test_resume_ai_logic_sync.py`
@@ -66,3 +67,6 @@ These are known mappings:
 - `resume_editor/app/core/rendering_settings.py` -> `tests/app/core/test_rendering_settings.py`
 - `resume_editor/app/api/routes/route_logic/resume_serialization_helpers.py` -> `tests/app/api/routes/route_logic/test_resume_serialization_helpers.py`
 - `resume_editor/app/api/routes/route_logic/resume_validation.py` -> `tests/test_resume_validation.py`
+
+Note:
+- In `resume_editor/app/api/routes/resume_ai.py`, the internal helper `_experience_refinement_stream` now receives a single `_ExperienceStreamParams` instance. Tests that patch this helper should assert the object's field values.

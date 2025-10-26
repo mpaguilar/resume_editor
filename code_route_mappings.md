@@ -25,6 +25,7 @@ These are the known mappings:
 - `/resumes/create->resume_editor/app/web/pages.py`
 - `/api/resumes/{resume_id}/refine->resume_editor/app/api/routes/resume_ai.py`
 - `GET /api/resumes/{resume_id}/refine/stream->resume_editor/app/api/routes/resume_ai.py`
+- `POST /api/resumes/{resume_id}/refine/stream->resume_editor/app/api/routes/resume_ai.py`
 - `/api/resumes/{resume_id}/refine/accept->resume_editor/app/api/routes/resume_ai.py`
 - `/api/resumes/{resume_id}/refine/save_as_new->resume_editor/app/api/routes/resume_ai.py`
 - `/api/resumes/{resume_id}/personal->resume_editor/app/api/routes/resume_edit.py`

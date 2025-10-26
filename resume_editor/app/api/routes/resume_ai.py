@@ -1,4 +1,5 @@
 import logging
+from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Annotated, AsyncGenerator
 
@@ -42,6 +43,33 @@ from resume_editor.app.models.resume_model import Resume as DatabaseResume
 from resume_editor.app.models.user import User
 
 log = logging.getLogger(__name__)
+
+
+@dataclass
+class _ExperienceStreamParams:
+    """Aggregated parameters for the experience SSE stream helper.
+
+    Purpose:
+        Groups arguments commonly passed to the private SSE stream helper into a single object
+        to reduce parameter count and improve readability. No side effects and no I/O.
+
+    Attributes:
+        resume (DatabaseResume): The resume being refined.
+        parsed_limit_years (int | None): Parsed positive years limit or None.
+        db (Session): SQLAlchemy session.
+        current_user (User): Authenticated user.
+        job_description (str): Job description text for alignment.
+        limit_refinement_years (str | None): Original string form of the years limit for metadata.
+
+    """
+
+    resume: DatabaseResume
+    parsed_limit_years: int | None
+    db: Session
+    current_user: User
+    job_description: str
+    limit_refinement_years: str | None
+
 
 router = APIRouter()
 
@@ -237,22 +265,12 @@ def _build_filtered_content_if_needed(
 
 
 async def _experience_refinement_stream(
-    resume: DatabaseResume,
-    parsed_limit_years: int | None,
-    db: Session,
-    current_user: User,
-    job_description: str,
-    limit_refinement_years: str | None,
+    params: _ExperienceStreamParams,
 ) -> AsyncGenerator[str, None]:
     """Core SSE generator for experience refinement, handling filtering and error reporting.
 
     Args:
-        resume (DatabaseResume): The full resume object.
-        parsed_limit_years (int | None): Validated positive integer for year limiting, or None.
-        db (Session): The database session.
-        current_user (User): The authenticated user.
-        job_description (str): The job description for refinement.
-        limit_refinement_years (str | None): Original string for year limit for metadata.
+        params (_ExperienceStreamParams): Aggregated parameters for the SSE refinement stream.
 
     Yields:
         str: Server-Sent Events for progress, data, or errors.
@@ -268,8 +286,8 @@ async def _experience_refinement_stream(
     log.debug(_msg)
     try:
         content_to_refine = _build_filtered_content_if_needed(
-            resume_content=resume.content,
-            limit_years=parsed_limit_years,
+            resume_content=params.resume.content,
+            limit_years=params.parsed_limit_years,
         )
     except Exception as e:
         _msg = f"Error during experience filtering: {e!s}"
@@ -289,18 +307,101 @@ async def _experience_refinement_stream(
         yield create_sse_close_message()
         return
 
-    params = ExperienceRefinementParams(
-        db=db,
-        user=current_user,
-        resume=resume,
+    exp_params = ExperienceRefinementParams(
+        db=params.db,
+        user=params.current_user,
+        resume=params.resume,
         resume_content_to_refine=content_to_refine,
-        original_resume_content=resume.content,
-        job_description=job_description,
-        limit_refinement_years=limit_refinement_years,
+        original_resume_content=params.resume.content,
+        job_description=params.job_description,
+        limit_refinement_years=params.limit_refinement_years,
     )
-    generator = experience_refinement_sse_generator(params=params)
+    generator = experience_refinement_sse_generator(params=exp_params)
     async for item in generator:
         yield item
+
+
+async def _extract_original_limit_str_from_post(
+    http_request: Request,
+    form_data: RefineForm,
+) -> str | None:
+    """Extract the original limit_refinement_years string value from POST data, preserving raw input if DI coerces it.
+
+    Args:
+        http_request (Request): The incoming request to read the raw form from when needed.
+        form_data (RefineForm): The dependency-injected form data.
+
+    Returns:
+        str | None: The original string for limit_refinement_years if present; otherwise None.
+
+    Notes:
+        1. Reads http_request.form() only when form_data.limit_refinement_years is None.
+        2. If the raw form read fails, returns None.
+        3. Trims whitespace; empty strings are treated as absent (None).
+
+    """
+    _msg = "extract_original_limit_str_from_post starting"
+    log.debug(_msg)
+
+    original_limit_str = form_data.limit_refinement_years
+    if original_limit_str is None:
+        try:
+            form = await http_request.form()
+        except Exception as _e:
+            # If we cannot read the raw form, continue with None
+            form = None
+        else:
+            raw_value = None if form is None else form.get("limit_refinement_years")
+            if raw_value is not None:
+                raw_str = str(raw_value).strip()
+                if raw_str != "":
+                    original_limit_str = raw_str
+
+    _msg = "extract_original_limit_str_from_post returning"
+    log.debug(_msg)
+    return original_limit_str
+
+
+def _validate_and_parse_limit_for_post(
+    original_limit_str: str | None,
+) -> tuple[int | None, StreamingResponse | None]:
+    """Validate and parse the limit years for POST refine stream.
+
+    Args:
+        original_limit_str (str | None): The original user-supplied string, possibly None.
+
+    Returns:
+        tuple[int | None, StreamingResponse | None]: Parsed integer years (or None) and
+            an optional early StreamingResponse when numeric validation fails.
+
+    Notes:
+        1. Non-numeric values are treated as None (no limit, no early error).
+        2. Numeric values are validated via _parse_limit_years_for_stream.
+
+    """
+    _msg = "validate_and_parse_limit_for_post starting"
+    log.debug(_msg)
+
+    if original_limit_str is None:
+        _msg = "validate_and_parse_limit_for_post returning"
+        log.debug(_msg)
+        return None, None
+
+    try:
+        int(original_limit_str)
+    except ValueError:
+        # Keep non-numeric as None with no early error
+        _msg = "validate_and_parse_limit_for_post returning"
+        log.debug(_msg)
+        return None, None
+
+    parsed_limit_years, early_error_response = _parse_limit_years_for_stream(
+        original_limit_str,
+    )
+
+    _msg = "validate_and_parse_limit_for_post returning"
+    log.debug(_msg)
+    return parsed_limit_years, early_error_response
 
 
 @router.get("/{resume_id}/refine/stream", response_class=StreamingResponse)
@@ -321,12 +422,14 @@ async def refine_resume_stream_get(
 
     return StreamingResponse(
         _experience_refinement_stream(
-            resume=resume,
-            parsed_limit_years=parsed_limit_years,
-            db=db,
-            current_user=current_user,
-            job_description=query.job_description,
-            limit_refinement_years=query.limit_refinement_years,
+            params=_ExperienceStreamParams(
+                resume=resume,
+                parsed_limit_years=parsed_limit_years,
+                db=db,
+                current_user=current_user,
+                job_description=query.job_description,
+                limit_refinement_years=query.limit_refinement_years,
+            ),
         ),
         media_type="text/event-stream",
         headers={
@@ -352,9 +455,12 @@ async def refine_resume_stream(
     the experience section by a date window before invoking the SSE generator.
 
     """
+    _msg = "refine_resume_stream starting"
+    log.debug(_msg)
+
     # If HTMX posts directly to this endpoint, return the loader fragment so the browser opens a GET EventSource.
     if "HX-Request" in http_request.headers:
-        return templates.TemplateResponse(
+        result = templates.TemplateResponse(
             http_request,
             "partials/resume/_refine_sse_loader.html",
             {
@@ -363,22 +469,35 @@ async def refine_resume_stream(
                 "limit_refinement_years": form_data.limit_refinement_years,
             },
         )
+        _msg = "refine_resume_stream returning"
+        log.debug(_msg)
+        return result
 
-    # Early validation of limit_refinement_years with immediate SSE error response on failure
-    parsed_limit_years, early_error_response = _parse_limit_years_for_stream(
-        form_data.limit_refinement_years,
+    # Obtain the original limit string, preserving user input when DI coerces unexpected values to None.
+    original_limit_str = await _extract_original_limit_str_from_post(
+        http_request=http_request,
+        form_data=form_data,
+    )
+
+    # POST-specific parsing: treat non-numeric as None; numeric <= 0 yields early error.
+    parsed_limit_years, early_error_response = _validate_and_parse_limit_for_post(
+        original_limit_str=original_limit_str,
     )
     if early_error_response is not None:
+        _msg = "refine_resume_stream returning"
+        log.debug(_msg)
         return early_error_response
 
-    return StreamingResponse(
+    result = StreamingResponse(
         _experience_refinement_stream(
-            resume=resume,
-            parsed_limit_years=parsed_limit_years,
-            db=db,
-            current_user=current_user,
-            job_description=form_data.job_description,
-            limit_refinement_years=form_data.limit_refinement_years,
+            params=_ExperienceStreamParams(
+                resume=resume,
+                parsed_limit_years=parsed_limit_years,
+                db=db,
+                current_user=current_user,
+                job_description=form_data.job_description,
+                limit_refinement_years=original_limit_str,
+            ),
         ),
         media_type="text/event-stream",
         headers={
@@ -387,6 +506,9 @@ async def refine_resume_stream(
             "X-Accel-Buffering": "no",
         },
     )
+    _msg = "refine_resume_stream returning"
+    log.debug(_msg)
+    return result
 
 
 @router.post("/{resume_id}/refine")

@@ -6608,6 +6608,23 @@ Notes:
 
 ---
 
+## function: `_validate_and_parse_limit_for_post(original_limit_str: str | None) -> tuple[int | None, StreamingResponse | None]`
+
+Validate and parse the limit years for POST refine stream.
+
+Args:
+    original_limit_str (str | None): The original user-supplied string, possibly None.
+
+Returns:
+    tuple[int | None, StreamingResponse | None]: Parsed integer years (or None) and
+        an optional early StreamingResponse when numeric validation fails.
+
+Notes:
+    1. Non-numeric values are treated as None (no limit, no early error).
+    2. Numeric values are validated via _parse_limit_years_for_stream.
+
+---
+
 
 ===
 
@@ -6865,9 +6882,11 @@ Args:
     personal_info (PersonalInfoResponse): The personal info data.
     lines (list[str]): The list of lines to append to.
 Notes:
-    1. Checks for banner text.
-    2. If it exists, adds a "Banner" section header and the text.
-    3. Adds a trailing blank line to the section.
+    1. Checks if `personal_info.banner` has content.
+    2. If the content is a string, it is used directly.
+    3. If the content is a `Banner` object, the value of its `text` attribute is used.
+    4. Any other type of content is ignored.
+    5. If valid text is found, it adds a "Banner" section header and the text, followed by a blank line.
 
 ---
 
@@ -6878,9 +6897,11 @@ Args:
     personal_info (PersonalInfoResponse): The personal info data.
     lines (list[str]): The list of lines to append to.
 Notes:
-    1. Checks for note text.
-    2. If it exists, adds a "Note" section header and the text.
-    3. Adds a trailing blank line to the section.
+    1. Checks if `personal_info.note` has content.
+    2. If the content is a string, it is used directly.
+    3. If the content is a `Note` object, the value of its `text` attribute is used.
+    4. Any other type of content is ignored.
+    5. If valid text is found, it adds a "Note" section header and the text, followed by a blank line.
 
 ---
 
@@ -6986,6 +7007,46 @@ Notes:
 
 ===
 # File: `resume_editor/app/api/routes/route_logic/resume_ai_logic.py`
+
+## function: `reconstruct_resume_markdown(personal_info: Any, education: Any, experience: Any, certifications: Any) -> str`
+
+Wrapper delegating to build_complete_resume_from_sections.
+Args:
+    personal_info (Any): The personal information section model.
+    education (Any): The education section model.
+    experience (Any): The experience section model.
+    certifications (Any): The certifications section model.
+Returns:
+    str: The reconstructed resume markdown.
+Notes:
+    1. This wrapper exists to provide a stable name for tests that patch 'reconstruct_resume_markdown'.
+    2. It simply calls 'build_complete_resume_from_sections' with the same arguments.
+
+---
+
+## function: `_replace_resume_banner(resume_content: str, introduction: str | None) -> str`
+
+Parse a resume, replace its banner, and reconstruct it.
+
+This function takes resume content and an introduction string, and returns
+the resume content with the banner section updated to contain the new introduction.
+
+Args:
+    resume_content (str): The full markdown content of the resume.
+    introduction (str | None): The new introduction text for the banner.
+        If None or whitespace-only, the original content is returned unchanged.
+
+Returns:
+    str: The reconstructed markdown string with the updated banner.
+
+Notes:
+    1.  If the `introduction` is `None` or whitespace, return the original `resume_content` unchanged.
+    2.  Parse the `resume_content` into its constituent sections (personal, education, etc.) using `extract_*` helper functions.
+    3.  If the `personal_info` section is successfully parsed, update its `banner` attribute with a new `Banner` object containing the `introduction` text.
+    4.  Reconstruct the full resume markdown by calling `reconstruct_resume_markdown` with the updated `personal_info` and the original other sections.
+    5.  Return the reconstructed markdown content.
+
+---
 
 ## function: `get_llm_config(db: Session, user_id: int) -> tuple[str | None, str | None, str | None]`
 
@@ -7096,10 +7157,11 @@ Returns:
 Notes:
     1.  Extracts personal, education, and certification sections from `original_resume_content`.
     2.  Extracts projects from `original_resume_content` and roles from `resume_content_to_refine`.
-    3.  Updates the roles with the `refined_roles` data from the LLM.
-    4.  Creates a new `ExperienceResponse` with refined roles and original projects.
-    5.  Calls `build_complete_resume_from_sections` to reconstruct the full resume markdown.
-    6.  This full markdown is passed to `_create_refine_result_html` to generate the final HTML.
+    3.  Updates the roles list with the `refined_roles` data from the LLM.
+    4.  Creates a new `ExperienceResponse` with the refined roles and original projects.
+    5.  Calls `build_complete_resume_from_sections` to reconstruct the resume markdown.
+    6.  If an introduction is provided in `params`, calls `_replace_resume_banner` to insert it into the reconstructed markdown.
+    7.  The final, complete markdown is passed to `_create_refine_result_html` to generate the HTML for the UI.
 
 ---
 
@@ -7155,7 +7217,9 @@ Returns:
 
 Orchestrates saving a refined resume as a new resume.
 
-This involves reconstructing the resume, validating it, and creating a new record in the database.
+This involves reconstructing the resume, replacing the banner with any provided
+introduction, validating the final content, and creating a new record in the
+database, persisting the introduction to its dedicated field.
 
 Args:
     params (SaveAsNewParams): The parameters for saving the new resume.
@@ -7173,6 +7237,60 @@ Raises:
 
 ===
 # File: `resume_editor/app/web/pages.py`
+
+
+===
+
+===
+# File: `resume_editor/tests/app/api/routes/route_logic/test_resume_ai_logic.py`
+
+## function: `test_replace_resume_banner_none_introduction() -> None`
+
+Test _replace_resume_banner returns original content when introduction is None.
+
+---
+
+## function: `test_replace_resume_banner_whitespace_introduction() -> None`
+
+Test _replace_resume_banner returns original content when introduction is whitespace.
+
+---
+
+## function: `test_replace_resume_banner_success(mock_extract_personal: MagicMock, mock_extract_education: MagicMock, mock_extract_experience: MagicMock, mock_extract_certifications: MagicMock, mock_reconstruct: MagicMock) -> None`
+
+Test _replace_resume_banner successfully replaces banner when introduction is provided.
+
+---
+
+## function: `test_replace_resume_banner_malformed_content(mock_extract_personal: MagicMock) -> None`
+
+Test _replace_resume_banner handles malformed resume content.
+
+---
+
+## function: `test_replace_resume_banner_personal_info_none(mock_extract_personal: MagicMock, mock_extract_education: MagicMock, mock_extract_experience: MagicMock, mock_extract_certifications: MagicMock, mock_reconstruct: MagicMock) -> None`
+
+Test branch where personal_info is None to cover the False path of the condition.
+
+---
+
+## function: `test_replace_resume_banner_reconstruct_failure(mock_extract_personal: MagicMock, mock_extract_education: MagicMock, mock_extract_experience: MagicMock, mock_extract_certifications: MagicMock, mock_reconstruct: MagicMock) -> None`
+
+Test exception handling path when reconstruction fails.
+
+---
+
+## function: `test_handle_save_as_new_refinement_uses_banner_replacement_with_intro(mock_validate: MagicMock, mock_reconstruct: MagicMock, mock_replace_banner: MagicMock, mock_create_resume: MagicMock) -> None`
+
+Verify handle_save_as_new_refinement integrates banner replacement when introduction is provided.
+
+---
+
+## function: `test_handle_save_as_new_refinement_uses_banner_replacement_with_none_intro(mock_validate: MagicMock, mock_reconstruct: MagicMock, mock_replace_banner: MagicMock, mock_create_resume: MagicMock) -> None`
+
+Verify handle_save_as_new_refinement calls banner replacement with None introduction.
+
+---
 
 
 ===

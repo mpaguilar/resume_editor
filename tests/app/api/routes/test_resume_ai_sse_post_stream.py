@@ -2,12 +2,14 @@ from unittest.mock import Mock, patch
 
 import pytest
 from fastapi.testclient import TestClient
+from starlette.requests import Request as StarletteRequest
 
 from resume_editor.app.core.auth import get_current_user_from_cookie
 from resume_editor.app.database.database import get_db
 from resume_editor.app.main import create_app
 from resume_editor.app.models.resume_model import Resume as DatabaseResume, ResumeData
 from resume_editor.app.models.user import User as DBUser, UserData
+from resume_editor.app.api.routes.resume_ai import _ExperienceStreamParams
 
 
 @pytest.fixture
@@ -71,11 +73,9 @@ def client_with_auth_and_resume(app, client, test_user, test_resume):
     return client
 
 
-@patch("resume_editor.app.api.routes.resume_ai.extract_experience_info")
-@patch("resume_editor.app.api.routes.resume_ai.experience_refinement_sse_generator")
+@patch("resume_editor.app.api.routes.resume_ai._experience_refinement_stream")
 def test_refine_resume_stream_post_without_limit(
-    mock_sse_generator,
-    mock_extract_exp,
+    mock_stream,
     client_with_auth_and_resume,
     test_user,
     test_resume,
@@ -87,8 +87,7 @@ def test_refine_resume_stream_post_without_limit(
         yield "event: one\ndata: 1\n\n"
         yield "event: two\ndata: 2\n\n"
 
-    mock_sse_generator.return_value = mock_generator()
-    mock_extract_exp.return_value = Mock(roles=[Mock()])
+    mock_stream.return_value = mock_generator()
 
     form_data = {
         "job_description": "a job",
@@ -104,13 +103,16 @@ def test_refine_resume_stream_post_without_limit(
         assert "event: one" in content
         assert "event: two" in content
 
-    # Validate generator was invoked with correct params
-    call_kwargs = mock_sse_generator.call_args.kwargs
+    # Validate stream helper was invoked with correct params
+    call_kwargs = mock_stream.call_args.kwargs
     assert "params" in call_kwargs
     params_arg = call_kwargs["params"]
+    assert isinstance(params_arg, _ExperienceStreamParams)
     assert params_arg.resume == test_resume
-    assert params_arg.resume_content_to_refine == test_resume.content
+    assert params_arg.parsed_limit_years is None
+    assert params_arg.current_user == test_user
     assert params_arg.job_description == "a job"
+    assert params_arg.limit_refinement_years is None
 
 
 @pytest.mark.parametrize(
@@ -120,9 +122,9 @@ def test_refine_resume_stream_post_without_limit(
         ("-5", "must be a positive number"),
     ],
 )
-@patch("resume_editor.app.api.routes.resume_ai.experience_refinement_sse_generator")
+@patch("resume_editor.app.api.routes.resume_ai._experience_refinement_stream")
 def test_refine_resume_stream_post_invalid_numeric_limit(
-    mock_sse_generator, client_with_auth_and_resume, limit_years_str, error_msg_part
+    mock_stream, client_with_auth_and_resume, limit_years_str, error_msg_part
 ):
     """
     Test that POST stream route returns an error for invalid numeric limit_refinement_years.
@@ -142,7 +144,7 @@ def test_refine_resume_stream_post_invalid_numeric_limit(
         assert error_msg_part in content
         assert "event: close" in content
 
-    mock_sse_generator.assert_not_called()
+    mock_stream.assert_not_called()
 
 
 @patch("resume_editor.app.api.routes.resume_ai.experience_refinement_sse_generator")
@@ -255,3 +257,40 @@ def test_refine_resume_stream_post_filtering_exception(
 
     mock_extract_personal.assert_called_once()
     mock_sse_generator.assert_not_called()
+
+
+@patch("resume_editor.app.api.routes.resume_ai._experience_refinement_stream")
+def test_refine_resume_stream_post_alpha_limit_parsing_sets_none(
+    mock_stream, client_with_auth_and_resume, test_user, test_resume
+):
+    """
+    Ensure the POST /refine/stream route handles a non-numeric limit_refinement_years
+    by setting parsed_limit_years to None and proceeding to stream.
+    """
+    async def mock_generator():
+        yield "data: ok\n\n"
+
+    mock_stream.return_value = mock_generator()
+
+    form_data = {
+        "job_description": "a job",
+        "target_section": "experience",
+        "limit_refinement_years": "abc",
+    }
+
+    with client_with_auth_and_resume.stream(
+        "POST", "/api/resumes/1/refine/stream", data=form_data
+    ) as response:
+        assert response.status_code == 200
+        content = response.read().decode("utf-8")
+        assert "data: ok" in content
+
+    call_kwargs = mock_stream.call_args.kwargs
+    assert "params" in call_kwargs
+    params_arg = call_kwargs["params"]
+    assert isinstance(params_arg, _ExperienceStreamParams)
+    assert params_arg.parsed_limit_years is None
+    assert params_arg.limit_refinement_years == "abc"
+    assert params_arg.job_description == "a job"
+    assert params_arg.resume == test_resume
+    assert params_arg.current_user == test_user

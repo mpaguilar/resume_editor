@@ -5,6 +5,7 @@ from resume_writer.models.resume import Resume as WriterResume
 
 from resume_editor.app.api.routes.route_models import PersonalInfoResponse
 from resume_editor.app.models.resume.experience import InclusionStatus
+from resume_editor.app.models.resume.personal import Banner, Note
 
 log = logging.getLogger(__name__)
 
@@ -369,14 +370,24 @@ def _add_banner_markdown(personal_info: PersonalInfoResponse, lines: list[str]) 
         personal_info (PersonalInfoResponse): The personal info data.
         lines (list[str]): The list of lines to append to.
     Notes:
-        1. Checks for banner text.
-        2. If it exists, adds a "Banner" section header and the text.
-        3. Adds a trailing blank line to the section.
+        1. Checks if `personal_info.banner` has content.
+        2. If the content is a string, it is used directly.
+        3. If the content is a `Banner` object, the value of its `text` attribute is used.
+        4. Any other type of content is ignored.
+        5. If valid text is found, it adds a "Banner" section header and the text, followed by a blank line.
 
     """
     log.debug("_add_banner_markdown starting")
     if personal_info.banner:
-        lines.extend(["## Banner", "", str(personal_info.banner), ""])
+        banner_text = None
+        if isinstance(personal_info.banner, str):
+            banner_text = personal_info.banner
+        elif isinstance(personal_info.banner, Banner):
+            banner_text = personal_info.banner.text
+
+        if banner_text:
+            lines.extend(["## Banner", "", banner_text, ""])
+
     log.debug("_add_banner_markdown returning")
 
 
@@ -386,14 +397,23 @@ def _add_note_markdown(personal_info: PersonalInfoResponse, lines: list[str]) ->
         personal_info (PersonalInfoResponse): The personal info data.
         lines (list[str]): The list of lines to append to.
     Notes:
-        1. Checks for note text.
-        2. If it exists, adds a "Note" section header and the text.
-        3. Adds a trailing blank line to the section.
+        1. Checks if `personal_info.note` has content.
+        2. If the content is a string, it is used directly.
+        3. If the content is a `Note` object, the value of its `text` attribute is used.
+        4. Any other type of content is ignored.
+        5. If valid text is found, it adds a "Note" section header and the text, followed by a blank line.
 
     """
     log.debug("_add_note_markdown starting")
     if personal_info.note:
-        lines.extend(["## Note", "", str(personal_info.note), ""])
+        note_text = None
+        if isinstance(personal_info.note, str):
+            note_text = personal_info.note
+        elif isinstance(personal_info.note, Note):
+            note_text = personal_info.note.text
+
+        if note_text:
+            lines.extend(["## Note", "", note_text, ""])
     log.debug("_add_note_markdown returning")
 
 

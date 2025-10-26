@@ -514,8 +514,8 @@ class PersonalInfoResponse(BaseModel):
     twitter: str | None = None
     work_authorization: str | None = None
     require_sponsorship: bool | None = None
-    banner: str | None = None
-    note: str | None = None
+    banner: Any | None = None
+    note: Any | None = None
 
 
 class EducationResponse(BaseModel):

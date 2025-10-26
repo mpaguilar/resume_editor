@@ -6,10 +6,13 @@ import pytest
 from resume_editor.app.api.routes.html_fragments import RefineResultParams
 from resume_editor.app.api.routes.route_logic.resume_ai_logic import (
     ProcessExperienceResultParams,
+    _replace_resume_banner,
     process_refined_experience_result,
+    reconstruct_resume_markdown,
 )
 from resume_editor.app.api.routes.route_models import (
     ExperienceResponse,
+    PersonalInfoResponse,
     RefineTargetSection,
 )
 from resume_editor.app.models.resume.experience import (
@@ -19,6 +22,7 @@ from resume_editor.app.models.resume.experience import (
     RoleBasics,
     RoleSummary,
 )
+from resume_editor.app.models.resume.personal import Banner
 from resume_editor.app.models.resume_model import Resume as DatabaseResume
 
 
@@ -31,10 +35,13 @@ def mock_resume() -> DatabaseResume:
 
 
 @patch(
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic._replace_resume_banner"
+)
+@patch(
     "resume_editor.app.api.routes.route_logic.resume_ai_logic._create_refine_result_html"
 )
 @patch(
-    "resume_editor.app.api.routes.route_logic.resume_ai_logic.build_complete_resume_from_sections"
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic.reconstruct_resume_markdown"
 )
 @patch(
     "resume_editor.app.api.routes.route_logic.resume_ai_logic.extract_certifications_info"
@@ -49,14 +56,15 @@ def mock_resume() -> DatabaseResume:
     "resume_editor.app.api.routes.route_logic.resume_ai_logic.extract_personal_info"
 )
 def test_process_refined_experience_result(
-    mock_extract_personal,
-    mock_extract_experience,
-    mock_extract_education,
-    mock_extract_certifications,
-    mock_build_complete,
-    mock_create_html,
-    mock_resume,
-):
+    mock_extract_personal: MagicMock,
+    mock_extract_experience: MagicMock,
+    mock_extract_education: MagicMock,
+    mock_extract_certifications: MagicMock,
+    mock_reconstruct_resume: MagicMock,
+    mock_create_html: MagicMock,
+    mock_replace_banner: MagicMock,
+    mock_resume: DatabaseResume,
+) -> None:
     """
     Test that process_refined_experience_result correctly reconstructs a full
     resume with refined roles and original projects.
@@ -116,7 +124,10 @@ def test_process_refined_experience_result(
     ).model_dump()
     refined_roles = {0: refined_role_data}  # Index 0 of the filtered list
 
-    mock_build_complete.return_value = "fully reconstructed resume"
+    reconstructed_resume = "fully reconstructed resume"
+    resume_with_banner = "resume with banner added"
+    mock_reconstruct_resume.return_value = reconstructed_resume
+    mock_replace_banner.return_value = resume_with_banner
     mock_create_html.return_value = "final html"
 
     # Act
@@ -142,9 +153,9 @@ def test_process_refined_experience_result(
     mock_extract_experience.assert_any_call(original_content)
     mock_extract_experience.assert_any_call(content_to_refine)
 
-    # Check that `build_complete_resume_from_sections` was called with correct data
-    mock_build_complete.assert_called_once()
-    build_args = mock_build_complete.call_args.kwargs
+    # Check that `reconstruct_resume_markdown` was called with correct data
+    mock_reconstruct_resume.assert_called_once()
+    build_args = mock_reconstruct_resume.call_args.kwargs
     assert build_args["personal_info"] == mock_personal
     assert build_args["education"] == mock_education
     assert build_args["certifications"] == mock_certifications
@@ -161,21 +172,29 @@ def test_process_refined_experience_result(
         experience_arg.projects[0].overview.title == "Original Project"
     )  # The original project
 
+    # Check that banner replacement was called
+    mock_replace_banner.assert_called_once_with(
+        resume_content=reconstructed_resume, introduction="intro"
+    )
+
     # Check that the final HTML generator was called correctly
     mock_create_html.assert_called_once()
     html_params = mock_create_html.call_args.kwargs["params"]
     assert isinstance(html_params, RefineResultParams)
-    assert html_params.refined_content == "fully reconstructed resume"
+    assert html_params.refined_content == resume_with_banner
     assert html_params.introduction == "intro"
     assert html_params.limit_refinement_years == 5
     assert html_params.resume_id == mock_resume.id
 
 
 @patch(
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic._replace_resume_banner"
+)
+@patch(
     "resume_editor.app.api.routes.route_logic.resume_ai_logic._create_refine_result_html"
 )
 @patch(
-    "resume_editor.app.api.routes.route_logic.resume_ai_logic.build_complete_resume_from_sections"
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic.reconstruct_resume_markdown"
 )
 @patch(
     "resume_editor.app.api.routes.route_logic.resume_ai_logic.extract_certifications_info"
@@ -190,14 +209,15 @@ def test_process_refined_experience_result(
     "resume_editor.app.api.routes.route_logic.resume_ai_logic.extract_personal_info"
 )
 def test_process_refined_experience_result_out_of_bounds_index(
-    mock_extract_personal,
-    mock_extract_experience,
-    mock_extract_education,
-    mock_extract_certifications,
-    mock_build_complete,
-    mock_create_html,
-    mock_resume,
-):
+    mock_extract_personal: MagicMock,
+    mock_extract_experience: MagicMock,
+    mock_extract_education: MagicMock,
+    mock_extract_certifications: MagicMock,
+    mock_reconstruct_resume: MagicMock,
+    mock_create_html: MagicMock,
+    mock_replace_banner: MagicMock,
+    mock_resume: DatabaseResume,
+) -> None:
     """Test process_refined_experience_result ignores out-of-bounds indices."""
     # Arrange
     original_content = "original resume content"
@@ -233,7 +253,8 @@ def test_process_refined_experience_result_out_of_bounds_index(
         summary=RoleSummary(text="Refined Summary"),
     )
     refined_roles_from_llm = {1: refined_role_llm.model_dump(mode="json")}
-    mock_build_complete.return_value = "reconstructed content"
+    mock_reconstruct_resume.return_value = "reconstructed content"
+    mock_replace_banner.return_value = "reconstructed content with banner"
     mock_create_html.return_value = "final html"
 
     # Act
@@ -250,18 +271,166 @@ def test_process_refined_experience_result_out_of_bounds_index(
 
     # Assert
     assert result == "final html"
-    mock_build_complete.assert_called_once()
-    build_args = mock_build_complete.call_args.kwargs
+    mock_reconstruct_resume.assert_called_once()
+    build_args = mock_reconstruct_resume.call_args.kwargs
     experience_arg = build_args["experience"]
 
     # The out-of-bounds index should be ignored, so the role is not updated.
     assert len(experience_arg.roles) == 1
     assert experience_arg.roles[0].basics.company == "Original Co"
 
+    # Check banner was replaced
+    mock_replace_banner.assert_called_once_with(
+        resume_content="reconstructed content", introduction="An intro"
+    )
+
     # Check call to HTML generator
     mock_create_html.assert_called_once()
     html_params = mock_create_html.call_args.kwargs["params"]
     assert isinstance(html_params, RefineResultParams)
-    assert html_params.refined_content == "reconstructed content"
+    assert html_params.refined_content == "reconstructed content with banner"
     assert html_params.introduction == "An intro"
     assert html_params.resume_id == mock_resume.id
+
+
+@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.reconstruct_resume_markdown")
+@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.extract_certifications_info")
+@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.extract_experience_info")
+@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.extract_education_info")
+@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.extract_personal_info")
+def test_replace_resume_banner_none_introduction(
+    mock_extract_personal: MagicMock,
+    mock_extract_education: MagicMock,
+    mock_extract_experience: MagicMock,
+    mock_extract_certifications: MagicMock,
+    mock_reconstruct_resume: MagicMock,
+) -> None:
+    """Test _replace_resume_banner returns original content when introduction is None."""
+    original_content = "# Personal\n## Banner\nOld banner\n# Experience\nSome content"
+    
+    result = _replace_resume_banner(original_content, None)
+    
+    assert result == original_content
+    # No parsing should occur when introduction is None
+    mock_extract_personal.assert_not_called()
+    mock_extract_education.assert_not_called()
+    mock_extract_experience.assert_not_called()
+    mock_extract_certifications.assert_not_called()
+    mock_reconstruct_resume.assert_not_called()
+
+
+@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.reconstruct_resume_markdown")
+@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.extract_certifications_info")
+@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.extract_experience_info")
+@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.extract_education_info")
+@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.extract_personal_info")
+def test_replace_resume_banner_whitespace_introduction(
+    mock_extract_personal: MagicMock,
+    mock_extract_education: MagicMock,
+    mock_extract_experience: MagicMock,
+    mock_extract_certifications: MagicMock,
+    mock_reconstruct_resume: MagicMock,
+) -> None:
+    """Test _replace_resume_banner returns original content when introduction is whitespace."""
+    original_content = "# Personal\n## Banner\nOld banner\n# Experience\nSome content"
+    
+    result = _replace_resume_banner(original_content, "   \n\t  ")
+    
+    assert result == original_content
+    # No parsing should occur when introduction is whitespace
+    mock_extract_personal.assert_not_called()
+    mock_extract_education.assert_not_called()
+    mock_extract_experience.assert_not_called()
+    mock_extract_certifications.assert_not_called()
+    mock_reconstruct_resume.assert_not_called()
+
+
+@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.reconstruct_resume_markdown")
+@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.extract_certifications_info")
+@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.extract_experience_info")
+@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.extract_education_info")
+@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.extract_personal_info")
+def test_replace_resume_banner_success(
+    mock_extract_personal: MagicMock,
+    mock_extract_education: MagicMock,
+    mock_extract_experience: MagicMock,
+    mock_extract_certifications: MagicMock,
+    mock_reconstruct_resume: MagicMock,
+) -> None:
+    """Test _replace_resume_banner successfully replaces banner when introduction is provided."""
+    original_content = "# Personal\nName: John Doe\n# Experience\nSome content"
+    new_introduction = "This is a new introduction"
+    
+    # Set up mocks
+    mock_personal = PersonalInfoResponse(name="John Doe")
+    mock_extract_personal.return_value = mock_personal
+    mock_extract_education.return_value = MagicMock()
+    mock_extract_experience.return_value = MagicMock()
+    mock_extract_certifications.return_value = MagicMock()
+    mock_reconstruct_resume.return_value = "# Personal\n## Banner\nThis is a new introduction\nName: John Doe\n# Experience\nSome content"
+    
+    result = _replace_resume_banner(original_content, new_introduction)
+    
+    # Verify parsing functions were called
+    mock_extract_personal.assert_called_once_with(original_content)
+    mock_extract_education.assert_called_once_with(original_content)
+    mock_extract_experience.assert_called_once_with(original_content)
+    mock_extract_certifications.assert_called_once_with(original_content)
+    
+    # Verify personal info banner was updated
+    assert mock_personal.banner == Banner(text=new_introduction)
+    
+    # Verify reconstruction was called with updated personal info
+    mock_reconstruct_resume.assert_called_once_with(
+        personal_info=mock_personal,
+        education=mock_extract_education.return_value,
+        experience=mock_extract_experience.return_value,
+        certifications=mock_extract_certifications.return_value,
+    )
+    
+    # Verify result
+    assert result == mock_reconstruct_resume.return_value
+
+
+@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.extract_personal_info")
+def test_replace_resume_banner_malformed_content(mock_extract_personal: MagicMock) -> None:
+    """Test _replace_resume_banner handles malformed resume content."""
+    original_content = "This is not valid resume content"
+    new_introduction = "This is a new introduction"
+    
+    # Make the extraction fail
+    mock_extract_personal.side_effect = ValueError("Invalid resume format")
+    
+    # Should raise an exception due to malformed content
+    with pytest.raises(ValueError):
+        _replace_resume_banner(original_content, new_introduction)
+
+
+@patch(
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic.build_complete_resume_from_sections"
+)
+def test_reconstruct_resume_markdown_wrapper(mock_build_complete: MagicMock) -> None:
+    """Test the reconstruct_resume_markdown wrapper delegates correctly."""
+    # Arrange
+    mock_build_complete.return_value = "built resume"
+    personal_info = MagicMock()
+    education = MagicMock()
+    experience = MagicMock()
+    certifications = MagicMock()
+
+    # Act
+    result = reconstruct_resume_markdown(
+        personal_info=personal_info,
+        education=education,
+        experience=experience,
+        certifications=certifications,
+    )
+
+    # Assert
+    assert result == "built resume"
+    mock_build_complete.assert_called_once_with(
+        personal_info=personal_info,
+        education=education,
+        experience=experience,
+        certifications=certifications,
+    )
