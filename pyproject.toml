@@ -46,7 +46,7 @@ addopts = "-rx"
 log_cli_level = "DEBUG"
 
 [tool.uv.sources]
-resume-writer = { git = "https://github.com/mpaguilar/resume_writer.git", rev = "6fbbdf8" }
+resume-writer = { git = "https://github.com/mpaguilar/resume_writer.git", rev = "ea0b6e6" }
 
 [tool.ruff]
 exclude = ["temporal-samples-python"]
