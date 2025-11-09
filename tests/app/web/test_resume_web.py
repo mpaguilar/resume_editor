@@ -384,7 +384,11 @@ def test_update_resume_view_page_post():
         "resume_editor.app.web.pages.get_resume_by_id_and_user", return_value=mock_resume
     ) as mock_get_resume, patch(
         "resume_editor.app.web.pages.update_resume"
-    ) as mock_update_resume:
+    ) as mock_update_resume, patch(
+        "resume_editor.app.web.pages.reconstruct_resume_with_new_introduction"
+    ) as mock_reconstruct:
+        mock_reconstruct.return_value = "reconstructed content"
+
         response = client.post(
             "/resumes/1/view",
             data={"introduction": "New Intro", "notes": "New Notes"},
@@ -397,7 +401,14 @@ def test_update_resume_view_page_post():
         mock_get_resume.assert_called_once_with(
             db=mock_db_session, resume_id=1, user_id=1
         )
-        expected_params = ResumeUpdateParams(introduction="New Intro", notes="New Notes")
+        mock_reconstruct.assert_called_once_with(
+            resume_content="# My Resume Content", introduction="New Intro"
+        )
+        expected_params = ResumeUpdateParams(
+            introduction="New Intro",
+            notes="New Notes",
+            content="reconstructed content",
+        )
         mock_update_resume.assert_called_once_with(
             db=mock_db_session,
             resume=mock_resume,

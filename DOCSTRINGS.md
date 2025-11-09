@@ -7024,12 +7024,42 @@ Notes:
 
 ---
 
+## function: `reconstruct_resume_with_new_introduction(resume_content: str, introduction: str | None) -> str`
+
+Reconstructs resume content with a new introduction banner.
+
+This function parses a resume's Markdown content, replaces the banner
+text in the personal information section with the provided introduction,
+and then reconstructs and returns the full Markdown content.
+
+Args:
+    resume_content (str): The original Markdown content of the resume.
+    introduction (str | None): The new introduction text to be placed in
+        the banner. If None or an empty/whitespace string, the original
+        `resume_content` is returned unchanged.
+
+Returns:
+    str: The updated resume content as a Markdown string, or the
+         original content if `introduction` is empty.
+
+Raises:
+    ValueError: If the resume content is malformed and cannot be parsed.
+
+Notes:
+    1.  Check if `introduction` is `None` or an empty/whitespace string. If so, return `resume_content` immediately.
+    2.  Parse the `resume_content` into its main sections (personal, education, experience, certifications) using `extract_*` helpers. This can raise a `ValueError` on failure.
+    3.  If a `personal_info` section is found, update its `banner` attribute with the new `introduction` text.
+    4.  Reconstruct the full resume markdown using `reconstruct_resume_markdown`, passing the modified `personal_info` and the other original sections.
+    5.  Return the newly reconstructed Markdown string.
+
+---
+
 ## function: `_replace_resume_banner(resume_content: str, introduction: str | None) -> str`
 
 Parse a resume, replace its banner, and reconstruct it.
 
-This function takes resume content and an introduction string, and returns
-the resume content with the banner section updated to contain the new introduction.
+This function is a wrapper that calls `reconstruct_resume_with_new_introduction`
+to update the banner section of a resume with a new introduction.
 
 Args:
     resume_content (str): The full markdown content of the resume.
@@ -7040,11 +7070,7 @@ Returns:
     str: The reconstructed markdown string with the updated banner.
 
 Notes:
-    1.  If the `introduction` is `None` or whitespace, return the original `resume_content` unchanged.
-    2.  Parse the `resume_content` into its constituent sections (personal, education, etc.) using `extract_*` helper functions.
-    3.  If the `personal_info` section is successfully parsed, update its `banner` attribute with a new `Banner` object containing the `introduction` text.
-    4.  Reconstruct the full resume markdown by calling `reconstruct_resume_markdown` with the updated `personal_info` and the original other sections.
-    5.  Return the reconstructed markdown content.
+    1. This function delegates its logic to `reconstruct_resume_with_new_introduction`.
 
 ---
 

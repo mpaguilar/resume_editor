@@ -7,6 +7,9 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
+from resume_editor.app.api.routes.route_logic.resume_ai_logic import (
+    reconstruct_resume_with_new_introduction,
+)
 from resume_editor.app.api.routes.route_logic.resume_crud import (
     ResumeCreateParams,
     ResumeUpdateParams,
@@ -248,7 +251,11 @@ async def handle_resume_view_update(
     db: Annotated[Session, Depends(get_db)],
     current_user: Annotated[User, Depends(get_current_user_from_cookie)],
 ) -> RedirectResponse:
-    """Handle updates to the resume view page."""
+    """Handle updates to the introduction and notes on the resume view page.
+
+    This also reconstructs the main resume content to reflect the updated
+    introduction in the banner section.
+    """
     resume = get_resume_by_id_and_user(
         db=db,
         resume_id=resume_id,
@@ -259,7 +266,14 @@ async def handle_resume_view_update(
     introduction = form_data.get("introduction")
     notes = form_data.get("notes")
 
-    update_params = ResumeUpdateParams(introduction=introduction, notes=notes)
+    new_content = reconstruct_resume_with_new_introduction(
+        resume_content=resume.content,
+        introduction=introduction,
+    )
+
+    update_params = ResumeUpdateParams(
+        introduction=introduction, notes=notes, content=new_content,
+    )
 
     update_resume(
         db=db,
