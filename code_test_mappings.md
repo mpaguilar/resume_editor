@@ -54,6 +54,7 @@ These are known mappings:
 - `resume_editor/app/llm/orchestration.py` -> `tests/app/llm/test_orchestration_refine_experience.py`
 - `resume_editor/app/llm/orchestration.py` -> `tests/app/llm/test_orchestration_refine_generic.py`
 - `resume_editor/app/llm/orchestration.py` -> `tests/app/llm/test_orchestration_refine_role.py`
+- `resume_editor/app/llm/prompts.py` -> `tests/app/llm/test_prompts.py`
 - `resume_editor/app/api/routes/route_logic/resume_serialization.py` -> `tests/app/api/routes/route_logic/test_resume_certifications_serialization.py`
 - `resume_editor/app/api/routes/route_logic/resume_serialization.py` -> `tests/app/api/routes/route_logic/test_resume_content_update.py`
 - `resume_editor/app/api/routes/route_logic/resume_serialization.py` -> `tests/app/api/routes/route_logic/test_resume_education_serialization.py`

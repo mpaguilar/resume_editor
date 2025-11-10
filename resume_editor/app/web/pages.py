@@ -272,7 +272,9 @@ async def handle_resume_view_update(
     )
 
     update_params = ResumeUpdateParams(
-        introduction=introduction, notes=notes, content=new_content,
+        introduction=introduction,
+        notes=notes,
+        content=new_content,
     )
 
     update_resume(

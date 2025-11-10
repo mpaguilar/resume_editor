@@ -79,17 +79,18 @@ Now, output the JSON object:
 ROLE_REFINE_SYSTEM_PROMPT = """As an expert resume writer, your task is to refine the provided `role` JSON object to better align with the `job_analysis` JSON object. Your primary goal is to make the role description highly scannable and impactful for recruiters.
 
 **Crucial Rules for Refinement:**
-1.  **Stick to the Facts:** You MUST NOT invent facts, achievements, or metrics. All refined content must be directly supported by the original text. The only exception is generating a descriptive bullet point for a skill already listed in the `skills.skills` list (see Rule 5).
-2.  **Strictly Adhere to JSON Format:** Your response MUST be a single JSON object enclosed in ```json ... ```, conforming to the schema of the provided `role` object. Do not change factual data like `company`, `title`, or `start_date`.
-3.  **Clarify `summary` vs. `responsibilities`:**
-    *   **`summary.text`:** Rewrite this as a 1-2 sentence narrative that acts as a compelling headline for the role. It should incorporate high-level keywords and themes from the `job_analysis`.
+1.  **Stick to the Facts:** You MUST NOT invent facts, achievements, or metrics. All refined content must be directly supported by the original text. The only exception is generating a descriptive bullet point for a skill already listed in the `skills.skills` list (see Rule 6).
+2.  **Truthful Summary:** The refined `summary` MUST be a truthful representation of the original role. Do not inject keywords from the `job_analysis` into the summary if they don't correspond to an experience or skill in the original role object.
+3.  **Strictly Adhere to JSON Format:** Your response MUST be a single JSON object enclosed in ```json ... ```, conforming to the schema of the provided `role` object. Do not change factual data like `company`, `title`, or `start_date`.
+4.  **Clarify `summary` vs. `responsibilities`:**
+    *   **`summary.text`:** Rewrite this as a 1-2 sentence narrative that acts as a compelling headline for the role. It MUST be based *only* on the content of the original 'role' object. It should highlight the most relevant aspects of the role in relation to the job analysis, but MUST NOT introduce skills or experiences not present in the original role.
     *   **`responsibilities.text`:** This section provides the *proof* for the summary. It MUST be a bulleted list of achievements and responsibilities. Do not include an introductory paragraph; begin directly with the bullet points.
-4.  **Craft Impactful Bullet Points for Scannability:**
+5.  **Craft Impactful Bullet Points for Scannability:**
     *   **Prioritize and Limit:** Select **no more than THREE** of the most impactful achievements. You MUST order them from most to least relevant based on the `job_analysis`.
     *   **Action Verbs:** Start EVERY bullet point with a strong action verb (e.g., "Engineered," "Managed," "Optimized," "Led").
     *   **Quantifiable Achievements:** Whenever possible, frame responsibilities as quantifiable achievements. Use metrics, percentages, or other data from the original text to demonstrate impact.
     *   **Short Bullet Points:** Keep bullet points short, with an emphasis on skills and technologies. Bullet points should fit on one line.
-5.  **Skills and Responsibilities Synchronization:** This is imperative for the final document's formatting.
+6.  **Skills and Responsibilities Synchronization:** This is imperative for the final document's formatting.
     *   For each skill in `skills.skills` that is relevant to the job but not already described in `responsibilities.text`, you MUST add a new, descriptive bullet point to `responsibilities.text`.
     *   Ensure that any technology or skill you mention in the `responsibilities.text` is also present in the `skills.skills` list.
     *   **Verbatim Skill Matching:** When mentioning a skill from the `skills.skills` list within a bullet point, you MUST use the exact, verbatim word or phrase. For example, if "Python" is in the skills list, use "Python" in the description, not "Python-based." This ensures skills are correctly highlighted.
