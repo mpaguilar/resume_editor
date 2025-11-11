@@ -5,6 +5,7 @@ from openai import AuthenticationError
 
 from resume_editor.app.llm.models import LLMConfig
 from resume_editor.app.llm.orchestration import (
+    DEFAULT_LLM_TEMPERATURE,
     _refine_generic_section,
     refine_resume_section_with_llm,
 )
@@ -17,7 +18,7 @@ LLM_INIT_PARAMS = [
         "custom-model",
         {
             "model": "custom-model",
-            "temperature": 0.7,
+            "temperature": DEFAULT_LLM_TEMPERATURE,
             "openai_api_base": "http://fake.llm",
             "api_key": "key",
         },
@@ -29,7 +30,7 @@ LLM_INIT_PARAMS = [
         "custom-model",
         {
             "model": "custom-model",
-            "temperature": 0.7,
+            "temperature": DEFAULT_LLM_TEMPERATURE,
             "openai_api_base": "http://fake.llm",
             "api_key": "not-needed",
         },
@@ -39,14 +40,14 @@ LLM_INIT_PARAMS = [
         None,
         "key",
         "custom-model",
-        {"model": "custom-model", "temperature": 0.7, "api_key": "key"},
+        {"model": "custom-model", "temperature": DEFAULT_LLM_TEMPERATURE, "api_key": "key"},
     ),
     # Case 4: No endpoint, no API key (relies on env var)
     (
         None,
         None,
         "custom-model",
-        {"model": "custom-model", "temperature": 0.7},
+        {"model": "custom-model", "temperature": DEFAULT_LLM_TEMPERATURE},
     ),
     # Case 5: Fallback to default model name when None is provided
     (
@@ -55,7 +56,7 @@ LLM_INIT_PARAMS = [
         None,
         {
             "model": "gpt-4o",
-            "temperature": 0.7,
+            "temperature": DEFAULT_LLM_TEMPERATURE,
             "openai_api_base": "http://fake.llm",
             "api_key": "key",
         },
@@ -67,7 +68,7 @@ LLM_INIT_PARAMS = [
         "",
         {
             "model": "gpt-4o",
-            "temperature": 0.7,
+            "temperature": DEFAULT_LLM_TEMPERATURE,
             "openai_api_base": "http://fake.llm",
             "api_key": "key",
         },
@@ -79,7 +80,7 @@ LLM_INIT_PARAMS = [
         "openrouter/model",
         {
             "model": "openrouter/model",
-            "temperature": 0.7,
+            "temperature": DEFAULT_LLM_TEMPERATURE,
             "openai_api_base": "https://openrouter.ai/api/v1",
             "api_key": "or-key",
             "default_headers": {

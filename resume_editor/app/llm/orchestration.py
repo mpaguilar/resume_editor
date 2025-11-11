@@ -38,6 +38,9 @@ from resume_editor.app.models.resume.experience import Role
 log = logging.getLogger(__name__)
 
 
+DEFAULT_LLM_TEMPERATURE = 0.2
+
+
 def _get_section_content(resume_content: str, section_name: str) -> str:
     """Extracts the Markdown content for a specific section of the resume.
 
@@ -138,7 +141,7 @@ async def analyze_job_description(
 
     llm_params = {
         "model": model_name,
-        "temperature": 0.7,
+        "temperature": DEFAULT_LLM_TEMPERATURE,
     }
     if llm_config.llm_endpoint:
         llm_params["openai_api_base"] = llm_config.llm_endpoint
@@ -488,7 +491,7 @@ def refine_resume_section_with_llm(
 
         llm_params = {
             "model": model_name,
-            "temperature": 0.7,
+            "temperature": DEFAULT_LLM_TEMPERATURE,
         }
         if llm_config.llm_endpoint:
             llm_params["openai_api_base"] = llm_config.llm_endpoint
@@ -571,7 +574,7 @@ async def refine_role(
 
     llm_params = {
         "model": model_name,
-        "temperature": 0.7,
+        "temperature": DEFAULT_LLM_TEMPERATURE,
     }
     if llm_config.llm_endpoint:
         llm_params["openai_api_base"] = llm_config.llm_endpoint
