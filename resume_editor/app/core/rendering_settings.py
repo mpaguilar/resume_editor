@@ -39,6 +39,7 @@ GENERAL_SETTINGS = {
                     "location": True,
                     "months_ago": "0",
                     "summary": True,
+                    "employment_type": True,
                 },
                 "projects": {
                     "overview": True,
