@@ -74,3 +74,34 @@ class RoleRefinementJob(BaseModel):
     job_analysis: JobAnalysis
     llm_config: LLMConfig
     original_index: int
+
+
+class JobKeyRequirements(BaseModel):
+    """A structured analysis of a job description, extracting key information."""
+
+    key_skills: list[str] = Field(
+        ...,
+        description="A list of the most critical skills and qualifications.",
+    )
+    candidate_priorities: str = Field(
+        ...,
+        description="A concise summary of the most important priorities for a candidate, based on the job description.",
+    )
+
+
+class CandidateAnalysis(BaseModel):
+    """An analysis of the resume against job requirements."""
+
+    skill_summary: dict[str, str] = Field(
+        ...,
+        description="A mapping of key skills from the job to a qualitative assessment of the candidate's experience level (e.g., 'extensive experience', 'familiarity with').",
+    )
+
+
+class GeneratedIntroduction(BaseModel):
+    """The final synthesized introduction."""
+
+    introduction: str = Field(
+        ...,
+        description="A compelling, concise introductory paragraph.",
+    )

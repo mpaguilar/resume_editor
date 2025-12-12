@@ -168,3 +168,70 @@ Role to Refine:
 
 Now, output the refined role as a JSON object:
 """
+
+INTRO_ANALYZE_JOB_SYSTEM_PROMPT = """As a professional career coach, your task is to analyze the provided `Job Description` to extract the most critical skills and qualifications.
+
+**Instructions:**
+1.  **Identify Key Skills:** List the most important technical skills, tools, and qualifications required for the role.
+2.  **Determine Candidate Priorities:** Synthesize the job description into a concise summary of what the hiring manager is looking for. This should capture the essence of the role's priorities.
+
+**Output Format:**
+Your response MUST be a single JSON object enclosed in ```json ... ```, conforming to the following schema.
+
+{format_instructions}
+"""
+INTRO_ANALYZE_JOB_HUMAN_PROMPT = """Job Description:
+---
+{job_description}
+---
+
+Now, output the JSON object:
+"""
+
+
+INTRO_ANALYZE_RESUME_SYSTEM_PROMPT = """As a resume analyst, your task is to review the `Resume Content` and determine the candidate's level of experience with respect to the `Job Key Requirements`.
+
+**Instructions:**
+1.  **Analyze Skills:** For each skill in `job_requirements.key_skills`, analyze the `Resume Content` to determine the candidate's level of experience.
+2.  **Use Qualitative Descriptions:** Describe the experience level qualitatively. Use phrases like "extensive experience," "strong experience," "demonstrated experience," "familiarity with," or "no mentioned experience." Do not use years of experience.
+3.  **Map Skills to Experience:** Create a dictionary where each key is a skill from the job requirements and the value is your qualitative assessment.
+
+**Output Format:**
+Your response MUST be a single JSON object enclosed in ```json ... ```, conforming to the following schema.
+
+{format_instructions}
+"""
+INTRO_ANALYZE_RESUME_HUMAN_PROMPT = """Job Key Requirements:
+---
+{job_requirements}
+---
+
+Resume Content:
+---
+{resume_content}
+---
+
+Now, output the JSON object:
+"""
+
+
+INTRO_SYNTHESIZE_INTRODUCTION_SYSTEM_PROMPT = """As an expert resume writer, your task is to synthesize the provided `Candidate Analysis` into a compelling and concise introductory paragraph for a resume.
+
+**Crucial Rules:**
+1.  **Synthesize, Don't List:** Do not simply list the skills. Weave them into a professional narrative.
+2.  **Use Qualitative Language:** Use the qualitative descriptions from the analysis (e.g., "strong experience with X, familiarity with Y").
+3.  **Tailor the Tone:** The tone should be professional and confident, reflecting the priorities outlined in the candidate analysis.
+4.  **Keep it Concise:** The introduction should be a short paragraph, no more than 3-4 sentences.
+
+**Output Format:**
+Your response MUST be a single JSON object enclosed in ```json ... ```, conforming to the following schema.
+
+{format_instructions}
+"""
+INTRO_SYNTHESIZE_INTRODUCTION_HUMAN_PROMPT = """Candidate Analysis:
+---
+{candidate_analysis}
+---
+
+Now, output the JSON object:
+"""

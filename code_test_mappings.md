@@ -48,6 +48,7 @@ These are known mappings:
 - `resume_editor/app/models/user_settings.py` -> `tests/app/models/test_user_settings.py`
 - `resume_editor/app/api/routes/route_logic/resume_crud.py` -> `tests/app/api/routes/route_logic/test_resume_crud.py`
 - `resume_editor/app/api/routes/route_logic/settings_crud.py` -> `tests/app/api/routes/route_logic/test_settings_crud.py`
+- `resume_editor/app/llm/models.py` -> `tests/app/llm/test_models.py`
 - `resume_editor/app/llm/orchestration.py` -> `tests/app/llm/test_orchestration_utils.py`
 - `resume_editor/app/llm/orchestration.py` -> `tests/app/llm/test_orchestration_analyze_job.py`
 - `resume_editor/app/llm/orchestration.py` -> `tests/app/llm/test_orchestration_introduction.py`

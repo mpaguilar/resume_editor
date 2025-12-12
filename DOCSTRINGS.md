@@ -6406,6 +6406,29 @@ Notes:
 
 ---
 
+## function: `generate_introduction_from_resume(resume_content: str, job_description: str, llm_config: LLMConfig) -> str`
+
+Generates a resume introduction using a multi-step LLM chain.
+
+Args:
+    resume_content (str): The full Markdown content of the resume.
+    job_description (str): The job description to align the introduction with.
+    llm_config (LLMConfig): Configuration for the LLM client.
+
+Returns:
+    str: The generated introduction, or an empty string if generation fails.
+
+Notes:
+    1.  Initializes a ChatOpenAI client using the provided `llm_config`.
+    2.  **Step 1: Job Analysis**: Creates a chain with `INTRO_ANALYZE_JOB_PROMPT` and a parser for `JobKeyRequirements`. It invokes this chain with the `job_description` to extract key skills and priorities.
+    3.  **Step 2: Resume Analysis**: Creates a chain with `INTRO_ANALYZE_RESUME_PROMPT` and a parser for `CandidateAnalysis`. It invokes this chain with the `resume_content` and the JSON output from the job analysis step.
+    4.  **Step 3: Introduction Synthesis**: Creates a chain with `INTRO_SYNTHESIZE_INTRODUCTION_PROMPT` and a parser for `GeneratedIntroduction`. It invokes this chain with the JSON output from the resume analysis step.
+    5.  Extracts the `introduction` text from the final Pydantic object.
+    6.  Handles JSON decoding and Pydantic validation errors by logging and returning an empty string.
+    7.  This function performs multiple network requests to the configured LLM endpoint.
+
+---
+
 
 ===
 

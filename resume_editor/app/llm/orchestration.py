@@ -7,6 +7,7 @@ from langchain_core.output_parsers import PydanticOutputParser, StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.utils.json import parse_json_markdown
 from langchain_openai import ChatOpenAI
+from pydantic import ValidationError
 
 from resume_editor.app.api.routes.route_logic.resume_serialization import (
     extract_certifications_info,
@@ -19,13 +20,22 @@ from resume_editor.app.api.routes.route_logic.resume_serialization import (
     serialize_personal_info_to_markdown,
 )
 from resume_editor.app.llm.models import (
+    CandidateAnalysis,
+    GeneratedIntroduction,
     JobAnalysis,
+    JobKeyRequirements,
     LLMConfig,
     RefinedRole,
     RefinedSection,
     RoleRefinementJob,
 )
 from resume_editor.app.llm.prompts import (
+    INTRO_ANALYZE_JOB_HUMAN_PROMPT,
+    INTRO_ANALYZE_JOB_SYSTEM_PROMPT,
+    INTRO_ANALYZE_RESUME_HUMAN_PROMPT,
+    INTRO_ANALYZE_RESUME_SYSTEM_PROMPT,
+    INTRO_SYNTHESIZE_INTRODUCTION_HUMAN_PROMPT,
+    INTRO_SYNTHESIZE_INTRODUCTION_SYSTEM_PROMPT,
     JOB_ANALYSIS_HUMAN_PROMPT,
     JOB_ANALYSIS_SYSTEM_PROMPT,
     RESUME_REFINE_HUMAN_PROMPT,
@@ -620,3 +630,133 @@ async def refine_role(
     _msg = "refine_role returning"
     log.debug(_msg)
     return refined_role
+
+
+def _invoke_chain_and_parse(
+    chain: Any, pydantic_model: Any, **kwargs: Any
+) -> Any:
+    """Invokes a LangChain chain, gets content, parses JSON, and validates with Pydantic."""
+    result = chain.invoke(kwargs)
+    result_str = result.content
+    parsed_json = parse_json_markdown(result_str)
+    return pydantic_model.model_validate(parsed_json)
+
+
+def _generate_introduction_from_resume(
+    resume_content: str,
+    job_description: str,
+    llm: ChatOpenAI,
+) -> str:
+    """Orchestrates the multi-step chain to generate a resume introduction."""
+    _msg = "_generate_introduction_from_resume starting"
+    log.debug(_msg)
+
+    try:
+        # Step 1: Job Analysis
+        job_analysis_parser = PydanticOutputParser(pydantic_object=JobKeyRequirements)
+        job_analysis_prompt = ChatPromptTemplate.from_messages(
+            [
+                ("system", INTRO_ANALYZE_JOB_SYSTEM_PROMPT),
+                ("human", INTRO_ANALYZE_JOB_HUMAN_PROMPT),
+            ],
+        ).partial(format_instructions=job_analysis_parser.get_format_instructions())
+        job_analysis_chain = job_analysis_prompt | llm
+        job_requirements = _invoke_chain_and_parse(
+            job_analysis_chain,
+            JobKeyRequirements,
+            job_description=job_description,
+        )
+
+        # Step 2: Resume Analysis
+        resume_analysis_parser = PydanticOutputParser(pydantic_object=CandidateAnalysis)
+        resume_analysis_prompt = ChatPromptTemplate.from_messages(
+            [
+                ("system", INTRO_ANALYZE_RESUME_SYSTEM_PROMPT),
+                ("human", INTRO_ANALYZE_RESUME_HUMAN_PROMPT),
+            ],
+        ).partial(format_instructions=resume_analysis_parser.get_format_instructions())
+        resume_analysis_chain = resume_analysis_prompt | llm
+        candidate_analysis = _invoke_chain_and_parse(
+            resume_analysis_chain,
+            CandidateAnalysis,
+            resume_content=resume_content,
+            job_requirements=job_requirements.model_dump_json(),
+        )
+
+        # Step 3: Synthesis
+        synthesis_parser = PydanticOutputParser(pydantic_object=GeneratedIntroduction)
+        synthesis_prompt = ChatPromptTemplate.from_messages(
+            [
+                ("system", INTRO_SYNTHESIZE_INTRODUCTION_SYSTEM_PROMPT),
+                ("human", INTRO_SYNTHESIZE_INTRODUCTION_HUMAN_PROMPT),
+            ],
+        ).partial(format_instructions=synthesis_parser.get_format_instructions())
+        synthesis_chain = synthesis_prompt | llm
+        generated_introduction = _invoke_chain_and_parse(
+            synthesis_chain,
+            GeneratedIntroduction,
+            candidate_analysis=candidate_analysis.model_dump_json(),
+        )
+
+        introduction = generated_introduction.introduction
+
+    except (json.JSONDecodeError, ValidationError, ValueError) as e:
+        _msg = f"Failed during introduction generation chain: {e!s}"
+        log.exception(_msg)
+        introduction = ""
+
+    _msg = "_generate_introduction_from_resume returning"
+    log.debug(_msg)
+    return introduction
+
+
+def generate_introduction_from_resume(
+    resume_content: str,
+    job_description: str,
+    llm_config: LLMConfig,
+) -> str:
+    """Generates a resume introduction using a multi-step LLM chain.
+
+    Args:
+        resume_content (str): The full Markdown content of the resume.
+        job_description (str): The job description to align the introduction with.
+        llm_config (LLMConfig): Configuration for the LLM client.
+
+    Returns:
+        str: The generated introduction, or an empty string if generation fails.
+
+    Notes:
+        1.  Initializes a ChatOpenAI client using the provided `llm_config`.
+        2.  **Step 1: Job Analysis**: Creates a chain with `INTRO_ANALYZE_JOB_PROMPT` and a parser for `JobKeyRequirements`. It invokes this chain with the `job_description` to extract key skills and priorities.
+        3.  **Step 2: Resume Analysis**: Creates a chain with `INTRO_ANALYZE_RESUME_PROMPT` and a parser for `CandidateAnalysis`. It invokes this chain with the `resume_content` and the JSON output from the job analysis step.
+        4.  **Step 3: Introduction Synthesis**: Creates a chain with `INTRO_SYNTHESIZE_INTRODUCTION_PROMPT` and a parser for `GeneratedIntroduction`. It invokes this chain with the JSON output from the resume analysis step.
+        5.  Extracts the `introduction` text from the final Pydantic object.
+        6.  Handles JSON decoding and Pydantic validation errors by logging and returning an empty string.
+        7.  This function performs multiple network requests to the configured LLM endpoint.
+
+    """
+    _msg = "generate_introduction_from_resume starting"
+    log.debug(_msg)
+
+    # Initialize LLM client
+    model_name = llm_config.llm_model_name if llm_config.llm_model_name else "gpt-4o"
+    llm_params: dict[str, Any] = {
+        "model": model_name,
+        "temperature": DEFAULT_LLM_TEMPERATURE,
+    }
+    if llm_config.llm_endpoint:
+        llm_params["openai_api_base"] = llm_config.llm_endpoint
+        if "openrouter.ai" in llm_config.llm_endpoint:
+            llm_params["default_headers"] = {
+                "HTTP-Referer": "http://localhost:8000/",
+                "X-Title": "Resume Editor",
+            }
+    if llm_config.api_key:
+        llm_params["api_key"] = llm_config.api_key
+    elif llm_config.llm_endpoint and "openrouter.ai" not in llm_config.llm_endpoint:
+        llm_params["api_key"] = "not-needed"
+    llm = ChatOpenAI(**llm_params)
+
+    return _generate_introduction_from_resume(
+        resume_content=resume_content, job_description=job_description, llm=llm
+    )
