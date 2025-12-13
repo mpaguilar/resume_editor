@@ -8,14 +8,11 @@ from resume_editor.app.api.routes.route_logic.resume_ai_logic import (
 )
 from resume_editor.app.api.routes.route_logic.resume_crud import ResumeCreateParams
 from resume_editor.app.api.routes.route_models import RefineTargetSection
+from resume_editor.app.llm.models import LLMConfig
 from resume_editor.app.models.resume_model import (
     Resume as DatabaseResume,
     ResumeData,
 )
-
-
-
-
 from resume_editor.app.api.routes.route_models import (
     SaveAsNewForm,
     SaveAsNewMetadata,
@@ -26,9 +23,16 @@ from resume_editor.app.api.routes.route_models import (
 @patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.create_resume_db")
 @patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.perform_pre_save_validation")
 @patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.reconstruct_resume_from_refined_section")
-@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic._replace_resume_banner")
+@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.get_llm_config")
+@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.generate_introduction_from_resume")
 def test_handle_save_as_new_refinement_success(
-    mock_replace_banner, mock_reconstruct, mock_validate, mock_create, test_user, test_resume
+    mock_generate_intro,
+    mock_get_llm_config,
+    mock_reconstruct,
+    mock_validate,
+    mock_create,
+    test_user,
+    test_resume,
 ):
     """Test handle_save_as_new_refinement successfully creates a new resume."""
     # Arrange
@@ -36,7 +40,6 @@ def test_handle_save_as_new_refinement_success(
     metadata = SaveAsNewMetadata(
         new_resume_name="New Resume",
         job_description="job desc",
-        introduction="intro",
     )
     form_data = SaveAsNewForm(
         refined_content="refined",
@@ -46,7 +49,9 @@ def test_handle_save_as_new_refinement_success(
     params = SaveAsNewParams(db=db, user=test_user, resume=test_resume, form_data=form_data)
 
     mock_reconstruct.return_value = "updated content"
-    mock_replace_banner.return_value = "updated content"
+    mock_get_llm_config.return_value = ("endpoint", "model", "key")
+    mock_generate_intro.return_value = "generated intro"
+
     resume_data = ResumeData(
         user_id=test_user.id, name=metadata.new_resume_name, content="updated content"
     )
@@ -63,9 +68,13 @@ def test_handle_save_as_new_refinement_success(
         refined_content=form_data.refined_content,
         target_section=form_data.target_section,
     )
-    mock_replace_banner.assert_called_once_with(
+    mock_get_llm_config.assert_called_once_with(db, test_user.id)
+    mock_generate_intro.assert_called_once_with(
         resume_content="updated content",
-        introduction="intro",
+        job_description="job desc",
+        llm_config=LLMConfig(
+            llm_endpoint="endpoint", api_key="key", llm_model_name="model"
+        ),
     )
     mock_validate.assert_called_once_with("updated content")
     expected_create_params = ResumeCreateParams(
@@ -75,7 +84,7 @@ def test_handle_save_as_new_refinement_success(
         is_base=False,
         parent_id=test_resume.id,
         job_description=metadata.job_description,
-        introduction=metadata.introduction,
+        introduction="generated intro",
     )
     mock_create.assert_called_once_with(db=db, params=expected_create_params)
 
@@ -83,9 +92,16 @@ def test_handle_save_as_new_refinement_success(
 @patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.create_resume_db")
 @patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.perform_pre_save_validation")
 @patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.reconstruct_resume_from_refined_section")
-@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic._replace_resume_banner")
+@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.get_llm_config")
+@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.generate_introduction_from_resume")
 def test_handle_save_as_new_refinement_failure_on_validation(
-    mock_replace_banner, mock_reconstruct, mock_validate, mock_create, test_user, test_resume
+    mock_generate_intro,
+    mock_get_llm_config,
+    mock_reconstruct,
+    mock_validate,
+    mock_create,
+    test_user,
+    test_resume,
 ):
     """Test handle_save_as_new_refinement failure on validation."""
     # Arrange
@@ -93,7 +109,6 @@ def test_handle_save_as_new_refinement_failure_on_validation(
     metadata = SaveAsNewMetadata(
         new_resume_name="New",
         job_description=None,
-        introduction=None,
         limit_refinement_years=None,
     )
     form_data = SaveAsNewForm(
@@ -103,7 +118,6 @@ def test_handle_save_as_new_refinement_failure_on_validation(
     )
     params = SaveAsNewParams(db=db, user=test_user, resume=test_resume, form_data=form_data)
     mock_reconstruct.return_value = "updated content"
-    mock_replace_banner.return_value = "updated content"
     mock_validate.side_effect = ValueError("validation failed")
 
     # Act & Assert
@@ -113,6 +127,8 @@ def test_handle_save_as_new_refinement_failure_on_validation(
     assert "Failed to reconstruct" in exc_info.value.detail
     assert "validation failed" in exc_info.value.detail
     mock_reconstruct.assert_called_once()
+    mock_generate_intro.assert_not_called()
+    mock_get_llm_config.assert_not_called()
     mock_validate.assert_called_once_with("updated content")
     mock_create.assert_not_called()
 
@@ -124,8 +140,18 @@ def test_handle_save_as_new_refinement_failure_on_validation(
 @patch(
     "resume_editor.app.api.routes.route_logic.resume_ai_logic.reconstruct_resume_from_refined_section"
 )
+@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.get_llm_config")
+@patch(
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic.generate_introduction_from_resume"
+)
 def test_handle_save_as_new_refinement_failure_on_reconstruction(
-    mock_reconstruct, mock_validate, mock_create, test_user, test_resume
+    mock_generate_intro,
+    mock_get_llm_config,
+    mock_reconstruct,
+    mock_validate,
+    mock_create,
+    test_user,
+    test_resume,
 ):
     """Test handle_save_as_new_refinement failure on reconstruction."""
     # Arrange
@@ -133,7 +159,6 @@ def test_handle_save_as_new_refinement_failure_on_reconstruction(
     metadata = SaveAsNewMetadata(
         new_resume_name="New",
         job_description=None,
-        introduction=None,
         limit_refinement_years=None,
     )
     form_data = SaveAsNewForm(
@@ -153,6 +178,8 @@ def test_handle_save_as_new_refinement_failure_on_reconstruction(
     mock_reconstruct.assert_called_once()
     mock_validate.assert_not_called()
     mock_create.assert_not_called()
+    mock_get_llm_config.assert_not_called()
+    mock_generate_intro.assert_not_called()
 
 
 @patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.create_resume_db")
@@ -162,9 +189,11 @@ def test_handle_save_as_new_refinement_failure_on_reconstruction(
 @patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.extract_experience_info")
 @patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.extract_education_info")
 @patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.extract_personal_info")
-@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic._replace_resume_banner")
+@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.get_llm_config")
+@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.generate_introduction_from_resume")
 def test_handle_save_as_new_refinement_with_filtered_content(
-    mock_replace_banner,
+    mock_generate_intro,
+    mock_get_llm_config,
     mock_extract_personal,
     mock_extract_education,
     mock_extract_experience,
@@ -191,7 +220,6 @@ def test_handle_save_as_new_refinement_with_filtered_content(
 
     metadata = SaveAsNewMetadata(
         new_resume_name="Filtered and Refined Resume",
-        introduction=None,
         job_description=None,
         limit_refinement_years=None,
     )
@@ -217,13 +245,14 @@ def test_handle_save_as_new_refinement_with_filtered_content(
     # Mock the final reconstruction
     final_content = "Final Reconstructed Content"
     mock_build_complete.return_value = final_content
-    mock_replace_banner.return_value = final_content
     mock_create.return_value = MagicMock(spec=DatabaseResume)
 
     # Act
     handle_save_as_new_refinement(params=params)
 
     # Assert
+    mock_get_llm_config.assert_not_called()
+    mock_generate_intro.assert_not_called()
     # 1. Assert correct content was used for extraction
     mock_extract_personal.assert_called_once_with(original_resume_content)
     mock_extract_education.assert_called_once_with(original_resume_content)
@@ -250,4 +279,4 @@ def test_handle_save_as_new_refinement_with_filtered_content(
     assert create_params.is_base is False
     assert create_params.parent_id == test_resume.id
     assert create_params.job_description is None
-    assert create_params.introduction is None
+    assert create_params.introduction == ""

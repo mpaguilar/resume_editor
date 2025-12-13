@@ -8,29 +8,8 @@
         {% if introduction %}
         <div class="mb-4">
             <label for="introduction" class="block font-semibold text-md mb-1">Introduction</label>
-            <textarea id="introduction" name="introduction" class="w-full h-32 p-2 border rounded font-mono text-sm" placeholder="AI-generated introduction will appear here, or add your own summary.">{{ introduction }}</textarea>
+            <textarea id="introduction" name="introduction" class="w-full h-24 p-2 border rounded font-mono text-sm">{{ introduction }}</textarea>
         </div>
-        <script>
-        (function () {
-            try {
-                var introTextarea = document.getElementById("introduction");
-                if (!introTextarea || (introTextarea.value && introTextarea.value.trim().length > 0)) {
-                    return;
-                }
-                var suggested = document.querySelector("#introduction-container p");
-                var text = suggested ? (suggested.textContent || "").trim() : "";
-                if (text) {
-                    introTextarea.value = text;
-                }
-                var container = document.getElementById("introduction-container");
-                if (container && container.parentNode) {
-                    container.parentNode.removeChild(container);
-                }
-            } catch (e) {
-                // swallow any errors to avoid disrupting UX
-            }
-        })();
-        </script>
         {% endif %}
 
         <h4 class="font-semibold text-md mb-1">Refined '{{ target_section_val }}' section</h4>

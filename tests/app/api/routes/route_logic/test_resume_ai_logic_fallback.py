@@ -15,10 +15,10 @@ from resume_editor.app.llm.models import LLMConfig
     "resume_editor.app.api.routes.route_logic.resume_ai_logic.process_refined_experience_result"
 )
 @patch(
-    "resume_editor.app.api.routes.route_logic.resume_ai_logic.analyze_job_description"
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic.generate_introduction_from_resume"
 )
 async def test_finalize_llm_refinement_intro_fallback_on_exception(
-    mock_analyze_jd, mock_process_result, caplog
+    mock_generate_intro, mock_process_result, caplog
 ):
     """
     Test _finalize_llm_refinement falls back to default intro when
@@ -38,7 +38,7 @@ async def test_finalize_llm_refinement_intro_fallback_on_exception(
     llm_config = LLMConfig(api_key="test-key")
     refined_roles = {0: {}}
     mock_process_result.return_value = "<html>final html</html>"
-    mock_analyze_jd.side_effect = Exception("LLM call failed")
+    mock_generate_intro.side_effect = Exception("LLM call failed")
 
     default_intro = "Professional summary tailored to the provided job description. Customize this section to emphasize your most relevant experience, accomplishments, and skills."
 
@@ -66,10 +66,10 @@ async def test_finalize_llm_refinement_intro_fallback_on_exception(
     "resume_editor.app.api.routes.route_logic.resume_ai_logic.process_refined_experience_result"
 )
 @patch(
-    "resume_editor.app.api.routes.route_logic.resume_ai_logic.analyze_job_description"
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic.generate_introduction_from_resume"
 )
 async def test_finalize_llm_refinement_intro_fallback_on_no_intro(
-    mock_analyze_jd, mock_process_result
+    mock_generate_intro, mock_process_result
 ):
     """
     Test _finalize_llm_refinement falls back to default intro when
@@ -89,8 +89,8 @@ async def test_finalize_llm_refinement_intro_fallback_on_no_intro(
     llm_config = LLMConfig(api_key="test-key")
     refined_roles = {0: {}}
     mock_process_result.return_value = "<html>final html</html>"
-    # Mock analyze_job_description to return an analysis object but no intro text
-    mock_analyze_jd.return_value = (Mock(), "")
+    # Mock generate_introduction_from_resume to return an empty string
+    mock_generate_intro.return_value = ""
 
     default_intro = "Professional summary tailored to the provided job description. Customize this section to emphasize your most relevant experience, accomplishments, and skills."
 
@@ -104,7 +104,7 @@ async def test_finalize_llm_refinement_intro_fallback_on_no_intro(
     )
 
     # Assert
-    mock_analyze_jd.assert_called_once()
+    mock_generate_intro.assert_called_once()
     mock_process_result.assert_called_once()
     call_params = mock_process_result.call_args[0][0]  # First positional arg
     assert call_params.introduction == default_intro

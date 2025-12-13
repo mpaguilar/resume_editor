@@ -15,6 +15,7 @@ Many routes may point to one file.
 ## Code->route file mappings
 
 These are the known mappings:
+- `/dashboard->resume_editor/app/web/pages.py`
 - `/login->resume_editor/app/web/pages.py`
 - `/resumes/{resume_id}/edit->resume_editor/app/web/pages.py`
 - `/resumes/{resume_id}/view->resume_editor/app/web/pages.py`
@@ -43,4 +44,8 @@ These are the known mappings:
 - `/api/admin/users/{user_id}->resume_editor/app/api/routes/admin.py`
 - `/api/admin/users/{user_id}/roles/{role_name}->resume_editor/app/api/routes/admin.py`
 - `/api/admin/impersonate/{username}->resume_editor/app/api/routes/admin.py`
+- `POST /admin/users/{user_id}/edit->resume_editor/app/web/admin.py`
+- `POST /admin/users/create->resume_editor/app/web/admin.py`
+- `GET /admin/users/{user_id}/edit->resume_editor/app/web/admin.py`
+- `GET /admin/users->resume_editor/app/web/admin.py`
 - `/setup->resume_editor/app/api/routes/pages/setup.py`

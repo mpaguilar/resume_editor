@@ -29,21 +29,23 @@ def test_replace_resume_banner_is_wrapper(mock_reconstruct: MagicMock) -> None:
 
 @patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.create_resume_db")
 @patch(
-    "resume_editor.app.api.routes.route_logic.resume_ai_logic._replace_resume_banner",
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic.generate_introduction_from_resume"
 )
+@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.get_llm_config")
 @patch(
     "resume_editor.app.api.routes.route_logic.resume_ai_logic.reconstruct_resume_from_refined_section",
 )
 @patch(
     "resume_editor.app.api.routes.route_logic.resume_ai_logic.perform_pre_save_validation",
 )
-def test_handle_save_as_new_refinement_uses_banner_replacement_with_intro(
+def test_handle_save_as_new_refinement_with_intro_generation(
     mock_validate: MagicMock,
     mock_reconstruct: MagicMock,
-    mock_replace_banner: MagicMock,
+    mock_get_llm_config: MagicMock,
+    mock_generate_intro: MagicMock,
     mock_create_resume: MagicMock,
 ) -> None:
-    """Verify handle_save_as_new_refinement integrates banner replacement when introduction is provided."""
+    """Verify handle_save_as_new_refinement integrates LLM introduction generation."""
     # Arrange params
     params = MagicMock()
     params.db = MagicMock()
@@ -58,35 +60,33 @@ def test_handle_save_as_new_refinement_uses_banner_replacement_with_intro(
     params.form_data.metadata = MagicMock()
     params.form_data.metadata.new_resume_name = "New Resume Name"
     params.form_data.metadata.job_description = "JD text"
-    params.form_data.metadata.introduction = "Intro text"
 
     mock_reconstruct.return_value = "reconstructed content"
-    mock_replace_banner.return_value = "final content"
+    mock_get_llm_config.return_value = ("endpoint", "model", "key")
+    mock_generate_intro.return_value = "Generated intro text"
     new_resume = MagicMock(spec=DatabaseResume)
     mock_create_resume.return_value = new_resume
 
     # Act
     result = handle_save_as_new_refinement(params)
 
-    # Assert reconstruction and banner replacement flow
+    # Assert reconstruction and intro generation flow
     mock_reconstruct.assert_called_once_with(
         original_resume_content="original resume markdown",
         refined_content="refined section content",
         target_section=params.form_data.target_section,
     )
-    mock_replace_banner.assert_called_once_with(
-        resume_content="reconstructed content",
-        introduction="Intro text",
-    )
-    mock_validate.assert_called_once_with("final content")
+    mock_get_llm_config.assert_called_once_with(params.db, params.user.id)
+    mock_generate_intro.assert_called_once()
+    mock_validate.assert_called_once_with("reconstructed content")
 
-    # Assert DB create is called with final content and introduction
+    # Assert DB create is called with correct content and introduction
     mock_create_resume.assert_called_once()
     kwargs = mock_create_resume.call_args.kwargs
     assert "db" in kwargs and kwargs["db"] is params.db
     create_params = kwargs["params"]
-    assert create_params.content == "final content"
-    assert create_params.introduction == "Intro text"
+    assert create_params.content == "reconstructed content"
+    assert create_params.introduction == "Generated intro text"
     assert create_params.name == "New Resume Name"
     assert create_params.job_description == "JD text"
 
@@ -96,21 +96,23 @@ def test_handle_save_as_new_refinement_uses_banner_replacement_with_intro(
 
 @patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.create_resume_db")
 @patch(
-    "resume_editor.app.api.routes.route_logic.resume_ai_logic._replace_resume_banner",
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic.generate_introduction_from_resume"
+)
+@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.get_llm_config")
+@patch(
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic.reconstruct_resume_from_refined_section"
 )
 @patch(
-    "resume_editor.app.api.routes.route_logic.resume_ai_logic.reconstruct_resume_from_refined_section",
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic.perform_pre_save_validation"
 )
-@patch(
-    "resume_editor.app.api.routes.route_logic.resume_ai_logic.perform_pre_save_validation",
-)
-def test_handle_save_as_new_refinement_uses_banner_replacement_with_none_intro(
+def test_handle_save_as_new_refinement_without_job_description(
     mock_validate: MagicMock,
     mock_reconstruct: MagicMock,
-    mock_replace_banner: MagicMock,
+    mock_get_llm_config: MagicMock,
+    mock_generate_intro: MagicMock,
     mock_create_resume: MagicMock,
 ) -> None:
-    """Verify handle_save_as_new_refinement calls banner replacement with None introduction."""
+    """Verify handle_save_as_new_refinement skips intro generation when no job description is provided."""
     # Arrange params
     params = MagicMock()
     params.db = MagicMock()
@@ -124,27 +126,24 @@ def test_handle_save_as_new_refinement_uses_banner_replacement_with_none_intro(
     params.form_data.target_section = MagicMock()
     params.form_data.metadata = MagicMock()
     params.form_data.metadata.new_resume_name = "Name"
-    params.form_data.metadata.job_description = "JD"
-    params.form_data.metadata.introduction = None
+    params.form_data.metadata.job_description = None
 
-    mock_reconstruct.return_value = "reconstructed"
-    mock_replace_banner.return_value = "final"
+    mock_reconstruct.return_value = "reconstructed content"
     mock_create_resume.return_value = MagicMock(spec=DatabaseResume)
 
     # Act
     result = handle_save_as_new_refinement(params)
 
     # Assert flow and calls
-    mock_replace_banner.assert_called_once_with(
-        resume_content="reconstructed",
-        introduction=None,
-    )
-    mock_validate.assert_called_once_with("final")
+    mock_reconstruct.assert_called_once()
+    mock_get_llm_config.assert_not_called()
+    mock_generate_intro.assert_not_called()
+    mock_validate.assert_called_once_with("reconstructed content")
 
-    # Ensure create called with introduction None and final content
+    # Ensure create called with empty introduction and reconstructed content
     create_params = mock_create_resume.call_args.kwargs["params"]
-    assert create_params.content == "final"
-    assert create_params.introduction is None
+    assert create_params.content == "reconstructed content"
+    assert create_params.introduction == ""
     assert result is mock_create_resume.return_value
 
 

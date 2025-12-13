@@ -97,7 +97,7 @@ async def test_analyze_job_description_empty_input():
     """Test that analyze_job_description raises ValueError for empty input."""
     with pytest.raises(ValueError, match="Job description cannot be empty."):
         await analyze_job_description(
-            job_description=" ", llm_config=LLMConfig(), resume_content_for_intro=""
+            job_description=" ", llm_config=LLMConfig(), resume_content_for_context=""
         )
 
 
@@ -145,12 +145,12 @@ def mock_chain_invocations_for_analysis():
 
 @pytest.mark.asyncio
 async def test_analyze_job_description(mock_chain_invocations_for_analysis):
-    """Test that analyze_job_description returns a JobAnalysis object and no introduction."""
+    """Test that analyze_job_description returns a JobAnalysis object."""
     # Act
     job_analysis, introduction = await analyze_job_description(
         job_description="some job description",
         llm_config=LLMConfig(),
-        resume_content_for_intro="some resume content",
+        resume_content_for_context="some resume content",
     )
 
     # Assert results
@@ -163,40 +163,6 @@ async def test_analyze_job_description(mock_chain_invocations_for_analysis):
     final_chain.ainvoke.assert_called_once()
     invoke_args = final_chain.ainvoke.call_args.args[0]
     assert "some resume content" in invoke_args["resume_content_block"]
-
-    # The introduction_instructions are now hardcoded in the prompt and no longer
-    # passed to partial(), so the assertion is removed.
-
-
-@pytest.mark.asyncio
-async def test_analyze_job_description_with_introduction(
-    mock_chain_invocations_for_analysis,
-):
-    """Test that analyze_job_description returns a JobAnalysis and an an introduction when requested."""
-    # Arrange: modify the mock to return an introduction
-    final_chain = mock_chain_invocations_for_analysis["final_chain"]
-    final_chain.ainvoke.return_value = '```json\n{"key_skills": ["python", "fastapi"], "primary_duties": ["develop things"], "themes": ["agile"], "introduction": "This is an intro."}\n```'
-
-    # Act
-    job_analysis, introduction = await analyze_job_description(
-        job_description="some job description",
-        llm_config=LLMConfig(),
-        resume_content_for_intro="some resume content",
-    )
-
-    # Assert
-    assert isinstance(job_analysis, JobAnalysis)
-    assert job_analysis.key_skills == ["python", "fastapi"]
-    assert introduction == "This is an intro."
-    assert job_analysis.introduction == "This is an intro."
-
-    # Assert prompt construction
-    final_chain.ainvoke.assert_called_once()
-    invoke_args = final_chain.ainvoke.call_args.args[0]
-    assert "some resume content" in invoke_args["resume_content_block"]
-
-    # The introduction_instructions are now hardcoded in the prompt and no longer
-    # passed to partial(), so the assertion is removed.
 
 
 @pytest.mark.parametrize("llm_endpoint, api_key, llm_model_name, expected_call_args", LLM_INIT_PARAMS)
@@ -218,7 +184,7 @@ async def test_analyze_job_description_llm_initialization(
             api_key=api_key,
             llm_model_name=llm_model_name,
         ),
-        resume_content_for_intro="some resume content",
+        resume_content_for_context="some resume content",
     )
     mock_chat_openai = mock_chain_invocations_for_analysis["chat_openai"]
     mock_chat_openai.assert_called_once_with(**expected_call_args)
@@ -245,7 +211,7 @@ async def test_analyze_job_description_json_decode_error(
         await analyze_job_description(
             job_description="job desc",
             llm_config=LLMConfig(),
-            resume_content_for_intro="some resume content",
+            resume_content_for_context="some resume content",
         )
 
 
@@ -266,7 +232,7 @@ async def test_analyze_job_description_validation_error(
         await analyze_job_description(
             job_description="job desc",
             llm_config=LLMConfig(),
-            resume_content_for_intro="some resume content",
+            resume_content_for_context="some resume content",
         )
 
 
@@ -288,7 +254,7 @@ async def test_analyze_job_description_authentication_error(
         await analyze_job_description(
             job_description="job desc",
             llm_config=LLMConfig(),
-            resume_content_for_intro="some resume content",
+            resume_content_for_context="some resume content",
         )
 
 
@@ -301,7 +267,7 @@ async def test_analyze_job_description_prompt_content(
     await analyze_job_description(
         job_description="A job description",
         llm_config=LLMConfig(),
-        resume_content_for_intro="some resume content",
+        resume_content_for_context="some resume content",
     )
 
     # Assert

@@ -100,28 +100,28 @@ def _get_section_content(resume_content: str, section_name: str) -> str:
 async def analyze_job_description(
     job_description: str,
     llm_config: LLMConfig,
-    resume_content_for_intro: str,
+    resume_content_for_context: str,
 ) -> tuple[JobAnalysis, str | None]:
-    """Uses an LLM to analyze a job description and optionally generate a resume introduction.
+    """Uses an LLM to analyze a job description.
 
     Args:
         job_description (str): The job description to analyze.
         llm_config (LLMConfig): LLM configuration including endpoint, API key, and model name.
-        resume_content_for_intro (str | None): Optional full resume content to be used for generating an introduction.
+        resume_content_for_context (str): The full resume content, used to provide context for the analysis.
 
     Returns:
-        tuple[JobAnalysis, str | None]: A tuple containing the structured analysis of the job description and an optional introduction string.
+        JobAnalysis: The structured analysis of the job description.
 
     Notes:
         1. Set up a `PydanticOutputParser` for structured output based on the `JobAnalysis` model.
-        2. Conditionally prepare prompt components for introduction generation if `resume_content_for_intro` is provided.
+        2. Prepare prompt components for with resume content for context.
         3. Create a `ChatPromptTemplate` with instructions for the LLM.
         4. Determine the model name, using the provided `llm_model_name` or falling back to a default.
         5. Initialize the `ChatOpenAI` client.
         6. Create a chain combining the prompt, LLM, and a `StrOutputParser`.
-        7. Asynchronously invoke the chain with the job description and optional resume content.
+        7. Asynchronously invoke the chain with the job description and resume content.
         8. Parse the JSON response and validate it against the `JobAnalysis` model.
-        9. Return the `JobAnalysis` object and the generated `introduction`.
+        9. Return the `JobAnalysis` object.
 
     Network access:
         - This function makes a network request to the LLM endpoint specified by llm_endpoint.
@@ -136,7 +136,9 @@ async def analyze_job_description(
     parser = PydanticOutputParser(pydantic_object=JobAnalysis)
 
     # Conditionally prepare prompt components for introduction generation
-    resume_content_block = f"Resume Content:\n---\n{resume_content_for_intro}\n---\n\n"
+    resume_content_block = (
+        f"Resume Content:\n---\n{resume_content_for_context}\n---\n\n"
+    )
 
     prompt = ChatPromptTemplate.from_messages(
         [
@@ -190,7 +192,7 @@ async def analyze_job_description(
 
     _msg = "analyze_job_description returning"
     log.debug(_msg)
-    return analysis, analysis.introduction
+    return analysis, getattr(analysis, "introduction", None)
 
 
 def _refine_generic_section(
@@ -198,8 +200,7 @@ def _refine_generic_section(
     job_description: str,
     target_section: str,
     llm: ChatOpenAI,
-    generate_introduction: bool,
-) -> tuple[str, str | None]:
+) -> str:
     """Uses a generic LLM chain to refine a non-experience section of the resume.
 
     Args:
@@ -207,42 +208,35 @@ def _refine_generic_section(
         job_description (str): The job description to align the resume with.
         target_section (str): The section of the resume to refine.
         llm (ChatOpenAI): An initialized ChatOpenAI client instance.
-        generate_introduction (bool): Whether to request an introduction.
 
     Returns:
-        tuple[str, str | None]: A tuple containing the refined Markdown content
-             for the target section and an optional introduction. Returns an empty
-             string and None if the target section is empty.
+        str: The refined Markdown content for the target section.
+             Returns an empty string if the target section is empty.
 
     Raises:
         ValueError: If the LLM response is not valid JSON or fails Pydantic validation.
 
     Notes:
         1. Extracts the target section content from the resume using `_get_section_content`.
-        2. If the extracted content is empty, returns an empty string and None.
+        2. If the extracted content is empty, returns an empty string.
         3. Sets up a `PydanticOutputParser` for structured output based on the `RefinedSection` model.
-        4. Conditionally modifies the prompt's goal to request an introduction if `generate_introduction` is True.
-        5. Creates a `ChatPromptTemplate` with instructions for the LLM.
-        6. Creates a chain combining the prompt, LLM, and a `StrOutputParser`.
-        7. Streams the response from the chain and joins the chunks.
-        8. Parses the LLM's JSON-Markdown output using `parse_json_markdown`.
-        9. Validates the parsed JSON against the `RefinedSection` model.
-        10. Extracts the `refined_markdown` and optionally the `introduction` from the validated result.
-        11. Returns a tuple of `(refined_markdown, introduction)`.
+        4. Creates a `ChatPromptTemplate` with instructions for the LLM.
+        5. Creates a chain combining the prompt, LLM, and a `StrOutputParser`.
+        6. Streams the response from the chain and joins the chunks.
+        7. Parses the LLM's JSON-Markdown output using `parse_json_markdown`.
+        8. Validates the parsed JSON against the `RefinedSection` model.
+        9. Returns the `refined_markdown` field from the validated result.
 
     """
     section_content = _get_section_content(resume_content, target_section)
     if not section_content.strip():
         _msg = f"Section '{target_section}' is empty, returning as-is."
         log.warning(_msg)
-        return "", None
+        return ""
 
     parser = PydanticOutputParser(pydantic_object=RefinedSection)
 
     goal_statement = "Rephrase and restructure the existing content from the `Resume Section to Refine` to be more impactful and relevant to the `Job Description`, while following all rules."
-
-    if generate_introduction:
-        goal_statement += " Additionally, write a brief (1-2 paragraph) professional introduction for the resume based on the content and job description, and place it in the 'introduction' field of the JSON output."
 
     processing_guidelines = ""
 
@@ -274,7 +268,6 @@ def _refine_generic_section(
 
         parsed_json = parse_json_markdown(response_str)
         refined_section = RefinedSection.model_validate(parsed_json)
-        introduction = getattr(refined_section, "introduction", None)
 
     except (json.JSONDecodeError, ValueError) as e:
         _msg = f"Failed to parse LLM response as JSON: {e!s}"
@@ -283,7 +276,7 @@ def _refine_generic_section(
             "The AI service returned an unexpected response. Please try again.",
         ) from e
 
-    return refined_section.refined_markdown, introduction
+    return refined_section.refined_markdown
 
 
 async def _refine_role_and_put_on_queue(
@@ -362,22 +355,19 @@ async def async_refine_experience_section(
         resume_content (str): The full Markdown content of the resume.
         job_description (str): The job description to align the resume with.
         llm_config (LLMConfig): LLM configuration including endpoint, API key, and model name.
-        generate_introduction (bool): Whether to generate an introduction.
         max_concurrency (int): The maximum number of roles to refine in parallel.
 
     Yields:
         dict[str, Any]: Status updates and refined role data.
 
     Notes:
-        1. Yields a progress message for parsing the resume.
-        2. Extracts the experience section from the resume content.
-        3. Yields a progress message for analyzing the job description.
-        4. Calls `analyze_job_description` to get a structured analysis. If `generate_introduction` is `True`, it also requests an introduction.
-        5. If an introduction is generated, it is immediately yielded via an `introduction_generated` event.
-        6. If roles are found, creates an `asyncio.Queue` for events and a `Semaphore` for concurrency control.
-        7. For each role, creates a concurrent task using `_refine_role_and_put_on_queue`.
-        8. Enters a loop to consume events from the queue until all roles are processed.
-        9. For each event, if it's an exception, it is raised. Otherwise, it is yielded to the caller.
+        1. Yields progress messages for parsing the resume and analyzing the job description.
+        2. Extracts experience information from the resume. If no roles are found, the function returns.
+        3. Analyzes the job description to get key requirements and an optional introduction. If roles are found and an introduction exists, it is yielded.
+        4. Creates an `asyncio.Queue` for events and a `Semaphore` to limit concurrency.
+        5. For each role, a background task is created to perform refinement and put events on the queue. Tasks are created once.
+        6. Enters a loop to consume events from the queue, yielding them until all roles are processed.
+        7. After the event loop, `asyncio.gather` is called to ensure all background tasks have completed.
 
     """
     log.debug("async_refine_experience_section starting")
@@ -394,17 +384,17 @@ async def async_refine_experience_section(
     job_analysis, introduction = await analyze_job_description(
         job_description=job_description,
         llm_config=llm_config,
-        resume_content_for_intro=resume_content,
+        resume_content_for_context=resume_content,
     )
-
-    if introduction:
-        yield {"status": "introduction_generated", "data": introduction}
 
     # 3. Create and dispatch tasks for role refinement
     num_roles = len(experience_info.roles) if experience_info.roles else 0
     if num_roles == 0:
         log.warning("No roles found in experience section to refine.")
         return
+
+    if introduction:
+        yield {"status": "introduction_generated", "data": introduction}
 
     event_queue = asyncio.Queue()
     semaphore = asyncio.Semaphore(max_concurrency)
@@ -439,6 +429,7 @@ async def async_refine_experience_section(
         yield event
         event_queue.task_done()
 
+    await asyncio.gather(*tasks, return_exceptions=True)
     log.debug("async_refine_experience_section finishing")
 
 
@@ -447,7 +438,7 @@ def refine_resume_section_with_llm(
     job_description: str,
     target_section: str,
     llm_config: LLMConfig,
-) -> tuple[str, str | None]:
+) -> str:
     """Uses an LLM to refine a specific non-experience section of a resume.
 
     This function acts as a dispatcher. For 'experience' section, it raises an error,
@@ -459,12 +450,10 @@ def refine_resume_section_with_llm(
         job_description (str): The job description to align the resume with.
         target_section (str): The section of the resume to refine (e.g., "personal").
         llm_config (LLMConfig): LLM configuration including endpoint, API key, and model name.
-        generate_introduction (bool): Whether to generate an introduction.
 
     Returns:
-        tuple[str, str | None]: A tuple containing the refined Markdown content for
-             the target section and an optional introduction. Returns an empty
-             string and None if the target section is empty.
+        str: The refined Markdown content for the target section.
+             Returns an empty string if the target section is empty.
 
     Raises:
         ValueError: If `target_section` is 'experience'.
@@ -482,7 +471,7 @@ def refine_resume_section_with_llm(
         4. Initializes the `ChatOpenAI` client.
         5. Calls `_refine_generic_section` with the resume content, job description,
            target section, and the initialized LLM client.
-        6. Returns the tuple of refined content and introduction from the helper function.
+        6. Returns the refined content string from the helper function.
 
     """
     _msg = f"refine_resume_section_with_llm starting for section '{target_section}'"
@@ -520,17 +509,16 @@ def refine_resume_section_with_llm(
 
         llm = ChatOpenAI(**llm_params)
 
-        refined_content, introduction = _refine_generic_section(
+        refined_content = _refine_generic_section(
             resume_content=resume_content,
             job_description=job_description,
             target_section=target_section,
             llm=llm,
-            generate_introduction=True,
         )
 
         _msg = "refine_resume_section_with_llm returning"
         log.debug(_msg)
-        return refined_content, introduction
+        return refined_content
 
 
 async def refine_role(
@@ -632,9 +620,7 @@ async def refine_role(
     return refined_role
 
 
-def _invoke_chain_and_parse(
-    chain: Any, pydantic_model: Any, **kwargs: Any
-) -> Any:
+def _invoke_chain_and_parse(chain: Any, pydantic_model: Any, **kwargs: Any) -> Any:
     """Invokes a LangChain chain, gets content, parses JSON, and validates with Pydantic."""
     result = chain.invoke(kwargs)
     result_str = result.content
@@ -758,5 +744,7 @@ def generate_introduction_from_resume(
     llm = ChatOpenAI(**llm_params)
 
     return _generate_introduction_from_resume(
-        resume_content=resume_content, job_description=job_description, llm=llm
+        resume_content=resume_content,
+        job_description=job_description,
+        llm=llm,
     )

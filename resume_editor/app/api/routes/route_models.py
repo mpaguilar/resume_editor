@@ -444,11 +444,11 @@ class RefineResponse(BaseModel):
 
     Attributes:
         refined_content (str): The LLM-refined resume content in Markdown format.
-        introduction (str | None): An optional AI-generated introductory paragraph for the resume.
+        introduction (str | None): An AI-generated introduction, if applicable.
 
     Args:
         refined_content (str): The updated Markdown content of the resume section after refinement.
-        introduction (str | None): An optional AI-generated introductory paragraph for the resume.
+        introduction (str | None): An AI-generated introduction.
 
     Returns:
         RefineResponse: An instance of the model containing the refined content.

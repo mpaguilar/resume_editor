@@ -1,11 +1,13 @@
 import asyncio
 import html
 import logging
+from pathlib import Path
 from typing import Any, AsyncGenerator
 
 from cryptography.fernet import InvalidToken
 from fastapi import HTTPException, Response
 from fastapi.responses import HTMLResponse
+from jinja2 import Environment, FileSystemLoader
 from openai import AuthenticationError
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
@@ -43,8 +45,8 @@ from resume_editor.app.api.routes.route_models import (
 from resume_editor.app.core.security import decrypt_data
 from resume_editor.app.llm.models import LLMConfig
 from resume_editor.app.llm.orchestration import (
-    analyze_job_description,
     async_refine_experience_section,
+    generate_introduction_from_resume,
     refine_resume_section_with_llm,
 )
 from resume_editor.app.models.resume.experience import Role
@@ -52,6 +54,9 @@ from resume_editor.app.models.resume.personal import Banner
 from resume_editor.app.models.resume_model import Resume as DatabaseResume
 
 log = logging.getLogger(__name__)
+
+TEMPLATES_DIR = Path(__file__).resolve().parent.parent.parent.parent / "templates"
+env = Environment(loader=FileSystemLoader(str(TEMPLATES_DIR)), autoescape=True)
 
 
 def reconstruct_resume_markdown(
@@ -268,10 +273,8 @@ def create_sse_introduction_message(introduction: str) -> str:
         str: The formatted SSE 'introduction_generated' message.
 
     """
-    intro_html = f"""<div id="introduction-container" hx-swap-oob="true">
-<h4 class="text-lg font-semibold text-gray-700">Suggested Introduction:</h4>
-<p class="mt-1 text-sm text-gray-600 bg-gray-50 p-3 rounded-md border">{html.escape(introduction)}</p>
-</div>"""
+    intro_template = env.get_template("partials/resume/_refine_result_intro.html")
+    intro_html = intro_template.render(introduction=introduction)
     return create_sse_message(event="introduction_generated", data=intro_html)
 
 
@@ -410,6 +413,34 @@ def process_refined_experience_result(params: ProcessExperienceResultParams) -> 
     return result_html
 
 
+def _process_refined_role_event(
+    event: dict,
+    refined_roles: dict,
+) -> str | None:
+    """Processes a 'role_refined' event and returns a progress message."""
+    index = event.get("original_index")
+    data = event.get("data")
+
+    if index is None or data is None:
+        _msg = f"Malformed role_refined event received: {event}"
+        log.warning(_msg)
+        return None
+
+    try:
+        # Validate data and create a progress message
+        role = Role.model_validate(data)
+        refined_roles[index] = data
+        if role.basics and role.basics.title and role.basics.company:
+            return create_sse_progress_message(
+                f"Refined Role: {role.basics.title} at {role.basics.company}",
+            )
+    except Exception as e:
+        _msg = f"Failed to validate refined role data: {e!s}"
+        log.exception(_msg)
+
+    return None
+
+
 def _process_sse_event(
     event: dict,
     refined_roles: dict,
@@ -434,24 +465,19 @@ def _process_sse_event(
     sse_message = None
     new_introduction = None
 
-    if isinstance(event, dict) and event.get("status") == "in_progress":
+    status = event.get("status")
+
+    if status == "in_progress":
         sse_message = create_sse_progress_message(event.get("message", ""))
-    elif isinstance(event, dict) and event.get("status") == "introduction_generated":
+    elif status == "introduction_generated":
         new_introduction = event.get("data")
         if new_introduction:
             sse_message = create_sse_introduction_message(new_introduction)
-    elif isinstance(event, dict) and event.get("status") == "role_refined":
-        index = event.get("original_index")
-        data = event.get("data")
-        if index is not None and data is not None:
-            refined_roles[index] = data
-        else:
-            _msg = f"Malformed role_refined event received: {event}"
-            log.warning(_msg)
+    elif status == "role_refined":
+        sse_message = _process_refined_role_event(event, refined_roles)
     else:
         _msg = f"Unhandled SSE event received: {event}"
         log.warning(_msg)
-
     result = (sse_message, new_introduction)
     _msg = "_process_sse_event returning"
     log.debug(_msg)
@@ -520,53 +546,50 @@ async def _finalize_llm_refinement(
     llm_config: LLMConfig,
 ):
     """Finalize refinement, process results, and queue done/error messages."""
-    if refined_roles:
-        # Always ensure an introduction is produced.
-        needs_intro = introduction is None or (
-            isinstance(introduction, str) and not introduction.strip()
-        )
-        if needs_intro:
-            _msg = "No introduction captured from stream; generating introduction fallback."
-            log.debug(_msg)
-            try:
-                _analysis, intro_text = await analyze_job_description(
-                    job_description=params.job_description,
-                    llm_config=llm_config,
-                    resume_content_for_intro=params.original_resume_content,
-                )
-                introduction = intro_text
-            except Exception as e:
-                _msg = f"Failed to generate introduction fallback: {e!s}"
-                log.exception(_msg)
-        # If still missing, provide a deterministic default introduction.
-        if introduction is None or (
-            isinstance(introduction, str) and not introduction.strip()
-        ):
-            introduction = "Professional summary tailored to the provided job description. Customize this section to emphasize your most relevant experience, accomplishments, and skills."
+    # Always ensure an introduction is produced.
+    needs_intro = introduction is None or (
+        isinstance(introduction, str) and not introduction.strip()
+    )
+    if needs_intro:
+        _msg = "No introduction captured from stream; generating introduction fallback."
+        log.debug(_msg)
+        try:
+            introduction = generate_introduction_from_resume(
+                resume_content=params.original_resume_content,
+                job_description=params.job_description,
+                llm_config=llm_config,
+            )
+        except Exception as e:
+            _msg = f"Failed to generate introduction fallback: {e!s}"
+            log.exception(_msg)
 
-        limit_years_int = (
-            int(params.limit_refinement_years)
-            if params.limit_refinement_years
-            else None
-        )
-        process_params = ProcessExperienceResultParams(
-            resume_id=params.resume.id,
-            original_resume_content=params.original_resume_content,
-            resume_content_to_refine=params.resume_content_to_refine,
-            refined_roles=refined_roles,
-            job_description=params.job_description,
-            introduction=introduction,
-            limit_refinement_years=limit_years_int,
-        )
-        result_html = process_refined_experience_result(process_params)
-        await message_queue.put(create_sse_done_message(result_html))
-    else:
+    # If still missing, provide a deterministic default introduction.
+    if introduction is None or (
+        isinstance(introduction, str) and not introduction.strip()
+    ):
+        introduction = "Professional summary tailored to the provided job description. Customize this section to emphasize your most relevant experience, accomplishments, and skills."
+
+    if not refined_roles:
         await message_queue.put(
             create_sse_error_message(
                 "Refinement finished, but no roles were found to refine.",
                 is_warning=True,
             ),
         )
+    limit_years_int = (
+        int(params.limit_refinement_years) if params.limit_refinement_years else None
+    )
+    process_params = ProcessExperienceResultParams(
+        resume_id=params.resume.id,
+        original_resume_content=params.original_resume_content,
+        resume_content_to_refine=params.resume_content_to_refine,
+        refined_roles=refined_roles,
+        job_description=params.job_description,
+        introduction=introduction,
+        limit_refinement_years=limit_years_int,
+    )
+    result_html = process_refined_experience_result(process_params)
+    await message_queue.put(create_sse_done_message(result_html))
 
 
 async def _llm_task(params: "ExperienceRefinementParams", message_queue: asyncio.Queue):
@@ -808,9 +831,10 @@ async def experience_refinement_sse_generator(
 def handle_save_as_new_refinement(params: SaveAsNewParams) -> DatabaseResume:
     """Orchestrates saving a refined resume as a new resume.
 
-    This involves reconstructing the resume, replacing the banner with any provided
-    introduction, validating the final content, and creating a new record in the
-    database, persisting the introduction to its dedicated field.
+    This involves reconstructing the resume, generating a new introduction via LLM
+    if a job description is present, validating the final content, and creating
+    a new record in the database, persisting the introduction to its
+    dedicated field.
 
     Args:
         params (SaveAsNewParams): The parameters for saving the new resume.
@@ -826,24 +850,40 @@ def handle_save_as_new_refinement(params: SaveAsNewParams) -> DatabaseResume:
     log.debug(_msg)
 
     try:
+        # 1. Reconstruct the full resume content with the refined section.
         updated_content = reconstruct_resume_from_refined_section(
             original_resume_content=params.resume.content,
             refined_content=params.form_data.refined_content,
             target_section=params.form_data.target_section,
         )
-        # Support both nested metadata and flat form fields for backward compatibility
-        if (
-            hasattr(params.form_data, "metadata")
-            and params.form_data.metadata is not None
-        ):
-            introduction_value = params.form_data.metadata.introduction
-        else:
-            introduction_value = getattr(params.form_data, "introduction", None)
 
-        final_content = _replace_resume_banner(
-            resume_content=updated_content,
-            introduction=introduction_value,
-        )
+        job_description_val = None
+        if hasattr(params.form_data, "metadata") and params.form_data.metadata:
+            job_description_val = params.form_data.metadata.job_description
+        else:
+            job_description_val = getattr(params.form_data, "job_description", None)
+
+        # 2. Generate a new introduction if a job description is available.
+        introduction = ""
+        if job_description_val:
+            llm_endpoint, llm_model_name, api_key = get_llm_config(
+                params.db,
+                params.user.id,
+            )
+            llm_config = LLMConfig(
+                llm_endpoint=llm_endpoint,
+                api_key=api_key,
+                llm_model_name=llm_model_name,
+            )
+            introduction = generate_introduction_from_resume(
+                resume_content=updated_content,
+                job_description=job_description_val,
+                llm_config=llm_config,
+            )
+
+        # 3. The final content for the resume record is the reconstructed content.
+        # The introduction is now stored in a separate DB field.
+        final_content = updated_content
         perform_pre_save_validation(final_content)
     except (ValueError, TypeError, HTTPException) as e:
         detail = getattr(e, "detail", str(e))
@@ -851,14 +891,13 @@ def handle_save_as_new_refinement(params: SaveAsNewParams) -> DatabaseResume:
         log.exception(_msg)
         raise HTTPException(status_code=422, detail=_msg)
 
-    # Derive name and job_description from metadata if present, else from flat fields
-    if hasattr(params.form_data, "metadata") and params.form_data.metadata is not None:
+    # Derive name and job_description from metadata
+    if hasattr(params.form_data, "metadata") and params.form_data.metadata:
         new_resume_name = params.form_data.metadata.new_resume_name
-        job_description_val = params.form_data.metadata.job_description
     else:
         new_resume_name = getattr(params.form_data, "new_resume_name", None)
-        job_description_val = getattr(params.form_data, "job_description", None)
 
+    # 4. Create the new resume record, passing the generated introduction.
     create_params = ResumeCreateParams(
         user_id=params.user.id,
         name=new_resume_name,
@@ -866,7 +905,7 @@ def handle_save_as_new_refinement(params: SaveAsNewParams) -> DatabaseResume:
         is_base=False,
         parent_id=params.resume.id,
         job_description=job_description_val,
-        introduction=introduction_value,
+        introduction=introduction,
     )
     new_resume = create_resume_db(
         db=params.db,

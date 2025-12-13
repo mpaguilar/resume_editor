@@ -18,7 +18,6 @@ class RefinedSection(BaseModel):
 
     Attributes:
         refined_markdown (str): The refined resume section, formatted as a valid Markdown string.
-        introduction (str | None): An optional AI-generated introductory paragraph for the resume.
 
     """
 
@@ -26,7 +25,6 @@ class RefinedSection(BaseModel):
         ...,
         description="The refined resume section, formatted as a valid Markdown string.",
     )
-    introduction: str | None = None
 
 
 class JobAnalysis(BaseModel):
@@ -43,10 +41,6 @@ class JobAnalysis(BaseModel):
     themes: list[str] = Field(
         ...,
         description="A list of high-level themes, company culture points, or recurring keywords (e.g., 'fast-paced environment,' 'data-driven decisions').",
-    )
-    introduction: str | None = Field(
-        default=None,
-        description="An optional AI-generated introductory paragraph for the resume.",
     )
 
 

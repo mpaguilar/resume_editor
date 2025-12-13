@@ -6332,7 +6332,7 @@ Notes:
 
 ---
 
-## function: `_refine_generic_section(resume_content: str, job_description: str, target_section: str, llm: ChatOpenAI, generate_introduction: bool) -> tuple[str, str | None]`
+## function: `_refine_generic_section(resume_content: str, job_description: str, target_section: str, llm: ChatOpenAI) -> str`
 
 Uses a generic LLM chain to refine a non-experience section of the resume.
 
@@ -6341,32 +6341,28 @@ Args:
     job_description (str): The job description to align the resume with.
     target_section (str): The section of the resume to refine.
     llm (ChatOpenAI): An initialized ChatOpenAI client instance.
-    generate_introduction (bool): Whether to request an introduction.
 
 Returns:
-    tuple[str, str | None]: A tuple containing the refined Markdown content
-         for the target section and an optional introduction. Returns an empty
-         string and None if the target section is empty.
+    str: The refined Markdown content for the target section.
+         Returns an empty string if the target section is empty.
 
 Raises:
     ValueError: If the LLM response is not valid JSON or fails Pydantic validation.
 
 Notes:
     1. Extracts the target section content from the resume using `_get_section_content`.
-    2. If the extracted content is empty, returns an empty string and None.
+    2. If the extracted content is empty, returns an empty string.
     3. Sets up a `PydanticOutputParser` for structured output based on the `RefinedSection` model.
-    4. Conditionally modifies the prompt's goal to request an introduction if `generate_introduction` is True.
-    5. Creates a `ChatPromptTemplate` with instructions for the LLM.
-    6. Creates a chain combining the prompt, LLM, and a `StrOutputParser`.
-    7. Streams the response from the chain and joins the chunks.
-    8. Parses the LLM's JSON-Markdown output using `parse_json_markdown`.
-    9. Validates the parsed JSON against the `RefinedSection` model.
-    10. Extracts the `refined_markdown` and optionally the `introduction` from the validated result.
-    11. Returns a tuple of `(refined_markdown, introduction)`.
+    4. Creates a `ChatPromptTemplate` with instructions for the LLM.
+    5. Creates a chain combining the prompt, LLM, and a `StrOutputParser`.
+    6. Streams the response from the chain and joins the chunks.
+    7. Parses the LLM's JSON-Markdown output using `parse_json_markdown`.
+    8. Validates the parsed JSON against the `RefinedSection` model.
+    9. Returns the `refined_markdown` field from the validated result.
 
 ---
 
-## function: `refine_resume_section_with_llm(resume_content: str, job_description: str, target_section: str, llm_config: LLMConfig) -> tuple[str, str | None]`
+## function: `refine_resume_section_with_llm(resume_content: str, job_description: str, target_section: str, llm_config: LLMConfig) -> str`
 
 Uses an LLM to refine a specific non-experience section of a resume.
 
@@ -6379,12 +6375,10 @@ Args:
     job_description (str): The job description to align the resume with.
     target_section (str): The section of the resume to refine (e.g., "personal").
     llm_config (LLMConfig): LLM configuration including endpoint, API key, and model name.
-    generate_introduction (bool): Whether to generate an introduction.
 
 Returns:
-    tuple[str, str | None]: A tuple containing the refined Markdown content for
-         the target section and an optional introduction. Returns an empty
-         string and None if the target section is empty.
+    str: The refined Markdown content for the target section.
+         Returns an empty string if the target section is empty.
 
 Raises:
     ValueError: If `target_section` is 'experience'.
@@ -6402,7 +6396,19 @@ Notes:
     4. Initializes the `ChatOpenAI` client.
     5. Calls `_refine_generic_section` with the resume content, job description,
        target section, and the initialized LLM client.
-    6. Returns the tuple of refined content and introduction from the helper function.
+    6. Returns the refined content string from the helper function.
+
+---
+
+## function: `_invoke_chain_and_parse(chain: Any, pydantic_model: Any) -> Any`
+
+Invokes a LangChain chain, gets content, parses JSON, and validates with Pydantic.
+
+---
+
+## function: `_generate_introduction_from_resume(resume_content: str, job_description: str, llm: ChatOpenAI) -> str`
+
+Orchestrates the multi-step chain to generate a resume introduction.
 
 ---
 
@@ -7214,6 +7220,12 @@ Notes:
 
 ---
 
+## function: `_process_refined_role_event(event: dict, refined_roles: dict) -> str | None`
+
+Processes a 'role_refined' event and returns a progress message.
+
+---
+
 ## function: `_process_sse_event(event: dict, refined_roles: dict) -> tuple[str | None, str | None]`
 
 Processes a single SSE event from the experience refinement stream.
@@ -7266,9 +7278,10 @@ Returns:
 
 Orchestrates saving a refined resume as a new resume.
 
-This involves reconstructing the resume, replacing the banner with any provided
-introduction, validating the final content, and creating a new record in the
-database, persisting the introduction to its dedicated field.
+This involves reconstructing the resume, generating a new introduction via LLM
+if a job description is present, validating the final content, and creating
+a new record in the database, persisting the introduction to its
+dedicated field.
 
 Args:
     params (SaveAsNewParams): The parameters for saving the new resume.

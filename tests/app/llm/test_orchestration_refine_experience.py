@@ -5,6 +5,9 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 import json
 
+# get a reference to the real function before any patches
+_real_asyncio_create_task = asyncio.create_task
+
 from resume_editor.app.api.routes.route_models import ExperienceResponse
 from resume_editor.app.llm.orchestration import async_refine_experience_section
 from resume_editor.app.llm.models import JobAnalysis, LLMConfig, RefinedRole
@@ -124,7 +127,7 @@ async def test_async_refine_experience_section_execution(
     mock_analyze_job.assert_awaited_once_with(
         job_description=job_description,
         llm_config=llm_config,
-        resume_content_for_intro=resume_content,
+        resume_content_for_context=resume_content,
     )
     assert mock_refine_role.call_count == len(mock_roles)
 
@@ -206,7 +209,7 @@ async def test_async_refine_experience_section_with_introduction(
     # Check that analyze_job_description was called correctly
     mock_analyze_job.assert_awaited_once()
     call_kwargs = mock_analyze_job.call_args.kwargs
-    assert call_kwargs["resume_content_for_intro"] == resume_content
+    assert call_kwargs["resume_content_for_context"] == resume_content
 
     # Check yielded events
     assert len(events) == 5
@@ -222,53 +225,110 @@ async def test_async_refine_experience_section_with_introduction(
 
 
 @pytest.mark.asyncio
-@patch("resume_editor.app.llm.orchestration.refine_role", new_callable=AsyncMock)
+@patch("resume_editor.app.llm.orchestration.analyze_job_description", new_callable=AsyncMock)
+@patch("resume_editor.app.llm.orchestration.extract_experience_info")
+async def test_async_refine_experience_section_no_roles(
+    mock_extract_experience: MagicMock,
+    mock_analyze_job: AsyncMock,
+):
+    """
+    Test that async_refine_experience_section handles cases with no roles gracefully.
+    """
+    # Arrange
+    resume_content = "resume with no roles"
+    job_description = "some job"
+    llm_config = LLMConfig()
+
+    mock_extract_experience.return_value = ExperienceResponse(roles=[], projects=[])
+    # Ensure no introduction is returned to match the step's assertion criteria
+    mock_analyze_job.return_value = (create_mock_job_analysis(), None)
+
+    # Act
+    events = []
+    async for event in async_refine_experience_section(
+        resume_content=resume_content,
+        job_description=job_description,
+        llm_config=llm_config,
+    ):
+        events.append(event)
+
+    # Assert
+    mock_extract_experience.assert_called_once_with(resume_content)
+    mock_analyze_job.assert_awaited_once_with(
+        job_description=job_description,
+        llm_config=llm_config,
+        resume_content_for_context=resume_content,
+    )
+
+    assert len(events) == 2
+    assert events == [
+        {"status": "in_progress", "message": "Parsing resume..."},
+        {"status": "in_progress", "message": "Analyzing job description..."},
+    ]
+
+
+@pytest.mark.asyncio
+@patch("resume_editor.app.llm.orchestration.asyncio.create_task")
+@patch(
+    "resume_editor.app.llm.orchestration._refine_role_and_put_on_queue",
+    new_callable=AsyncMock,
+)
 @patch(
     "resume_editor.app.llm.orchestration.analyze_job_description",
     new_callable=AsyncMock,
 )
 @patch("resume_editor.app.llm.orchestration.extract_experience_info")
-async def test_async_refine_experience_section_execution_no_roles(
-    mock_extract_experience,
-    mock_analyze_job,
-    mock_refine_role,
+async def test_async_refine_experience_schedules_tasks_only_once(
+    mock_extract_experience: MagicMock,
+    mock_analyze_job: AsyncMock,
+    mock_refine_and_put: AsyncMock,
+    mock_create_task: MagicMock,
 ):
     """
-    Test that the async orchestrator execution handles cases with no roles gracefully.
+    Test that async_refine_experience_section schedules tasks only once per role.
+    This test is designed to fail if the task rescheduling bug is present.
     """
     # Arrange
-    resume_content = "some resume"
-    job_description = "some job"
-    llm_endpoint = "http://fake.llm"
-    api_key = "key"
-    llm_model_name = "model"
-    max_concurrency = 3
+    # Because we are mocking create_task to check its call count, we need to
+    # provide a side effect that actually runs the coroutine to avoid
+    # deadlocking the test. We use the real create_task for this.
+    def create_task_side_effect(coro, *, name=None):
+        return _real_asyncio_create_task(coro)
 
-    mock_experience_info = ExperienceResponse(roles=[], projects=[])
+    mock_create_task.side_effect = create_task_side_effect
+
+    # Mock extract_experience to return two roles
+    mock_role1 = create_mock_role()
+    mock_role2 = create_mock_role()
+    mock_experience_info = ExperienceResponse(roles=[mock_role1, mock_role2], projects=[])
     mock_extract_experience.return_value = mock_experience_info
+
+    # Mock analyze_job_description to return analysis and no intro
     mock_job_analysis = create_mock_job_analysis()
     mock_analyze_job.return_value = (mock_job_analysis, None)
 
-    # Act
+    # Mock _refine_role_and_put_on_queue to simulate work by putting two
+    # events on the queue for the main loop to consume.
+    async def refine_and_put_side_effect(*args, **kwargs):
+        event_queue = kwargs["event_queue"]
+        await event_queue.put({"status": "in_progress", "message": "Refining..."})
+        await event_queue.put({"status": "role_refined", "data": {}})
+
+    mock_refine_and_put.side_effect = refine_and_put_side_effect
+
+    # Act: Consume the async generator to trigger the logic
     events = []
-    llm_config = LLMConfig(
-        llm_endpoint=llm_endpoint, api_key=api_key, llm_model_name=llm_model_name
-    )
     async for event in async_refine_experience_section(
-        resume_content=resume_content,
-        job_description=job_description,
-        llm_config=llm_config,
-        max_concurrency=max_concurrency,
+        resume_content="resume",
+        job_description="job",
+        llm_config=LLMConfig(),
     ):
         events.append(event)
 
     # Assert
-    mock_analyze_job.assert_awaited_once()
-    assert events == [
-        {"status": "in_progress", "message": "Parsing resume..."},
-        {"status": "in_progress", "message": "Analyzing job description..."},
-    ]
-    mock_refine_role.assert_not_called()
+    # The main assertion: ensure create_task was called exactly once per role.
+    # It should be called 2 times. With the bug, it is called more.
+    assert mock_create_task.call_count == 2
 
 
 @pytest.mark.asyncio
@@ -359,7 +419,11 @@ async def test_async_refine_experience_section_role_refinement_fails(
         roles=[create_mock_role()], projects=[]
     )
     mock_analyze_job.return_value = (create_mock_job_analysis(), None)
-    mock_refine_role.side_effect = ValueError("Role task failed")
+
+    async def mock_refine_side_effect(*args, **kwargs):
+        raise ValueError("Role task failed")
+
+    mock_refine_role.side_effect = mock_refine_side_effect
 
     # Act & Assert
     events = []

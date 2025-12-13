@@ -5,12 +5,6 @@ JOB_ANALYSIS_SYSTEM_PROMPT = """As a professional resume writer and career coach
 2.  **Identify Relevant Responsibilities:** List the primary duties from the `Job Description` that the candidate has demonstrable experience with, based on the `Resume Content`.
 3.  **Identify Relevant Themes:** From the `Job Description`, identify high-level themes (e.g., "fast-paced environment," "data-driven decisions," "strong collaboration") that are also supported by the candidate's experience in the `Resume Content`.
 
-**Instructions for Summary (only if 'Resume Content' is provided):**
-1.  **Strictly Adhere to Resume Content:** The summary must only reference skills, technologies, and experiences explicitly found in the provided `Resume Content`. Do not invent or misrepresent the candidate's qualifications.
-2.  **Focus on Overlap:** The content of the summary must be based on the intersection of the requirements in the `Job Description` and the skills present in the `Resume Content`.
-3.  **Format as Bullet Points:** The output for the `summary` field in the JSON object must be a single string formatted as a Markdown bulleted list. Do not include an introductory sentence. For example: `* 5+ years of experience with NodeJS.\n* Proven ability to lead development teams.`
-4.  **Emphasize Strengths Without Exaggeration:** Frame the overlapping skills as strengths. For instance, if the job requires React and the 'Resume Content' shows multiple React projects, highlight the "varied experience with ReactJS". If a required skill is not in the 'Resume Content', do not mention it.
-
 **Output Format:**
 Your response MUST be a single JSON object enclosed in ```json ... ```, conforming to the following schema.
 
