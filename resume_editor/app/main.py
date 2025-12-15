@@ -1,4 +1,5 @@
 import logging
+import nltk
 from collections.abc import Awaitable, Callable
 from pathlib import Path
 
@@ -48,6 +49,13 @@ def create_app() -> FastAPI:
     """
     _msg = "Creating FastAPI application"
     log.debug(_msg)
+
+    # Download required NLTK data on startup to prevent slow first-request parsing
+    # This "warms up" each worker process.
+    try:
+        nltk.data.find("tokenizers/punkt")
+    except LookupError:
+        nltk.download("punkt")
 
     app = FastAPI(title="Resume Editor API")
 

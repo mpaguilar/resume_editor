@@ -167,7 +167,8 @@ INTRO_ANALYZE_JOB_SYSTEM_PROMPT = """As a professional career coach, your task i
 
 **Instructions:**
 1.  **Identify Key Skills:** List the most important technical skills, tools, and qualifications required for the role.
-2.  **Determine Candidate Priorities:** Synthesize the job description into a concise summary of what the hiring manager is looking for. This should capture the essence of the role's priorities.
+2.  **Determine Candidate Priorities:** Synthesize the job description into a bulleted list of what the hiring manager is looking for. Each point should capture a key priority of the role.
+3.  **Format Priorities as Present-Tense Statements:** Each priority in the bulleted list must start with a present-tense verb to describe the ideal candidate or the role's demands (e.g., 'Requires experience with...', 'Seeks a candidate who can...', 'Values strong communication skills...').
 
 **Output Format:**
 Your response MUST be a single JSON object enclosed in ```json ... ```, conforming to the following schema.
@@ -186,9 +187,20 @@ Now, output the JSON object:
 INTRO_ANALYZE_RESUME_SYSTEM_PROMPT = """As a resume analyst, your task is to review the `Resume Content` and determine the candidate's level of experience with respect to the `Job Key Requirements`.
 
 **Instructions:**
-1.  **Analyze Skills:** For each skill in `job_requirements.key_skills`, analyze the `Resume Content` to determine the candidate's level of experience.
-2.  **Use Qualitative Descriptions:** Describe the experience level qualitatively. Use phrases like "extensive experience," "strong experience," "demonstrated experience," "familiarity with," or "no mentioned experience." Do not use years of experience.
-3.  **Map Skills to Experience:** Create a dictionary where each key is a skill from the job requirements and the value is your qualitative assessment.
+1.  **Analyze Skills:** For each skill in `job_requirements.key_skills`, analyze the entire `Resume Content` (Work Experience, Certifications, Projects, Education) to find where the skill is mentioned.
+2.  **Determine Experience Source and Level:**
+    *   Identify the source of the experience (Work Experience, Certification, Project, Education). A skill can appear in multiple sources. List them in order of importance: Work Experience > Certification > Project > Education.
+    *   Based on the source, provide a neutral, factual description of the experience level.
+        *   For 'Work Experience', use 'Professional experience with'.
+        *   For 'Certification', use 'Certified in'.
+        *   For 'Project', use 'Project experience with'.
+        *   For 'Education', use 'Academic experience with'.
+        *   If no experience is found, use 'No mentioned experience'.
+3.  **Map Skills to Experience:** Create a dictionary where each key is a skill from the job requirements and the value is an object containing your qualitative assessment and a list of sources.
+
+**Example:** If 'MLOps' is a key skill, and the candidate has a certification for it and experience with CI/CD in a job:
+*   For 'MLOps', the source would be ['Certification'] and the assessment 'knowledge from certification'.
+*   For 'CI/CD', the source would be ['Work Experience'] and the assessment might be 'strong experience'.
 
 **Output Format:**
 Your response MUST be a single JSON object enclosed in ```json ... ```, conforming to the following schema.
@@ -209,16 +221,26 @@ Now, output the JSON object:
 """
 
 
-INTRO_SYNTHESIZE_INTRODUCTION_SYSTEM_PROMPT = """As an expert resume writer, your task is to synthesize the provided `Candidate Analysis` into a compelling and concise introductory paragraph for a resume.
+INTRO_SYNTHESIZE_INTRODUCTION_SYSTEM_PROMPT = """As an expert resume writer, your task is to synthesize the provided `Candidate Analysis` into a compelling introductory banner for a resume. Your highest priority is factual accuracy.
+
+**Prioritization Rules:**
+When crafting the bullet points, you MUST emphasize skills and experiences according to these priorities:
+1.  **Work Experience:** Most important.
+2.  **Certifications:** Second most important.
+3.  **Projects:** Third most important.
+4.  **Education:** Least important. Ignore education below the college graduate level.
 
 **Crucial Rules:**
-1.  **Synthesize, Don't List:** Do not simply list the skills. Weave them into a professional narrative.
-2.  **Use Qualitative Language:** Use the qualitative descriptions from the analysis (e.g., "strong experience with X, familiarity with Y").
-3.  **Tailor the Tone:** The tone should be professional and confident, reflecting the priorities outlined in the candidate analysis.
-4.  **Keep it Concise:** The introduction should be a short paragraph, no more than 3-4 sentences.
+1.  **Factual Accuracy is Paramount:** Your primary goal is to be truthful and avoid exaggeration. Adhere strictly to the `source` and `assessment` from the `Candidate Analysis`.
+    *   **Do Not Misrepresent Experience:** Never imply a higher level of experience than the source indicates. For example, if a skill's source is 'Certification' or 'Project', it is NOT 'Work Experience'. A certification or project does not equal professional work experience.
+    *   **Do Not Combine Unrelated Facts:** Do not merge separate skills or experiences into a single statement if it creates a misleading impression. If the analysis shows 'MLOps' from a 'Certification' and 'CI/CD' from 'Work Experience', you MUST create two separate bullet points. DO NOT combine them into a misleading statement like "* Experience with MLOps pipelines."
+    *   **Phrasing Matters:** For skills from certifications, use phrases like "Certified in..." or "Holds certification for...". For projects, use "Project experience with...". For work experience, use neutral action verbs like "Developed" or "Managed".
+2.  **No Superlatives:** Avoid promotional language like "strong," "extensive," or "expert". Your tone must be neutral and factual, strictly using the assessments from the analysis.
+3.  **Format as a Single Markdown String:** The final `introduction` field MUST be a single string containing a bulleted list. Each bullet point must start with an asterisk and a space (`* `) and be separated by a newline character.
+4.  **Keep it Concise:** Generate 3-5 distinct, fact-based bullet points.
 
 **Output Format:**
-Your response MUST be a single JSON object enclosed in ```json ... ```, conforming to the following schema.
+Your response MUST be a single JSON object enclosed in ```json ... ```, conforming to a schema that expects a single string field named `introduction`.
 
 {format_instructions}
 """

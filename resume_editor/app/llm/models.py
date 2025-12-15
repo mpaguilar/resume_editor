@@ -77,18 +77,31 @@ class JobKeyRequirements(BaseModel):
         ...,
         description="A list of the most critical skills and qualifications.",
     )
-    candidate_priorities: str = Field(
+    candidate_priorities: list[str] = Field(
         ...,
-        description="A concise summary of the most important priorities for a candidate, based on the job description.",
+        description="A bulleted list of what the hiring manager is looking for, with each point starting with a present-tense verb.",
+    )
+
+
+class SkillAssessment(BaseModel):
+    """A qualitative assessment of a candidate's skill, including its source."""
+
+    assessment: str = Field(
+        ...,
+        description="A qualitative assessment of the candidate's experience level (e.g., 'extensive experience', 'familiarity with').",
+    )
+    source: list[str] = Field(
+        ...,
+        description="A list of sources where this skill is demonstrated (e.g., ['Work Experience', 'Certification', 'Project']). Ordered by importance.",
     )
 
 
 class CandidateAnalysis(BaseModel):
     """An analysis of the resume against job requirements."""
 
-    skill_summary: dict[str, str] = Field(
+    skill_summary: dict[str, SkillAssessment] = Field(
         ...,
-        description="A mapping of key skills from the job to a qualitative assessment of the candidate's experience level (e.g., 'extensive experience', 'familiarity with').",
+        description="A mapping of key skills from the job to a qualitative assessment and source of the candidate's experience.",
     )
 
 
