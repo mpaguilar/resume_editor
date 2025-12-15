@@ -831,10 +831,12 @@ async def experience_refinement_sse_generator(
 def handle_save_as_new_refinement(params: SaveAsNewParams) -> DatabaseResume:
     """Orchestrates saving a refined resume as a new resume.
 
-    This involves reconstructing the resume, generating a new introduction via LLM
-    if a job description is present, validating the final content, and creating
-    a new record in the database, persisting the introduction to its
-    dedicated field.
+    This involves reconstructing the resume from the refined content, and then
+    handling the introduction. It correctly uses the introduction from the form
+    data if provided. If the introduction is missing and a job description is
+    available, a new introduction is generated via an LLM. The final content is
+    validated, and a new resume record is created in the database, persisting
+    the introduction to its dedicated field.
 
     Args:
         params (SaveAsNewParams): The parameters for saving the new resume.
@@ -857,29 +859,40 @@ def handle_save_as_new_refinement(params: SaveAsNewParams) -> DatabaseResume:
             target_section=params.form_data.target_section,
         )
 
-        job_description_val = None
-        if hasattr(params.form_data, "metadata") and params.form_data.metadata:
-            job_description_val = params.form_data.metadata.job_description
-        else:
-            job_description_val = getattr(params.form_data, "job_description", None)
+        job_description_val = params.form_data.job_description
+        introduction = params.form_data.introduction
+        new_resume_name = params.form_data.new_resume_name
 
-        # 2. Generate a new introduction if a job description is available.
-        introduction = ""
-        if job_description_val:
-            llm_endpoint, llm_model_name, api_key = get_llm_config(
-                params.db,
-                params.user.id,
-            )
-            llm_config = LLMConfig(
-                llm_endpoint=llm_endpoint,
-                api_key=api_key,
-                llm_model_name=llm_model_name,
-            )
-            introduction = generate_introduction_from_resume(
-                resume_content=updated_content,
-                job_description=job_description_val,
-                llm_config=llm_config,
-            )
+        _msg = f"Introduction from form: '{introduction}'"
+        log.debug(_msg)
+
+        # 2. Conditionally generate an introduction.
+        # If user provided one, use it. Otherwise, if a JD is present, generate one.
+        if not introduction or not introduction.strip():
+            if job_description_val:
+                _msg = "User-provided introduction is empty and job description is present. Generating new introduction."
+                log.debug(_msg)
+                llm_endpoint, llm_model_name, api_key = get_llm_config(
+                    params.db,
+                    params.user.id,
+                )
+                llm_config = LLMConfig(
+                    llm_endpoint=llm_endpoint,
+                    api_key=api_key,
+                    llm_model_name=llm_model_name,
+                )
+                introduction = generate_introduction_from_resume(
+                    resume_content=updated_content,
+                    job_description=job_description_val,
+                    llm_config=llm_config,
+                )
+            else:
+                _msg = "No user-provided introduction and no job description. Introduction will be None."
+                log.debug(_msg)
+                introduction = None
+        else:
+            _msg = "Using user-provided introduction."
+            log.debug(_msg)
 
         # 3. The final content for the resume record is the reconstructed content.
         # The introduction is now stored in a separate DB field.
@@ -891,13 +904,9 @@ def handle_save_as_new_refinement(params: SaveAsNewParams) -> DatabaseResume:
         log.exception(_msg)
         raise HTTPException(status_code=422, detail=_msg)
 
-    # Derive name and job_description from metadata
-    if hasattr(params.form_data, "metadata") and params.form_data.metadata:
-        new_resume_name = params.form_data.metadata.new_resume_name
-    else:
-        new_resume_name = getattr(params.form_data, "new_resume_name", None)
-
-    # 4. Create the new resume record, passing the generated introduction.
+    # 4. Create the new resume record, passing the determined introduction.
+    _msg = f"Final introduction before DB save: '{introduction}'"
+    log.debug(_msg)
     create_params = ResumeCreateParams(
         user_id=params.user.id,
         name=new_resume_name,

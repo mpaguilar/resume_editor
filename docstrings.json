@@ -986,16 +986,16 @@
         "Form data for refining a resume section.",
         [
           [
-            "__init__(self: UnknownType, job_description: str, target_section: RefineTargetSection, limit_refinement_years: str | None) -> UnknownType",
+            "__init__(self: UnknownType, job_description: str, target_section: RefineTargetSection, limit_refinement_years: str | None) -> None",
             ""
           ]
         ]
       ],
       "SaveAsNewMetadata": [
-        "Metadata for saving a new refined resume.",
+        "Metadata for saving a refined resume as a new one.",
         [
           [
-            "__init__(self: UnknownType, new_resume_name: str | None, job_description: str | None, introduction: str | None, limit_refinement_years: str | None) -> UnknownType",
+            "__init__(self: UnknownType, new_resume_name: str | None, job_description: str | None, introduction: str | None, limit_refinement_years: str | None) -> None",
             ""
           ]
         ]
@@ -1004,7 +1004,7 @@
         "Form data for saving a refined resume as a new one.",
         [
           [
-            "__init__(self: UnknownType, refined_content: str, target_section: RefineTargetSection, metadata: SaveAsNewMetadata) -> UnknownType",
+            "__init__(self: UnknownType, refined_content: str, target_section: RefineTargetSection, metadata: SaveAsNewMetadata) -> None",
             ""
           ]
         ]
@@ -1013,7 +1013,7 @@
         "Form data for changing a password.",
         [
           [
-            "__init__(self: UnknownType, new_password: str, confirm_new_password: str, current_password: str | None) -> UnknownType",
+            "__init__(self: UnknownType, new_password: str, confirm_new_password: str, current_password: str | None) -> None",
             ""
           ]
         ]
@@ -1022,7 +1022,7 @@
         "Form data for updating projects.",
         [
           [
-            "__init__(self: UnknownType, title: str, description: str, url: str | None, start_date: str | None, end_date: str | None) -> UnknownType",
+            "__init__(self: UnknownType, title: str, description: str, url: str | None, start_date: str | None, end_date: str | None) -> None",
             ""
           ]
         ]
@@ -1031,7 +1031,7 @@
         "Form data for updating certifications.",
         [
           [
-            "__init__(self: UnknownType, name: str, issuer: str | None, certification_id: str | None, issued_date: str | None, expiry_date: str | None) -> UnknownType",
+            "__init__(self: UnknownType, name: str, issuer: str | None, certification_id: str | None, issued_date: str | None, expiry_date: str | None) -> None",
             ""
           ]
         ]
@@ -1040,7 +1040,7 @@
         "Form data for updating experience.",
         [
           [
-            "__init__(self: UnknownType, company: str, title: str, start_date: str, end_date: str | None, description: str | None) -> UnknownType",
+            "__init__(self: UnknownType, company: str, title: str, start_date: str, end_date: str | None, description: str | None) -> None",
             ""
           ]
         ]
@@ -1049,7 +1049,7 @@
         "Form data for education dates.",
         [
           [
-            "__init__(self: UnknownType, start_date: str | None, end_date: str | None) -> UnknownType",
+            "__init__(self: UnknownType, start_date: str | None, end_date: str | None) -> None",
             ""
           ]
         ]
@@ -1058,7 +1058,7 @@
         "Form data for updating education.",
         [
           [
-            "__init__(self: UnknownType, school: str, degree: str | None, major: str | None, dates: EducationDates, gpa: str | None) -> UnknownType",
+            "__init__(self: UnknownType, school: str, degree: str | None, major: str | None, dates: EducationDates, gpa: str | None) -> None",
             ""
           ]
         ]
@@ -2287,7 +2287,7 @@
       ],
       [
         "handle_save_as_new_refinement(params: SaveAsNewParams) -> DatabaseResume",
-        "Orchestrates saving a refined resume as a new resume.\n\nThis involves reconstructing the resume, generating a new introduction via LLM\nif a job description is present, validating the final content, and creating\na new record in the database, persisting the introduction to its\ndedicated field.\n\nArgs:\n    params (SaveAsNewParams): The parameters for saving the new resume.\n\nReturns:\n    DatabaseResume: The newly created resume object.\n\nRaises:\n    HTTPException: If reconstruction or validation fails."
+        "Orchestrates saving a refined resume as a new resume.\n\nThis involves reconstructing the resume from the refined content, and then\nhandling the introduction. It correctly uses the introduction from the form\ndata if provided. If the introduction is missing and a job description is\navailable, a new introduction is generated via an LLM. The final content is\nvalidated, and a new resume record is created in the database, persisting\nthe introduction to its dedicated field.\n\nArgs:\n    params (SaveAsNewParams): The parameters for saving the new resume.\n\nReturns:\n    DatabaseResume: The newly created resume object.\n\nRaises:\n    HTTPException: If reconstruction or validation fails."
       ]
     ],
     "classes": {}

@@ -3275,17 +3275,17 @@ Notes:
 Form data for refining a resume section.
 
 ---
-## method: `RefineForm.__init__(self: UnknownType, job_description: str, target_section: RefineTargetSection, limit_refinement_years: str | None) -> UnknownType`
+## method: `RefineForm.__init__(self: UnknownType, job_description: str, target_section: RefineTargetSection, limit_refinement_years: str | None) -> None`
 
 
 
 ---
 ## `SaveAsNewMetadata` class
 
-Metadata for saving a new refined resume.
+Metadata for saving a refined resume as a new one.
 
 ---
-## method: `SaveAsNewMetadata.__init__(self: UnknownType, new_resume_name: str | None, job_description: str | None, introduction: str | None, limit_refinement_years: str | None) -> UnknownType`
+## method: `SaveAsNewMetadata.__init__(self: UnknownType, new_resume_name: str | None, job_description: str | None, introduction: str | None, limit_refinement_years: str | None) -> None`
 
 
 
@@ -3295,7 +3295,7 @@ Metadata for saving a new refined resume.
 Form data for saving a refined resume as a new one.
 
 ---
-## method: `SaveAsNewForm.__init__(self: UnknownType, refined_content: str, target_section: RefineTargetSection, metadata: SaveAsNewMetadata) -> UnknownType`
+## method: `SaveAsNewForm.__init__(self: UnknownType, refined_content: str, target_section: RefineTargetSection, metadata: SaveAsNewMetadata) -> None`
 
 
 
@@ -3305,7 +3305,7 @@ Form data for saving a refined resume as a new one.
 Form data for changing a password.
 
 ---
-## method: `ChangePasswordForm.__init__(self: UnknownType, new_password: str, confirm_new_password: str, current_password: str | None) -> UnknownType`
+## method: `ChangePasswordForm.__init__(self: UnknownType, new_password: str, confirm_new_password: str, current_password: str | None) -> None`
 
 
 
@@ -3315,7 +3315,7 @@ Form data for changing a password.
 Form data for updating projects.
 
 ---
-## method: `ProjectUpdateForm.__init__(self: UnknownType, title: str, description: str, url: str | None, start_date: str | None, end_date: str | None) -> UnknownType`
+## method: `ProjectUpdateForm.__init__(self: UnknownType, title: str, description: str, url: str | None, start_date: str | None, end_date: str | None) -> None`
 
 
 
@@ -3325,7 +3325,7 @@ Form data for updating projects.
 Form data for updating certifications.
 
 ---
-## method: `CertificationUpdateForm.__init__(self: UnknownType, name: str, issuer: str | None, certification_id: str | None, issued_date: str | None, expiry_date: str | None) -> UnknownType`
+## method: `CertificationUpdateForm.__init__(self: UnknownType, name: str, issuer: str | None, certification_id: str | None, issued_date: str | None, expiry_date: str | None) -> None`
 
 
 
@@ -3335,7 +3335,7 @@ Form data for updating certifications.
 Form data for updating experience.
 
 ---
-## method: `ExperienceUpdateForm.__init__(self: UnknownType, company: str, title: str, start_date: str, end_date: str | None, description: str | None) -> UnknownType`
+## method: `ExperienceUpdateForm.__init__(self: UnknownType, company: str, title: str, start_date: str, end_date: str | None, description: str | None) -> None`
 
 
 
@@ -3345,7 +3345,7 @@ Form data for updating experience.
 Form data for education dates.
 
 ---
-## method: `EducationDates.__init__(self: UnknownType, start_date: str | None, end_date: str | None) -> UnknownType`
+## method: `EducationDates.__init__(self: UnknownType, start_date: str | None, end_date: str | None) -> None`
 
 
 
@@ -3355,7 +3355,7 @@ Form data for education dates.
 Form data for updating education.
 
 ---
-## method: `EducationUpdateForm.__init__(self: UnknownType, school: str, degree: str | None, major: str | None, dates: EducationDates, gpa: str | None) -> UnknownType`
+## method: `EducationUpdateForm.__init__(self: UnknownType, school: str, degree: str | None, major: str | None, dates: EducationDates, gpa: str | None) -> None`
 
 
 
@@ -7278,10 +7278,12 @@ Returns:
 
 Orchestrates saving a refined resume as a new resume.
 
-This involves reconstructing the resume, generating a new introduction via LLM
-if a job description is present, validating the final content, and creating
-a new record in the database, persisting the introduction to its
-dedicated field.
+This involves reconstructing the resume from the refined content, and then
+handling the introduction. It correctly uses the introduction from the form
+data if provided. If the introduction is missing and a job description is
+available, a new introduction is generated via an LLM. The final content is
+validated, and a new resume record is created in the database, persisting
+the introduction to its dedicated field.
 
 Args:
     params (SaveAsNewParams): The parameters for saving the new resume.

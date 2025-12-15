@@ -28,6 +28,26 @@ from resume_editor.app.schemas.user import UserSettingsUpdateRequest
 log = logging.getLogger(__name__)
 
 
+@patch("resume_editor.app.main.nltk.download")
+@patch("resume_editor.app.main.nltk.data.find")
+def test_create_app_downloads_nltk_punkt_if_missing(mock_find, mock_download):
+    """
+    GIVEN that the 'punkt' tokenizer is not found by NLTK
+    WHEN create_app() is called
+    THEN nltk.download('punkt') is called to download it.
+    """
+    # Arrange
+    mock_find.side_effect = LookupError
+
+    # Act
+    # Calling create_app triggers the NLTK check
+    create_app()
+
+    # Assert
+    mock_find.assert_called_once_with("tokenizers/punkt")
+    mock_download.assert_called_once_with("punkt")
+
+
 def test_dashboard_not_authenticated():
     """Test that unauthenticated access to /dashboard redirects to the login page."""
     app = create_app()

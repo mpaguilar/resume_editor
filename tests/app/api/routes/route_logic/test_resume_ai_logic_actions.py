@@ -7,16 +7,16 @@ from resume_editor.app.api.routes.route_logic.resume_ai_logic import (
     handle_save_as_new_refinement,
 )
 from resume_editor.app.api.routes.route_logic.resume_crud import ResumeCreateParams
-from resume_editor.app.api.routes.route_models import RefineTargetSection
+from resume_editor.app.api.routes.route_models import (
+    RefineTargetSection,
+    SaveAsNewForm,
+    SaveAsNewMetadata,
+    SaveAsNewParams,
+)
 from resume_editor.app.llm.models import LLMConfig
 from resume_editor.app.models.resume_model import (
     Resume as DatabaseResume,
     ResumeData,
-)
-from resume_editor.app.api.routes.route_models import (
-    SaveAsNewForm,
-    SaveAsNewMetadata,
-    SaveAsNewParams,
 )
 
 
@@ -40,6 +40,7 @@ def test_handle_save_as_new_refinement_success(
     metadata = SaveAsNewMetadata(
         new_resume_name="New Resume",
         job_description="job desc",
+        introduction=None,
     )
     form_data = SaveAsNewForm(
         refined_content="refined",
@@ -53,7 +54,9 @@ def test_handle_save_as_new_refinement_success(
     mock_generate_intro.return_value = "generated intro"
 
     resume_data = ResumeData(
-        user_id=test_user.id, name=metadata.new_resume_name, content="updated content"
+        user_id=test_user.id,
+        name=form_data.new_resume_name,
+        content="updated content",
     )
     new_resume = DatabaseResume(data=resume_data)
     mock_create.return_value = new_resume
@@ -79,11 +82,11 @@ def test_handle_save_as_new_refinement_success(
     mock_validate.assert_called_once_with("updated content")
     expected_create_params = ResumeCreateParams(
         user_id=test_user.id,
-        name=metadata.new_resume_name,
+        name=form_data.new_resume_name,
         content="updated content",
         is_base=False,
         parent_id=test_resume.id,
-        job_description=metadata.job_description,
+        job_description=form_data.job_description,
         introduction="generated intro",
     )
     mock_create.assert_called_once_with(db=db, params=expected_create_params)
@@ -109,6 +112,7 @@ def test_handle_save_as_new_refinement_failure_on_validation(
     metadata = SaveAsNewMetadata(
         new_resume_name="New",
         job_description=None,
+        introduction=None,
         limit_refinement_years=None,
     )
     form_data = SaveAsNewForm(
@@ -159,6 +163,7 @@ def test_handle_save_as_new_refinement_failure_on_reconstruction(
     metadata = SaveAsNewMetadata(
         new_resume_name="New",
         job_description=None,
+        introduction=None,
         limit_refinement_years=None,
     )
     form_data = SaveAsNewForm(
@@ -221,6 +226,7 @@ def test_handle_save_as_new_refinement_with_filtered_content(
     metadata = SaveAsNewMetadata(
         new_resume_name="Filtered and Refined Resume",
         job_description=None,
+        introduction=None,
         limit_refinement_years=None,
     )
     form_data = SaveAsNewForm(
@@ -279,4 +285,4 @@ def test_handle_save_as_new_refinement_with_filtered_content(
     assert create_params.is_base is False
     assert create_params.parent_id == test_resume.id
     assert create_params.job_description is None
-    assert create_params.introduction == ""
+    assert create_params.introduction is None

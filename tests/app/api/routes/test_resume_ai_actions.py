@@ -1,9 +1,14 @@
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 import pytest
 from fastapi import HTTPException
+from fastapi.testclient import TestClient
 
+from resume_editor.app.api.dependencies import get_resume_for_user
 from resume_editor.app.api.routes.route_models import SaveAsNewParams
+from resume_editor.app.core.auth import get_current_user_from_cookie
+from resume_editor.app.database.database import get_db
+from resume_editor.app.main import create_app
 
 
 
@@ -59,7 +64,7 @@ def test_save_refined_resume_as_new_full(
     assert params_arg.form_data.target_section == RefineTargetSection.FULL
     assert params_arg.form_data.new_resume_name == "New Name"
     assert params_arg.form_data.job_description == "A job description"
-    # assert params_arg.form_data.introduction == expected_intro
+    assert params_arg.form_data.introduction == expected_intro
 
 
 @patch("resume_editor.app.api.routes.resume_ai.handle_save_as_new_refinement")
@@ -113,7 +118,7 @@ def test_save_refined_resume_as_new_partial_with_job_desc(
     assert params_arg.form_data.target_section == RefineTargetSection.PERSONAL
     assert params_arg.form_data.new_resume_name == "New Name"
     assert params_arg.form_data.job_description == "A job description"
-    # assert params_arg.form_data.introduction == expected_intro
+    assert params_arg.form_data.introduction == expected_intro
 
 
 @patch("resume_editor.app.api.routes.resume_ai.handle_save_as_new_refinement")
@@ -164,7 +169,7 @@ def test_save_refined_resume_as_new_no_intro_no_jd(
     assert params_arg.form_data.target_section == RefineTargetSection.PERSONAL
     assert params_arg.form_data.new_resume_name == "New Name"
     assert params_arg.form_data.job_description is None
-    # assert params_arg.form_data.introduction == expected_intro
+    assert params_arg.form_data.introduction == expected_intro
 
 
 @patch("resume_editor.app.api.routes.resume_ai.handle_save_as_new_refinement")
@@ -200,13 +205,19 @@ def test_save_refined_resume_as_new_reconstruction_error(
 
 
 
+@patch("resume_editor.app.api.routes.resume_ai.handle_save_as_new_refinement")
 def test_save_refined_resume_as_new_no_name(
-    client_with_auth_and_resume,
-    test_resume,
+    mock_handle_save, client_with_auth_and_resume, test_resume
 ):
     """Test that saving as new without a name fails."""
     from resume_editor.app.api.routes.route_models import RefineTargetSection
 
+    # Arrange
+    mock_handle_save.side_effect = HTTPException(
+        status_code=400, detail="New resume name is required"
+    )
+
+    # Act
     response = client_with_auth_and_resume.post(
         f"/api/resumes/{test_resume.id}/refine/save_as_new",
         data={
@@ -215,6 +226,8 @@ def test_save_refined_resume_as_new_no_name(
             "new_resume_name": "",
         },
     )
+
+    # Assert
     assert response.status_code == 400
     assert "New resume name is required" in response.json()["detail"]
 
@@ -231,3 +244,78 @@ def test_discard_refined_resume(client_with_auth_and_resume, test_resume):
     # Assert
     assert response.status_code == 303
     assert response.headers["location"] == f"/resumes/{test_resume.id}/edit"
+
+
+@patch("resume_editor.app.api.routes.resume_ai.handle_save_as_new_refinement")
+def test_save_refined_resume_as_new_e2e_form_post(
+    mock_handle_save,
+    test_user,
+    test_resume,
+):
+    """
+    Test the save_as_new endpoint with a real form post to ensure
+    dot-notation form fields are correctly parsed into nested models.
+    """
+    from resume_editor.app.api.routes.route_models import RefineTargetSection
+
+    # Arrange
+    app = create_app()
+    client = TestClient(app)
+
+    mock_db_session = Mock()
+    mock_handle_save.return_value = test_resume
+
+    def get_mock_db():
+        yield mock_db_session
+
+    def get_mock_current_user():
+        return test_user
+
+    def get_mock_resume():
+        return test_resume
+
+    app.dependency_overrides[get_db] = get_mock_db
+    app.dependency_overrides[
+        get_current_user_from_cookie
+    ] = get_mock_current_user
+    app.dependency_overrides[get_resume_for_user] = get_mock_resume
+
+    form_data = {
+        "refined_content": "# Some Content",
+        "target_section": RefineTargetSection.PERSONAL.value,
+        "new_resume_name": "My New Resume",
+        "job_description": "A Great Job",
+        "introduction": "A custom user-edited intro",
+        "limit_refinement_years": "5",
+    }
+
+    # Act
+    try:
+        response = client.post(
+            f"/api/resumes/{test_resume.id}/refine/save_as_new",
+            data=form_data,
+        )
+
+        # Assert
+        assert response.status_code == 200
+        assert response.headers["HX-Redirect"] == f"/resumes/{test_resume.id}/view"
+        assert not response.content
+
+        mock_handle_save.assert_called_once()
+        call_args, _ = mock_handle_save.call_args
+        params_arg = call_args[0]
+
+        assert isinstance(params_arg, SaveAsNewParams)
+        assert params_arg.form_data.new_resume_name == "My New Resume"
+        assert (
+            params_arg.form_data.introduction
+            == "A custom user-edited intro"
+        )
+        assert params_arg.form_data.job_description == "A Great Job"
+        assert params_arg.form_data.limit_refinement_years == 5
+        assert params_arg.form_data.refined_content == "# Some Content"
+        assert params_arg.form_data.target_section == RefineTargetSection.PERSONAL
+
+    finally:
+        # Cleanup
+        app.dependency_overrides.clear()

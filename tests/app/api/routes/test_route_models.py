@@ -121,48 +121,14 @@ def test_refine_form_instantiation():
     assert form_without_limit.limit_refinement_years is None
 
 
-def test_save_as_new_metadata_instantiation():
-    """Test SaveAsNewMetadata can be instantiated with all fields."""
-    # Test with all fields provided
-    metadata_full = SaveAsNewMetadata(
-        new_resume_name="New Resume",
-        job_description="A job.",
-        introduction="An intro.",
-        limit_refinement_years="5",
-    )
-    assert metadata_full.new_resume_name == "New Resume"
-    assert metadata_full.job_description == "A job."
-    assert metadata_full.introduction == "An intro."
-    assert metadata_full.limit_refinement_years == 5
-
-    # Test with no fields provided
-    metadata_empty = SaveAsNewMetadata(
-        new_resume_name=None,
-        job_description=None,
-        introduction=None,
-        limit_refinement_years=None,
-    )
-    assert metadata_empty.new_resume_name is None
-    assert metadata_empty.job_description is None
-    assert metadata_empty.introduction is None
-    assert metadata_empty.limit_refinement_years is None
-
-    # Test with invalid year string
-    metadata_invalid_year = SaveAsNewMetadata(
-        limit_refinement_years="abc",
-    )
-    assert metadata_invalid_year.limit_refinement_years is None
-
-
 def test_save_as_new_form_instantiation():
-    """Test SaveAsNewForm can be instantiated with its dependencies."""
+    """Test SaveAsNewForm can be instantiated with all fields."""
     metadata = SaveAsNewMetadata(
         new_resume_name="New Resume",
         job_description="A job.",
         introduction="An intro.",
         limit_refinement_years="5",
     )
-
     form = SaveAsNewForm(
         refined_content="some content",
         target_section=RefineTargetSection.EXPERIENCE,

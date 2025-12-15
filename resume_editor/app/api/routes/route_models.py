@@ -356,7 +356,7 @@ class RefineForm:
         job_description: str = Form(...),
         target_section: RefineTargetSection = Form(...),
         limit_refinement_years: str | None = Form(None),
-    ):
+    ) -> None:
         self.job_description = job_description
         self.target_section = target_section
         try:
@@ -366,7 +366,7 @@ class RefineForm:
 
 
 class SaveAsNewMetadata:
-    """Metadata for saving a new refined resume."""
+    """Metadata for saving a refined resume as a new one."""
 
     def __init__(
         self,
@@ -374,7 +374,7 @@ class SaveAsNewMetadata:
         job_description: str | None = Form(None),
         introduction: str | None = Form(None),
         limit_refinement_years: str | None = Form(None),
-    ):
+    ) -> None:
         self.new_resume_name = new_resume_name
         self.job_description = job_description
         self.introduction = introduction
@@ -392,7 +392,7 @@ class SaveAsNewForm:
         refined_content: str = Form(...),
         target_section: RefineTargetSection = Form(...),
         metadata: SaveAsNewMetadata = Depends(),
-    ):
+    ) -> None:
         self.refined_content = refined_content
         self.target_section = target_section
         self.new_resume_name = metadata.new_resume_name
@@ -409,7 +409,7 @@ class ChangePasswordForm:
         new_password: str = Form(...),
         confirm_new_password: str = Form(...),
         current_password: str | None = Form(None),
-    ):
+    ) -> None:
         self.new_password = new_password
         self.confirm_new_password = confirm_new_password
         self.current_password = current_password
@@ -615,7 +615,7 @@ class ProjectUpdateForm:
         url: str | None = Form(None),
         start_date: str | None = Form(None),
         end_date: str | None = Form(None),
-    ):
+    ) -> None:
         self.title = title
         self.description = description
         self.url = url
@@ -633,7 +633,7 @@ class CertificationUpdateForm:
         certification_id: str | None = Form(None, alias="id"),
         issued_date: str | None = Form(None),
         expiry_date: str | None = Form(None),
-    ):
+    ) -> None:
         self.name = name
         self.issuer = issuer
         self.certification_id = certification_id
@@ -651,7 +651,7 @@ class ExperienceUpdateForm:
         start_date: str = Form(...),
         end_date: str | None = Form(None),
         description: str | None = Form(None),
-    ):
+    ) -> None:
         self.company = company
         self.title = title
         self.start_date = start_date
@@ -666,7 +666,7 @@ class EducationDates:
         self,
         start_date: str | None = Form(None),
         end_date: str | None = Form(None),
-    ):
+    ) -> None:
         self.start_date = start_date
         self.end_date = end_date
 
@@ -681,7 +681,7 @@ class EducationUpdateForm:
         major: str | None = Form(None),
         dates: EducationDates = Depends(),
         gpa: str | None = Form(None),
-    ):
+    ) -> None:
         self.school = school
         self.degree = degree
         self.major = major

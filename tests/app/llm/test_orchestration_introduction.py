@@ -27,12 +27,13 @@ def test_generate_introduction_from_resume_success(mock_invoke_and_parse: MagicM
     # Arrange
     mock_invoke_and_parse.side_effect = [
         JobKeyRequirements(
-            key_skills=["python", "fastapi"], candidate_priorities="backend dev"
+            key_skills=["python", "fastapi"],
+            candidate_priorities=["backend dev"],
         ),
         CandidateAnalysis(
             skill_summary={
-                "python": "strong experience",
-                "fastapi": "familiarity with",
+                "python": {"assessment": "strong experience", "source": ["Work"]},
+                "fastapi": {"assessment": "familiarity with", "source": ["Project"]},
             }
         ),
         GeneratedIntroduction(introduction="Final introduction text."),
@@ -67,7 +68,10 @@ def test_generate_introduction_from_resume_success(mock_invoke_and_parse: MagicM
     # Call 3 (Synthesis)
     call_3_kwargs = mock_invoke_and_parse.call_args_list[2].kwargs
     candidate_analysis_json = json.loads(call_3_kwargs["candidate_analysis"])
-    assert "strong experience" in candidate_analysis_json["skill_summary"]["python"]
+    assert (
+        candidate_analysis_json["skill_summary"]["python"]["assessment"]
+        == "strong experience"
+    )
 
 
 @patch("resume_editor.app.llm.orchestration._invoke_chain_and_parse")

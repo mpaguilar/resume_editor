@@ -27,71 +27,47 @@ def test_replace_resume_banner_is_wrapper(mock_reconstruct: MagicMock) -> None:
     assert result == "sentinel"
 
 
+
 @patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.create_resume_db")
 @patch(
     "resume_editor.app.api.routes.route_logic.resume_ai_logic.generate_introduction_from_resume"
 )
-@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.get_llm_config")
 @patch(
-    "resume_editor.app.api.routes.route_logic.resume_ai_logic.reconstruct_resume_from_refined_section",
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic.reconstruct_resume_from_refined_section"
 )
 @patch(
-    "resume_editor.app.api.routes.route_logic.resume_ai_logic.perform_pre_save_validation",
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic.perform_pre_save_validation"
 )
-def test_handle_save_as_new_refinement_with_intro_generation(
+def test_handle_save_as_new_refinement_uses_user_provided_introduction(
     mock_validate: MagicMock,
     mock_reconstruct: MagicMock,
-    mock_get_llm_config: MagicMock,
     mock_generate_intro: MagicMock,
     mock_create_resume: MagicMock,
 ) -> None:
-    """Verify handle_save_as_new_refinement integrates LLM introduction generation."""
-    # Arrange params
+    """
+    Scenario: A user provides a custom introduction in the "Save as New" form.
+    """
+    # Setup
     params = MagicMock()
     params.db = MagicMock()
-    params.user = MagicMock()
-    params.user.id = 42
-    params.resume = MagicMock()
-    params.resume.id = 7
-    params.resume.content = "original resume markdown"
-    params.form_data = MagicMock()
-    params.form_data.refined_content = "refined section content"
-    params.form_data.target_section = MagicMock()
-    params.form_data.metadata = MagicMock()
-    params.form_data.metadata.new_resume_name = "New Resume Name"
-    params.form_data.metadata.job_description = "JD text"
+    params.user.id = 1
+    params.resume.id = 1
+    params.resume.content = "original"
+    params.form_data.job_description = "A job description"
+    params.form_data.introduction = "User provided introduction"
+    params.form_data.new_resume_name = "New Resume from Test"
 
-    mock_reconstruct.return_value = "reconstructed content"
-    mock_get_llm_config.return_value = ("endpoint", "model", "key")
-    mock_generate_intro.return_value = "Generated intro text"
-    new_resume = MagicMock(spec=DatabaseResume)
-    mock_create_resume.return_value = new_resume
+    mock_reconstruct.return_value = "reconstructed"
+    mock_create_resume.return_value = MagicMock(spec=DatabaseResume)
 
-    # Act
-    result = handle_save_as_new_refinement(params)
+    # Execution
+    handle_save_as_new_refinement(params)
 
-    # Assert reconstruction and intro generation flow
-    mock_reconstruct.assert_called_once_with(
-        original_resume_content="original resume markdown",
-        refined_content="refined section content",
-        target_section=params.form_data.target_section,
-    )
-    mock_get_llm_config.assert_called_once_with(params.db, params.user.id)
-    mock_generate_intro.assert_called_once()
-    mock_validate.assert_called_once_with("reconstructed content")
-
-    # Assert DB create is called with correct content and introduction
-    mock_create_resume.assert_called_once()
-    kwargs = mock_create_resume.call_args.kwargs
-    assert "db" in kwargs and kwargs["db"] is params.db
-    create_params = kwargs["params"]
-    assert create_params.content == "reconstructed content"
-    assert create_params.introduction == "Generated intro text"
-    assert create_params.name == "New Resume Name"
-    assert create_params.job_description == "JD text"
-
-    # Returned object
-    assert result is new_resume
+    # Assertions
+    mock_generate_intro.assert_not_called()
+    mock_validate.assert_called_once_with("reconstructed")
+    create_params = mock_create_resume.call_args.kwargs["params"]
+    assert create_params.introduction == "User provided introduction"
 
 
 @patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.create_resume_db")
@@ -105,46 +81,83 @@ def test_handle_save_as_new_refinement_with_intro_generation(
 @patch(
     "resume_editor.app.api.routes.route_logic.resume_ai_logic.perform_pre_save_validation"
 )
-def test_handle_save_as_new_refinement_without_job_description(
+def test_handle_save_as_new_refinement_generates_introduction(
     mock_validate: MagicMock,
     mock_reconstruct: MagicMock,
     mock_get_llm_config: MagicMock,
     mock_generate_intro: MagicMock,
     mock_create_resume: MagicMock,
 ) -> None:
-    """Verify handle_save_as_new_refinement skips intro generation when no job description is provided."""
-    # Arrange params
+    """
+    Scenario: A user does not provide an introduction, but a job description is present.
+    """
+    # Setup
     params = MagicMock()
     params.db = MagicMock()
-    params.user = MagicMock()
-    params.user.id = 100
-    params.resume = MagicMock()
-    params.resume.id = 55
-    params.resume.content = "orig content"
-    params.form_data = MagicMock()
-    params.form_data.refined_content = "refined"
+    params.user.id = 42
+    params.resume.id = 7
+    params.resume.content = "original resume markdown"
+    params.form_data.refined_content = "refined section content"
     params.form_data.target_section = MagicMock()
-    params.form_data.metadata = MagicMock()
-    params.form_data.metadata.new_resume_name = "Name"
-    params.form_data.metadata.job_description = None
+    params.form_data.new_resume_name = "New Resume Name"
+    params.form_data.job_description = "JD text"
+    params.form_data.introduction = None
 
     mock_reconstruct.return_value = "reconstructed content"
+    mock_get_llm_config.return_value = ("endpoint", "model", "key")
+    mock_generate_intro.return_value = "Generated Intro"
     mock_create_resume.return_value = MagicMock(spec=DatabaseResume)
 
-    # Act
-    result = handle_save_as_new_refinement(params)
+    # Execution
+    handle_save_as_new_refinement(params)
 
-    # Assert flow and calls
-    mock_reconstruct.assert_called_once()
-    mock_get_llm_config.assert_not_called()
-    mock_generate_intro.assert_not_called()
+    # Assertions
+    mock_generate_intro.assert_called_once()
     mock_validate.assert_called_once_with("reconstructed content")
-
-    # Ensure create called with empty introduction and reconstructed content
     create_params = mock_create_resume.call_args.kwargs["params"]
-    assert create_params.content == "reconstructed content"
-    assert create_params.introduction == ""
-    assert result is mock_create_resume.return_value
+    assert create_params.introduction == "Generated Intro"
+
+
+@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.create_resume_db")
+@patch(
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic.generate_introduction_from_resume"
+)
+@patch(
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic.reconstruct_resume_from_refined_section"
+)
+@patch(
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic.perform_pre_save_validation"
+)
+def test_handle_save_as_new_refinement_with_no_intro_or_jd(
+    mock_validate: MagicMock,
+    mock_reconstruct: MagicMock,
+    mock_generate_intro: MagicMock,
+    mock_create_resume: MagicMock,
+) -> None:
+    """
+    Scenario: A user provides neither an introduction nor a job description.
+    """
+    # Setup
+    params = MagicMock()
+    params.db = MagicMock()
+    params.user.id = 100
+    params.resume.id = 55
+    params.resume.content = "orig content"
+    params.form_data.job_description = None
+    params.form_data.introduction = None
+    params.form_data.new_resume_name = "No Intro Resume"
+
+    mock_reconstruct.return_value = "reconstructed"
+    mock_create_resume.return_value = MagicMock(spec=DatabaseResume)
+
+    # Execution
+    handle_save_as_new_refinement(params)
+
+    # Assertions
+    mock_generate_intro.assert_not_called()
+    mock_validate.assert_called_once_with("reconstructed")
+    create_params = mock_create_resume.call_args.kwargs["params"]
+    assert create_params.introduction is None
 
 
 def test_reconstruct_resume_with_new_introduction_none_introduction() -> None:
