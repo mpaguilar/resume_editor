@@ -7004,9 +7004,9 @@ Raises:
 
 Notes:
     1.  Check if `introduction` is `None` or an empty/whitespace string. If so, return `resume_content` immediately.
-    2.  Parse the `resume_content` into its main sections (personal, education, experience, certifications) using `extract_*` helpers. This can raise a `ValueError` on failure.
-    3.  If a `personal_info` section is found, update its `banner` attribute with the new `introduction` text.
-    4.  Reconstruct the full resume markdown using `reconstruct_resume_markdown`, passing the modified `personal_info` and the other original sections.
+    2.  Extract raw sections for Personal, Education, Certifications, and Experience.
+    3.  Update the banner in the raw Personal section using `_update_banner_in_raw_personal`.
+    4.  Concatenate the sections to form the updated resume content.
     5.  Return the newly reconstructed Markdown string.
 
 ---
@@ -7113,6 +7113,24 @@ Returns:
 
 ---
 
+## function: `_extract_raw_section(resume_content: str, section_name: str) -> str`
+
+Extract the raw text of a section from the resume content.
+
+---
+
+## function: `_update_banner_in_raw_personal(raw_personal: str, introduction: str | None) -> str`
+
+Update the Banner subsection in a raw Personal section string.
+
+If `introduction` is None or empty, return `raw_personal` unchanged.
+It parses the `raw_personal` string to find the `## Banner` subsection.
+If found, it replaces the content of the Banner subsection with the new `introduction`.
+If not found, it appends a new `## Banner` section with the `introduction` at the end of the Personal section.
+It preserves all other lines in the Personal section exactly as they are.
+
+---
+
 ## function: `create_sse_close_message() -> str`
 
 Creates an SSE 'close' message.
@@ -7138,12 +7156,12 @@ Returns:
     str: The complete HTML content for the body of the `done` event.
 
 Notes:
-    1.  Extracts personal, education, and certification sections from `original_resume_content`.
-    2.  Extracts projects from `original_resume_content` and roles from `resume_content_to_refine`.
-    3.  Updates the roles list with the `refined_roles` data from the LLM.
-    4.  Creates a new `ExperienceResponse` with the refined roles and original projects.
-    5.  Calls `build_complete_resume_from_sections` to reconstruct the resume markdown.
-    6.  If an introduction is provided in `params`, calls `_replace_resume_banner` to insert it into the reconstructed markdown.
+    1.  Extracts raw sections for Personal, Education, and Certifications to preserve them exactly.
+    2.  Updates the banner in the raw Personal section if an introduction is provided.
+    3.  Extracts projects from `original_resume_content` and roles from `resume_content_to_refine`.
+    4.  Updates the roles list with the `refined_roles` data from the LLM.
+    5.  Creates a new `ExperienceResponse` with the refined roles and original projects.
+    6.  Reconstructs the resume using updated raw personal, raw education/certifications, and serialized experience.
     7.  The final, complete markdown is passed to `_create_refine_result_html` to generate the HTML for the UI.
 
 ---

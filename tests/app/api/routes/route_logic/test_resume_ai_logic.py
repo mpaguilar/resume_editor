@@ -148,136 +148,88 @@ def test_reconstruct_resume_with_new_introduction_whitespace_introduction() -> N
     assert result == original_content
 
 
-@patch(
-    "resume_editor.app.api.routes.route_logic.resume_ai_logic.extract_certifications_info"
-)
-@patch(
-    "resume_editor.app.api.routes.route_logic.resume_ai_logic.extract_experience_info"
-)
-@patch(
-    "resume_editor.app.api.routes.route_logic.resume_ai_logic.extract_education_info"
-)
-@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.extract_personal_info")
+@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic._update_banner_in_raw_personal")
+@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic._extract_raw_section")
 def test_reconstruct_resume_with_new_introduction_success(
-    mock_extract_personal: MagicMock,
-    mock_extract_education: MagicMock,
-    mock_extract_experience: MagicMock,
-    mock_extract_certifications: MagicMock,
+    mock_extract_raw: MagicMock,
+    mock_update_banner: MagicMock,
 ) -> None:
     """Test reconstruct_resume_with_new_introduction successfully replaces banner when introduction is provided."""
     original_content = "# Personal\nName: John Doe\n# Experience\nSome content"
     new_introduction = "This is a new introduction"
 
-    # Set up mocks
-    mock_personal = PersonalInfoResponse(name="John Doe")
-    mock_extract_personal.return_value = mock_personal
-    mock_extract_education.return_value = None
-    mock_extract_experience.return_value = None
-    mock_extract_certifications.return_value = None
+    # Mock raw extraction
+    def extract_raw_side_effect(content, section):
+        if section == "personal":
+            return "# Personal\nName: John Doe\n"
+        if section == "experience":
+            return "# Experience\nSome content\n"
+        return ""
+    mock_extract_raw.side_effect = extract_raw_side_effect
+
+    # Mock banner update
+    mock_update_banner.return_value = "# Personal\n## Banner\nThis is a new introduction\nName: John Doe\n"
 
     result = reconstruct_resume_with_new_introduction(
         original_content, new_introduction
     )
 
-    # Verify parsing functions were called
-    mock_extract_personal.assert_called_once_with(original_content)
-    mock_extract_education.assert_called_once_with(original_content)
-    mock_extract_experience.assert_called_once_with(original_content)
-    mock_extract_certifications.assert_called_once_with(original_content)
+    # Verify raw extraction was called for all sections
+    assert mock_extract_raw.call_count == 4
+    mock_extract_raw.assert_any_call(original_content, "personal")
+    mock_extract_raw.assert_any_call(original_content, "education")
+    mock_extract_raw.assert_any_call(original_content, "certifications")
+    mock_extract_raw.assert_any_call(original_content, "experience")
 
-    # Verify personal info banner was updated
-    assert mock_personal.banner == Banner(text=new_introduction)
+    # Verify banner update was called
+    mock_update_banner.assert_called_once_with("# Personal\nName: John Doe\n", new_introduction)
 
     # Verify result contains the new banner and other content is preserved
-    expected_banner_markdown = "## Banner\n\nThis is a new introduction"
-    assert expected_banner_markdown in result
-    assert "Name: John Doe" in result
+    expected_content = "# Personal\n## Banner\nThis is a new introduction\nName: John Doe\n\n# Experience\nSome content\n"
+    assert result == expected_content
 
 
-@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.extract_personal_info")
-def test_reconstruct_resume_with_new_introduction_malformed_content(
-    mock_extract_personal: MagicMock,
+@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic._update_banner_in_raw_personal")
+@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic._extract_raw_section")
+def test_reconstruct_resume_with_new_introduction_empty_result_from_update(
+    mock_extract_raw: MagicMock,
+    mock_update_banner: MagicMock,
 ) -> None:
-    """Test reconstruct_resume_with_new_introduction handles malformed resume content."""
-    original_content = "This is not valid resume content"
-    new_introduction = "This is a new introduction"
-
-    mock_extract_personal.side_effect = ValueError("Invalid resume format")
-
-    with pytest.raises(ValueError, match="Invalid resume format"):
-        reconstruct_resume_with_new_introduction(original_content, new_introduction)
-
-
-@patch(
-    "resume_editor.app.api.routes.route_logic.resume_ai_logic.build_complete_resume_from_sections"
-)
-@patch(
-    "resume_editor.app.api.routes.route_logic.resume_ai_logic.extract_certifications_info"
-)
-@patch(
-    "resume_editor.app.api.routes.route_logic.resume_ai_logic.extract_experience_info"
-)
-@patch(
-    "resume_editor.app.api.routes.route_logic.resume_ai_logic.extract_education_info"
-)
-@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.extract_personal_info")
-def test_reconstruct_resume_with_new_introduction_personal_info_none(
-    mock_extract_personal: MagicMock,
-    mock_extract_education: MagicMock,
-    mock_extract_experience: MagicMock,
-    mock_extract_certifications: MagicMock,
-    mock_build: MagicMock,
-) -> None:
-    """Test reconstruct_resume_with_new_introduction when personal_info is None."""
+    """Test reconstruct_resume_with_new_introduction when update returns empty string."""
     original_content = "some content"
-    new_introduction = "new intro"
+    new_introduction = "Intro"
 
-    mock_extract_personal.return_value = None
-    mock_extract_education.return_value = MagicMock()
-    mock_extract_experience.return_value = MagicMock()
-    mock_extract_certifications.return_value = MagicMock()
-    mock_build.return_value = "reconstructed"
+    mock_extract_raw.return_value = ""
+    mock_update_banner.return_value = ""
 
-    result = reconstruct_resume_with_new_introduction(original_content, new_introduction)
-
-    mock_build.assert_called_once_with(
-        personal_info=None,
-        education=mock_extract_education.return_value,
-        experience=mock_extract_experience.return_value,
-        certifications=mock_extract_certifications.return_value,
+    result = reconstruct_resume_with_new_introduction(
+        original_content, new_introduction
     )
-    assert result == "reconstructed"
+
+    assert result == ""
 
 
-@patch(
-    "resume_editor.app.api.routes.route_logic.resume_ai_logic.build_complete_resume_from_sections"
-)
-@patch(
-    "resume_editor.app.api.routes.route_logic.resume_ai_logic.extract_certifications_info"
-)
-@patch(
-    "resume_editor.app.api.routes.route_logic.resume_ai_logic.extract_experience_info"
-)
-@patch(
-    "resume_editor.app.api.routes.route_logic.resume_ai_logic.extract_education_info"
-)
-@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.extract_personal_info")
-def test_reconstruct_resume_with_new_introduction_reconstruct_failure(
-    mock_extract_personal: MagicMock,
-    mock_extract_education: MagicMock,
-    mock_extract_experience: MagicMock,
-    mock_extract_certifications: MagicMock,
-    mock_build: MagicMock,
+@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic._update_banner_in_raw_personal")
+@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic._extract_raw_section")
+def test_reconstruct_resume_with_new_introduction_missing_experience(
+    mock_extract_raw: MagicMock,
+    mock_update_banner: MagicMock,
 ) -> None:
-    """Test reconstruct_resume_with_new_introduction handles reconstruction failure."""
+    """Test reconstruct_resume_with_new_introduction with missing experience."""
     original_content = "some content"
-    new_introduction = "new intro"
+    new_introduction = "Intro"
 
-    mock_extract_personal.return_value = MagicMock()
-    mock_extract_education.return_value = MagicMock()
-    mock_extract_experience.return_value = MagicMock()
-    mock_extract_certifications.return_value = MagicMock()
-    mock_build.side_effect = RuntimeError("Reconstruction failed")
+    def extract_raw_side_effect(content, section):
+        if section == "personal":
+            return "# Personal\n"
+        return ""
+    mock_extract_raw.side_effect = extract_raw_side_effect
 
-    with pytest.raises(RuntimeError, match="Reconstruction failed"):
-        reconstruct_resume_with_new_introduction(original_content, new_introduction)
+    mock_update_banner.return_value = "# Personal\n## Banner\nIntro\n"
+
+    result = reconstruct_resume_with_new_introduction(
+        original_content, new_introduction
+    )
+
+    assert "# Personal" in result
+    assert "# Experience" not in result

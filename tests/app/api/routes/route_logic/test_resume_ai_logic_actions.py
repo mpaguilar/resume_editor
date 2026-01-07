@@ -5,6 +5,7 @@ from fastapi import HTTPException
 
 from resume_editor.app.api.routes.route_logic.resume_ai_logic import (
     handle_save_as_new_refinement,
+    reconstruct_resume_with_new_introduction,
 )
 from resume_editor.app.api.routes.route_logic.resume_crud import ResumeCreateParams
 from resume_editor.app.api.routes.route_models import (
@@ -108,5 +109,54 @@ def test_handle_save_as_new_refinement_failure_on_validation(
     assert "validation failed" in exc_info.value.detail
     mock_validate.assert_called_once_with("full refined content")
     mock_create.assert_not_called()
+
+
+def test_reconstruct_resume_with_new_introduction_preserves_formatting():
+    """Test that reconstruct_resume_with_new_introduction preserves formatting in other sections."""
+    original_content = """# Personal
+Name: Test User
+
+# Education
+School: Test University
+
+# Certifications
+Name: Azure (AI-102)
+Issuer: Microsoft
+id: 12345
+
+# Experience
+Company: Old Co
+Description:
+  - Bullet 1
+  - Bullet 2
+"""
+    introduction = "New Introduction"
+
+    # Note: The banner is appended to the Personal section if not present.
+    # The sections are joined with double newlines.
+    expected_content = """# Personal
+Name: Test User
+
+## Banner
+
+New Introduction
+
+# Education
+School: Test University
+
+# Certifications
+Name: Azure (AI-102)
+Issuer: Microsoft
+id: 12345
+
+# Experience
+Company: Old Co
+Description:
+  - Bullet 1
+  - Bullet 2"""
+
+    result = reconstruct_resume_with_new_introduction(original_content, introduction)
+
+    assert result.strip() == expected_content.strip()
 
 

@@ -21,16 +21,9 @@ from resume_editor.app.api.routes.route_logic.resume_crud import (
 from resume_editor.app.api.routes.route_logic.resume_crud import (
     create_resume as create_resume_db,
 )
-from resume_editor.app.api.routes.route_logic.resume_reconstruction import (
-    build_complete_resume_from_sections,
-)
 from resume_editor.app.api.routes.route_logic.resume_serialization import (
-    extract_certifications_info,
-    extract_education_info,
     extract_experience_info,
-    extract_personal_info,
     serialize_experience_to_markdown,
-    serialize_personal_info_to_markdown,
 )
 from resume_editor.app.api.routes.route_logic.resume_validation import (
     perform_pre_save_validation,
@@ -47,7 +40,6 @@ from resume_editor.app.llm.orchestration import (
     generate_introduction_from_resume,
 )
 from resume_editor.app.models.resume.experience import Role
-from resume_editor.app.models.resume.personal import Banner
 from resume_editor.app.models.resume_model import Resume as DatabaseResume
 
 log = logging.getLogger(__name__)
@@ -81,9 +73,9 @@ def reconstruct_resume_with_new_introduction(
 
     Notes:
         1.  Check if `introduction` is `None` or an empty/whitespace string. If so, return `resume_content` immediately.
-        2.  Parse the `resume_content` into its main sections (personal, education, experience, certifications) using `extract_*` helpers. This can raise a `ValueError` on failure.
-        3.  If a `personal_info` section is found, update its `banner` attribute with the new `introduction` text.
-        4.  Reconstruct the full resume markdown using `reconstruct_resume_markdown`, passing the modified `personal_info` and the other original sections.
+        2.  Extract raw sections for Personal, Education, Certifications, and Experience.
+        3.  Update the banner in the raw Personal section using `_update_banner_in_raw_personal`.
+        4.  Concatenate the sections to form the updated resume content.
         5.  Return the newly reconstructed Markdown string.
 
     """
@@ -95,30 +87,30 @@ def reconstruct_resume_with_new_introduction(
         log.debug(_msg)
         return resume_content
 
-    try:
-        personal_info = extract_personal_info(resume_content)
-        education_info = extract_education_info(resume_content)
-        experience_info = extract_experience_info(resume_content)
-        certifications_info = extract_certifications_info(resume_content)
-    except Exception as e:
-        _msg = f"reconstruct_resume_with_new_introduction failed to parse resume content: {e!s}"
-        log.exception(_msg)
-        raise
+    # Extract raw sections
+    raw_personal = _extract_raw_section(resume_content, "personal")
+    raw_education = _extract_raw_section(resume_content, "education")
+    raw_certifications = _extract_raw_section(resume_content, "certifications")
+    raw_experience = _extract_raw_section(resume_content, "experience")
 
-    if personal_info is not None:
-        personal_info.banner = Banner(text=introduction)
+    # Update banner in raw personal section
+    updated_raw_personal = _update_banner_in_raw_personal(
+        raw_personal,
+        introduction,
+    )
 
-    try:
-        updated_content = build_complete_resume_from_sections(
-            personal_info=personal_info,
-            education=education_info,
-            experience=experience_info,
-            certifications=certifications_info,
-        )
-    except Exception as e:
-        _msg = f"reconstruct_resume_with_new_introduction failed to reconstruct resume: {e!s}"
-        log.exception(_msg)
-        raise
+    # Reconstruct content
+    sections = []
+    if updated_raw_personal.strip():
+        sections.append(updated_raw_personal.strip() + "\n")
+    if raw_education.strip():
+        sections.append(raw_education.strip() + "\n")
+    if raw_certifications.strip():
+        sections.append(raw_certifications.strip() + "\n")
+    if raw_experience.strip():
+        sections.append(raw_experience.strip() + "\n")
+
+    updated_content = "\n".join(filter(None, sections))
 
     _msg = "reconstruct_resume_with_new_introduction returning"
     log.debug(_msg)
@@ -300,6 +292,67 @@ def _extract_raw_section(resume_content: str, section_name: str) -> str:
     return result
 
 
+def _update_banner_in_raw_personal(raw_personal: str, introduction: str | None) -> str:
+    """Update the Banner subsection in a raw Personal section string.
+
+    If `introduction` is None or empty, return `raw_personal` unchanged.
+    It parses the `raw_personal` string to find the `## Banner` subsection.
+    If found, it replaces the content of the Banner subsection with the new `introduction`.
+    If not found, it appends a new `## Banner` section with the `introduction` at the end of the Personal section.
+    It preserves all other lines in the Personal section exactly as they are.
+    """
+    if not introduction or not introduction.strip():
+        return raw_personal
+
+    lines = raw_personal.splitlines()
+    new_lines = []
+    banner_found = False
+
+    i = 0
+    while i < len(lines):
+        line = lines[i]
+        stripped = line.strip()
+
+        # Check for start of Banner section
+        if stripped.lower().startswith("## banner"):
+            banner_found = True
+            new_lines.append("## Banner")
+            new_lines.append("")
+            new_lines.append(introduction.strip())
+            new_lines.append("")
+
+            # Skip existing banner content until next subsection or end of string
+            i += 1
+            while i < len(lines):
+                next_line = lines[i]
+                next_stripped = next_line.strip()
+                # Check for next subsection (## ) or next section (# )
+                # Note: raw_personal should only contain the Personal section, so # is unlikely unless malformed
+                if next_stripped.startswith("## ") or next_stripped.startswith("# "):
+                    # Found next section/subsection, stop skipping
+                    break
+                i += 1
+            continue
+
+        new_lines.append(line)
+        i += 1
+
+    if not banner_found:
+        # Append banner if not found
+        if new_lines and new_lines[-1].strip():
+            new_lines.append("")
+
+        new_lines.append("## Banner")
+        new_lines.append("")
+        new_lines.append(introduction.strip())
+        new_lines.append("")
+
+    result = "\n".join(new_lines)
+    if result and not result.endswith("\n"):
+        result += "\n"
+    return result
+
+
 class ProcessExperienceResultParams(BaseModel):
     """Parameters for processing refined experience results."""
 
@@ -337,58 +390,60 @@ def process_refined_experience_result(params: ProcessExperienceResultParams) -> 
         str: The complete HTML content for the body of the `done` event.
 
     Notes:
-        1.  Extracts personal info from `original_resume_content`.
-        2.  Extracts raw education and certification sections to preserve them exactly.
+        1.  Extracts raw sections for Personal, Education, and Certifications to preserve them exactly.
+        2.  Updates the banner in the raw Personal section if an introduction is provided.
         3.  Extracts projects from `original_resume_content` and roles from `resume_content_to_refine`.
         4.  Updates the roles list with the `refined_roles` data from the LLM.
         5.  Creates a new `ExperienceResponse` with the refined roles and original projects.
-        6.  Updates the banner in `personal_info` if an introduction is provided.
-        7.  Reconstructs the resume using serialized personal/experience and raw education/certifications.
-        8.  The final, complete markdown is passed to `_create_refine_result_html` to generate the HTML for the UI.
+        6.  Reconstructs the resume using updated raw personal, raw education/certifications, and serialized experience.
+        7.  The final, complete markdown is passed to `_create_refine_result_html` to generate the HTML for the UI.
 
     """
     _msg = "process_refined_experience_result starting"
     log.debug(_msg)
 
-    # 1. Parse personal info and experience from the original content
-    personal_info = extract_personal_info(params.original_resume_content)
-    original_experience_info = extract_experience_info(params.original_resume_content)
-
-    # 2. Extract raw sections for Education and Certifications to preserve them exactly
+    # 1. Extract raw sections to preserve formatting and IDs
+    raw_personal = _extract_raw_section(params.original_resume_content, "personal")
     raw_education = _extract_raw_section(params.original_resume_content, "education")
     raw_certifications = _extract_raw_section(
         params.original_resume_content,
         "certifications",
     )
 
-    # 3. Get the roles that were subject to refinement (from potentially filtered content)
+    # 2. Update the banner in the raw personal section
+    updated_raw_personal = _update_banner_in_raw_personal(
+        raw_personal,
+        params.introduction,
+    )
+
+    # 3. Extract experience from original content to preserve projects
+    original_experience_info = extract_experience_info(params.original_resume_content)
+
+    # 4. Get the roles that were subject to refinement (from potentially filtered content)
     refinement_base_experience = extract_experience_info(
         params.resume_content_to_refine,
     )
     # Create a mutable copy
     final_roles = list(refinement_base_experience.roles)
 
-    # 4. Update the roles list with the refined data from the LLM
+    # 5. Update the roles list with the refined data from the LLM
     for index, role_data in params.refined_roles.items():
         if 0 <= index < len(final_roles):
             final_roles[index] = Role.model_validate(role_data)
 
-    # 5. Create the final ExperienceResponse with refined roles and original projects
+    # 6. Create the final ExperienceResponse with refined roles and original projects
     updated_experience = ExperienceResponse(
         roles=final_roles,
         projects=original_experience_info.projects,
     )
 
-    # 6. Update banner if introduction is provided
-    if params.introduction and params.introduction.strip():
-        personal_info.banner = Banner(text=params.introduction)
-
     # 7. Reconstruct the full resume markdown string
     # We manually combine sections to use raw content where needed
     sections = []
 
-    # Personal
-    sections.append(serialize_personal_info_to_markdown(personal_info))
+    # Personal (Raw + Updated Banner)
+    if updated_raw_personal.strip():
+        sections.append(updated_raw_personal.strip() + "\n")
 
     # Education (Raw)
     if raw_education.strip():
@@ -398,7 +453,7 @@ def process_refined_experience_result(params: ProcessExperienceResultParams) -> 
     if raw_certifications.strip():
         sections.append(raw_certifications.strip() + "\n")
 
-    # Experience
+    # Experience (Serialized)
     sections.append(serialize_experience_to_markdown(updated_experience))
 
     final_content = "\n".join(filter(None, sections))
