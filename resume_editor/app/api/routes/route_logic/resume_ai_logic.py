@@ -29,6 +29,8 @@ from resume_editor.app.api.routes.route_logic.resume_serialization import (
     extract_education_info,
     extract_experience_info,
     extract_personal_info,
+    serialize_experience_to_markdown,
+    serialize_personal_info_to_markdown,
 )
 from resume_editor.app.api.routes.route_logic.resume_validation import (
     perform_pre_save_validation,
@@ -272,6 +274,32 @@ def create_sse_done_message(html_content: str) -> str:
     return create_sse_message(event="done", data=html_content)
 
 
+def _extract_raw_section(resume_content: str, section_name: str) -> str:
+    """Extract the raw text of a section from the resume content."""
+    lines = resume_content.splitlines()
+    section_header = f"# {section_name.lower()}"
+    in_section = False
+    captured_lines = []
+
+    for line in lines:
+        stripped = line.strip()
+        if stripped.startswith("# ") and not stripped.startswith("## "):
+            if stripped.lower() == section_header:
+                in_section = True
+                captured_lines.append(line)
+                continue
+            elif in_section:
+                break
+
+        if in_section:
+            captured_lines.append(line)
+
+    result = "\n".join(captured_lines)
+    if result and not result.endswith("\n"):
+        result += "\n"
+    return result
+
+
 class ProcessExperienceResultParams(BaseModel):
     """Parameters for processing refined experience results."""
 
@@ -309,57 +337,73 @@ def process_refined_experience_result(params: ProcessExperienceResultParams) -> 
         str: The complete HTML content for the body of the `done` event.
 
     Notes:
-        1.  Extracts personal, education, and certification sections from `original_resume_content`.
-        2.  Extracts projects from `original_resume_content` and roles from `resume_content_to_refine`.
-        3.  Updates the roles list with the `refined_roles` data from the LLM.
-        4.  Creates a new `ExperienceResponse` with the refined roles and original projects.
-        5.  Calls `build_complete_resume_from_sections` to reconstruct the resume markdown.
-        6.  If an introduction is provided in `params`, calls `_replace_resume_banner` to insert it into the reconstructed markdown.
-        7.  The final, complete markdown is passed to `_create_refine_result_html` to generate the HTML for the UI.
+        1.  Extracts personal info from `original_resume_content`.
+        2.  Extracts raw education and certification sections to preserve them exactly.
+        3.  Extracts projects from `original_resume_content` and roles from `resume_content_to_refine`.
+        4.  Updates the roles list with the `refined_roles` data from the LLM.
+        5.  Creates a new `ExperienceResponse` with the refined roles and original projects.
+        6.  Updates the banner in `personal_info` if an introduction is provided.
+        7.  Reconstructs the resume using serialized personal/experience and raw education/certifications.
+        8.  The final, complete markdown is passed to `_create_refine_result_html` to generate the HTML for the UI.
 
     """
     _msg = "process_refined_experience_result starting"
     log.debug(_msg)
 
-    # 1. Parse all sections from the original, unfiltered resume content
+    # 1. Parse personal info and experience from the original content
     personal_info = extract_personal_info(params.original_resume_content)
-    education_info = extract_education_info(params.original_resume_content)
-    certifications_info = extract_certifications_info(params.original_resume_content)
     original_experience_info = extract_experience_info(params.original_resume_content)
 
-    # 2. Get the roles that were subject to refinement (from potentially filtered content)
+    # 2. Extract raw sections for Education and Certifications to preserve them exactly
+    raw_education = _extract_raw_section(params.original_resume_content, "education")
+    raw_certifications = _extract_raw_section(
+        params.original_resume_content,
+        "certifications",
+    )
+
+    # 3. Get the roles that were subject to refinement (from potentially filtered content)
     refinement_base_experience = extract_experience_info(
         params.resume_content_to_refine,
     )
     # Create a mutable copy
     final_roles = list(refinement_base_experience.roles)
 
-    # 3. Update the roles list with the refined data from the LLM
+    # 4. Update the roles list with the refined data from the LLM
     for index, role_data in params.refined_roles.items():
         if 0 <= index < len(final_roles):
             final_roles[index] = Role.model_validate(role_data)
 
-    # 4. Create the final ExperienceResponse with refined roles and original projects
+    # 5. Create the final ExperienceResponse with refined roles and original projects
     updated_experience = ExperienceResponse(
         roles=final_roles,
         projects=original_experience_info.projects,
     )
 
-    # 5. Reconstruct the full resume markdown string
-    reconstructed_content = build_complete_resume_from_sections(
-        personal_info=personal_info,
-        education=education_info,
-        experience=updated_experience,
-        certifications=certifications_info,
-    )
+    # 6. Update banner if introduction is provided
+    if params.introduction and params.introduction.strip():
+        personal_info.banner = Banner(text=params.introduction)
 
-    # 6. If an introduction was generated, replace the banner with it.
-    final_content = _replace_resume_banner(
-        resume_content=reconstructed_content,
-        introduction=params.introduction,
-    )
+    # 7. Reconstruct the full resume markdown string
+    # We manually combine sections to use raw content where needed
+    sections = []
 
-    # 7. Generate the final HTML for the refinement result UI
+    # Personal
+    sections.append(serialize_personal_info_to_markdown(personal_info))
+
+    # Education (Raw)
+    if raw_education.strip():
+        sections.append(raw_education.strip() + "\n")
+
+    # Certifications (Raw)
+    if raw_certifications.strip():
+        sections.append(raw_certifications.strip() + "\n")
+
+    # Experience
+    sections.append(serialize_experience_to_markdown(updated_experience))
+
+    final_content = "\n".join(filter(None, sections))
+
+    # 8. Generate the final HTML for the refinement result UI
     result_html_params = RefineResultParams(
         resume_id=params.resume_id,
         target_section_val="experience",

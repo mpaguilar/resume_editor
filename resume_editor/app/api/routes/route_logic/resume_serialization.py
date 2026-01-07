@@ -221,7 +221,7 @@ def extract_certifications_info(resume_content: str) -> CertificationsResponse:
             {
                 "name": getattr(cert, "name", None),
                 "issuer": getattr(cert, "issuer", None),
-                "certification_id": getattr(cert, "certification_id", None),
+                "certification_id": getattr(cert, "certification_id", getattr(cert, "id", None)),
                 "issued": issued,
                 "expires": expires,
             },
