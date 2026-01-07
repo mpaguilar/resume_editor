@@ -675,6 +675,13 @@ def test_refine_resume_page_loads_correctly():
         assert form is not None
         assert form["hx-post"] == "/api/resumes/1/refine/stream"
         assert form.find("textarea", {"name": "job_description"}) is not None
+        assert form.find("input", {"name": "target_section"}) is None
+
+        h2 = soup.find("h2")
+        assert h2 and "Refine Introduction and Experience" in h2.text
+
+        p = soup.find("p", string=lambda t: "Paste the job description" in t)
+        assert p and "introduction and experience sections" in p.text
 
         mock_get_resume.assert_called_once_with(mock_db_session, 1, 1)
 

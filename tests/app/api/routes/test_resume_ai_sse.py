@@ -95,7 +95,6 @@ async def test_refine_resume_stream_route(
     job_desc = "a job"
     form_data = {
         "job_description": job_desc,
-        "target_section": "experience",
     }
 
     # Act
@@ -141,7 +140,6 @@ async def test_refine_resume_stream_invalid_limit(
     # Arrange
     form_data = {
         "job_description": "a job",
-        "target_section": "experience",
         "limit_refinement_years": limit_years_str,
     }
 
@@ -194,7 +192,6 @@ async def test_refine_resume_stream_with_filtering(
 
     form_data = {
         "job_description": "a job",
-        "target_section": "experience",
         "limit_refinement_years": "5",
     }
 
@@ -244,7 +241,6 @@ async def test_refine_resume_stream_with_filtering_exception(
     # Arrange
     form_data = {
         "job_description": "a job",
-        "target_section": "experience",
         "limit_refinement_years": "5",
     }
 
@@ -348,7 +344,6 @@ async def test_refine_resume_stream_post_no_roles_after_filtering(
     form_data = {
         "job_description": "a job",
         "limit_refinement_years": "5",
-        "target_section": "experience",
     }
 
     # Act
@@ -376,7 +371,6 @@ def test_refine_resume_experience_returns_sse_loader_with_hx_ext(
     # Arrange
     form_data = {
         "job_description": "A great job",
-        "target_section": "experience",
     }
 
     # Act
@@ -397,6 +391,33 @@ def test_refine_resume_experience_returns_sse_loader_with_hx_ext(
     assert 'sse-close="close"' in html
 
 
+def test_refine_resume_with_invalid_limit_years_passes_param(
+    client_with_auth_and_resume, test_resume
+):
+    """
+    Test POST /refine with invalid limit_refinement_years passes it to the stream URL.
+    This ensures the GET stream endpoint handles the validation and provides user feedback.
+    """
+    # Arrange
+    form_data = {
+        "job_description": "A great job",
+        "limit_refinement_years": "abc",
+    }
+
+    # Act
+    response = client_with_auth_and_resume.post(
+        f"/api/resumes/{test_resume.id}/refine", data=form_data
+    )
+
+    # Assert
+    assert response.status_code == 200
+    html = response.text
+    assert (
+        f'sse-connect="/api/resumes/{test_resume.id}/refine/stream?job_description=A+great+job&limit_refinement_years=abc"'
+        in html
+    )
+
+
 @patch("resume_editor.app.api.routes.resume_ai._experience_refinement_stream")
 def test_post_refine_stream_with_hx_request_returns_loader(
     mock_stream, client_with_auth_and_resume, test_resume
@@ -407,7 +428,6 @@ def test_post_refine_stream_with_hx_request_returns_loader(
     # Arrange
     form_data = {
         "job_description": "A job for POST",
-        "target_section": "experience",
         "limit_refinement_years": "5",
     }
     headers = {"HX-Request": "true"}
@@ -456,7 +476,6 @@ def test_refine_resume_stream_post_form_read_exception_preserves_none(
 
     form_data = {
         "job_description": "a job",
-        "target_section": "experience",
         # Intentionally omit limit_refinement_years to force manual raw read
     }
 
@@ -477,6 +496,38 @@ def test_refine_resume_stream_post_form_read_exception_preserves_none(
     assert params_arg.job_description == "a job"
     assert params_arg.resume == test_resume
     assert params_arg.current_user == test_user
+
+
+@pytest.mark.parametrize(
+    "limit_years_in, expected_url_param",
+    [
+        ("5", "&limit_refinement_years=5"),
+        ("", "&limit_refinement_years="),
+        (None, ""),
+    ],
+)
+def test_post_refine_passes_limit_years_to_stream_url(
+    client_with_auth_and_resume, test_resume, limit_years_in, expected_url_param
+):
+    """
+    Test that POST /refine correctly includes the limit_refinement_years
+    in the sse-connect URL, passing the raw value.
+    """
+    # Arrange
+    form_data = {"job_description": "A great job"}
+    if limit_years_in is not None:
+        form_data["limit_refinement_years"] = limit_years_in
+
+    # Act
+    response = client_with_auth_and_resume.post(
+        f"/api/resumes/{test_resume.id}/refine", data=form_data
+    )
+
+    # Assert
+    assert response.status_code == 200
+    html = response.text
+    expected_url = f'sse-connect="/api/resumes/{test_resume.id}/refine/stream?job_description=A+great+job{expected_url_param}"'
+    assert expected_url in html
 
 
 @patch("resume_editor.app.api.routes.resume_ai._experience_refinement_stream")
@@ -504,7 +555,6 @@ def test_refine_resume_stream_post_empty_limit_string_ignored(
 
     form_data = {
         "job_description": "a job",
-        "target_section": "experience",
         # Omit limit_refinement_years to force manual raw read
     }
 

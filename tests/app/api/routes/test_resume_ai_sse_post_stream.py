@@ -91,7 +91,6 @@ def test_refine_resume_stream_post_without_limit(
 
     form_data = {
         "job_description": "a job",
-        "target_section": "experience",
     }
 
     with client_with_auth_and_resume.stream(
@@ -131,7 +130,6 @@ def test_refine_resume_stream_post_invalid_numeric_limit(
     """
     form_data = {
         "job_description": "a job",
-        "target_section": "experience",
         "limit_refinement_years": limit_years_str,
     }
 
@@ -161,7 +159,6 @@ def test_refine_resume_stream_post_invalid_alpha_limit(
     limit_years_str = "abc"
     form_data = {
         "job_description": "a job",
-        "target_section": "experience",
         "limit_refinement_years": limit_years_str,
     }
 
@@ -206,7 +203,6 @@ def test_refine_resume_stream_post_with_filtering(
 
     form_data = {
         "job_description": "a job",
-        "target_section": "experience",
         "limit_refinement_years": "5",
     }
 
@@ -242,7 +238,6 @@ def test_refine_resume_stream_post_filtering_exception(
     """
     form_data = {
         "job_description": "a job",
-        "target_section": "experience",
         "limit_refinement_years": "5",
     }
 
@@ -274,7 +269,6 @@ def test_refine_resume_stream_post_alpha_limit_parsing_sets_none(
 
     form_data = {
         "job_description": "a job",
-        "target_section": "experience",
         "limit_refinement_years": "abc",
     }
 

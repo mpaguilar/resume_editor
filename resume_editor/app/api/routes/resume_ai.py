@@ -44,7 +44,7 @@ log = logging.getLogger(__name__)
 
 @dataclass
 class _ExperienceStreamParams:
-    """Aggregated parameters for the experience SSE stream helper.
+    """Aggregated parameters for the resume refinement SSE stream helper.
 
     Purpose:
         Groups arguments commonly passed to the private SSE stream helper into a single object
@@ -264,7 +264,11 @@ def _build_filtered_content_if_needed(
 async def _experience_refinement_stream(
     params: _ExperienceStreamParams,
 ) -> AsyncGenerator[str, None]:
-    """Core SSE generator for experience refinement, handling filtering and error reporting.
+    """Core SSE generator for introduction and experience refinement.
+
+    This stream handles filtering experience by date and then invokes the main
+    refinement generator which produces events for both introduction generation and
+    per-role experience refinement.
 
     Args:
         params (_ExperienceStreamParams): Aggregated parameters for the SSE refinement stream.
@@ -273,13 +277,13 @@ async def _experience_refinement_stream(
         str: Server-Sent Events for progress, data, or errors.
 
     Notes:
-        1. Calls `_build_filtered_content_if_needed` to get content to refine.
+        1. Calls `_build_filtered_content_if_needed` to get content for refinement.
         2. Handles exceptions during filtering and sends an SSE error.
         3. Validates that roles exist to refine after filtering, sending an SSE warning if not.
-        4. Invokes `experience_refinement_sse_generator` with prepared parameters.
+        4. Invokes `experience_refinement_sse_generator` which runs the full intro and experience flow.
 
     """
-    _msg = "Starting SSE stream for experience refinement"
+    _msg = "Starting SSE stream for resume refinement"
     log.debug(_msg)
     try:
         content_to_refine = _build_filtered_content_if_needed(
@@ -408,7 +412,11 @@ async def refine_resume_stream_get(
     resume: Annotated[DatabaseResume, Depends(get_resume_for_user)],
     query: Annotated[RefineStreamQueryParams, Depends(get_refine_stream_query)],
 ) -> StreamingResponse:
-    """Refine the experience section of a resume using an LLM stream via GET."""
+    """Refine a resume using an LLM stream via GET.
+
+    This endpoint initiates a Server-Sent Events (SSE) stream to provide real-time
+    feedback on the combined introduction and experience refinement process.
+    """
 
     # Early validation of limit_refinement_years with immediate SSE error response on failure
     parsed_limit_years, early_error_response = _parse_limit_years_for_stream(
@@ -445,12 +453,15 @@ async def refine_resume_stream(
     resume: Annotated[DatabaseResume, Depends(get_resume_for_user)],
     form_data: Annotated[RefineForm, Depends()],
 ) -> StreamingResponse:
-    """Refine the experience section of a resume using an LLM stream.
+    """Refine a resume using an LLM stream via POST.
 
-    This endpoint uses Server-Sent Events (SSE) to provide real-time feedback.
-    It performs early validation of query parameters and optionally filters
-    the experience section by a date window before invoking the SSE generator.
+    This endpoint uses Server-Sent Events (SSE) to provide real-time feedback
+    on the combined introduction and experience refinement process. It can
+    optionally filter experience by date before starting the stream.
 
+    If the request includes an 'HX-Request' header, it returns an HTML fragment
+    that initiates the SSE connection on the client side, rather than starting
+    the stream directly.
     """
     _msg = "refine_resume_stream starting"
     log.debug(_msg)
@@ -514,36 +525,32 @@ async def refine_resume(
     resume: Annotated[DatabaseResume, Depends(get_resume_for_user)],
     form_data: Annotated[RefineForm, Depends()],
 ) -> Response:
-    """Refine a resume section using an LLM to align with a job description.
+    """Start the AI refinement process for a resume.
 
-    This endpoint handles both JSON API calls and HTMX form submissions.
+    This endpoint is the entry point for AI refinement. It no longer performs
+    refinement directly but instead returns an HTML fragment that triggers a
+    Server-Sent Events (SSE) stream to handle the process.
 
     Args:
-        http_request (Request): The HTTP request object to check for HTMX headers.
+        http_request (Request): The HTTP request object.
         resume (DatabaseResume): The resume to be refined.
         form_data (RefineForm): The form data for the refinement request.
 
     Returns:
-        RefineResponse | HTMLResponse: The response type
-            depends on the request headers.
+        Response: An HTML fragment response that initiates the SSE stream.
 
     """
-    _msg = f"Refining resume {resume.id} for section experience"
+    _msg = f"Refining resume {resume.id}"
     log.debug(_msg)
 
-    # All refinement now goes through the SSE stream for experience section only.
-    # Other sections are no longer supported for refinement.
-    parsed_limit_years, _ = _parse_limit_years_for_stream(
-        form_data.limit_refinement_years,
-    )
-
+    # All refinement now goes through the SSE streaming endpoint.
     return templates.TemplateResponse(
         http_request,
         "partials/resume/_refine_sse_loader.html",
         {
             "resume_id": resume.id,
             "job_description": form_data.job_description,
-            "limit_refinement_years": parsed_limit_years,
+            "limit_refinement_years": form_data.limit_refinement_years,
         },
     )
 
