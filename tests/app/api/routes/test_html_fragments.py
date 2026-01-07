@@ -271,7 +271,6 @@ def test_create_refine_result_html_template():
     """Test that _create_refine_result_html renders the correct template."""
     params = RefineResultParams(
         resume_id=123,
-        target_section_val="experience",
         refined_content="some <refined> content",
         job_description="A great job",
         introduction="",
@@ -292,7 +291,6 @@ def test_create_refine_result_html_output():
     """Test that the rendered HTML from _create_refine_result_html is correct."""
     params = RefineResultParams(
         resume_id=42,
-        target_section_val="experience",
         refined_content="This is *refined* markdown.",
         job_description="A job description",
         introduction="This is an intro.",
@@ -311,7 +309,7 @@ def test_create_refine_result_html_output():
     assert ">This is an intro.</textarea>" in html_output
     assert '<input type="hidden" name="introduction"' not in html_output
     assert 'hx-post="/api/resumes/42/refine/accept"' not in html_output
-    assert 'name="target_section" value="experience"' in html_output
+    assert 'name="target_section"' not in html_output
     assert '<textarea name="refined_content"' in html_output
     assert ">This is *refined* markdown.</textarea>" in html_output
     assert 'hx-post="/api/resumes/42/refine/save_as_new"' in html_output
@@ -485,7 +483,6 @@ def test_create_refine_result_html_output_no_introduction():
     """Test that the rendered HTML from _create_refine_result_html is correct when an empty introduction is provided."""
     params = RefineResultParams(
         resume_id=42,
-        target_section_val="experience",
         refined_content="This is *refined* markdown.",
         job_description="A job description",
         introduction="",
@@ -503,7 +500,7 @@ def test_create_refine_result_html_output_no_introduction():
 
     # Check that other elements are present
     assert 'hx-post="/api/resumes/42/refine/accept"' not in html_output
-    assert 'name="target_section" value="experience"' in html_output
+    assert 'name="target_section"' not in html_output
     assert '<textarea name="refined_content"' in html_output
     assert ">This is *refined* markdown.</textarea>" in html_output
 

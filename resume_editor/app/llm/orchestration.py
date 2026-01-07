@@ -7,17 +7,11 @@ from langchain_core.output_parsers import PydanticOutputParser, StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.utils.json import parse_json_markdown
 from langchain_openai import ChatOpenAI
+from openai import AuthenticationError
 from pydantic import ValidationError
 
 from resume_editor.app.api.routes.route_logic.resume_serialization import (
-    extract_certifications_info,
-    extract_education_info,
     extract_experience_info,
-    extract_personal_info,
-    serialize_certifications_to_markdown,
-    serialize_education_to_markdown,
-    serialize_experience_to_markdown,
-    serialize_personal_info_to_markdown,
 )
 from resume_editor.app.llm.models import (
     CandidateAnalysis,
@@ -26,7 +20,6 @@ from resume_editor.app.llm.models import (
     JobKeyRequirements,
     LLMConfig,
     RefinedRole,
-    RefinedSection,
     RoleRefinementJob,
 )
 from resume_editor.app.llm.prompts import (
@@ -38,8 +31,6 @@ from resume_editor.app.llm.prompts import (
     INTRO_SYNTHESIZE_INTRODUCTION_SYSTEM_PROMPT,
     JOB_ANALYSIS_HUMAN_PROMPT,
     JOB_ANALYSIS_SYSTEM_PROMPT,
-    RESUME_REFINE_HUMAN_PROMPT,
-    RESUME_REFINE_SYSTEM_PROMPT,
     ROLE_REFINE_HUMAN_PROMPT,
     ROLE_REFINE_SYSTEM_PROMPT,
 )
@@ -49,52 +40,6 @@ log = logging.getLogger(__name__)
 
 
 DEFAULT_LLM_TEMPERATURE = 0.2
-
-
-def _get_section_content(resume_content: str, section_name: str) -> str:
-    """Extracts the Markdown content for a specific section of the resume.
-
-    Args:
-        resume_content (str): The full resume content in Markdown.
-        section_name (str): The name of the section to extract ("personal", "education", "experience", "certifications", or "full").
-
-    Returns:
-        str: The Markdown content of the specified section. Returns the full content if "full" is specified.
-
-    Raises:
-        ValueError: If the section_name is not one of the valid options.
-
-    Notes:
-        1. If section_name is "full", return the entire resume_content.
-        2. Otherwise, map the section_name to a tuple of extractor and serializer functions.
-        3. Validate that section_name is in the valid set of keys.
-        4. Extract the data using the extractor function.
-        5. Serialize the extracted data using the serializer function.
-        6. Return the serialized result.
-
-    """
-    _msg = f"Extracting section '{section_name}' from resume"
-    log.debug(_msg)
-
-    if section_name == "full":
-        return resume_content
-
-    section_map = {
-        "personal": (extract_personal_info, serialize_personal_info_to_markdown),
-        "education": (extract_education_info, serialize_education_to_markdown),
-        "experience": (extract_experience_info, serialize_experience_to_markdown),
-        "certifications": (
-            extract_certifications_info,
-            serialize_certifications_to_markdown,
-        ),
-    }
-
-    if section_name not in section_map:
-        raise ValueError(f"Invalid section name: {section_name}")
-
-    extractor, serializer = section_map[section_name]
-    extracted_data = extractor(resume_content)
-    return serializer(extracted_data)
 
 
 async def analyze_job_description(
@@ -193,90 +138,6 @@ async def analyze_job_description(
     _msg = "analyze_job_description returning"
     log.debug(_msg)
     return analysis, getattr(analysis, "introduction", None)
-
-
-def _refine_generic_section(
-    resume_content: str,
-    job_description: str,
-    target_section: str,
-    llm: ChatOpenAI,
-) -> str:
-    """Uses a generic LLM chain to refine a non-experience section of the resume.
-
-    Args:
-        resume_content (str): The full Markdown content of the resume.
-        job_description (str): The job description to align the resume with.
-        target_section (str): The section of the resume to refine.
-        llm (ChatOpenAI): An initialized ChatOpenAI client instance.
-
-    Returns:
-        str: The refined Markdown content for the target section.
-             Returns an empty string if the target section is empty.
-
-    Raises:
-        ValueError: If the LLM response is not valid JSON or fails Pydantic validation.
-
-    Notes:
-        1. Extracts the target section content from the resume using `_get_section_content`.
-        2. If the extracted content is empty, returns an empty string.
-        3. Sets up a `PydanticOutputParser` for structured output based on the `RefinedSection` model.
-        4. Creates a `ChatPromptTemplate` with instructions for the LLM.
-        5. Creates a chain combining the prompt, LLM, and a `StrOutputParser`.
-        6. Streams the response from the chain and joins the chunks.
-        7. Parses the LLM's JSON-Markdown output using `parse_json_markdown`.
-        8. Validates the parsed JSON against the `RefinedSection` model.
-        9. Returns the `refined_markdown` field from the validated result.
-
-    """
-    section_content = _get_section_content(resume_content, target_section)
-    if not section_content.strip():
-        _msg = f"Section '{target_section}' is empty, returning as-is."
-        log.warning(_msg)
-        return ""
-
-    parser = PydanticOutputParser(pydantic_object=RefinedSection)
-
-    goal_statement = "Rephrase and restructure the existing content from the `Resume Section to Refine` to be more impactful and relevant to the `Job Description`, while following all rules."
-
-    processing_guidelines = ""
-
-    prompt = ChatPromptTemplate.from_messages(
-        [
-            ("system", RESUME_REFINE_SYSTEM_PROMPT),
-            ("human", RESUME_REFINE_HUMAN_PROMPT),
-        ],
-    ).partial(
-        goal=goal_statement,
-        processing_guidelines=processing_guidelines,
-        format_instructions=parser.get_format_instructions(),
-    )
-
-    # Use StrOutputParser to get the raw string, then manually parse
-    chain = prompt | llm | StrOutputParser()
-
-    try:
-        # Use streaming to avoid issues with some models returning non-JSON responses
-        # with a JSON content-type header, which causes the OpenAI client to fail
-        # on parsing.
-        response_chunks = []
-        for chunk in chain.stream(
-            {"job_description": job_description, "resume_section": section_content},
-        ):
-            response_chunks.append(chunk)
-
-        response_str = "".join(response_chunks)
-
-        parsed_json = parse_json_markdown(response_str)
-        refined_section = RefinedSection.model_validate(parsed_json)
-
-    except (json.JSONDecodeError, ValueError) as e:
-        _msg = f"Failed to parse LLM response as JSON: {e!s}"
-        log.exception(_msg)
-        raise ValueError(
-            "The AI service returned an unexpected response. Please try again.",
-        ) from e
-
-    return refined_section.refined_markdown
 
 
 async def _refine_role_and_put_on_queue(
@@ -433,94 +294,6 @@ async def async_refine_experience_section(
     log.debug("async_refine_experience_section finishing")
 
 
-def refine_resume_section_with_llm(
-    resume_content: str,
-    job_description: str,
-    target_section: str,
-    llm_config: LLMConfig,
-) -> str:
-    """Uses an LLM to refine a specific non-experience section of a resume.
-
-    This function acts as a dispatcher. For 'experience' section, it raises an error,
-    directing the caller to use the appropriate async generator. For all other sections,
-    it delegates to a generic helper function to perform a single-pass refinement.
-
-    Args:
-        resume_content (str): The full Markdown content of the resume.
-        job_description (str): The job description to align the resume with.
-        target_section (str): The section of the resume to refine (e.g., "personal").
-        llm_config (LLMConfig): LLM configuration including endpoint, API key, and model name.
-
-    Returns:
-        str: The refined Markdown content for the target section.
-             Returns an empty string if the target section is empty.
-
-    Raises:
-        ValueError: If `target_section` is 'experience'.
-
-    Network access:
-        - This function makes network requests to the LLM endpoint specified by
-          llm_endpoint.
-
-    Notes:
-        1. Checks if `target_section` is 'experience' and raises a `ValueError` if so.
-        2. Determines the model name, falling back to a default if not provided.
-        3. Constructs parameters for `ChatOpenAI`, including the model name, endpoint,
-           and API key. A dummy API key is used for custom, non-OpenRouter endpoints if
-           no key is provided.
-        4. Initializes the `ChatOpenAI` client.
-        5. Calls `_refine_generic_section` with the resume content, job description,
-           target section, and the initialized LLM client.
-        6. Returns the refined content string from the helper function.
-
-    """
-    _msg = f"refine_resume_section_with_llm starting for section '{target_section}'"
-    log.debug(_msg)
-
-    if target_section == "experience":
-        # This section is handled by the async `refine_experience_section` generator
-        # and should not be called with this synchronous function.
-        raise ValueError(
-            "Experience section refinement must be called via the async 'refine_experience_section' method.",
-        )
-    else:
-        model_name = (
-            llm_config.llm_model_name if llm_config.llm_model_name else "gpt-4o"
-        )
-
-        llm_params = {
-            "model": model_name,
-            "temperature": DEFAULT_LLM_TEMPERATURE,
-        }
-        if llm_config.llm_endpoint:
-            llm_params["openai_api_base"] = llm_config.llm_endpoint
-            if "openrouter.ai" in llm_config.llm_endpoint:
-                llm_params["default_headers"] = {
-                    "HTTP-Referer": "http://localhost:8000/",
-                    "X-Title": "Resume Editor",
-                }
-
-        if llm_config.api_key:
-            llm_params["api_key"] = llm_config.api_key
-        elif llm_config.llm_endpoint and "openrouter.ai" not in llm_config.llm_endpoint:
-            # For non-OpenRouter custom endpoints (e.g. local LLMs), provide a
-            # dummy key if none is given to satisfy the client library.
-            llm_params["api_key"] = "not-needed"
-
-        llm = ChatOpenAI(**llm_params)
-
-        refined_content = _refine_generic_section(
-            resume_content=resume_content,
-            job_description=job_description,
-            target_section=target_section,
-            llm=llm,
-        )
-
-        _msg = "refine_resume_section_with_llm returning"
-        log.debug(_msg)
-        return refined_content
-
-
 async def refine_role(
     role: Role,
     job_analysis: JobAnalysis,
@@ -605,8 +378,10 @@ async def refine_role(
         parsed_json = parse_json_markdown(response_str)
         refined_role = RefinedRole.model_validate(parsed_json)
 
-    except (json.JSONDecodeError, ValueError) as e:
-        _msg = f"Failed to parse LLM response for role refinement: {e!s}"
+    except AuthenticationError:
+        raise
+    except Exception as e:
+        _msg = f"An unexpected error occurred during role refinement: {e!s}"
         log.exception(_msg)
         raise ValueError(
             "The AI service returned an unexpected response. Please try again.",
@@ -621,11 +396,40 @@ async def refine_role(
 
 
 def _invoke_chain_and_parse(chain: Any, pydantic_model: Any, **kwargs: Any) -> Any:
-    """Invokes a LangChain chain, gets content, parses JSON, and validates with Pydantic."""
+    """Invokes a LangChain chain, gets content, parses JSON, and validates with Pydantic.
+
+    Args:
+        chain (Any): The LangChain runnable chain to invoke.
+        pydantic_model (Any): The Pydantic model to validate the parsed JSON against.
+        **kwargs (Any): Keyword arguments to pass to the chain's invoke method.
+
+    Returns:
+        Any: An instance of the `pydantic_model` populated with the parsed data.
+
+    Raises:
+        json.JSONDecodeError: If the LLM's response content is not valid JSON.
+        ValidationError: If the parsed JSON does not conform to the `pydantic_model`.
+
+    Notes:
+        1. Invokes the provided LangChain `chain` with the given `kwargs`.
+        2. Extracts the content string from the result.
+        3. Parses the content string as JSON using `parse_json_markdown`.
+        4. Validates the parsed JSON against the `pydantic_model`.
+        5. Returns the validated Pydantic model instance.
+        6. No network, disk, or database access is performed.
+
+    """
+    _msg = "_invoke_chain_and_parse starting"
+    log.debug(_msg)
+
     result = chain.invoke(kwargs)
     result_str = result.content
     parsed_json = parse_json_markdown(result_str)
-    return pydantic_model.model_validate(parsed_json)
+    validated_model = pydantic_model.model_validate(parsed_json)
+
+    _msg = "_invoke_chain_and_parse returning"
+    log.debug(_msg)
+    return validated_model
 
 
 def _generate_introduction_from_resume(
@@ -633,7 +437,25 @@ def _generate_introduction_from_resume(
     job_description: str,
     llm: ChatOpenAI,
 ) -> str:
-    """Orchestrates the multi-step chain to generate a resume introduction."""
+    """Orchestrates the multi-step chain to generate a resume introduction.
+
+    Args:
+        resume_content (str): The full Markdown content of the resume.
+        job_description (str): The job description to align the introduction with.
+        llm (ChatOpenAI): An initialized ChatOpenAI client instance.
+
+    Returns:
+        str: The generated introduction, or an empty string if generation fails.
+
+    Notes:
+        1.  **Step 1: Job Analysis**: Creates a chain with `INTRO_ANALYZE_JOB_PROMPT` and a parser for `JobKeyRequirements`. It invokes this chain with the `job_description` to extract key skills and priorities.
+        2.  **Step 2: Resume Analysis**: Creates a chain with `INTRO_ANALYZE_RESUME_PROMPT` and a parser for `CandidateAnalysis`. It invokes this chain with the `resume_content` and the JSON output from the job analysis step.
+        3.  **Step 3: Introduction Synthesis**: Creates a chain with `INTRO_SYNTHESIZE_INTRODUCTION_PROMPT` and a parser for `GeneratedIntroduction`. It invokes this chain with the JSON output from the resume analysis step.
+        4.  Extracts the `introduction` text from the final Pydantic object.
+        5.  Handles JSON decoding and Pydantic validation errors by logging and returning an empty string.
+        6.  This function performs multiple network requests to the configured LLM endpoint.
+
+    """
     _msg = "_generate_introduction_from_resume starting"
     log.debug(_msg)
 
@@ -743,8 +565,12 @@ def generate_introduction_from_resume(
         llm_params["api_key"] = "not-needed"
     llm = ChatOpenAI(**llm_params)
 
-    return _generate_introduction_from_resume(
+    introduction = _generate_introduction_from_resume(
         resume_content=resume_content,
         job_description=job_description,
         llm=llm,
     )
+
+    _msg = "generate_introduction_from_resume returning"
+    log.debug(_msg)
+    return introduction

@@ -15,7 +15,6 @@ from resume_editor.app.api.routes.route_logic.resume_ai_logic import (
     create_sse_error_message,
     experience_refinement_sse_generator,
     handle_save_as_new_refinement,
-    handle_sync_refinement,
 )
 from resume_editor.app.api.routes.route_logic.resume_filtering import (
     filter_experience_by_date,
@@ -32,10 +31,8 @@ from resume_editor.app.api.routes.route_logic.resume_serialization import (
 from resume_editor.app.api.routes.route_models import (
     ExperienceRefinementParams,
     RefineForm,
-    RefineTargetSection,
     SaveAsNewForm,
     SaveAsNewParams,
-    SyncRefinementParams,
 )
 from resume_editor.app.core.auth import get_current_user_from_cookie
 from resume_editor.app.database.database import get_db
@@ -514,8 +511,6 @@ async def refine_resume_stream(
 @router.post("/{resume_id}/refine")
 async def refine_resume(
     http_request: Request,
-    db: Annotated[Session, Depends(get_db)],
-    current_user: Annotated[User, Depends(get_current_user_from_cookie)],
     resume: Annotated[DatabaseResume, Depends(get_resume_for_user)],
     form_data: Annotated[RefineForm, Depends()],
 ) -> Response:
@@ -525,8 +520,6 @@ async def refine_resume(
 
     Args:
         http_request (Request): The HTTP request object to check for HTMX headers.
-        db (Session): The database session dependency.
-        current_user (User): The current authenticated user.
         resume (DatabaseResume): The resume to be refined.
         form_data (RefineForm): The form data for the refinement request.
 
@@ -535,30 +528,24 @@ async def refine_resume(
             depends on the request headers.
 
     """
-    _msg = f"Refining resume {resume.id} for section {form_data.target_section.value}"
+    _msg = f"Refining resume {resume.id} for section experience"
     log.debug(_msg)
 
-    if form_data.target_section == RefineTargetSection.EXPERIENCE:
-        return templates.TemplateResponse(
-            http_request,
-            "partials/resume/_refine_sse_loader.html",
-            {
-                "resume_id": resume.id,
-                "job_description": form_data.job_description,
-                "limit_refinement_years": form_data.limit_refinement_years,
-            },
-        )
-
-    params = SyncRefinementParams(
-        request=http_request,
-        db=db,
-        user=current_user,
-        resume=resume,
-        job_description=form_data.job_description,
-        target_section=form_data.target_section,
-        limit_refinement_years=form_data.limit_refinement_years,
+    # All refinement now goes through the SSE stream for experience section only.
+    # Other sections are no longer supported for refinement.
+    parsed_limit_years, _ = _parse_limit_years_for_stream(
+        form_data.limit_refinement_years,
     )
-    return await handle_sync_refinement(sync_params=params)
+
+    return templates.TemplateResponse(
+        http_request,
+        "partials/resume/_refine_sse_loader.html",
+        {
+            "resume_id": resume.id,
+            "job_description": form_data.job_description,
+            "limit_refinement_years": parsed_limit_years,
+        },
+    )
 
 
 @router.post("/{resume_id}/refine/save_as_new")

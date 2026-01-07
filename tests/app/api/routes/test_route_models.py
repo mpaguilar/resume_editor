@@ -2,18 +2,13 @@ import pytest
 
 from resume_editor.app.api.routes.route_models import (
     RefineForm,
-    RefineRequest,
-    RefineTargetSection,
+    RefinementContext,
     RenderFormat,
     RenderSettingsName,
     ResumeDetailResponse,
     ResumeResponse,
     SaveAsNewForm,
-    SaveAsNewMetadata,
 )
-
-
-
 
 
 def test_render_format_enum():
@@ -103,40 +98,34 @@ def test_refine_form_instantiation():
     # Test with the optional field provided
     form_with_limit = RefineForm(
         job_description="A job.",
-        target_section=RefineTargetSection.EXPERIENCE,
         limit_refinement_years=5,
     )
     assert form_with_limit.job_description == "A job."
-    assert form_with_limit.target_section == RefineTargetSection.EXPERIENCE
     assert form_with_limit.limit_refinement_years == 5
 
     # Test without the optional field (it's passed as None by Depends default)
     form_without_limit = RefineForm(
         job_description="Another job.",
-        target_section=RefineTargetSection.PERSONAL,
         limit_refinement_years=None,
     )
     assert form_without_limit.job_description == "Another job."
-    assert form_without_limit.target_section == RefineTargetSection.PERSONAL
     assert form_without_limit.limit_refinement_years is None
 
 
 def test_save_as_new_form_instantiation():
     """Test SaveAsNewForm can be instantiated with all fields."""
-    metadata = SaveAsNewMetadata(
-        new_resume_name="New Resume",
+    context = RefinementContext(
         job_description="A job.",
         introduction="An intro.",
-        limit_refinement_years="5",
+        limit_refinement_years=5,
     )
     form = SaveAsNewForm(
         refined_content="some content",
-        target_section=RefineTargetSection.EXPERIENCE,
-        metadata=metadata,
+        new_resume_name="New Resume",
+        context=context,
     )
 
     assert form.refined_content == "some content"
-    assert form.target_section == RefineTargetSection.EXPERIENCE
     assert form.new_resume_name == "New Resume"
     assert form.job_description == "A job."
     assert form.introduction == "An intro."

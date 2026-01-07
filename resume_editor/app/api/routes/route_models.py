@@ -329,59 +329,30 @@ class CertificationUpdateRequest(BaseModel):
     certifications: list[Certification]
 
 
-class RefineTargetSection(str, Enum):
-    """Enum for target sections for LLM refinement.
-
-    Attributes:
-        FULL (str): Refine the entire resume.
-        PERSONAL (str): Refine only the personal information section.
-        EDUCATION (str): Refine only the education section.
-        EXPERIENCE (str): Refine only the experience section.
-        CERTIFICATIONS (str): Refine only the certifications section.
-
-    """
-
-    FULL = "full"
-    PERSONAL = "personal"
-    EDUCATION = "education"
-    EXPERIENCE = "experience"
-    CERTIFICATIONS = "certifications"
-
-
 class RefineForm:
-    """Form data for refining a resume section."""
+    """Form data for refining the experience section of a resume."""
 
     def __init__(
         self,
         job_description: str = Form(...),
-        target_section: RefineTargetSection = Form(...),
         limit_refinement_years: str | None = Form(None),
     ) -> None:
         self.job_description = job_description
-        self.target_section = target_section
-        try:
-            self.limit_refinement_years = int(limit_refinement_years)
-        except (ValueError, TypeError):
-            self.limit_refinement_years = None
+        self.limit_refinement_years = limit_refinement_years
 
 
-class SaveAsNewMetadata:
-    """Metadata for saving a refined resume as a new one."""
+class RefinementContext:
+    """Context data for resume refinement."""
 
     def __init__(
         self,
-        new_resume_name: str | None = Form(None),
         job_description: str | None = Form(None),
         introduction: str | None = Form(None),
-        limit_refinement_years: str | None = Form(None),
+        limit_refinement_years: int | None = Form(None),
     ) -> None:
-        self.new_resume_name = new_resume_name
         self.job_description = job_description
         self.introduction = introduction
-        try:
-            self.limit_refinement_years = int(limit_refinement_years)
-        except (ValueError, TypeError):
-            self.limit_refinement_years = None
+        self.limit_refinement_years = limit_refinement_years
 
 
 class SaveAsNewForm:
@@ -390,15 +361,14 @@ class SaveAsNewForm:
     def __init__(
         self,
         refined_content: str = Form(...),
-        target_section: RefineTargetSection = Form(...),
-        metadata: SaveAsNewMetadata = Depends(),
+        new_resume_name: str | None = Form(None),
+        context: RefinementContext = Depends(),
     ) -> None:
         self.refined_content = refined_content
-        self.target_section = target_section
-        self.new_resume_name = metadata.new_resume_name
-        self.job_description = metadata.job_description
-        self.introduction = metadata.introduction
-        self.limit_refinement_years = metadata.limit_refinement_years
+        self.new_resume_name = new_resume_name
+        self.job_description = context.job_description
+        self.introduction = context.introduction
+        self.limit_refinement_years = context.limit_refinement_years
 
 
 class ChangePasswordForm:
@@ -413,30 +383,6 @@ class ChangePasswordForm:
         self.new_password = new_password
         self.confirm_new_password = confirm_new_password
         self.current_password = current_password
-
-
-class RefineRequest(BaseModel):
-    """Request model for refining resume content.
-
-    Attributes:
-        job_description (str): The job description to align the resume with.
-        target_section (RefineTargetSection): The section of the resume to refine.
-
-    Args:
-        job_description (str): The full text of the job description to use as a reference for refinement.
-        target_section (RefineTargetSection): The specific section of the resume to refine.
-
-    Returns:
-        RefineRequest: An instance of the model with the job description and target section.
-
-    Notes:
-        1. The LLM uses the job description to generate improved content for the specified section.
-        2. Network access is required to call the LLM service.
-
-    """
-
-    job_description: str
-    target_section: RefineTargetSection
 
 
 class RefineResponse(BaseModel):
@@ -688,20 +634,6 @@ class EducationUpdateForm:
         self.start_date = dates.start_date
         self.end_date = dates.end_date
         self.gpa = gpa
-
-
-class SyncRefinementParams(BaseModel):
-    """Parameters for synchronous refinement."""
-
-    model_config = ConfigDict(arbitrary_types_allowed=True)
-
-    request: Any
-    db: Any
-    user: Any  # Cannot be User, it's a Pydantic model
-    resume: Any  # Cannot be DatabaseResume, it's a Pydantic model
-    job_description: str
-    target_section: RefineTargetSection
-    limit_refinement_years: int | None = None
 
 
 class SaveAsNewParams(BaseModel):

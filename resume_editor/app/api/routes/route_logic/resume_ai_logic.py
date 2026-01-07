@@ -2,11 +2,10 @@ import asyncio
 import html
 import logging
 from pathlib import Path
-from typing import Any, AsyncGenerator
+from typing import AsyncGenerator
 
 from cryptography.fernet import InvalidToken
-from fastapi import HTTPException, Response
-from fastapi.responses import HTMLResponse
+from fastapi import HTTPException
 from jinja2 import Environment, FileSystemLoader
 from openai import AuthenticationError
 from pydantic import BaseModel
@@ -37,17 +36,13 @@ from resume_editor.app.api.routes.route_logic.resume_validation import (
 from resume_editor.app.api.routes.route_logic.settings_crud import get_user_settings
 from resume_editor.app.api.routes.route_models import (
     ExperienceResponse,
-    RefineResponse,
-    RefineTargetSection,
     SaveAsNewParams,
-    SyncRefinementParams,
 )
 from resume_editor.app.core.security import decrypt_data
 from resume_editor.app.llm.models import LLMConfig
 from resume_editor.app.llm.orchestration import (
     async_refine_experience_section,
     generate_introduction_from_resume,
-    refine_resume_section_with_llm,
 )
 from resume_editor.app.models.resume.experience import Role
 from resume_editor.app.models.resume.personal import Banner
@@ -57,38 +52,6 @@ log = logging.getLogger(__name__)
 
 TEMPLATES_DIR = Path(__file__).resolve().parent.parent.parent.parent / "templates"
 env = Environment(loader=FileSystemLoader(str(TEMPLATES_DIR)), autoescape=True)
-
-
-def reconstruct_resume_markdown(
-    personal_info: Any,
-    education: Any,
-    experience: Any,
-    certifications: Any,
-) -> str:
-    """Wrapper delegating to build_complete_resume_from_sections.
-    Args:
-        personal_info (Any): The personal information section model.
-        education (Any): The education section model.
-        experience (Any): The experience section model.
-        certifications (Any): The certifications section model.
-    Returns:
-        str: The reconstructed resume markdown.
-    Notes:
-        1. This wrapper exists to provide a stable name for tests that patch 'reconstruct_resume_markdown'.
-        2. It simply calls 'build_complete_resume_from_sections' with the same arguments.
-
-    """
-    _msg = "reconstruct_resume_markdown starting"
-    log.debug(_msg)
-    result = build_complete_resume_from_sections(
-        personal_info=personal_info,
-        education=education,
-        experience=experience,
-        certifications=certifications,
-    )
-    _msg = "reconstruct_resume_markdown returning"
-    log.debug(_msg)
-    return result
 
 
 def reconstruct_resume_with_new_introduction(
@@ -144,7 +107,7 @@ def reconstruct_resume_with_new_introduction(
         personal_info.banner = Banner(text=introduction)
 
     try:
-        updated_content = reconstruct_resume_markdown(
+        updated_content = build_complete_resume_from_sections(
             personal_info=personal_info,
             education=education_info,
             experience=experience_info,
@@ -383,7 +346,7 @@ def process_refined_experience_result(params: ProcessExperienceResultParams) -> 
     )
 
     # 5. Reconstruct the full resume markdown string
-    reconstructed_content = reconstruct_resume_markdown(
+    reconstructed_content = build_complete_resume_from_sections(
         personal_info=personal_info,
         education=education_info,
         experience=updated_experience,
@@ -399,7 +362,7 @@ def process_refined_experience_result(params: ProcessExperienceResultParams) -> 
     # 7. Generate the final HTML for the refinement result UI
     result_html_params = RefineResultParams(
         resume_id=params.resume_id,
-        target_section_val=RefineTargetSection.EXPERIENCE.value,
+        target_section_val="experience",
         refined_content=final_content,
         job_description=params.job_description,
         introduction=params.introduction or "",
@@ -642,149 +605,6 @@ async def _yield_messages_from_queue(
                 break
 
 
-def reconstruct_resume_from_refined_section(
-    original_resume_content: str,
-    refined_content: str,
-    target_section: RefineTargetSection,
-) -> str:
-    """Rebuilds a complete resume by combining a refined section with original sections.
-
-    This function takes a refined content string for a specific section and reconstructs
-    the full resume markdown by parsing all sections, replacing the target section
-    with the refined version, and then building the complete markdown from these parts.
-
-    Args:
-        original_resume_content (str): The full markdown content of the original resume.
-        refined_content (str): The markdown content of the section that has been refined.
-        target_section (RefineTargetSection): The enum member indicating which section was refined.
-
-    Returns:
-        str: The full markdown content of the reconstructed resume.
-
-    """
-    _msg = f"reconstruct_resume_from_refined_section starting for section {target_section.value}"
-    log.debug(_msg)
-
-    if target_section == RefineTargetSection.FULL:
-        updated_content = refined_content
-    else:
-        # Based on the target section, use the refined content for that section
-        # and the original content for all others.
-        personal_info = extract_personal_info(
-            refined_content
-            if target_section == RefineTargetSection.PERSONAL
-            else original_resume_content,
-        )
-        education_info = extract_education_info(
-            refined_content
-            if target_section == RefineTargetSection.EDUCATION
-            else original_resume_content,
-        )
-        experience_info = extract_experience_info(
-            refined_content
-            if target_section == RefineTargetSection.EXPERIENCE
-            else original_resume_content,
-        )
-        certifications_info = extract_certifications_info(
-            refined_content
-            if target_section == RefineTargetSection.CERTIFICATIONS
-            else original_resume_content,
-        )
-
-        updated_content = build_complete_resume_from_sections(
-            personal_info=personal_info,
-            education=education_info,
-            experience=experience_info,
-            certifications=certifications_info,
-        )
-
-    _msg = "reconstruct_resume_from_refined_section returning"
-    log.debug(_msg)
-    return updated_content
-
-
-async def handle_sync_refinement(sync_params: SyncRefinementParams) -> Response:
-    """Handles synchronous (non-streaming) resume section refinement."""
-    _msg = "handle_sync_refinement starting"
-    log.debug(_msg)
-    try:
-        llm_endpoint, llm_model_name, api_key = get_llm_config(
-            sync_params.db,
-            sync_params.user.id,
-        )
-
-        llm_config = LLMConfig(
-            llm_endpoint=llm_endpoint,
-            api_key=api_key,
-            llm_model_name=llm_model_name,
-        )
-
-        # Handle other sections synchronously
-        refined_content, introduction = refine_resume_section_with_llm(
-            resume_content=sync_params.resume.content,
-            job_description=sync_params.job_description,
-            target_section=sync_params.target_section.value,
-            llm_config=llm_config,
-        )
-
-        if "HX-Request" in sync_params.request.headers:
-            html_params = RefineResultParams(
-                resume_id=sync_params.resume.id,
-                target_section_val=sync_params.target_section.value,
-                refined_content=refined_content,
-                job_description=sync_params.job_description,
-                introduction=introduction or "",
-                limit_refinement_years=sync_params.limit_refinement_years,
-            )
-            html_content = _create_refine_result_html(params=html_params)
-            return HTMLResponse(content=html_content)
-
-        return RefineResponse(
-            refined_content=refined_content,
-            introduction=introduction,
-        )
-    except InvalidToken:
-        detail = "Invalid API key. Please update your settings."
-        _msg = f"API key decryption failed for user {sync_params.user.id}"
-        log.warning(_msg)
-        if "HX-Request" in sync_params.request.headers:
-            return HTMLResponse(
-                f'<div role="alert" class="text-red-500 p-2">{detail}</div>',
-                status_code=200,
-            )
-        raise HTTPException(status_code=400, detail=detail)
-    except AuthenticationError as e:
-        detail = "LLM authentication failed. Please check your API key in settings."
-        _msg = f"LLM authentication failed for user {sync_params.user.id}: {e!s}"
-        log.warning(_msg)
-        if "HX-Request" in sync_params.request.headers:
-            return HTMLResponse(
-                f'<div role="alert" class="text-red-500 p-2">{detail}</div>',
-                status_code=200,
-            )
-        raise HTTPException(status_code=401, detail=detail)
-    except ValueError as e:
-        detail = str(e)
-        _msg = f"LLM refinement failed for resume {sync_params.resume.id} with ValueError: {detail}"
-        log.warning(_msg)
-        if "HX-Request" in sync_params.request.headers:
-            return HTMLResponse(
-                f'<div role="alert" class="text-red-500 p-2">Refinement failed: {detail}</div>',
-                status_code=200,
-            )
-        raise HTTPException(status_code=400, detail=detail)
-    except Exception as e:
-        detail = f"An unexpected error occurred during refinement: {e!s}"
-        _msg = f"LLM refinement failed for resume {sync_params.resume.id}: {e!s}"
-        log.exception(_msg)
-        if "HX-Request" in sync_params.request.headers:
-            return HTMLResponse(
-                f'<div role="alert" class="text-red-500 p-2">{detail}</div>',
-                status_code=200,
-            )
-        raise HTTPException(status_code=500, detail=f"LLM refinement failed: {e!s}")
-
-
 async def experience_refinement_sse_generator(
     params: "ExperienceRefinementParams",
 ) -> AsyncGenerator[str, None]:
@@ -831,12 +651,9 @@ async def experience_refinement_sse_generator(
 def handle_save_as_new_refinement(params: SaveAsNewParams) -> DatabaseResume:
     """Orchestrates saving a refined resume as a new resume.
 
-    This involves reconstructing the resume from the refined content, and then
-    handling the introduction. It correctly uses the introduction from the form
-    data if provided. If the introduction is missing and a job description is
-    available, a new introduction is generated via an LLM. The final content is
-    validated, and a new resume record is created in the database, persisting
-    the introduction to its dedicated field.
+    This function takes the full refined resume content, validates it, and
+    creates a new resume record in the database. The introduction is taken
+    directly from the refinement context and persisted to its dedicated field.
 
     Args:
         params (SaveAsNewParams): The parameters for saving the new resume.
@@ -845,68 +662,31 @@ def handle_save_as_new_refinement(params: SaveAsNewParams) -> DatabaseResume:
         DatabaseResume: The newly created resume object.
 
     Raises:
-        HTTPException: If reconstruction or validation fails.
+        HTTPException: If validation fails.
+
+    Notes:
+        1. The `refined_content` from the form is assumed to be the full, final resume content.
+        2. The introduction is taken from the form context and passed directly to the database.
+        3. No resume reconstruction or on-the-fly introduction generation occurs here.
 
     """
     _msg = "handle_save_as_new_refinement starting"
     log.debug(_msg)
 
     try:
-        # 1. Reconstruct the full resume content with the refined section.
-        updated_content = reconstruct_resume_from_refined_section(
-            original_resume_content=params.resume.content,
-            refined_content=params.form_data.refined_content,
-            target_section=params.form_data.target_section,
-        )
-
+        final_content = params.form_data.refined_content
         job_description_val = params.form_data.job_description
         introduction = params.form_data.introduction
         new_resume_name = params.form_data.new_resume_name
 
-        _msg = f"Introduction from form: '{introduction}'"
-        log.debug(_msg)
-
-        # 2. Conditionally generate an introduction.
-        # If user provided one, use it. Otherwise, if a JD is present, generate one.
-        if not introduction or not introduction.strip():
-            if job_description_val:
-                _msg = "User-provided introduction is empty and job description is present. Generating new introduction."
-                log.debug(_msg)
-                llm_endpoint, llm_model_name, api_key = get_llm_config(
-                    params.db,
-                    params.user.id,
-                )
-                llm_config = LLMConfig(
-                    llm_endpoint=llm_endpoint,
-                    api_key=api_key,
-                    llm_model_name=llm_model_name,
-                )
-                introduction = generate_introduction_from_resume(
-                    resume_content=updated_content,
-                    job_description=job_description_val,
-                    llm_config=llm_config,
-                )
-            else:
-                _msg = "No user-provided introduction and no job description. Introduction will be None."
-                log.debug(_msg)
-                introduction = None
-        else:
-            _msg = "Using user-provided introduction."
-            log.debug(_msg)
-
-        # 3. The final content for the resume record is the reconstructed content.
-        # The introduction is now stored in a separate DB field.
-        final_content = updated_content
         perform_pre_save_validation(final_content)
     except (ValueError, TypeError, HTTPException) as e:
         detail = getattr(e, "detail", str(e))
-        _msg = f"Failed to reconstruct resume from refined section: {detail}"
+        _msg = f"Failed to validate refined resume content: {detail}"
         log.exception(_msg)
         raise HTTPException(status_code=422, detail=_msg)
 
-    # 4. Create the new resume record, passing the determined introduction.
-    _msg = f"Final introduction before DB save: '{introduction}'"
-    log.debug(_msg)
+    # Create the new resume record, passing the determined introduction.
     create_params = ResumeCreateParams(
         user_id=params.user.id,
         name=new_resume_name,

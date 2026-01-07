@@ -14,7 +14,6 @@ class RefineResultParams(BaseModel):
     """Parameters for creating the refine result HTML."""
 
     resume_id: int
-    target_section_val: str
     refined_content: str
     introduction: str
     job_description: str | None = None

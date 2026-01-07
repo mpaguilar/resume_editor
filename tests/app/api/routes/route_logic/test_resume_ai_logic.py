@@ -30,18 +30,10 @@ def test_replace_resume_banner_is_wrapper(mock_reconstruct: MagicMock) -> None:
 
 @patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.create_resume_db")
 @patch(
-    "resume_editor.app.api.routes.route_logic.resume_ai_logic.generate_introduction_from_resume"
-)
-@patch(
-    "resume_editor.app.api.routes.route_logic.resume_ai_logic.reconstruct_resume_from_refined_section"
-)
-@patch(
     "resume_editor.app.api.routes.route_logic.resume_ai_logic.perform_pre_save_validation"
 )
 def test_handle_save_as_new_refinement_uses_user_provided_introduction(
     mock_validate: MagicMock,
-    mock_reconstruct: MagicMock,
-    mock_generate_intro: MagicMock,
     mock_create_resume: MagicMock,
 ) -> None:
     """
@@ -53,43 +45,33 @@ def test_handle_save_as_new_refinement_uses_user_provided_introduction(
     params.user.id = 1
     params.resume.id = 1
     params.resume.content = "original"
+    params.form_data.refined_content = "reconstructed"
     params.form_data.job_description = "A job description"
     params.form_data.introduction = "User provided introduction"
     params.form_data.new_resume_name = "New Resume from Test"
 
-    mock_reconstruct.return_value = "reconstructed"
     mock_create_resume.return_value = MagicMock(spec=DatabaseResume)
 
     # Execution
     handle_save_as_new_refinement(params)
 
     # Assertions
-    mock_generate_intro.assert_not_called()
     mock_validate.assert_called_once_with("reconstructed")
     create_params = mock_create_resume.call_args.kwargs["params"]
+    assert create_params.content == "reconstructed"
     assert create_params.introduction == "User provided introduction"
 
 
 @patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.create_resume_db")
 @patch(
-    "resume_editor.app.api.routes.route_logic.resume_ai_logic.generate_introduction_from_resume"
-)
-@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.get_llm_config")
-@patch(
-    "resume_editor.app.api.routes.route_logic.resume_ai_logic.reconstruct_resume_from_refined_section"
-)
-@patch(
     "resume_editor.app.api.routes.route_logic.resume_ai_logic.perform_pre_save_validation"
 )
-def test_handle_save_as_new_refinement_generates_introduction(
+def test_handle_save_as_new_refinement_no_introduction(
     mock_validate: MagicMock,
-    mock_reconstruct: MagicMock,
-    mock_get_llm_config: MagicMock,
-    mock_generate_intro: MagicMock,
     mock_create_resume: MagicMock,
 ) -> None:
     """
-    Scenario: A user does not provide an introduction, but a job description is present.
+    Scenario: A user does not provide an introduction.
     """
     # Setup
     params = MagicMock()
@@ -98,40 +80,28 @@ def test_handle_save_as_new_refinement_generates_introduction(
     params.resume.id = 7
     params.resume.content = "original resume markdown"
     params.form_data.refined_content = "refined section content"
-    params.form_data.target_section = MagicMock()
     params.form_data.new_resume_name = "New Resume Name"
     params.form_data.job_description = "JD text"
     params.form_data.introduction = None
 
-    mock_reconstruct.return_value = "reconstructed content"
-    mock_get_llm_config.return_value = ("endpoint", "model", "key")
-    mock_generate_intro.return_value = "Generated Intro"
     mock_create_resume.return_value = MagicMock(spec=DatabaseResume)
 
     # Execution
     handle_save_as_new_refinement(params)
 
     # Assertions
-    mock_generate_intro.assert_called_once()
-    mock_validate.assert_called_once_with("reconstructed content")
+    mock_validate.assert_called_once_with("refined section content")
     create_params = mock_create_resume.call_args.kwargs["params"]
-    assert create_params.introduction == "Generated Intro"
+    assert create_params.content == "refined section content"
+    assert create_params.introduction is None
 
 
 @patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.create_resume_db")
-@patch(
-    "resume_editor.app.api.routes.route_logic.resume_ai_logic.generate_introduction_from_resume"
-)
-@patch(
-    "resume_editor.app.api.routes.route_logic.resume_ai_logic.reconstruct_resume_from_refined_section"
-)
 @patch(
     "resume_editor.app.api.routes.route_logic.resume_ai_logic.perform_pre_save_validation"
 )
 def test_handle_save_as_new_refinement_with_no_intro_or_jd(
     mock_validate: MagicMock,
-    mock_reconstruct: MagicMock,
-    mock_generate_intro: MagicMock,
     mock_create_resume: MagicMock,
 ) -> None:
     """
@@ -143,20 +113,20 @@ def test_handle_save_as_new_refinement_with_no_intro_or_jd(
     params.user.id = 100
     params.resume.id = 55
     params.resume.content = "orig content"
+    params.form_data.refined_content = "reconstructed"
     params.form_data.job_description = None
     params.form_data.introduction = None
     params.form_data.new_resume_name = "No Intro Resume"
 
-    mock_reconstruct.return_value = "reconstructed"
     mock_create_resume.return_value = MagicMock(spec=DatabaseResume)
 
     # Execution
     handle_save_as_new_refinement(params)
 
     # Assertions
-    mock_generate_intro.assert_not_called()
     mock_validate.assert_called_once_with("reconstructed")
     create_params = mock_create_resume.call_args.kwargs["params"]
+    assert create_params.content == "reconstructed"
     assert create_params.introduction is None
 
 
@@ -238,7 +208,9 @@ def test_reconstruct_resume_with_new_introduction_malformed_content(
         reconstruct_resume_with_new_introduction(original_content, new_introduction)
 
 
-@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.reconstruct_resume_markdown")
+@patch(
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic.build_complete_resume_from_sections"
+)
 @patch(
     "resume_editor.app.api.routes.route_logic.resume_ai_logic.extract_certifications_info"
 )
@@ -254,7 +226,7 @@ def test_reconstruct_resume_with_new_introduction_personal_info_none(
     mock_extract_education: MagicMock,
     mock_extract_experience: MagicMock,
     mock_extract_certifications: MagicMock,
-    mock_reconstruct: MagicMock,
+    mock_build: MagicMock,
 ) -> None:
     """Test reconstruct_resume_with_new_introduction when personal_info is None."""
     original_content = "some content"
@@ -264,11 +236,11 @@ def test_reconstruct_resume_with_new_introduction_personal_info_none(
     mock_extract_education.return_value = MagicMock()
     mock_extract_experience.return_value = MagicMock()
     mock_extract_certifications.return_value = MagicMock()
-    mock_reconstruct.return_value = "reconstructed"
+    mock_build.return_value = "reconstructed"
 
     result = reconstruct_resume_with_new_introduction(original_content, new_introduction)
 
-    mock_reconstruct.assert_called_once_with(
+    mock_build.assert_called_once_with(
         personal_info=None,
         education=mock_extract_education.return_value,
         experience=mock_extract_experience.return_value,
@@ -277,7 +249,9 @@ def test_reconstruct_resume_with_new_introduction_personal_info_none(
     assert result == "reconstructed"
 
 
-@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.reconstruct_resume_markdown")
+@patch(
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic.build_complete_resume_from_sections"
+)
 @patch(
     "resume_editor.app.api.routes.route_logic.resume_ai_logic.extract_certifications_info"
 )
@@ -293,7 +267,7 @@ def test_reconstruct_resume_with_new_introduction_reconstruct_failure(
     mock_extract_education: MagicMock,
     mock_extract_experience: MagicMock,
     mock_extract_certifications: MagicMock,
-    mock_reconstruct: MagicMock,
+    mock_build: MagicMock,
 ) -> None:
     """Test reconstruct_resume_with_new_introduction handles reconstruction failure."""
     original_content = "some content"
@@ -303,7 +277,7 @@ def test_reconstruct_resume_with_new_introduction_reconstruct_failure(
     mock_extract_education.return_value = MagicMock()
     mock_extract_experience.return_value = MagicMock()
     mock_extract_certifications.return_value = MagicMock()
-    mock_reconstruct.side_effect = RuntimeError("Reconstruction failed")
+    mock_build.side_effect = RuntimeError("Reconstruction failed")
 
     with pytest.raises(RuntimeError, match="Reconstruction failed"):
         reconstruct_resume_with_new_introduction(original_content, new_introduction)

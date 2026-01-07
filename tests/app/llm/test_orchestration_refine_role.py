@@ -99,6 +99,18 @@ LLM_INIT_PARAMS = [
             },
         },
     ),
+    # Case 8: Endpoint provided, no API key, not OpenRouter (should use "not-needed")
+    (
+        "http://another.llm",
+        None,
+        "another-model",
+        {
+            "model": "another-model",
+            "temperature": DEFAULT_LLM_TEMPERATURE,
+            "openai_api_base": "http://another.llm",
+            "api_key": "not-needed",
+        },
+    ),
 ]
 
 
@@ -181,6 +193,7 @@ def mock_chain_invocations_for_role_refine():
             "final_chain": final_chain,
             "prompt_template": mock_prompt_template_class,
             "prompt_from_messages": mock_prompt_from_messages,
+            "mock_chat_openai_instance": mock_chat_openai_class.return_value,
         }
 
 
@@ -200,6 +213,9 @@ async def test_refine_role_success(mock_chain_invocations_for_role_refine):
     assert result.summary.text == "Refined summary."
     assert result.responsibilities.text == "* Do refined things."
     assert result.skills.skills == ["Refined Skill"]
+    assert (
+        result.basics.inclusion_status == mock_role.basics.inclusion_status
+    )  # Ensure inclusion_status is preserved
 
     # Check that the input objects were correctly serialized and passed to the chain
     final_chain = mock_chain_invocations_for_role_refine["final_chain"]
@@ -214,7 +230,7 @@ async def test_refine_role_success(mock_chain_invocations_for_role_refine):
 
 
 @pytest.mark.asyncio
-async def test_refine_role_json_error(mock_chain_invocations_for_role_refine):
+async def test_refine_role_json_decode_error(mock_chain_invocations_for_role_refine):
     """Test that refine_role handles JSON decoding errors."""
     final_chain = mock_chain_invocations_for_role_refine["final_chain"]
     final_chain.ainvoke.return_value = "```json\n{ not valid json }\n```"
@@ -228,7 +244,9 @@ async def test_refine_role_json_error(mock_chain_invocations_for_role_refine):
 
 
 @pytest.mark.asyncio
-async def test_refine_role_validation_error(mock_chain_invocations_for_role_refine):
+async def test_refine_role_pydantic_validation_error(
+    mock_chain_invocations_for_role_refine,
+):
     """Test that refine_role handles Pydantic validation errors."""
     final_chain = mock_chain_invocations_for_role_refine["final_chain"]
     # Return valid JSON but with missing required fields within the "basics" object.
@@ -268,6 +286,7 @@ async def test_refine_role_prompt_content(mock_chain_invocations_for_role_refine
     human_template = messages[1][1]
 
     # Check that crucial rules and spec are always in the system template
+    assert "Your single most important and non-negotiable instruction" in system_template
     assert "As an expert resume writer" in system_template
     assert (
         "your task is to refine the provided `role` JSON object" in system_template
@@ -284,7 +303,9 @@ async def test_refine_role_prompt_content(mock_chain_invocations_for_role_refine
     assert "format_instructions" in partial_kwargs
 
 
-@pytest.mark.parametrize("llm_endpoint, api_key, llm_model_name, expected_call_args", LLM_INIT_PARAMS)
+@pytest.mark.parametrize(
+    "llm_endpoint, api_key, llm_model_name, expected_call_args", LLM_INIT_PARAMS
+)
 @pytest.mark.asyncio
 async def test_refine_role_llm_initialization(
     mock_chain_invocations_for_role_refine,
@@ -316,14 +337,30 @@ async def test_refine_role_authentication_error(
     """
     Test that an AuthenticationError from the LLM call is propagated during role refinement.
     """
-    from openai import AuthenticationError
-
     final_chain = mock_chain_invocations_for_role_refine["final_chain"]
     final_chain.ainvoke.side_effect = AuthenticationError(
         message="Invalid API key", response=MagicMock(), body=None
     )
 
     with pytest.raises(AuthenticationError):
+        await refine_role(
+            role=create_mock_role(),
+            job_analysis=create_mock_job_analysis(),
+            llm_config=LLMConfig(),
+        )
+
+
+@pytest.mark.asyncio
+async def test_refine_role_general_exception(
+    mock_chain_invocations_for_role_refine,
+):
+    """
+    Test that a general exception from the LLM call is propagated during role refinement.
+    """
+    final_chain = mock_chain_invocations_for_role_refine["final_chain"]
+    final_chain.ainvoke.side_effect = Exception("Something unexpected happened")
+
+    with pytest.raises(ValueError, match="unexpected response"):
         await refine_role(
             role=create_mock_role(),
             job_analysis=create_mock_job_analysis(),

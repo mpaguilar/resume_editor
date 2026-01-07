@@ -1,7 +1,6 @@
 <div id="refine-result" class="mt-4 p-4 border rounded-lg bg-gray-50">
     <h4 class="font-semibold text-lg mb-2">AI Refinement Suggestion</h4>
     <form id="accept-overwrite-form-{{ resume_id }}">
-        <input type="hidden" name="target_section" value="{{ target_section_val }}">
         {% if job_description %}<input type="hidden" name="job_description" value="{{ job_description }}">{% endif %}
         {% if limit_refinement_years %}<input type="hidden" name="limit_refinement_years" value="{{ limit_refinement_years }}">{% endif %}
 
@@ -12,7 +11,7 @@
         </div>
         {% endif %}
 
-        <h4 class="font-semibold text-md mb-1">Refined '{{ target_section_val }}' section</h4>
+        <h4 class="font-semibold text-md mb-1">Refined 'experience' section</h4>
         <textarea name="refined_content" class="w-full h-48 p-2 border rounded font-mono text-sm">{{ refined_content }}</textarea>
         <div class="mt-4 flex items-center justify-between">
             <div>

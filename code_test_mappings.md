@@ -31,7 +31,6 @@ These are known mappings:
 - `resume_editor/app/api/routes/route_logic/resume_ai_logic.py` -> `tests/app/api/routes/route_logic/test_resume_ai_logic.py`
 - `resume_editor/app/api/routes/route_logic/resume_ai_logic.py` -> `tests/app/api/routes/route_logic/test_resume_ai_logic_sse_generator.py`
 - `resume_editor/app/api/routes/route_logic/resume_ai_logic.py` -> `tests/app/api/routes/route_logic/test_resume_ai_logic_sse_helpers.py`
-- `resume_editor/app/api/routes/route_logic/resume_ai_logic.py` -> `tests/app/api/routes/route_logic/test_resume_ai_logic_sync.py`
 - `resume_editor/app/api/routes/route_logic/resume_ai_logic.py` -> `tests/app/api/routes/route_logic/test_resume_ai_logic_fallback.py`
 - `resume_editor/app/api/routes/route_logic/resume_export.py` -> `tests/app/api/routes/route_logic/test_resume_export.py`
 - `resume_editor/app/api/routes/route_logic/resume_filtering.py` -> `tests/app/api/routes/route_logic/test_resume_filtering.py`
@@ -50,11 +49,10 @@ These are known mappings:
 - `resume_editor/app/api/routes/route_logic/resume_crud.py` -> `tests/app/api/routes/route_logic/test_resume_crud.py`
 - `resume_editor/app/api/routes/route_logic/settings_crud.py` -> `tests/app/api/routes/route_logic/test_settings_crud.py`
 - `resume_editor/app/llm/models.py` -> `tests/app/llm/test_models.py`
-- `resume_editor/app/llm/orchestration.py` -> `tests/app/llm/test_orchestration_utils.py`
 - `resume_editor/app/llm/orchestration.py` -> `tests/app/llm/test_orchestration_analyze_job.py`
 - `resume_editor/app/llm/orchestration.py` -> `tests/app/llm/test_orchestration_introduction.py`
+- `resume_editor/app/llm/orchestration.py` -> `tests/app/llm/test_orchestration_introduction_generation.py`
 - `resume_editor/app/llm/orchestration.py` -> `tests/app/llm/test_orchestration_refine_experience.py`
-- `resume_editor/app/llm/orchestration.py` -> `tests/app/llm/test_orchestration_refine_generic.py`
 - `resume_editor/app/llm/orchestration.py` -> `tests/app/llm/test_orchestration_refine_role.py`
 - `resume_editor/app/llm/prompts.py` -> `tests/app/llm/test_prompts.py`
 - `resume_editor/app/api/routes/route_logic/resume_serialization.py` -> `tests/app/api/routes/route_logic/test_resume_certifications_serialization.py`

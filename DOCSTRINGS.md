@@ -3272,20 +3272,20 @@ Notes:
 
 ## `RefineForm` class
 
-Form data for refining a resume section.
+Form data for refining the experience section of a resume.
 
 ---
-## method: `RefineForm.__init__(self: UnknownType, job_description: str, target_section: RefineTargetSection, limit_refinement_years: str | None) -> None`
+## method: `RefineForm.__init__(self: UnknownType, job_description: str, limit_refinement_years: str | None) -> None`
 
 
 
 ---
-## `SaveAsNewMetadata` class
+## `RefinementContext` class
 
-Metadata for saving a refined resume as a new one.
+Context data for resume refinement.
 
 ---
-## method: `SaveAsNewMetadata.__init__(self: UnknownType, new_resume_name: str | None, job_description: str | None, introduction: str | None, limit_refinement_years: str | None) -> None`
+## method: `RefinementContext.__init__(self: UnknownType, job_description: str | None, introduction: str | None, limit_refinement_years: int | None) -> None`
 
 
 
@@ -3295,7 +3295,7 @@ Metadata for saving a refined resume as a new one.
 Form data for saving a refined resume as a new one.
 
 ---
-## method: `SaveAsNewForm.__init__(self: UnknownType, refined_content: str, target_section: RefineTargetSection, metadata: SaveAsNewMetadata) -> None`
+## method: `SaveAsNewForm.__init__(self: UnknownType, refined_content: str, new_resume_name: str | None, context: RefinementContext) -> None`
 
 
 
@@ -6308,107 +6308,51 @@ Notes:
 ===
 # File: `resume_editor/app/llm/orchestration.py`
 
-## function: `_get_section_content(resume_content: str, section_name: str) -> str`
-
-Extracts the Markdown content for a specific section of the resume.
-
-Args:
-    resume_content (str): The full resume content in Markdown.
-    section_name (str): The name of the section to extract ("personal", "education", "experience", "certifications", or "full").
-
-Returns:
-    str: The Markdown content of the specified section. Returns the full content if "full" is specified.
-
-Raises:
-    ValueError: If the section_name is not one of the valid options.
-
-Notes:
-    1. If section_name is "full", return the entire resume_content.
-    2. Otherwise, map the section_name to a tuple of extractor and serializer functions.
-    3. Validate that section_name is in the valid set of keys.
-    4. Extract the data using the extractor function.
-    5. Serialize the extracted data using the serializer function.
-    6. Return the serialized result.
-
----
-
-## function: `_refine_generic_section(resume_content: str, job_description: str, target_section: str, llm: ChatOpenAI) -> str`
-
-Uses a generic LLM chain to refine a non-experience section of the resume.
-
-Args:
-    resume_content (str): The full Markdown content of the resume.
-    job_description (str): The job description to align the resume with.
-    target_section (str): The section of the resume to refine.
-    llm (ChatOpenAI): An initialized ChatOpenAI client instance.
-
-Returns:
-    str: The refined Markdown content for the target section.
-         Returns an empty string if the target section is empty.
-
-Raises:
-    ValueError: If the LLM response is not valid JSON or fails Pydantic validation.
-
-Notes:
-    1. Extracts the target section content from the resume using `_get_section_content`.
-    2. If the extracted content is empty, returns an empty string.
-    3. Sets up a `PydanticOutputParser` for structured output based on the `RefinedSection` model.
-    4. Creates a `ChatPromptTemplate` with instructions for the LLM.
-    5. Creates a chain combining the prompt, LLM, and a `StrOutputParser`.
-    6. Streams the response from the chain and joins the chunks.
-    7. Parses the LLM's JSON-Markdown output using `parse_json_markdown`.
-    8. Validates the parsed JSON against the `RefinedSection` model.
-    9. Returns the `refined_markdown` field from the validated result.
-
----
-
-## function: `refine_resume_section_with_llm(resume_content: str, job_description: str, target_section: str, llm_config: LLMConfig) -> str`
-
-Uses an LLM to refine a specific non-experience section of a resume.
-
-This function acts as a dispatcher. For 'experience' section, it raises an error,
-directing the caller to use the appropriate async generator. For all other sections,
-it delegates to a generic helper function to perform a single-pass refinement.
-
-Args:
-    resume_content (str): The full Markdown content of the resume.
-    job_description (str): The job description to align the resume with.
-    target_section (str): The section of the resume to refine (e.g., "personal").
-    llm_config (LLMConfig): LLM configuration including endpoint, API key, and model name.
-
-Returns:
-    str: The refined Markdown content for the target section.
-         Returns an empty string if the target section is empty.
-
-Raises:
-    ValueError: If `target_section` is 'experience'.
-
-Network access:
-    - This function makes network requests to the LLM endpoint specified by
-      llm_endpoint.
-
-Notes:
-    1. Checks if `target_section` is 'experience' and raises a `ValueError` if so.
-    2. Determines the model name, falling back to a default if not provided.
-    3. Constructs parameters for `ChatOpenAI`, including the model name, endpoint,
-       and API key. A dummy API key is used for custom, non-OpenRouter endpoints if
-       no key is provided.
-    4. Initializes the `ChatOpenAI` client.
-    5. Calls `_refine_generic_section` with the resume content, job description,
-       target section, and the initialized LLM client.
-    6. Returns the refined content string from the helper function.
-
----
-
 ## function: `_invoke_chain_and_parse(chain: Any, pydantic_model: Any) -> Any`
 
 Invokes a LangChain chain, gets content, parses JSON, and validates with Pydantic.
+
+Args:
+    chain (Any): The LangChain runnable chain to invoke.
+    pydantic_model (Any): The Pydantic model to validate the parsed JSON against.
+    **kwargs (Any): Keyword arguments to pass to the chain's invoke method.
+
+Returns:
+    Any: An instance of the `pydantic_model` populated with the parsed data.
+
+Raises:
+    json.JSONDecodeError: If the LLM's response content is not valid JSON.
+    ValidationError: If the parsed JSON does not conform to the `pydantic_model`.
+
+Notes:
+    1. Invokes the provided LangChain `chain` with the given `kwargs`.
+    2. Extracts the content string from the result.
+    3. Parses the content string as JSON using `parse_json_markdown`.
+    4. Validates the parsed JSON against the `pydantic_model`.
+    5. Returns the validated Pydantic model instance.
+    6. No network, disk, or database access is performed.
 
 ---
 
 ## function: `_generate_introduction_from_resume(resume_content: str, job_description: str, llm: ChatOpenAI) -> str`
 
 Orchestrates the multi-step chain to generate a resume introduction.
+
+Args:
+    resume_content (str): The full Markdown content of the resume.
+    job_description (str): The job description to align the introduction with.
+    llm (ChatOpenAI): An initialized ChatOpenAI client instance.
+
+Returns:
+    str: The generated introduction, or an empty string if generation fails.
+
+Notes:
+    1.  **Step 1: Job Analysis**: Creates a chain with `INTRO_ANALYZE_JOB_PROMPT` and a parser for `JobKeyRequirements`. It invokes this chain with the `job_description` to extract key skills and priorities.
+    2.  **Step 2: Resume Analysis**: Creates a chain with `INTRO_ANALYZE_RESUME_PROMPT` and a parser for `CandidateAnalysis`. It invokes this chain with the `resume_content` and the JSON output from the job analysis step.
+    3.  **Step 3: Introduction Synthesis**: Creates a chain with `INTRO_SYNTHESIZE_INTRODUCTION_PROMPT` and a parser for `GeneratedIntroduction`. It invokes this chain with the JSON output from the resume analysis step.
+    4.  Extracts the `introduction` text from the final Pydantic object.
+    5.  Handles JSON decoding and Pydantic validation errors by logging and returning an empty string.
+    6.  This function performs multiple network requests to the configured LLM endpoint.
 
 ---
 
@@ -7037,22 +6981,6 @@ Notes:
 ===
 # File: `resume_editor/app/api/routes/route_logic/resume_ai_logic.py`
 
-## function: `reconstruct_resume_markdown(personal_info: Any, education: Any, experience: Any, certifications: Any) -> str`
-
-Wrapper delegating to build_complete_resume_from_sections.
-Args:
-    personal_info (Any): The personal information section model.
-    education (Any): The education section model.
-    experience (Any): The experience section model.
-    certifications (Any): The certifications section model.
-Returns:
-    str: The reconstructed resume markdown.
-Notes:
-    1. This wrapper exists to provide a stable name for tests that patch 'reconstruct_resume_markdown'.
-    2. It simply calls 'build_complete_resume_from_sections' with the same arguments.
-
----
-
 ## function: `reconstruct_resume_with_new_introduction(resume_content: str, introduction: str | None) -> str`
 
 Reconstructs resume content with a new introduction banner.
@@ -7256,34 +7184,13 @@ Returns:
 
 ---
 
-## function: `reconstruct_resume_from_refined_section(original_resume_content: str, refined_content: str, target_section: RefineTargetSection) -> str`
-
-Rebuilds a complete resume by combining a refined section with original sections.
-
-This function takes a refined content string for a specific section and reconstructs
-the full resume markdown by parsing all sections, replacing the target section
-with the refined version, and then building the complete markdown from these parts.
-
-Args:
-    original_resume_content (str): The full markdown content of the original resume.
-    refined_content (str): The markdown content of the section that has been refined.
-    target_section (RefineTargetSection): The enum member indicating which section was refined.
-
-Returns:
-    str: The full markdown content of the reconstructed resume.
-
----
-
 ## function: `handle_save_as_new_refinement(params: SaveAsNewParams) -> DatabaseResume`
 
 Orchestrates saving a refined resume as a new resume.
 
-This involves reconstructing the resume from the refined content, and then
-handling the introduction. It correctly uses the introduction from the form
-data if provided. If the introduction is missing and a job description is
-available, a new introduction is generated via an LLM. The final content is
-validated, and a new resume record is created in the database, persisting
-the introduction to its dedicated field.
+This function takes the full refined resume content, validates it, and
+creates a new resume record in the database. The introduction is taken
+directly from the refinement context and persisted to its dedicated field.
 
 Args:
     params (SaveAsNewParams): The parameters for saving the new resume.
@@ -7292,7 +7199,12 @@ Returns:
     DatabaseResume: The newly created resume object.
 
 Raises:
-    HTTPException: If reconstruction or validation fails.
+    HTTPException: If validation fails.
+
+Notes:
+    1. The `refined_content` from the form is assumed to be the full, final resume content.
+    2. The introduction is taken from the form context and passed directly to the database.
+    3. No resume reconstruction or on-the-fly introduction generation occurs here.
 
 ---
 

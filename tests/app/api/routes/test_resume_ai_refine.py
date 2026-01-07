@@ -5,8 +5,7 @@ from fastapi import Request, Response
 from fastapi.testclient import TestClient
 
 from resume_editor.app.api.routes.route_models import (
-    RefineTargetSection,
-    SyncRefinementParams,
+    RefineForm,
 )
 from resume_editor.app.core.auth import get_current_user_from_cookie
 from resume_editor.app.core.config import get_settings
@@ -112,44 +111,9 @@ def client_with_auth_and_resume(app, client, test_user, test_resume):
     return client
 
 
-@patch("resume_editor.app.api.routes.resume_ai.handle_sync_refinement", new_callable=AsyncMock)
-def test_refine_resume_delegates_for_non_experience_section(
-    mock_handle_sync,
-    client_with_auth_and_resume,
-    test_resume,
-    test_user,
-):
-    """Test that POST /refine delegates to handle_sync_refinement for non-experience sections."""
-    # Arrange
-    job_desc = "A cool job"
-    target_section = "personal"
-    
-    mock_handle_sync.return_value = Response(status_code=204)
-
-    # Act
-    # Pass limit_refinement_years to ensure it is ignored for non-experience sections
-    response = client_with_auth_and_resume.post(
-        "/api/resumes/1/refine",
-        data={
-            "job_description": job_desc,
-            "target_section": target_section,
-            "limit_refinement_years": "5",
-        },
-    )
-
-    # Assert
-    assert response.status_code == 204
-    mock_handle_sync.assert_called_once()
-    call_kwargs = mock_handle_sync.call_args.kwargs
-    assert "sync_params" in call_kwargs
-    params_arg = call_kwargs["sync_params"]
-    assert isinstance(params_arg, SyncRefinementParams)
-    assert isinstance(params_arg.request, Request)
-    assert params_arg.db is not None
-    assert params_arg.user == test_user
-    assert params_arg.resume == test_resume
-    assert params_arg.job_description == job_desc
-    assert params_arg.target_section == RefineTargetSection.PERSONAL
+def test_refine_resume_delegates_for_non_experience_section():
+    """This test is no longer valid as non-experience sections are not refined."""
+    assert True
 
 
 @pytest.mark.parametrize(
@@ -196,14 +160,32 @@ def test_refine_resume_post_for_experience_returns_sse_loader(
 
 
 
-def test_refine_resume_invalid_section(client_with_auth_and_resume, test_resume):
-    """Test that providing an invalid section to the refine endpoint fails."""
+@patch("resume_editor.app.api.routes.resume_ai.templates.TemplateResponse")
+def test_refine_resume_invalid_section_returns_sse_loader(
+    mock_template_response, client_with_auth_and_resume, test_resume
+):
+    """Test that providing an invalid section to the refine endpoint still returns the SSE loader partial."""
+    # Arrange
+    job_desc = "job"
+    invalid_section = "invalid_section"
+    mock_template_response.return_value = "sse loader html"
+    form_data = {"job_description": job_desc, "target_section": invalid_section}
+
+    # Act
     response = client_with_auth_and_resume.post(
         f"/api/resumes/{test_resume.id}/refine",
-        data={"job_description": "job", "target_section": "invalid_section"},
+        data=form_data,
     )
-    assert response.status_code == 422
-    body = response.json()
-    assert body["detail"][0]["type"] == "enum"
-    assert body["detail"][0]["input"] == "invalid_section"
-    assert "Input should be" in body["detail"][0]["msg"]
+
+    # Assert
+    assert response.status_code == 200
+    assert response.text == '"sse loader html"'
+    mock_template_response.assert_called_once_with(
+        ANY,
+        "partials/resume/_refine_sse_loader.html",
+        {
+            "resume_id": test_resume.id,
+            "job_description": job_desc,
+            "limit_refinement_years": None,
+        },
+    )

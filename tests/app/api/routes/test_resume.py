@@ -19,7 +19,6 @@ from resume_editor.app.api.routes.route_models import (
     EducationResponse,
     ExperienceResponse,
     PersonalInfoResponse,
-    RefineTargetSection,
 )
 from resume_editor.app.api.dependencies import get_resume_for_user
 from resume_editor.app.core.auth import get_current_user_from_cookie

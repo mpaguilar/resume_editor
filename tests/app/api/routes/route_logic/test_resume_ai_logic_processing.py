@@ -8,12 +8,10 @@ from resume_editor.app.api.routes.route_logic.resume_ai_logic import (
     ProcessExperienceResultParams,
     _replace_resume_banner,
     process_refined_experience_result,
-    reconstruct_resume_markdown,
 )
 from resume_editor.app.api.routes.route_models import (
     ExperienceResponse,
     PersonalInfoResponse,
-    RefineTargetSection,
 )
 from resume_editor.app.models.resume.experience import (
     Project,
@@ -41,7 +39,7 @@ def mock_resume() -> DatabaseResume:
     "resume_editor.app.api.routes.route_logic.resume_ai_logic._create_refine_result_html"
 )
 @patch(
-    "resume_editor.app.api.routes.route_logic.resume_ai_logic.reconstruct_resume_markdown"
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic.build_complete_resume_from_sections"
 )
 @patch(
     "resume_editor.app.api.routes.route_logic.resume_ai_logic.extract_certifications_info"
@@ -60,7 +58,7 @@ def test_process_refined_experience_result(
     mock_extract_experience: MagicMock,
     mock_extract_education: MagicMock,
     mock_extract_certifications: MagicMock,
-    mock_reconstruct_resume: MagicMock,
+    mock_build_resume: MagicMock,
     mock_create_html: MagicMock,
     mock_replace_banner: MagicMock,
     mock_resume: DatabaseResume,
@@ -126,7 +124,7 @@ def test_process_refined_experience_result(
 
     reconstructed_resume = "fully reconstructed resume"
     resume_with_banner = "resume with banner added"
-    mock_reconstruct_resume.return_value = reconstructed_resume
+    mock_build_resume.return_value = reconstructed_resume
     mock_replace_banner.return_value = resume_with_banner
     mock_create_html.return_value = "final html"
 
@@ -153,9 +151,9 @@ def test_process_refined_experience_result(
     mock_extract_experience.assert_any_call(original_content)
     mock_extract_experience.assert_any_call(content_to_refine)
 
-    # Check that `reconstruct_resume_markdown` was called with correct data
-    mock_reconstruct_resume.assert_called_once()
-    build_args = mock_reconstruct_resume.call_args.kwargs
+    # Check that build_complete_resume_from_sections was called with correct data
+    mock_build_resume.assert_called_once()
+    build_args = mock_build_resume.call_args.kwargs
     assert build_args["personal_info"] == mock_personal
     assert build_args["education"] == mock_education
     assert build_args["certifications"] == mock_certifications
@@ -194,7 +192,7 @@ def test_process_refined_experience_result(
     "resume_editor.app.api.routes.route_logic.resume_ai_logic._create_refine_result_html"
 )
 @patch(
-    "resume_editor.app.api.routes.route_logic.resume_ai_logic.reconstruct_resume_markdown"
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic.build_complete_resume_from_sections"
 )
 @patch(
     "resume_editor.app.api.routes.route_logic.resume_ai_logic.extract_certifications_info"
@@ -213,7 +211,7 @@ def test_process_refined_experience_result_out_of_bounds_index(
     mock_extract_experience: MagicMock,
     mock_extract_education: MagicMock,
     mock_extract_certifications: MagicMock,
-    mock_reconstruct_resume: MagicMock,
+    mock_build_resume: MagicMock,
     mock_create_html: MagicMock,
     mock_replace_banner: MagicMock,
     mock_resume: DatabaseResume,
@@ -253,7 +251,7 @@ def test_process_refined_experience_result_out_of_bounds_index(
         summary=RoleSummary(text="Refined Summary"),
     )
     refined_roles_from_llm = {1: refined_role_llm.model_dump(mode="json")}
-    mock_reconstruct_resume.return_value = "reconstructed content"
+    mock_build_resume.return_value = "reconstructed content"
     mock_replace_banner.return_value = "reconstructed content with banner"
     mock_create_html.return_value = "final html"
 
@@ -271,8 +269,8 @@ def test_process_refined_experience_result_out_of_bounds_index(
 
     # Assert
     assert result == "final html"
-    mock_reconstruct_resume.assert_called_once()
-    build_args = mock_reconstruct_resume.call_args.kwargs
+    mock_build_resume.assert_called_once()
+    build_args = mock_build_resume.call_args.kwargs
     experience_arg = build_args["experience"]
 
     # The out-of-bounds index should be ignored, so the role is not updated.
@@ -293,7 +291,9 @@ def test_process_refined_experience_result_out_of_bounds_index(
     assert html_params.resume_id == mock_resume.id
 
 
-@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.reconstruct_resume_markdown")
+@patch(
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic.build_complete_resume_from_sections"
+)
 @patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.extract_certifications_info")
 @patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.extract_experience_info")
 @patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.extract_education_info")
@@ -303,7 +303,7 @@ def test_replace_resume_banner_none_introduction(
     mock_extract_education: MagicMock,
     mock_extract_experience: MagicMock,
     mock_extract_certifications: MagicMock,
-    mock_reconstruct_resume: MagicMock,
+    mock_build_resume: MagicMock,
 ) -> None:
     """Test _replace_resume_banner returns original content when introduction is None."""
     original_content = "# Personal\n## Banner\nOld banner\n# Experience\nSome content"
@@ -316,10 +316,12 @@ def test_replace_resume_banner_none_introduction(
     mock_extract_education.assert_not_called()
     mock_extract_experience.assert_not_called()
     mock_extract_certifications.assert_not_called()
-    mock_reconstruct_resume.assert_not_called()
+    mock_build_resume.assert_not_called()
 
 
-@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.reconstruct_resume_markdown")
+@patch(
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic.build_complete_resume_from_sections"
+)
 @patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.extract_certifications_info")
 @patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.extract_experience_info")
 @patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.extract_education_info")
@@ -329,7 +331,7 @@ def test_replace_resume_banner_whitespace_introduction(
     mock_extract_education: MagicMock,
     mock_extract_experience: MagicMock,
     mock_extract_certifications: MagicMock,
-    mock_reconstruct_resume: MagicMock,
+    mock_build_resume: MagicMock,
 ) -> None:
     """Test _replace_resume_banner returns original content when introduction is whitespace."""
     original_content = "# Personal\n## Banner\nOld banner\n# Experience\nSome content"
@@ -342,10 +344,12 @@ def test_replace_resume_banner_whitespace_introduction(
     mock_extract_education.assert_not_called()
     mock_extract_experience.assert_not_called()
     mock_extract_certifications.assert_not_called()
-    mock_reconstruct_resume.assert_not_called()
+    mock_build_resume.assert_not_called()
 
 
-@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.reconstruct_resume_markdown")
+@patch(
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic.build_complete_resume_from_sections"
+)
 @patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.extract_certifications_info")
 @patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.extract_experience_info")
 @patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.extract_education_info")
@@ -355,7 +359,7 @@ def test_replace_resume_banner_success(
     mock_extract_education: MagicMock,
     mock_extract_experience: MagicMock,
     mock_extract_certifications: MagicMock,
-    mock_reconstruct_resume: MagicMock,
+    mock_build_resume: MagicMock,
 ) -> None:
     """Test _replace_resume_banner successfully replaces banner when introduction is provided."""
     original_content = "# Personal\nName: John Doe\n# Experience\nSome content"
@@ -367,8 +371,8 @@ def test_replace_resume_banner_success(
     mock_extract_education.return_value = MagicMock()
     mock_extract_experience.return_value = MagicMock()
     mock_extract_certifications.return_value = MagicMock()
-    mock_reconstruct_resume.return_value = "# Personal\n## Banner\nThis is a new introduction\nName: John Doe\n# Experience\nSome content"
-    
+    mock_build_resume.return_value = "# Personal\n## Banner\nThis is a new introduction\nName: John Doe\n# Experience\nSome content"
+
     result = _replace_resume_banner(original_content, new_introduction)
     
     # Verify parsing functions were called
@@ -381,15 +385,15 @@ def test_replace_resume_banner_success(
     assert mock_personal.banner == Banner(text=new_introduction)
     
     # Verify reconstruction was called with updated personal info
-    mock_reconstruct_resume.assert_called_once_with(
+    mock_build_resume.assert_called_once_with(
         personal_info=mock_personal,
         education=mock_extract_education.return_value,
         experience=mock_extract_experience.return_value,
         certifications=mock_extract_certifications.return_value,
     )
-    
+
     # Verify result
-    assert result == mock_reconstruct_resume.return_value
+    assert result == mock_build_resume.return_value
 
 
 @patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.extract_personal_info")
@@ -406,31 +410,3 @@ def test_replace_resume_banner_malformed_content(mock_extract_personal: MagicMoc
         _replace_resume_banner(original_content, new_introduction)
 
 
-@patch(
-    "resume_editor.app.api.routes.route_logic.resume_ai_logic.build_complete_resume_from_sections"
-)
-def test_reconstruct_resume_markdown_wrapper(mock_build_complete: MagicMock) -> None:
-    """Test the reconstruct_resume_markdown wrapper delegates correctly."""
-    # Arrange
-    mock_build_complete.return_value = "built resume"
-    personal_info = MagicMock()
-    education = MagicMock()
-    experience = MagicMock()
-    certifications = MagicMock()
-
-    # Act
-    result = reconstruct_resume_markdown(
-        personal_info=personal_info,
-        education=education,
-        experience=experience,
-        certifications=certifications,
-    )
-
-    # Assert
-    assert result == "built resume"
-    mock_build_complete.assert_called_once_with(
-        personal_info=personal_info,
-        education=education,
-        experience=experience,
-        certifications=certifications,
-    )
