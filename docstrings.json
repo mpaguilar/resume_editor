@@ -2251,7 +2251,7 @@
       ],
       [
         "_update_banner_in_raw_personal(raw_personal: str, introduction: str | None) -> str",
-        "Update the Banner subsection in a raw Personal section string.\n\nIf `introduction` is None or empty, return `raw_personal` unchanged.\nIt parses the `raw_personal` string to find the `## Banner` subsection.\nIf found, it replaces the content of the Banner subsection with the new `introduction`.\nIf not found, it appends a new `## Banner` section with the `introduction` at the end of the Personal section.\nIt preserves all other lines in the Personal section exactly as they are."
+        "Update the Banner subsection in a raw Personal section string.\n\nIf `introduction` is None or empty, return `raw_personal` unchanged.\nIt parses the `raw_personal` string to find the `## Banner` subsection.\nIf found, it replaces the content of the Banner subsection with the new `introduction`.\nIf not found, it appends a new `## Banner` section with the `introduction` at the end of the Personal section.\nIt preserves all other lines in the Personal section exactly as they are.\n\nNotes:\n    1. It carefully handles newlines, ensuring there is a blank line between\n       the '## Banner' header and its content for correct paragraph and\n       list rendering in Markdown."
       ],
       [
         "create_sse_close_message() -> str",

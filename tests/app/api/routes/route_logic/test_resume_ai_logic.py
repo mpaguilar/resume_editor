@@ -4,6 +4,7 @@ import pytest
 
 from resume_editor.app.api.routes.route_logic.resume_ai_logic import (
     _replace_resume_banner,
+    _update_banner_in_raw_personal,
     handle_save_as_new_refinement,
     reconstruct_resume_with_new_introduction,
 )
@@ -233,3 +234,35 @@ def test_reconstruct_resume_with_new_introduction_missing_experience(
 
     assert "# Personal" in result
     assert "# Experience" not in result
+
+
+def test_update_banner_in_raw_personal_replaces_content_with_correct_spacing():
+    """Test banner replacement provides correct spacing for Markdown."""
+    raw_personal = "# Personal\n\n## Contact\n\n## Banner\nOld banner content\n\n## Websites\n"
+    introduction = "* Point A\n* Point B"
+    result = _update_banner_in_raw_personal(raw_personal, introduction)
+    expected_output = "# Personal\n\n## Contact\n\n## Banner\n\n* Point A\n* Point B\n\n## Websites\n"
+
+    assert result == expected_output
+
+
+def test_update_banner_in_raw_personal_appends_content_with_correct_spacing():
+    """Test banner appending provides correct spacing for Markdown."""
+    raw_personal = "# Personal\n\n## Contact\nEmail: a@b.com\n"
+    introduction = "* Point A\n* Point B"
+    result = _update_banner_in_raw_personal(raw_personal, introduction)
+    expected_output = (
+        "# Personal\n\n## Contact\nEmail: a@b.com\n\n## Banner\n\n* Point A\n* Point B\n"
+    )
+
+    assert result == expected_output
+
+
+def test_update_banner_in_raw_personal_preserves_paragraphs():
+    """Test banner update preserves paragraphs in the introduction."""
+    raw_personal = "# Personal\n\n## Banner\nOld content.\n"
+    introduction = "Paragraph 1\n\nParagraph 2"
+    result = _update_banner_in_raw_personal(raw_personal, introduction)
+    expected_output = "# Personal\n\n## Banner\n\nParagraph 1\n\nParagraph 2\n"
+
+    assert result == expected_output

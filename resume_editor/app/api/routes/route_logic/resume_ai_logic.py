@@ -300,10 +300,17 @@ def _update_banner_in_raw_personal(raw_personal: str, introduction: str | None) 
     If found, it replaces the content of the Banner subsection with the new `introduction`.
     If not found, it appends a new `## Banner` section with the `introduction` at the end of the Personal section.
     It preserves all other lines in the Personal section exactly as they are.
+
+    Notes:
+        1. It carefully handles newlines, ensuring there is a blank line between
+           the '## Banner' header and its content for correct paragraph and
+           list rendering in Markdown.
+
     """
     if not introduction or not introduction.strip():
         return raw_personal
 
+    stripped_intro = introduction.strip()
     lines = raw_personal.splitlines()
     new_lines = []
     banner_found = False
@@ -318,7 +325,7 @@ def _update_banner_in_raw_personal(raw_personal: str, introduction: str | None) 
             banner_found = True
             new_lines.append("## Banner")
             new_lines.append("")
-            new_lines.append(introduction.strip())
+            new_lines.append(stripped_intro)
             new_lines.append("")
 
             # Skip existing banner content until next subsection or end of string
@@ -329,12 +336,12 @@ def _update_banner_in_raw_personal(raw_personal: str, introduction: str | None) 
                 # Check for next subsection (## ) or next section (# )
                 # Note: raw_personal should only contain the Personal section, so # is unlikely unless malformed
                 if next_stripped.startswith("## ") or next_stripped.startswith("# "):
-                    # Found next section/subsection, stop skipping
+                    # Found next section/subsection, stop skipping and back up
+                    i -= 1
                     break
                 i += 1
-            continue
-
-        new_lines.append(line)
+        else:
+            new_lines.append(line)
         i += 1
 
     if not banner_found:
@@ -344,7 +351,7 @@ def _update_banner_in_raw_personal(raw_personal: str, introduction: str | None) 
 
         new_lines.append("## Banner")
         new_lines.append("")
-        new_lines.append(introduction.strip())
+        new_lines.append(stripped_intro)
         new_lines.append("")
 
     result = "\n".join(new_lines)

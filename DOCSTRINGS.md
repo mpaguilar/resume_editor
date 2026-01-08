@@ -7125,6 +7125,11 @@ If found, it replaces the content of the Banner subsection with the new `introdu
 If not found, it appends a new `## Banner` section with the `introduction` at the end of the Personal section.
 It preserves all other lines in the Personal section exactly as they are.
 
+Notes:
+    1. It carefully handles newlines, ensuring there is a blank line between
+       the '## Banner' header and its content for correct paragraph and
+       list rendering in Markdown.
+
 ---
 
 ## function: `create_sse_close_message() -> str`
