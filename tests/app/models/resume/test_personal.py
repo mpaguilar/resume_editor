@@ -170,23 +170,61 @@ class TestPersonalModels:
         """Test Banner model creation and text cleaning."""
         raw_text = "\n\n\nHello\n\nWorld\n\n\n"
         banner = Banner(text=raw_text)
-        assert banner.text == "Hello\nWorld"
+        assert banner.text == "Hello\n\nWorld"
 
     def test_banner_invalid_type(self):
         """Test Banner with invalid text type."""
         with pytest.raises(ValidationError, match="text must be a string"):
             Banner(text=123)
 
+    def test_banner_validate_text_preserves_internal_blank_lines(self):
+        """Test that Banner.validate_text preserves internal newlines and blank lines."""
+        # Scenario: Instantiate Banner with a string containing bullet points separated by single newlines
+        bullet_points = "* Point 1\n* Point 2"
+        banner_bullets = Banner(text=bullet_points)
+        assert banner_bullets.text == bullet_points
+
+        # Scenario: Instantiate Banner with paragraphs separated by double newlines
+        paragraphs = "Para 1\n\nPara 2"
+        banner_paras = Banner(text=paragraphs)
+        assert banner_paras.text == paragraphs
+
+    def test_banner_validate_text_strips_surrounding_whitespace(self):
+        """Test that Banner.validate_text strips surrounding whitespace and newlines."""
+        # Scenario: Instantiate Banner with a string that has leading and trailing newlines and spaces
+        raw_text = "\n  content  \n"
+        banner = Banner(text=raw_text)
+        assert banner.text == "content"
+
     def test_note_creation(self):
         """Test Note model creation and text cleaning."""
         raw_text = "\n\n\nImportant\n\nNote\n\n\n"
         note = Note(text=raw_text)
-        assert note.text == "Important\nNote"
+        assert note.text == "Important\n\nNote"
 
     def test_note_invalid_type(self):
         """Test Note with invalid text type."""
         with pytest.raises(ValidationError, match="text must be a string"):
             Note(text=123)
+
+    def test_note_validate_text_preserves_internal_blank_lines(self):
+        """Test that Note.validate_text preserves internal newlines and blank lines."""
+        # Scenario: Instantiate Note with a string containing bullet points separated by single newlines
+        bullet_points = "* Point 1\n* Point 2"
+        note_bullets = Note(text=bullet_points)
+        assert note_bullets.text == bullet_points
+
+        # Scenario: Instantiate Note with paragraphs separated by double newlines
+        paragraphs = "Para 1\n\nPara 2"
+        note_paras = Note(text=paragraphs)
+        assert note_paras.text == paragraphs
+
+    def test_note_validate_text_strips_surrounding_whitespace(self):
+        """Test that Note.validate_text strips surrounding whitespace and newlines."""
+        # Scenario: Instantiate Note with a string that has leading and trailing newlines and spaces
+        raw_text = "\n  content  \n"
+        note = Note(text=raw_text)
+        assert note.text == "content"
 
     def test_personal_creation(self):
         """Test Personal model creation."""

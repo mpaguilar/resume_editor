@@ -5742,7 +5742,8 @@ Notes:
 Holds a personal banner message with cleaned text content.
 
 Attributes:
-    text (str): The cleaned text content of the banner, with leading/trailing and internal blank lines removed.
+    text (str): The cleaned text content of the banner. Internal blank lines are preserved,
+        while surrounding whitespace is removed.
 
 ---
 ## method: `Banner.validate_text(cls: UnknownType, v: str) -> UnknownType`
@@ -5760,11 +5761,8 @@ Raises:
 
 Notes:
     1. Ensure text is a string.
-    2. Split the input text into lines.
-    3. Remove leading blank lines.
-    4. Remove trailing blank lines.
-    5. Filter out any lines that are blank after stripping whitespace.
-    6. Join the remaining lines back into a single string.
+    2. Preserves internal newlines and blank lines.
+    3. Only removes surrounding whitespace from the text block.
 
 ---
 ## `Note` class
@@ -5772,7 +5770,8 @@ Notes:
 Holds a personal note with cleaned text content.
 
 Attributes:
-    text (str): The cleaned text content of the note, with leading/trailing and internal blank lines removed.
+    text (str): The cleaned text content of the note. Internal blank lines are preserved,
+        while surrounding whitespace is removed.
 
 ---
 ## method: `Note.validate_text(cls: UnknownType, v: str) -> UnknownType`
@@ -5790,11 +5789,8 @@ Raises:
 
 Notes:
     1. Ensure text is a string.
-    2. Split the input text into lines.
-    3. Remove leading blank lines.
-    4. Remove trailing blank lines.
-    5. Filter out any lines that are blank after stripping whitespace.
-    6. Join the remaining lines back into a single string.
+    2. Preserves internal newlines and blank lines.
+    3. Only removes surrounding whitespace from the text block.
 
 ---
 

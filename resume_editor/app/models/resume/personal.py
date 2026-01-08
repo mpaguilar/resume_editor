@@ -331,7 +331,8 @@ class Banner(BaseModel):
     """Holds a personal banner message with cleaned text content.
 
     Attributes:
-        text (str): The cleaned text content of the banner, with leading/trailing and internal blank lines removed.
+        text (str): The cleaned text content of the banner. Internal blank lines are preserved,
+            while surrounding whitespace is removed.
 
     """
 
@@ -353,39 +354,21 @@ class Banner(BaseModel):
 
         Notes:
             1. Ensure text is a string.
-            2. Split the input text into lines.
-            3. Remove leading blank lines.
-            4. Remove trailing blank lines.
-            5. Filter out any lines that are blank after stripping whitespace.
-            6. Join the remaining lines back into a single string.
+            2. Preserves internal newlines and blank lines.
+            3. Only removes surrounding whitespace from the text block.
 
         """
         if not isinstance(v, str):
             raise ValueError("text must be a string")
-
-        # Split into lines
-        lines = v.splitlines()
-
-        # Remove leading blank lines
-        while lines and not lines[0].strip():
-            lines.pop(0)
-
-        # Remove trailing blank lines
-        while lines and not lines[-1].strip():
-            lines.pop()
-
-        # Filter out blank lines
-        cleaned_lines = [line for line in lines if line.strip()]
-
-        # Join back into a single string
-        return "\n".join(cleaned_lines)
+        return v.strip()
 
 
 class Note(BaseModel):
     """Holds a personal note with cleaned text content.
 
     Attributes:
-        text (str): The cleaned text content of the note, with leading/trailing and internal blank lines removed.
+        text (str): The cleaned text content of the note. Internal blank lines are preserved,
+            while surrounding whitespace is removed.
 
     """
 
@@ -407,32 +390,13 @@ class Note(BaseModel):
 
         Notes:
             1. Ensure text is a string.
-            2. Split the input text into lines.
-            3. Remove leading blank lines.
-            4. Remove trailing blank lines.
-            5. Filter out any lines that are blank after stripping whitespace.
-            6. Join the remaining lines back into a single string.
+            2. Preserves internal newlines and blank lines.
+            3. Only removes surrounding whitespace from the text block.
 
         """
         if not isinstance(v, str):
             raise ValueError("text must be a string")
-
-        # Split into lines
-        lines = v.splitlines()
-
-        # Remove leading blank lines
-        while lines and not lines[0].strip():
-            lines.pop(0)
-
-        # Remove trailing blank lines
-        while lines and not lines[-1].strip():
-            lines.pop()
-
-        # Filter out blank lines
-        cleaned_lines = [line for line in lines if line.strip()]
-
-        # Join back into a single string
-        return "\n".join(cleaned_lines)
+        return v.strip()
 
 
 class Personal(BaseModel):

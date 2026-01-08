@@ -1708,20 +1708,20 @@
         ]
       ],
       "Banner": [
-        "Holds a personal banner message with cleaned text content.\n\nAttributes:\n    text (str): The cleaned text content of the banner, with leading/trailing and internal blank lines removed.",
+        "Holds a personal banner message with cleaned text content.\n\nAttributes:\n    text (str): The cleaned text content of the banner. Internal blank lines are preserved,\n        while surrounding whitespace is removed.",
         [
           [
             "validate_text(cls: UnknownType, v: str) -> UnknownType",
-            "Validate the text field and clean it.\n\nArgs:\n    v: The raw text content of the banner, potentially including leading/trailing or internal blank lines.\n\nReturns:\n    str: The cleaned text content of the banner.\n\nRaises:\n    ValueError: If the text is not a string.\n\nNotes:\n    1. Ensure text is a string.\n    2. Split the input text into lines.\n    3. Remove leading blank lines.\n    4. Remove trailing blank lines.\n    5. Filter out any lines that are blank after stripping whitespace.\n    6. Join the remaining lines back into a single string."
+            "Validate the text field and clean it.\n\nArgs:\n    v: The raw text content of the banner, potentially including leading/trailing or internal blank lines.\n\nReturns:\n    str: The cleaned text content of the banner.\n\nRaises:\n    ValueError: If the text is not a string.\n\nNotes:\n    1. Ensure text is a string.\n    2. Preserves internal newlines and blank lines.\n    3. Only removes surrounding whitespace from the text block."
           ]
         ]
       ],
       "Note": [
-        "Holds a personal note with cleaned text content.\n\nAttributes:\n    text (str): The cleaned text content of the note, with leading/trailing and internal blank lines removed.",
+        "Holds a personal note with cleaned text content.\n\nAttributes:\n    text (str): The cleaned text content of the note. Internal blank lines are preserved,\n        while surrounding whitespace is removed.",
         [
           [
             "validate_text(cls: UnknownType, v: str) -> UnknownType",
-            "Validate the text field and clean it.\n\nArgs:\n    v: The raw text content of the note, potentially including leading/trailing or internal blank lines.\n\nReturns:\n    str: The cleaned text content of the note.\n\nRaises:\n    ValueError: If the text is not a string.\n\nNotes:\n    1. Ensure text is a string.\n    2. Split the input text into lines.\n    3. Remove leading blank lines.\n    4. Remove trailing blank lines.\n    5. Filter out any lines that are blank after stripping whitespace.\n    6. Join the remaining lines back into a single string."
+            "Validate the text field and clean it.\n\nArgs:\n    v: The raw text content of the note, potentially including leading/trailing or internal blank lines.\n\nReturns:\n    str: The cleaned text content of the note.\n\nRaises:\n    ValueError: If the text is not a string.\n\nNotes:\n    1. Ensure text is a string.\n    2. Preserves internal newlines and blank lines.\n    3. Only removes surrounding whitespace from the text block."
           ]
         ]
       ]

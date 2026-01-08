@@ -42,6 +42,7 @@ These are known mappings:
 - `resume_editor/app/web/admin.py` -> `tests/app/web/test_admin.py`
 - `resume_editor/app/web/pages.py` -> `tests/app/web/test_main_web.py`
 - `resume_editor/app/web/pages.py` -> `tests/app/web/test_resume_web.py`
+- `resume_editor/app/models/resume/personal.py` -> `tests/app/models/resume/test_personal.py`
 - `resume_editor/app/models/resume_model.py` -> `tests/app/models/test_resume_model.py`
 - `resume_editor/app/models/user.py` -> `tests/app/models/test_user.py`
 - `resume_editor/app/models/user_settings.py` -> `tests/app/models/test_user_settings.py`
