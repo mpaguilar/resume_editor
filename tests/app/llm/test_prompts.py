@@ -46,3 +46,21 @@ def test_new_introduction_prompts_exist_and_are_not_empty():
         assert prompt is not None, f"{name} should not be None"
         assert isinstance(prompt, str), f"{name} should be a string"
         assert len(prompt.strip()) > 0, f"{name} should not be empty"
+
+
+def test_intro_analyze_resume_prompt_mentions_relevance():
+    """Tests that INTRO_ANALYZE_RESUME_SYSTEM_PROMPT includes relevance instructions."""
+    assert "relevance" in INTRO_ANALYZE_RESUME_SYSTEM_PROMPT
+    assert '"direct"' in INTRO_ANALYZE_RESUME_SYSTEM_PROMPT
+    assert '"indirect"' in INTRO_ANALYZE_RESUME_SYSTEM_PROMPT
+
+
+def test_intro_synthesize_prompt_for_bulleted_prioritized_list():
+    """Tests that INTRO_SYNTHESIZE_INTRODUCTION_SYSTEM_PROMPT is for a bulleted, prioritized list."""
+    prompt = INTRO_SYNTHESIZE_INTRODUCTION_SYSTEM_PROMPT
+    assert "bulleted list" in prompt
+    assert "strictly factual" in prompt.lower()
+    assert "ordered" in prompt.lower()
+    assert "direct professional work experience" in prompt.lower()
+    assert "strengths" in prompt.lower()
+    assert "json object" in prompt.lower()

@@ -196,11 +196,13 @@ INTRO_ANALYZE_RESUME_SYSTEM_PROMPT = """As a resume analyst, your task is to rev
         *   For 'Project', use 'Project experience with'.
         *   For 'Education', use 'Academic experience with'.
         *   If no experience is found, use 'No mentioned experience'.
+    *   **Evaluate Relevance for Work Experience:** When a skill's source is 'Work Experience', you MUST evaluate its relevance to the `job_requirements`. Label it as `"relevance": "direct"` if the experience directly maps to the job's primary duties, or `"relevance": "indirect"` if the experience is related but not a core responsibility.
 3.  **Map Skills to Experience:** Create a dictionary where each key is a skill from the job requirements and the value is an object containing your qualitative assessment and a list of sources.
 
-**Example:** If 'MLOps' is a key skill, and the candidate has a certification for it and experience with CI/CD in a job:
-*   For 'MLOps', the source would be ['Certification'] and the assessment 'knowledge from certification'.
-*   For 'CI/CD', the source would be ['Work Experience'] and the assessment might be 'strong experience'.
+**Example:** If the job requires 'Python' and 'Project Management', and the resume shows Python used in a core developer role and project management in a secondary capacity:
+*   For 'Python', the output for that skill might include: `{ "source": ["Work Experience"], "assessment": "Professional experience with", "relevance": "direct" }`.
+*   For 'Project Management', it might include: `{ "source": ["Work Experience"], "assessment": "Professional experience with", "relevance": "indirect" }`.
+*   If a required skill 'AWS' is only mentioned in a certification, it would be: `{ "source": ["Certification"], "assessment": "Certified in" }` (no relevance field is needed).
 
 **Output Format:**
 Your response MUST be a single JSON object enclosed in ```json ... ```, conforming to the following schema.
@@ -221,26 +223,25 @@ Now, output the JSON object:
 """
 
 
-INTRO_SYNTHESIZE_INTRODUCTION_SYSTEM_PROMPT = """As an expert resume writer, your task is to synthesize the provided `Candidate Analysis` into a compelling introductory banner for a resume. Your highest priority is factual accuracy.
+INTRO_SYNTHESIZE_INTRODUCTION_SYSTEM_PROMPT = """As a resume writing expert, your task is to synthesize the provided `Candidate Analysis` into a bulleted list of key strengths. Your response must be strictly factual and prioritize information as instructed.
 
-**Prioritization Rules:**
-When crafting the bullet points, you MUST emphasize skills and experiences according to these priorities:
-1.  **Work Experience:** Most important.
-2.  **Certifications:** Second most important.
-3.  **Projects:** Third most important.
-4.  **Education:** Least important. Ignore education below the college graduate level.
-
-**Crucial Rules:**
-1.  **Factual Accuracy is Paramount:** Your primary goal is to be truthful and avoid exaggeration. Adhere strictly to the `source` and `assessment` from the `Candidate Analysis`.
-    *   **Do Not Misrepresent Experience:** Never imply a higher level of experience than the source indicates. For example, if a skill's source is 'Certification' or 'Project', it is NOT 'Work Experience'. A certification or project does not equal professional work experience.
-    *   **Do Not Combine Unrelated Facts:** Do not merge separate skills or experiences into a single statement if it creates a misleading impression. If the analysis shows 'MLOps' from a 'Certification' and 'CI/CD' from 'Work Experience', you MUST create two separate bullet points. DO NOT combine them into a misleading statement like "* Experience with MLOps pipelines."
-    *   **Phrasing Matters:** For skills from certifications, use phrases like "Certified in..." or "Holds certification for...". For projects, use "Project experience with...". For work experience, use neutral action verbs like "Developed" or "Managed".
-2.  **No Superlatives:** Avoid promotional language like "strong," "extensive," or "expert". Your tone must be neutral and factual, strictly using the assessments from the analysis.
-3.  **Format as a Single Markdown String:** The final `introduction` field MUST be a single string containing a bulleted list. Each bullet point must start with an asterisk and a space (`* `) and be separated by a newline character.
-4.  **Keep it Concise:** Generate 3-5 distinct, fact-based bullet points.
+**Crucial Rules & Prioritization:**
+1.  **Strictly Factual:** Every statement you generate MUST be directly supported by the `assessment` and `source` fields in the `Candidate Analysis`. Do NOT exaggerate, embellish, or use superlatives (e.g., "expert", "strong", "extensive"). Your tone must be neutral and objective.
+2.  **Generate a List of Strengths:** Your output will be a JSON object containing a `strengths` key, which holds a list of strings. Each string is a concise, punchy bullet point highlighting a key strength. Generate 3-5 bullet points.
+3.  **Ordered by Priority:** You MUST order the bullet points in the final `strengths` list according to the following strict priority order, based on the `source` and `relevance` from the analysis:
+    1.  **Direct Professional Work Experience:** Skills from 'Work Experience' marked with `"relevance": "direct"`.
+    2.  **Indirect Professional Work Experience:** Skills from 'Work Experience' marked with `"relevance": "indirect"`.
+    3.  **Certifications:** Skills from 'Certification'.
+    4.  **Recent Education:** Skills from 'Education' (only if recent and relevant).
+    5.  **Projects:** Skills from 'Project'.
+4.  **Accurate Phrasing:**
+    *   For 'Work Experience', use neutral, professional phrasing like "Professional experience with..." or action verbs like "Developed...".
+    *   For 'Certification', use phrases like "Certified in...".
+    *   For 'Project', use "Project-based experience with...".
+    *   Do NOT misrepresent the source of the experience. A certification is not professional experience.
 
 **Output Format:**
-Your response MUST be a single JSON object enclosed in ```json ... ```, conforming to a schema that expects a single string field named `introduction`.
+Your response MUST be a single JSON object enclosed in ```json ... ```. The JSON object must conform to the following schema, containing a `strengths` key with a list of strings.
 
 {format_instructions}
 """
