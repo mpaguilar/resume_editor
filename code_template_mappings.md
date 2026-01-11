@@ -78,6 +78,10 @@ These are snippets of HTML intended to be swapped into a page dynamically via HT
     *   **Type**: Partial
     *   **Purpose**: Displays the suggested AI refinement in a text area. Includes buttons to "Discard" the suggestion or "Save as New" resume.
 
+*   `resume_editor/app/templates/partials/resume/_refine_result_intro.html`
+    *   **Type**: Partial
+    *   **Purpose**: An out-of-band (OOB) swap target for displaying a generated introduction during AI refinement. It is swapped into the `_refine_result.html` view.
+
 *   `resume_editor/app/templates/admin/partials/user_list.html`
     *   **Type**: Partial
     *   **Purpose**: Renders the HTML `<table>` of users for the admin dashboard. Each row has HTMX-powered "Edit" and "Delete" buttons.

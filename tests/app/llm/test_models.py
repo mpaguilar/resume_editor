@@ -32,7 +32,7 @@ def test_candidate_analysis_instantiation():
 
 def test_generated_introduction_instantiation():
     """Tests the instantiation of the GeneratedIntroduction model."""
-    data = {"introduction": "This is a test introduction."}
+    data = {"strengths": ["This is a test strength."]}
     instance = GeneratedIntroduction(**data)
     assert instance.model_dump() == data
 

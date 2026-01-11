@@ -1,6 +1,12 @@
-<template>
-    <div id="introduction-container" hx-swap-oob="true">
-        <h4 class="text-lg font-semibold text-gray-700">Suggested Introduction:</h4>
-        <p class="mt-1 text-sm text-gray-600 bg-gray-50 p-3 rounded-md border">{{ introduction | e }}</p>
+<div id="refine_introduction_preview" hx-swap-oob="true">
+    <h3 class="text-lg font-semibold border-b pb-2 mb-2">AI-Generated Introduction</h3>
+    <div class="prose max-w-none">
+        <ul class="list-disc pl-5">
+            {% for line in introduction.split('\n') %}
+                {% if line.strip() %}
+                    <li>{{ line.strip().lstrip('-').strip() }}</li>
+                {% endif %}
+            {% endfor %}
+        </ul>
     </div>
-</template>
+</div>

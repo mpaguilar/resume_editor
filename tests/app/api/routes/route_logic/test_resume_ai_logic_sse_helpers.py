@@ -50,36 +50,48 @@ def test_create_sse_progress_message_with_html():
     )
 
 
-def test_create_sse_introduction_message():
+@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.env.get_template")
+def test_create_sse_introduction_message(mock_get_template):
     """Test create_sse_introduction_message."""
+    mock_template = Mock()
+    mock_template.render.return_value = (
+        '<div id="refine_introduction_preview" hx-swap-oob="true">intro html</div>'
+    )
+    mock_get_template.return_value = mock_template
     intro = "This is an introduction."
+
     result = create_sse_introduction_message(intro)
-    expected = (
-        "event: introduction_generated\n"
-        "data: <template>\n"
-        'data:     <div id="introduction-container" hx-swap-oob="true">\n'
-        'data:         <h4 class="text-lg font-semibold text-gray-700">Suggested Introduction:</h4>\n'
-        'data:         <p class="mt-1 text-sm text-gray-600 bg-gray-50 p-3 rounded-md border">This is an introduction.</p>\n'
-        "data:     </div>\n"
-        "data: </template>\n\n"
+
+    mock_get_template.assert_called_once_with(
+        "partials/resume/_refine_result_intro.html"
     )
-    assert result.replace(" ", "") == expected.replace(" ", "")
+    mock_template.render.assert_called_once_with(introduction=intro)
+    assert (
+        result
+        == 'event: introduction_generated\ndata: <div id="refine_introduction_preview" hx-swap-oob="true">intro html</div>\n\n'
+    )
 
 
-def test_create_sse_introduction_message_with_html():
-    """Test create_sse_introduction_message handles HTML escaping."""
+@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.env.get_template")
+def test_create_sse_introduction_message_with_html(mock_get_template):
+    """Test create_sse_introduction_message handles HTML escaping from Jinja."""
+    mock_template = Mock()
+    mock_template.render.return_value = (
+        '<div id="refine_introduction_preview" hx-swap-oob="true">&lt;p&gt;Intro&lt;/p&gt;</div>'
+    )
+    mock_get_template.return_value = mock_template
     intro = "<p>Intro</p>"
+
     result = create_sse_introduction_message(intro)
-    expected = (
-        "event: introduction_generated\n"
-        "data: <template>\n"
-        'data:     <div id="introduction-container" hx-swap-oob="true">\n'
-        'data:         <h4 class="text-lg font-semibold text-gray-700">Suggested Introduction:</h4>\n'
-        'data:         <p class="mt-1 text-sm text-gray-600 bg-gray-50 p-3 rounded-md border">&lt;p&gt;Intro&lt;/p&gt;</p>\n'
-        "data:     </div>\n"
-        "data: </template>\n\n"
+
+    mock_get_template.assert_called_once_with(
+        "partials/resume/_refine_result_intro.html"
     )
-    assert result.replace(" ", "") == expected.replace(" ", "")
+    mock_template.render.assert_called_once_with(introduction=intro)
+    assert (
+        result
+        == 'event: introduction_generated\ndata: <div id="refine_introduction_preview" hx-swap-oob="true">&lt;p&gt;Intro&lt;/p&gt;</div>\n\n'
+    )
 
 
 def test_create_sse_error_message_error():
@@ -133,16 +145,19 @@ def test_process_sse_event_in_progress():
     assert not refined_roles
 
 
-def test_process_sse_event_introduction_generated():
+@patch(
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic.create_sse_introduction_message"
+)
+def test_process_sse_event_introduction_generated(mock_create_intro_message):
     """Test _process_sse_event for 'introduction_generated' status."""
+    mock_create_intro_message.return_value = "mocked sse intro message"
     event = {"status": "introduction_generated", "data": "A new intro"}
     refined_roles = {}
+
     sse_message, new_intro = _process_sse_event(event, refined_roles)
 
-    expected_sse = create_sse_introduction_message("A new intro")
-
-    # Due to formatting differences, compare without whitespace
-    assert sse_message.replace(" ", "") == expected_sse.replace(" ", "")
+    mock_create_intro_message.assert_called_once_with("A new intro")
+    assert sse_message == "mocked sse intro message"
     assert new_intro == "A new intro"
     assert not refined_roles
 

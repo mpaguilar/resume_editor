@@ -200,9 +200,9 @@ INTRO_ANALYZE_RESUME_SYSTEM_PROMPT = """As a resume analyst, your task is to rev
 3.  **Map Skills to Experience:** Create a dictionary where each key is a skill from the job requirements and the value is an object containing your qualitative assessment and a list of sources.
 
 **Example:** If the job requires 'Python' and 'Project Management', and the resume shows Python used in a core developer role and project management in a secondary capacity:
-*   For 'Python', the output for that skill might include: `{ "source": ["Work Experience"], "assessment": "Professional experience with", "relevance": "direct" }`.
-*   For 'Project Management', it might include: `{ "source": ["Work Experience"], "assessment": "Professional experience with", "relevance": "indirect" }`.
-*   If a required skill 'AWS' is only mentioned in a certification, it would be: `{ "source": ["Certification"], "assessment": "Certified in" }` (no relevance field is needed).
+*   For 'Python', the output for that skill might include: `{{ "source": ["Work Experience"], "assessment": "Professional experience with", "relevance": "direct" }}`.
+*   For 'Project Management', it might include: `{{ "source": ["Work Experience"], "assessment": "Professional experience with", "relevance": "indirect" }}`.
+*   If a required skill 'AWS' is only mentioned in a certification, it would be: `{{ "source": ["Certification"], "assessment": "Certified in" }}` (no relevance field is needed).
 
 **Output Format:**
 Your response MUST be a single JSON object enclosed in ```json ... ```, conforming to the following schema.

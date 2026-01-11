@@ -108,7 +108,7 @@ class CandidateAnalysis(BaseModel):
 class GeneratedIntroduction(BaseModel):
     """The final synthesized introduction."""
 
-    introduction: str = Field(
+    strengths: list[str] = Field(
         ...,
-        description="A compelling, concise introductory paragraph.",
+        description="A bulleted list of the candidate's key strengths and qualifications, tailored to the job.",
     )

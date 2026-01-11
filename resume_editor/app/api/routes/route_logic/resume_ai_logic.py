@@ -527,6 +527,15 @@ def _process_sse_event(
         tuple[str | None, str | None]: A tuple containing an optional SSE message
                                        to yield and optional new introduction text.
 
+    Notes:
+        1.  Gets the 'status' from the event dictionary.
+        2.  If status is 'in_progress', creates a progress message.
+        3.  If status is 'introduction_generated', creates a progress message
+            confirming generation and extracts the introduction text.
+        4.  If status is 'role_refined', processes the role data and creates a
+            progress message.
+        5.  Returns a tuple with the SSE message and the introduction text (if any).
+
     """
     _msg = f"_process_sse_event starting with event: {event}"
     log.debug(_msg)
@@ -539,9 +548,10 @@ def _process_sse_event(
     if status == "in_progress":
         sse_message = create_sse_progress_message(event.get("message", ""))
     elif status == "introduction_generated":
-        new_introduction = event.get("data")
-        if new_introduction:
-            sse_message = create_sse_introduction_message(new_introduction)
+        introduction_text = event.get("data")
+        new_introduction = introduction_text
+        if introduction_text:
+            sse_message = create_sse_introduction_message(introduction_text)
     elif status == "role_refined":
         sse_message = _process_refined_role_event(event, refined_roles)
     else:

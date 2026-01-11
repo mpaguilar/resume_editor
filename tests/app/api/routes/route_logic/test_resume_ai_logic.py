@@ -266,3 +266,52 @@ def test_update_banner_in_raw_personal_preserves_paragraphs():
     expected_output = "# Personal\n\n## Banner\n\nParagraph 1\n\nParagraph 2\n"
 
     assert result == expected_output
+
+
+@pytest.mark.parametrize(
+    "raw_personal, expected_output_template",
+    [
+        (
+            # Case 1: Banner exists and should be replaced
+            """# Personal
+## Banner
+Old Banner
+## Contact
+email: a@b.com
+""",
+            """# Personal
+## Banner
+
+{intro}
+
+## Contact
+email: a@b.com
+""",
+        ),
+        (
+            # Case 2: Banner does not exist and should be appended
+            """# Personal
+## Contact
+email: a@b.com
+""",
+            """# Personal
+## Contact
+email: a@b.com
+
+## Banner
+
+{intro}
+""",
+        ),
+    ],
+)
+def test_update_banner_in_raw_personal_with_bullet_list(
+    raw_personal, expected_output_template
+):
+    """Test that banner update handles multi-line bulleted lists correctly."""
+    introduction = "- Strength 1\n- Strength 2"
+    expected_output = expected_output_template.format(intro=introduction)
+
+    result = _update_banner_in_raw_personal(raw_personal, introduction)
+
+    assert result == expected_output

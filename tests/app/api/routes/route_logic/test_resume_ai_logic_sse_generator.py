@@ -11,6 +11,7 @@ from starlette.middleware.base import ClientDisconnect
 
 from resume_editor.app.api.routes.route_logic.resume_ai_logic import (
     ProcessExperienceResultParams,
+    _process_sse_event,
     _process_refined_role_event,
     experience_refinement_sse_generator,
 )
@@ -699,7 +700,7 @@ async def test_experience_refinement_sse_generator_with_introduction(
         "test-model",
         "decrypted_key",
     )
-    stream_intro = "Introduction from stream"
+    stream_intro = "Generated Test Intro"
 
     async def mock_async_generator():
         yield {"status": "introduction_generated", "data": stream_intro}
@@ -751,7 +752,7 @@ async def test_experience_refinement_sse_generator_with_introduction(
 
     mock_generate_intro.assert_not_called()
     mock_process_result.assert_called_once()
-    call_args = mock_process_result.call_args[0][0]
+    call_args = mock_process_result.call_args.args[0]
     assert call_args.introduction == stream_intro
     assert not call_args.refined_roles
 
@@ -839,3 +840,34 @@ async def test_experience_refinement_sse_generator_fallback_introduction_fails(
 
     # Check that the exception was logged
     assert "Failed to generate introduction fallback: Fallback failed" in caplog.text
+
+
+@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.env.get_template")
+def test_process_sse_event_handles_introduction(mock_get_template):
+    """Test that _process_sse_event handles an introduction_generated event."""
+    refined_roles = {}
+    intro_text = "This is a generated introduction."
+    event = {
+        "status": "introduction_generated",
+        "data": intro_text,
+    }
+
+    mock_template = Mock()
+    mock_template.render.return_value = (
+        f'<div hx-swap-oob="true">{intro_text}</div>'
+    )
+    mock_get_template.return_value = mock_template
+
+    sse_message, introduction = _process_sse_event(event, refined_roles)
+
+    assert introduction == intro_text
+    assert sse_message is not None
+    assert "event: introduction_generated" in sse_message
+    assert 'hx-swap-oob="true"' in sse_message
+    assert intro_text in sse_message
+    assert not refined_roles
+
+    mock_get_template.assert_called_once_with(
+        "partials/resume/_refine_result_intro.html"
+    )
+    mock_template.render.assert_called_once_with(introduction=intro_text)

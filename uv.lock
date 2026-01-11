@@ -2509,7 +2509,7 @@ wheels = [
 
 [[package]]
 name = "resume-editor"
-version = "0.82.1"
+version = "0.84.9"
 source = { virtual = "." }
 dependencies = [
     { name = "alembic" },
