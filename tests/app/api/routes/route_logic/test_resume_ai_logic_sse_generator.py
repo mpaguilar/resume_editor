@@ -871,3 +871,18 @@ def test_process_sse_event_handles_introduction(mock_get_template):
         "partials/resume/_refine_result_intro.html"
     )
     mock_template.render.assert_called_once_with(introduction=intro_text)
+
+
+def test_process_sse_event_handles_job_analysis_complete():
+    """Test that _process_sse_event handles a job_analysis_complete event."""
+    refined_roles = {}
+    message_text = "Job analysis has completed."
+    event = {"status": "job_analysis_complete", "message": message_text}
+
+    sse_message, introduction = _process_sse_event(event, refined_roles)
+
+    assert introduction is None
+    assert sse_message is not None
+    assert "event: progress" in sse_message
+    assert f"data: <li>{message_text}</li>" in sse_message
+    assert not refined_roles

@@ -530,11 +530,12 @@ def _process_sse_event(
     Notes:
         1.  Gets the 'status' from the event dictionary.
         2.  If status is 'in_progress', creates a progress message.
-        3.  If status is 'introduction_generated', creates a progress message
+        3.  If status is 'job_analysis_complete', creates a progress message.
+        4.  If status is 'introduction_generated', creates a progress message
             confirming generation and extracts the introduction text.
-        4.  If status is 'role_refined', processes the role data and creates a
+        5.  If status is 'role_refined', processes the role data and creates a
             progress message.
-        5.  Returns a tuple with the SSE message and the introduction text (if any).
+        6.  Returns a tuple with the SSE message and the introduction text (if any).
 
     """
     _msg = f"_process_sse_event starting with event: {event}"
@@ -547,6 +548,9 @@ def _process_sse_event(
 
     if status == "in_progress":
         sse_message = create_sse_progress_message(event.get("message", ""))
+    elif status == "job_analysis_complete":
+        message = event.get("message", "")
+        sse_message = create_sse_progress_message(message)
     elif status == "introduction_generated":
         introduction_text = event.get("data")
         new_introduction = introduction_text
