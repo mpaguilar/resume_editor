@@ -184,28 +184,18 @@ Now, output the JSON object:
 """
 
 
-INTRO_ANALYZE_RESUME_SYSTEM_PROMPT = """As a resume analyst, your task is to review the `Resume Content` and determine the candidate's level of experience with respect to the `Job Key Requirements`.
+INTRO_ANALYZE_RESUME_SYSTEM_PROMPT = """As a resume analyst, your task is to review the `Resume Content` and find factual evidence that supports each of the `Job Key Requirements`. You will not assess or give an opinion; you will only extract facts.
 
 **Instructions:**
-1.  **Analyze Skills:** For each skill in `job_requirements.key_skills`, analyze the entire `Resume Content` (Work Experience, Certifications, Projects, Education) to find where the skill is mentioned.
-2.  **Determine Experience Source and Level:**
-    *   Identify the source of the experience (Work Experience, Certification, Project, Education). A skill can appear in multiple sources. List them in order of importance: Work Experience > Certification > Project > Education.
-    *   Based on the source, provide a neutral, factual description of the experience level.
-        *   For 'Work Experience', use 'Professional experience with'.
-        *   For 'Certification', use 'Certified in'.
-        *   For 'Project', use 'Project experience with'.
-        *   For 'Education', use 'Academic experience with'.
-        *   If no experience is found, use 'No mentioned experience'.
-    *   **Evaluate Relevance for Work Experience:** When a skill's source is 'Work Experience', you MUST evaluate its relevance to the `job_requirements`. Label it as `"relevance": "direct"` if the experience directly maps to the job's primary duties, or `"relevance": "indirect"` if the experience is related but not a core responsibility.
-3.  **Map Skills to Experience:** Create a dictionary where each key is a skill from the job requirements and the value is an object containing your qualitative assessment and a list of sources.
-
-**Example:** If the job requires 'Python' and 'Project Management', and the resume shows Python used in a core developer role and project management in a secondary capacity:
-*   For 'Python', the output for that skill might include: `{{ "source": ["Work Experience"], "assessment": "Professional experience with", "relevance": "direct" }}`.
-*   For 'Project Management', it might include: `{{ "source": ["Work Experience"], "assessment": "Professional experience with", "relevance": "indirect" }}`.
-*   If a required skill 'AWS' is only mentioned in a certification, it would be: `{{ "source": ["Certification"], "assessment": "Certified in" }}` (no relevance field is needed).
+1.  **Iterate Through Requirements:** For each skill in `job_requirements.key_skills` and each priority in `job_requirements.candidate_priorities`, you will perform the following analysis.
+2.  **Scan ENTIRE Resume:** Read the entire `Resume Content`, including the 'Personal' (especially the banner), 'Experience' (roles and projects), 'Education', and 'Certifications' sections.
+3.  **Extract Factual Evidence:** Identify and extract specific, verifiable facts from the resume that support the requirement. A fact can be a direct quote or a concise, factual summary (e.g., "Managed a team of 5 engineers," "Certified in AWS Solutions Architect," "Graduated with a B.S. in Computer Science").
+4.  **Attribute Evidence:** For each piece of evidence you find, you MUST attribute it to its source section: 'Work Experience', 'Education', 'Project', 'Certification', or 'Personal'.
+5.  **Evaluate Relevance for Work Experience:** If, and only if, the evidence comes from 'Work Experience', you MUST evaluate its relevance. Label it as `"relevance": "direct"` if the experience directly maps to one of the job's primary duties, or `"relevance": "indirect"` if the experience is related but not a core responsibility. For all other source sections, relevance should be `null`.
+6.  **Handle Missing Evidence:** If you can find no supporting evidence for a given requirement in the entire resume, the `evidence` list for that requirement MUST be empty. Do not invent or infer evidence.
 
 **Output Format:**
-Your response MUST be a single JSON object enclosed in ```json ... ```, conforming to the following schema.
+Your response MUST be a single JSON object enclosed in ```json ... ```, conforming to the following schema. Your output will be an object containing a single key "analysis", which is a list of objects. Each object in the list will have a `job_requirement` and a list of `evidence` found for it.
 
 {format_instructions}
 """
@@ -225,22 +215,23 @@ Now, output the JSON object:
 """
 
 
-INTRO_SYNTHESIZE_INTRODUCTION_SYSTEM_PROMPT = """As a resume writing expert, your task is to synthesize the provided `Candidate Analysis` into a bulleted list of key strengths. Your response must be strictly factual and prioritize information as instructed.
+INTRO_SYNTHESIZE_INTRODUCTION_SYSTEM_PROMPT = """As a resume writing expert, your task is to synthesize the provided `Candidate Analysis` into a bulleted list of key strengths. Your response must be exclusively and verifiably based on the facts provided.
 
 **Crucial Rules & Prioritization:**
-1.  **Strictly Factual:** Every statement you generate MUST be directly supported by the `assessment` and `source` fields in the `Candidate Analysis`. Do NOT exaggerate, embellish, or use superlatives (e.g., "expert", "strong", "extensive"). Your tone must be neutral and objective.
-2.  **Generate a List of Strengths:** Your output will be a JSON object containing a `strengths` key, which holds a list of strings. Each string is a concise, punchy bullet point highlighting a key strength. Generate 3-5 bullet points.
-3.  **Ordered by Priority:** You MUST order the bullet points in the final `strengths` list according to the following strict priority order, based on the `source` and `relevance` from the analysis:
-    1.  **Direct Professional Work Experience:** Skills from 'Work Experience' marked with `"relevance": "direct"`.
-    2.  **Indirect Professional Work Experience:** Skills from 'Work Experience' marked with `"relevance": "indirect"`.
-    3.  **Certifications:** Skills from 'Certification'.
-    4.  **Recent Education:** Skills from 'Education' (only if recent and relevant).
-    5.  **Projects:** Skills from 'Project'.
-4.  **Accurate Phrasing:**
-    *   For 'Work Experience', use neutral, professional phrasing like "Professional experience with..." or action verbs like "Developed...".
-    *   For 'Certification', use phrases like "Certified in...".
+1.  **Exclusively Factual:** Every statement in your generated `strengths` list MUST be a direct summary of the information contained in the `evidence` fields of the `Candidate Analysis`. You are forbidden from exaggerating, embellishing, inventing, or using superlatives (e.g., "expert," "strong," "extensive"). Your tone must be neutral, objective, and factual. You are a synthesizer, not an interpreter.
+2.  **Generate a List of Strengths:** Your output will be a JSON object containing a `strengths` key, which holds a list of strings. Each string is a concise bullet point highlighting a key strength. Generate 3-5 bullet points.
+3.  **Strict Prioritization:** You MUST order the bullet points in the final `strengths` list according to the following strict priority, based on the `source_section` and `relevance` of the supporting `evidence`:
+    1.  Evidence from 'Work Experience' with 'relevance': 'direct'.
+    2.  Evidence from 'Work Experience' with 'relevance': 'indirect'.
+    3.  Evidence from 'Certification'.
+    4.  Evidence from 'Project'.
+    5.  Evidence from 'Education'.
+    6.  Evidence from 'Personal'.
+4.  **Accurate Phrasing:** Each bullet point must accurately reflect the nature and source of the evidence.
+    *   For 'Work Experience', use neutral, professional phrasing like "Professional experience..." or action verbs like "Engineered...".
+    *   For 'Certification', use phrases like "Holds certification in...".
     *   For 'Project', use "Project-based experience with...".
-    *   Do NOT misrepresent the source of the experience. A certification is not professional experience.
+    *   Do NOT misrepresent the source. A project is not professional work experience. A certification is not a demonstration of skill in a work context.
 
 **Output Format:**
 Your response MUST be a single JSON object enclosed in ```json ... ```. The JSON object must conform to the following schema, containing a `strengths` key with a list of strings.

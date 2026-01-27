@@ -1,4 +1,5 @@
 import logging
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
@@ -83,25 +84,41 @@ class JobKeyRequirements(BaseModel):
     )
 
 
-class SkillAssessment(BaseModel):
-    """A qualitative assessment of a candidate's skill, including its source."""
+class FactualEvidence(BaseModel):
+    """A single piece of factual evidence extracted from the resume, with its source."""
 
-    assessment: str = Field(
+    evidence: str = Field(
         ...,
-        description="A qualitative assessment of the candidate's experience level (e.g., 'extensive experience', 'familiarity with').",
+        description="A direct quote or a concise summary of a fact from the resume that supports a job requirement.",
     )
-    source: list[str] = Field(
+    source_section: str = Field(
         ...,
-        description="A list of sources where this skill is demonstrated (e.g., ['Work Experience', 'Certification', 'Project']). Ordered by importance.",
+        description="The resume section where the evidence was found (e.g., 'Work Experience', 'Education', 'Project', 'Certification', 'Personal').",
+    )
+    relevance: Literal["direct", "indirect"] | None = Field(
+        None,
+        description="For 'Work Experience' evidence, indicates if it's 'direct' or 'indirect' to the role's primary duties.",
+    )
+
+
+class CandidateRequirementAnalysis(BaseModel):
+    """Links a single job requirement to factual evidence from the resume."""
+
+    job_requirement: str = Field(
+        ..., description="A single key skill or priority from the job description."
+    )
+    evidence: list[FactualEvidence] = Field(
+        default_factory=list,
+        description="A list of factual statements from the resume supporting this requirement. If no evidence is found, this should be an empty list.",
     )
 
 
 class CandidateAnalysis(BaseModel):
-    """An analysis of the resume against job requirements."""
+    """An analysis of the resume against job requirements, backed by factual evidence."""
 
-    skill_summary: dict[str, SkillAssessment] = Field(
+    analysis: list[CandidateRequirementAnalysis] = Field(
         ...,
-        description="A mapping of key skills from the job to a qualitative assessment and source of the candidate's experience.",
+        description="A list aligning each job requirement to factual evidence from the resume.",
     )
 
 

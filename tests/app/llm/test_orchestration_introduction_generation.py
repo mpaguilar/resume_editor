@@ -66,15 +66,26 @@ def job_description_fixture():
         (
             '{"key_skills": ["Python", "FastAPI"], "candidate_priorities": ["Backend"]}',
             JobKeyRequirements,
-            JobKeyRequirements(key_skills=["Python", "FastAPI"], candidate_priorities=["Backend"]),
+            JobKeyRequirements(
+                key_skills=["Python", "FastAPI"], candidate_priorities=["Backend"]
+            ),
         ),
         (
-            '{"skill_summary": {"python": {"assessment": "strong experience", "source": ["Work"]}}}',
+            '{"analysis": [{"job_requirement": "python", "evidence": [{"evidence": "strong experience", "source_section": "Work", "relevance": "direct"}]}]}',
             CandidateAnalysis,
             CandidateAnalysis(
-                skill_summary={
-                    "python": {"assessment": "strong experience", "source": ["Work"]}
-                }
+                analysis=[
+                    {
+                        "job_requirement": "python",
+                        "evidence": [
+                            {
+                                "evidence": "strong experience",
+                                "source_section": "Work",
+                                "relevance": "direct",
+                            }
+                        ],
+                    }
+                ]
             ),
         ),
         (
@@ -159,9 +170,18 @@ def test_generate_introduction_from_analysis_success(
     job_analysis_json = '{"key_skills": ["Python"], "candidate_priorities": ["Backend"]}'
     mock_invoke_chain_and_parse.side_effect = [
         CandidateAnalysis(
-            skill_summary={
-                "python": {"assessment": "strong experience", "source": ["Work"]}
-            }
+            analysis=[
+                {
+                    "job_requirement": "python",
+                    "evidence": [
+                        {
+                            "evidence": "strong experience",
+                            "source_section": "Work",
+                            "relevance": "direct",
+                        }
+                    ],
+                }
+            ]
         ),
         GeneratedIntroduction(strengths=["Expert in Python", "Loves backend work"]),
     ]
@@ -246,7 +266,7 @@ def test_generate_introduction_from_resume_end_to_end_mocked(
         ),
         # 2. Resume Analysis call (for CandidateAnalysis)
         AIMessage(
-            content='```json\n{"skill_summary": {"python": {"assessment": "strong experience", "source": ["Work"]}}}\n```'
+            content='```json\n{"analysis": [{"job_requirement": "python", "evidence": [{"evidence": "strong experience", "source_section": "Work", "relevance": "direct"}]}]}\n```'
         ),
         # 3. Synthesis call (for GeneratedIntroduction)
         AIMessage(

@@ -48,22 +48,33 @@ def test_new_introduction_prompts_exist_and_are_not_empty():
         assert len(prompt.strip()) > 0, f"{name} should not be empty"
 
 
-def test_intro_analyze_resume_prompt_mentions_relevance():
-    """Tests that INTRO_ANALYZE_RESUME_SYSTEM_PROMPT includes relevance instructions."""
-    assert "relevance" in INTRO_ANALYZE_RESUME_SYSTEM_PROMPT
-    assert '"direct"' in INTRO_ANALYZE_RESUME_SYSTEM_PROMPT
-    assert '"indirect"' in INTRO_ANALYZE_RESUME_SYSTEM_PROMPT
+def test_intro_analyze_resume_prompt_is_factual_and_structured():
+    """Tests that INTRO_ANALYZE_RESUME_SYSTEM_PROMPT is for factual, structured evidence."""
+    prompt = INTRO_ANALYZE_RESUME_SYSTEM_PROMPT
+    assert "factual evidence" in prompt.lower()
+    assert "source section" in prompt.lower()
+    assert "do not invent or infer evidence" in prompt.lower()
+    assert "must be empty" in prompt.lower()
+    assert "relevance" in prompt
+    assert "'Personal'" in prompt
+    assert '"direct"' in prompt
+    assert '"indirect"' in prompt
 
 
-def test_intro_synthesize_prompt_for_bulleted_prioritized_list():
-    """Tests that INTRO_SYNTHESIZE_INTRODUCTION_SYSTEM_PROMPT is for a bulleted, prioritized list."""
+def test_intro_synthesize_prompt_is_exclusive_and_prioritized():
+    """Tests that INTRO_SYNTHESIZE_INTRODUCTION_SYSTEM_PROMPT is for an exclusive, prioritized list."""
     prompt = INTRO_SYNTHESIZE_INTRODUCTION_SYSTEM_PROMPT
-    assert "bulleted list" in prompt
-    assert "strictly factual" in prompt.lower()
-    assert "ordered" in prompt.lower()
-    assert "direct professional work experience" in prompt.lower()
-    assert "strengths" in prompt.lower()
-    assert "json object" in prompt.lower()
+    assert "exclusively factual" in prompt.lower()
+    assert "exclusively and verifiably based on the facts provided" in prompt.lower()
+    assert "you are forbidden from" in prompt.lower()
+    assert "strict prioritization" in prompt.lower()
+    # Check prioritization order
+    assert "Evidence from 'Work Experience' with 'relevance': 'direct'" in prompt
+    assert "Evidence from 'Work Experience' with 'relevance': 'indirect'" in prompt
+    assert "Evidence from 'Certification'" in prompt
+    assert "Evidence from 'Project'" in prompt
+    assert "Evidence from 'Education'" in prompt
+    assert "Evidence from 'Personal'" in prompt
 
 
 def test_intro_analyze_resume_prompt_has_original_banner():

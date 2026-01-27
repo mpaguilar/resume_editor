@@ -463,10 +463,16 @@ def _generate_introduction_from_analysis(
 ) -> str:
     """Orchestrates the resume analysis and introduction synthesis steps.
 
+    This function is part of a multi-step, fact-based introduction generation process.
+    It takes a pre-analyzed set of job requirements and uses an LLM to analyze the
+    entirety of the candidate's resume for factual evidence that supports their
+    qualifications for the role. It then synthesizes an introduction based *only*
+    on that evidence.
+
     Args:
         job_analysis_json (str): A JSON string representing the pre-analyzed job requirements,
                                  conforming to the `JobKeyRequirements` model.
-        resume_content (str): The full Markdown content of the resume.
+        resume_content (str): The full Markdown content of the resume, which will be scoured for evidence.
         llm (ChatOpenAI): An initialized ChatOpenAI client instance.
         original_banner (str | None): The original banner text from the resume, to provide context to the LLM.
 
@@ -475,10 +481,8 @@ def _generate_introduction_from_analysis(
              or an empty string if generation fails.
 
     Notes:
-        1.  **Step 1: Resume Analysis**: Creates a chain with `INTRO_ANALYZE_RESUME_PROMPT` and a parser for `CandidateAnalysis`.
-            It invokes this chain with the `resume_content` and the `job_analysis_json`.
-        2.  **Step 2: Introduction Synthesis**: Creates a chain with `INTRO_SYNTHESIZE_INTRODUCTION_PROMPT` and a parser for `GeneratedIntroduction`.
-            It invokes this chain with the JSON output from the resume analysis step.
+        1.  **Step 1: Resume Analysis**: Creates a chain with `INTRO_ANALYZE_RESUME_PROMPT`. This prompt instructs the LLM to act as a recruiter, analyzing the `resume_content` to find factual evidence for each requirement in `job_analysis_json`. The output is parsed into a `CandidateAnalysis` model.
+        2.  **Step 2: Introduction Synthesis**: Creates a chain with `INTRO_SYNTHESIZE_INTRODUCTION_PROMPT`. This prompt takes the evidence from the previous step and synthesizes a concise, compelling introduction. It is strictly instructed to only use the provided evidence. The output is parsed into a `GeneratedIntroduction` model.
         3.  Extracts the `strengths` list from the final Pydantic object and formats it as a Markdown bulleted list.
         4.  Handles JSON decoding and Pydantic validation errors by logging and returning an empty string.
         5.  This function performs multiple network requests to the configured LLM endpoint.
@@ -539,22 +543,28 @@ def generate_introduction_from_resume(
     llm_config: LLMConfig,
     original_banner: str | None = None,
 ) -> str:
-    """Generates a resume introduction using a multi-step LLM chain.
+    """Generates a resume introduction using a multi-step, fact-based LLM chain.
+
+    This function orchestrates a sequence of LLM calls to produce a tailored
+    introduction (or "banner") for a resume based on a specific job description.
+    The process is designed to be fact-based, meaning the LLM first analyzes the
+    job, then scours the *entire resume* for evidence supporting the candidate's
+    qualifications, and finally writes an introduction based *only* on that evidence.
 
     Args:
-        resume_content (str): The full Markdown content of the resume.
+        resume_content (str): The full Markdown content of the resume to be analyzed.
         job_description (str): The job description to align the introduction with.
         llm_config (LLMConfig): Configuration for the LLM client.
         original_banner (str | None): The original banner text from the resume, to provide context to the LLM.
 
     Returns:
-        str: The generated introduction, or an empty string if generation fails.
+        str: The generated introduction as a Markdown string, or an empty string if generation fails.
 
     Notes:
         1.  Initializes a ChatOpenAI client using the provided `llm_config`.
-        2.  **Step 1: Job Analysis**: Creates a chain with `INTRO_ANALYZE_JOB_PROMPT` to extract key skills and priorities from the job description.
-        3.  Calls `_generate_introduction_from_analysis` with the job analysis result to perform the subsequent resume analysis and synthesis steps.
-        4.  Handles exceptions during the job analysis step and returns an empty string on failure.
+        2.  **Step 1: Job Analysis**: Creates and invokes a chain with `INTRO_ANALYZE_JOB_PROMPT` to extract key skills and priorities from the `job_description`.
+        3.  **Step 2 & 3 (Delegation)**: Calls `_generate_introduction_from_analysis` with the job analysis result. This sub-process performs the detailed, fact-finding resume analysis and the final introduction synthesis.
+        4.  Handles exceptions during the initial job analysis step and returns an empty string on failure.
         5.  This function performs multiple network requests to the configured LLM endpoint.
 
     """
