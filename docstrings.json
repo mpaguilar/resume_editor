@@ -1950,6 +1950,10 @@
     "filename": "orchestration.py",
     "functions": [
       [
+        "_unwrap_exception_group(e: Exception) -> UnknownType",
+        "Unwraps an ExceptionGroup if it contains a single non-cancellation error.\n\nArgs:\n    e (Exception): The exception to inspect.\n\nRaises:\n    The unwrapped exception if conditions are met, otherwise re-raises the original exception.\n\nNotes:\n    1. If 'e' is not an ExceptionGroup, it is re-raised.\n    2. If 'e' is an ExceptionGroup, it filters out any asyncio.CancelledError exceptions.\n    3. If exactly one non-cancellation error remains, that single error is raised.\n    4. Otherwise, the original ExceptionGroup is re-raised."
+      ],
+      [
         "_initialize_llm_client(llm_config: LLMConfig) -> ChatOpenAI",
         "Initializes the ChatOpenAI client from configuration.\n\nArgs:\n    llm_config (LLMConfig): Configuration for the LLM client.\n\nReturns:\n    ChatOpenAI: An initialized ChatOpenAI client instance.\n\nNotes:\n    1.  Determines the model name, using the provided `llm_model_name` or falling back to a default.\n    2.  Sets up LLM parameters for temperature, endpoint, and headers (if OpenRouter is used).\n    3.  Sets the API key if provided, or uses a dummy key if a custom endpoint is specified without a key.\n    4.  Returns an initialized `ChatOpenAI` client."
       ],
@@ -2278,8 +2282,8 @@
         "Processes a 'role_refined' event and returns a progress message."
       ],
       [
-        "_process_sse_event(event: dict, refined_roles: dict) -> tuple[str | None, str | None]",
-        "Processes a single SSE event from the experience refinement stream.\n\nThis helper function updates the state of refined roles and determines\nwhat message, if any, should be yielded to the client.\n\nArgs:\n    event (dict): The event data from the async generator.\n    refined_roles (dict): A dictionary to be updated with refined role data.\n\nReturns:\n    tuple[str | None, str | None]: A tuple containing an optional SSE message\n                                   to yield and optional new introduction text.\n\nNotes:\n    1.  Gets the 'status' from the event dictionary.\n    2.  If status is 'in_progress', creates a progress message.\n    3.  If status is 'job_analysis_complete', creates a progress message.\n    4.  If status is 'introduction_generated', creates a progress message\n        confirming generation and extracts the introduction text.\n    5.  If status is 'role_refined', processes the role data and creates a\n        progress message.\n    6.  Returns a tuple with the SSE message and the introduction text (if any)."
+        "_process_sse_event(event: dict, refined_roles: dict) -> str | None",
+        "Processes a single SSE event from the experience refinement stream.\n\nThis helper function updates the state of refined roles and determines\nwhat message, if any, should be yielded to the client.\n\nArgs:\n    event (dict): The event data from the async generator.\n    refined_roles (dict): A dictionary to be updated with refined role data.\n\nReturns:\n    str | None: An optional SSE message to yield.\n\nNotes:\n    1.  Gets the 'status' from the event dictionary.\n    2.  If status is 'in_progress', creates a progress message.\n    3.  If status is 'job_analysis_complete', creates a progress message.\n    4.  If status is 'role_refined', processes the role data and creates a\n        progress message.\n    5.  Returns the SSE message."
       ],
       [
         "_handle_sse_exception(e: Exception, resume_id: int) -> str",

@@ -42,6 +42,32 @@ log = logging.getLogger(__name__)
 DEFAULT_LLM_TEMPERATURE = 0.2
 
 
+def _unwrap_exception_group(e: Exception):
+    """Unwraps an ExceptionGroup if it contains a single non-cancellation error.
+
+    Args:
+        e (Exception): The exception to inspect.
+
+    Raises:
+        The unwrapped exception if conditions are met, otherwise re-raises the original exception.
+
+    Notes:
+        1. If 'e' is not an ExceptionGroup, it is re-raised.
+        2. If 'e' is an ExceptionGroup, it filters out any asyncio.CancelledError exceptions.
+        3. If exactly one non-cancellation error remains, that single error is raised.
+        4. Otherwise, the original ExceptionGroup is re-raised.
+
+    """
+    if isinstance(e, ExceptionGroup):
+        # Filter out cancellation errors to find the root cause
+        non_cancel_errors = [
+            exc for exc in e.exceptions if not isinstance(exc, asyncio.CancelledError)
+        ]
+        if len(non_cancel_errors) == 1:
+            raise non_cancel_errors[0]
+    raise e
+
+
 def _initialize_llm_client(llm_config: LLMConfig) -> ChatOpenAI:
     """Initializes the ChatOpenAI client from configuration.
 
@@ -165,9 +191,11 @@ async def _refine_role_and_put_on_queue(
     """Refines a single role and puts progress/result events onto an asyncio.Queue.
 
     This function acts as a concurrent worker. It acquires a semaphore to limit
-    concurrency, sends an 'in_progress' event to the queue, calls the `refine_role`
-    LLM function, and then puts either the successful `role_refined` event or an
-    exception onto the queue.
+    concurrency, sends an 'in_progress' event to the queue, and calls the
+    `refine_role` LLM function. If `refine_role` is successful, it puts the
+    `role_refined` event on the queue. If `refine_role` raises an exception,
+    this function allows the exception to propagate, which will be caught by
+    the parent `TaskGroup`.
 
     Args:
         job (RoleRefinementJob): The refinement job containing the role, job analysis, LLM configuration, and original index.
@@ -182,43 +210,40 @@ async def _refine_role_and_put_on_queue(
         2. It waits to acquire the provided semaphore.
         3. Once acquired, it puts an 'in_progress' status message onto the `event_queue`.
         4. It calls `refine_role` to perform the actual LLM refinement.
-        5. It puts the result of the refinement (a `role_refined` dictionary) onto the `event_queue`.
-        6. If any exception occurs during the process, it puts the exception object onto the `event_queue`.
+        5. On success, it puts the `role_refined` event onto the queue.
+        6. On failure, the exception from `refine_role` will cause this task to fail.
         7. The semaphore is released automatically by the `async with` block.
 
     """
-    try:
+    log.debug(
+        "Waiting on semaphore for role refinement for index %d",
+        job.original_index,
+    )
+    async with semaphore:
+        role_title = f"{job.role.basics.title} @ {job.role.basics.company}"
+        await event_queue.put(
+            {
+                "status": "in_progress",
+                "message": f"Refining role '{role_title}'...",
+            },
+        )
+
         log.debug(
-            "Waiting on semaphore for role refinement for index %d",
+            "Semaphore acquired, refining role for index %d",
             job.original_index,
         )
-        async with semaphore:
-            role_title = f"{job.role.basics.title} @ {job.role.basics.company}"
-            await event_queue.put(
-                {
-                    "status": "in_progress",
-                    "message": f"Refining role '{role_title}'...",
-                },
-            )
-
-            log.debug(
-                "Semaphore acquired, refining role for index %d",
-                job.original_index,
-            )
-            refined_role = await refine_role(
-                role=job.role,
-                job_analysis=job.job_analysis,
-                llm_config=job.llm_config,
-            )
-            await event_queue.put(
-                {
-                    "status": "role_refined",
-                    "data": refined_role.model_dump(mode="json"),
-                    "original_index": job.original_index,
-                },
-            )
-    except Exception as e:
-        await event_queue.put(e)
+        refined_role = await refine_role(
+            role=job.role,
+            job_analysis=job.job_analysis,
+            llm_config=job.llm_config,
+        )
+        await event_queue.put(
+            {
+                "status": "role_refined",
+                "data": refined_role.model_dump(mode="json"),
+                "original_index": job.original_index,
+            },
+        )
 
 
 async def async_refine_experience_section(
@@ -242,11 +267,10 @@ async def async_refine_experience_section(
         1. Yields progress messages for parsing the resume and analyzing the job description.
         2. Extracts experience information from the resume. If no roles are found, the function returns.
         3. Analyzes the job description to get key requirements, yielding a `job_analysis_complete` event.
-        4. Generates an AI introduction based on the job analysis, yielding an `in_progress` status event, and then an `introduction_generated` status event with the introduction text.
-        5. Creates an `asyncio.Queue` for events and a `Semaphore` to limit concurrency.
-        6. For each role, a background task is created to perform refinement and put events on the queue.
-        7. Enters a loop to consume events from the queue, yielding them until all roles are processed.
-        8. After the event loop, `asyncio.gather` is called to ensure all background tasks have completed.
+        4. Creates an `asyncio.Queue` for events and a `Semaphore` to limit concurrency.
+        5. For each role, a background task is created to perform refinement and put events on the queue.
+        6. Enters a loop to consume events from the queue, yielding them until all roles are processed.
+        7. After the event loop, `asyncio.gather` is called to ensure all background tasks have completed.
 
     """
     log.debug("async_refine_experience_section starting")
@@ -267,23 +291,6 @@ async def async_refine_experience_section(
     )
     yield {"status": "job_analysis_complete", "message": "Job analysis complete."}
 
-    llm = _initialize_llm_client(llm_config)
-
-    yield {"status": "in_progress", "message": "Generating AI introduction..."}
-    try:
-        generated_intro_text = _generate_introduction_from_analysis(
-            job_analysis_json=job_analysis.model_dump_json(),
-            resume_content=resume_content,
-            llm=llm,
-        )
-        if generated_intro_text:
-            yield {
-                "status": "introduction_generated",
-                "data": generated_intro_text,
-            }
-    except Exception:
-        log.exception("Failed to generate introduction during experience refinement.")
-
     # 3. Create and dispatch tasks for role refinement
     num_roles = len(experience_info.roles) if experience_info.roles else 0
     if num_roles == 0:
@@ -294,36 +301,38 @@ async def async_refine_experience_section(
     semaphore = asyncio.Semaphore(max_concurrency)
 
     tasks = []
-    for index, role in enumerate(experience_info.roles):
-        job = RoleRefinementJob(
-            role=role,
-            job_analysis=job_analysis,
-            llm_config=llm_config,
-            original_index=index,
-        )
-        task = asyncio.create_task(
-            _refine_role_and_put_on_queue(
-                job=job,
-                semaphore=semaphore,
-                event_queue=event_queue,
-            ),
-        )
-        tasks.append(task)
+    try:
+        async with asyncio.TaskGroup() as tg:
+            for index, role in enumerate(experience_info.roles):
+                job = RoleRefinementJob(
+                    role=role,
+                    job_analysis=job_analysis,
+                    llm_config=llm_config,
+                    original_index=index,
+                )
+                task = tg.create_task(
+                    _refine_role_and_put_on_queue(
+                        job=job,
+                        semaphore=semaphore,
+                        event_queue=event_queue,
+                    ),
+                )
+                tasks.append(task)
 
-    # 4. Yield events from the queue
-    processed_count = 0
-    while processed_count < num_roles:
-        event = await event_queue.get()
-        if isinstance(event, Exception):
-            raise event
+            # 4. Yield events from the queue
+            processed_count = 0
+            while processed_count < num_roles:
+                event = await event_queue.get()
+                if event.get("status") in ("role_refined",):
+                    processed_count += 1
 
-        if event.get("status") in ("role_refined",):
-            processed_count += 1
-
-        yield event
-        event_queue.task_done()
-
-    await asyncio.gather(*tasks, return_exceptions=True)
+                yield event
+                event_queue.task_done()
+    except Exception as e:
+        log.exception("Error during role refinement task group.")
+        # If it's an ExceptionGroup with a single meaningful exception, unwrap it
+        # to simplify error handling for the caller.
+        _unwrap_exception_group(e)
     log.debug("async_refine_experience_section finishing")
 
 

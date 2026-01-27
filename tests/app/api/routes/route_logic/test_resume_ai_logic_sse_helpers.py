@@ -138,50 +138,28 @@ def test_process_sse_event_in_progress():
     """Test _process_sse_event for 'in_progress' status."""
     event = {"status": "in_progress", "message": "Doing it"}
     refined_roles = {}
-    sse_message, new_intro = _process_sse_event(event, refined_roles)
+    sse_message = _process_sse_event(event, refined_roles)
 
     assert sse_message == create_sse_progress_message("Doing it")
-    assert new_intro is None
     assert not refined_roles
 
 
-@patch(
-    "resume_editor.app.api.routes.route_logic.resume_ai_logic.create_sse_introduction_message"
-)
-def test_process_sse_event_introduction_generated(mock_create_intro_message):
-    """Test _process_sse_event for 'introduction_generated' status."""
-    mock_create_intro_message.return_value = "mocked sse intro message"
-    event = {"status": "introduction_generated", "data": "A new intro"}
-    refined_roles = {}
-
-    sse_message, new_intro = _process_sse_event(event, refined_roles)
-
-    mock_create_intro_message.assert_called_once_with("A new intro")
-    assert sse_message == "mocked sse intro message"
-    assert new_intro == "A new intro"
-    assert not refined_roles
 
 
-def test_process_sse_event_introduction_generated_with_none():
-    """Test _process_sse_event for 'introduction_generated' with None data."""
-    event = {"status": "introduction_generated", "data": None}
-    refined_roles = {}
-    sse_message, new_intro = _process_sse_event(event, refined_roles)
-
-    assert sse_message is None
-    assert new_intro is None
-    assert not refined_roles
-
-
-def test_process_sse_event_role_refined_success():
-    """Test _process_sse_event for a successful 'role_refined' status."""
+def test_process_sse_event_role_refined_validation_fails(caplog):
+    """
+    Test _process_sse_event for 'role_refined' where model validation fails.
+    """
     event = {"status": "role_refined", "data": {"some": "data"}, "original_index": 0}
     refined_roles = {}
-    sse_message, new_intro = _process_sse_event(event, refined_roles)
 
+    with caplog.at_level(logging.WARNING):
+        sse_message = _process_sse_event(event, refined_roles)
+
+    # A message is not generated, and the role is not stored.
     assert sse_message is None
-    assert new_intro is None
-    assert refined_roles == {0: {"some": "data"}}
+    assert not refined_roles
+    assert "Failed to validate refined role data" in caplog.text
 
 
 @pytest.mark.parametrize(
@@ -197,10 +175,9 @@ def test_process_sse_event_role_refined_malformed(malformed_event, caplog):
     """Test _process_sse_event handles malformed 'role_refined' events."""
     refined_roles = {}
     with caplog.at_level(logging.WARNING):
-        sse_message, new_intro = _process_sse_event(malformed_event, refined_roles)
+        sse_message = _process_sse_event(malformed_event, refined_roles)
 
     assert sse_message is None
-    assert new_intro is None
     assert not refined_roles
     assert "Malformed role_refined event received" in caplog.text
 
@@ -210,10 +187,9 @@ def test_process_sse_event_unknown_event(caplog):
     event = {"status": "unknown_status", "message": "hello"}
     refined_roles = {}
     with caplog.at_level(logging.WARNING):
-        sse_message, new_intro = _process_sse_event(event, refined_roles)
+        sse_message = _process_sse_event(event, refined_roles)
 
     assert sse_message is None
-    assert new_intro is None
     assert not refined_roles
     assert "Unhandled SSE event received" in caplog.text
 
@@ -296,3 +272,5 @@ def test_handle_sse_exception_generic_exception(mock_log, mock_create_sse_error)
     log_msg = f"SSE stream error for resume {resume_id}: {expected_msg}"
     mock_log.exception.assert_called_once_with(log_msg)
     mock_create_sse_error.assert_called_once_with(expected_msg)
+
+

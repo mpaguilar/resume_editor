@@ -6322,6 +6322,24 @@ Notes:
 ===
 # File: `resume_editor/app/llm/orchestration.py`
 
+## function: `_unwrap_exception_group(e: Exception) -> UnknownType`
+
+Unwraps an ExceptionGroup if it contains a single non-cancellation error.
+
+Args:
+    e (Exception): The exception to inspect.
+
+Raises:
+    The unwrapped exception if conditions are met, otherwise re-raises the original exception.
+
+Notes:
+    1. If 'e' is not an ExceptionGroup, it is re-raised.
+    2. If 'e' is an ExceptionGroup, it filters out any asyncio.CancelledError exceptions.
+    3. If exactly one non-cancellation error remains, that single error is raised.
+    4. Otherwise, the original ExceptionGroup is re-raised.
+
+---
+
 ## function: `_initialize_llm_client(llm_config: LLMConfig) -> ChatOpenAI`
 
 Initializes the ChatOpenAI client from configuration.
@@ -7234,7 +7252,7 @@ Processes a 'role_refined' event and returns a progress message.
 
 ---
 
-## function: `_process_sse_event(event: dict, refined_roles: dict) -> tuple[str | None, str | None]`
+## function: `_process_sse_event(event: dict, refined_roles: dict) -> str | None`
 
 Processes a single SSE event from the experience refinement stream.
 
@@ -7246,18 +7264,15 @@ Args:
     refined_roles (dict): A dictionary to be updated with refined role data.
 
 Returns:
-    tuple[str | None, str | None]: A tuple containing an optional SSE message
-                                   to yield and optional new introduction text.
+    str | None: An optional SSE message to yield.
 
 Notes:
     1.  Gets the 'status' from the event dictionary.
     2.  If status is 'in_progress', creates a progress message.
     3.  If status is 'job_analysis_complete', creates a progress message.
-    4.  If status is 'introduction_generated', creates a progress message
-        confirming generation and extracts the introduction text.
-    5.  If status is 'role_refined', processes the role data and creates a
+    4.  If status is 'role_refined', processes the role data and creates a
         progress message.
-    6.  Returns a tuple with the SSE message and the introduction text (if any).
+    5.  Returns the SSE message.
 
 ---
 

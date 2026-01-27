@@ -48,4 +48,7 @@ These are the known mappings:
 - `POST /admin/users/create->resume_editor/app/web/admin.py`
 - `GET /admin/users/{user_id}/edit->resume_editor/app/web/admin.py`
 - `GET /admin/users->resume_editor/app/web/admin.py`
+- `GET /admin->resume_editor/app/web/admin.py`
+- `GET /admin/setup->resume_editor/app/web/admin.py`
+- `POST /admin/setup->resume_editor/app/web/admin.py`
 - `/setup->resume_editor/app/api/routes/pages/setup.py`

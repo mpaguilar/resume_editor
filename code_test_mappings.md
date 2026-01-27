@@ -28,7 +28,6 @@ These are known mappings:
 - `resume_editor/app/api/routes/route_logic/resume_ai_logic.py` -> `tests/app/api/routes/route_logic/test_resume_ai_logic.py`
 - `resume_editor/app/api/routes/route_logic/resume_ai_logic.py` -> `tests/app/api/routes/route_logic/test_resume_ai_logic_actions.py`
 - `resume_editor/app/api/routes/route_logic/resume_ai_logic.py` -> `tests/app/api/routes/route_logic/test_resume_ai_logic_config.py`
-- `resume_editor/app/api/routes/route_logic/resume_ai_logic.py` -> `tests/app/api/routes/route_logic/test_resume_ai_logic_fallback.py`
 - `resume_editor/app/api/routes/route_logic/resume_ai_logic.py` -> `tests/app/api/routes/route_logic/test_resume_ai_logic_processing.py`
 - `resume_editor/app/api/routes/route_logic/resume_ai_logic.py` -> `tests/app/api/routes/route_logic/test_resume_ai_logic_sse_generator.py`
 - `resume_editor/app/api/routes/route_logic/resume_ai_logic.py` -> `tests/app/api/routes/route_logic/test_resume_ai_logic_sse_helpers.py`
@@ -66,6 +65,7 @@ These are known mappings:
 - `resume_editor/app/models/resume_model.py` -> `tests/app/models/test_resume_model.py`
 - `resume_editor/app/models/user.py` -> `tests/app/models/test_user.py`
 - `resume_editor/app/models/user_settings.py` -> `tests/app/models/test_user_settings.py`
+- `resume_editor/app/web/admin.py` -> `tests/app/web/test_admin.py`
 - `resume_editor/app/web/admin.py` -> `tests/app/web/test_admin.py`
 - `resume_editor/app/web/pages.py` -> `tests/app/web/test_main_web.py`
 - `resume_editor/app/web/pages.py` -> `tests/app/web/test_resume_web.py`

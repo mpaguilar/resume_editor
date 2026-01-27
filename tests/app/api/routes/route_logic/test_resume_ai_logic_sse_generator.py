@@ -7,7 +7,6 @@ from cryptography.fernet import InvalidToken
 import logging
 
 from openai import AuthenticationError
-from starlette.middleware.base import ClientDisconnect
 
 from resume_editor.app.api.routes.route_logic.resume_ai_logic import (
     ProcessExperienceResultParams,
@@ -57,7 +56,7 @@ async def test_sse_generator_processes_multiple_roles(
         ),
         summary=RoleSummary(text="Summary 1"),
     )
-    refined_role1_data = refined_role1.model_dump()
+    refined_role1_data = refined_role1.model_dump(mode="json")
     refined_role2 = Role(
         basics=RoleBasics(
             company="Refined Company 2",
@@ -66,7 +65,7 @@ async def test_sse_generator_processes_multiple_roles(
         ),
         summary=RoleSummary(text="Summary 2"),
     )
-    refined_role2_data = refined_role2.model_dump()
+    refined_role2_data = refined_role2.model_dump(mode="json")
 
     async def mock_async_generator():
         yield {"status": "in_progress", "message": "doing stuff"}
@@ -90,12 +89,14 @@ async def test_sse_generator_processes_multiple_roles(
         resume_content_to_refine=test_resume.content,
         original_resume_content=test_resume.content,
         job_description="a new job",
+        limit_refinement_years=None,
     )
     results = [
         item async for item in experience_refinement_sse_generator(params=params)
     ]
 
-    expected_events = 5  # 1 progress, 2 roles, 1 done, 1 close
+    # 1 progress, 2 roles, 1 intro progress, 1 intro generated, 1 done, 1 close
+    expected_events = 7
     assert (
         len(results) == expected_events
     ), f"Expected {expected_events} events, got {len(results)}: {results}"
@@ -110,6 +111,9 @@ async def test_sse_generator_processes_multiple_roles(
         "data: <li>Refined Role: Refined Role 2 at Refined Company 2</li>"
         in results_str
     )
+    assert "event: introduction_generated" in results_str
+    assert 'id="refine_introduction_preview"' in results_str
+    assert "mocked intro" in results_str
     assert "event: done" in results_str
     assert "data: <html>final html</html>" in results_str
     assert "event: close" in results_str
@@ -119,6 +123,10 @@ async def test_sse_generator_processes_multiple_roles(
 
 
 @pytest.mark.asyncio
+@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.extract_banner_text")
+@patch(
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic._reconstruct_refined_resume_content"
+)
 @patch(
     "resume_editor.app.api.routes.route_logic.resume_ai_logic.generate_introduction_from_resume"
 )
@@ -129,21 +137,21 @@ async def test_sse_generator_processes_multiple_roles(
     "resume_editor.app.api.routes.route_logic.resume_ai_logic.async_refine_experience_section"
 )
 @patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.get_llm_config")
-async def test_sse_generator_with_fallback_introduction_success(
+async def test_sse_generator_generates_introduction_at_end(
     mock_get_llm_config,
     mock_async_refine_experience,
     mock_process_result,
     mock_generate_intro,
+    mock_reconstruct,
+    mock_extract_banner,
     test_user,
     test_resume,
 ):
-    """Test that introduction fallback is triggered when no intro is streamed."""
-    mock_get_llm_config.return_value = (
-        "http://llm.test",
-        "test-model",
-        "decrypted_key",
-    )
+    """Test intro is generated at the end, using refined content."""
+    mock_get_llm_config.return_value = (None, None, None)
     mock_generate_intro.return_value = "mocked intro"
+    mock_reconstruct.return_value = "reconstructed content for intro gen"
+    mock_extract_banner.return_value = "original banner"
     mock_process_result.return_value = "<html>final refined html</html>"
     # The generator provides one role, but no introduction event
     refined_role1 = Role(
@@ -153,7 +161,7 @@ async def test_sse_generator_with_fallback_introduction_success(
             start_date="2024-01-01",
         )
     )
-    refined_role1_data = refined_role1.model_dump()
+    refined_role1_data = refined_role1.model_dump(mode="json")
 
     async def mock_async_generator():
         yield {"status": "in_progress", "message": "doing stuff"}
@@ -173,24 +181,38 @@ async def test_sse_generator_with_fallback_introduction_success(
         resume_content_to_refine=test_resume.content,
         original_resume_content=test_resume.content,
         job_description="a new job",
+        limit_refinement_years=None,
     )
     results = [
         item async for item in experience_refinement_sse_generator(params=params)
     ]
 
     # Assertions
-    expected_events = 4  # 1 progress, 1 role, 1 done, 1 close
+    # 1 progress, 1 role, 1 intro progress, 1 intro generated, 1 done, 1 close
+    expected_events = 6
     assert (
         len(results) == expected_events
     ), f"Expected {expected_events} events, got {len(results)}: {results}"
-    results_str = "".join(results)
-    assert "event: introduction_generated" not in results_str
-    assert "event: done" in results_str
 
-    mock_generate_intro.assert_called_once()
+    results_str = "".join(results)
+    assert "event: introduction_generated" in results_str
+    assert 'id="refine_introduction_preview"' in results_str
+    assert "mocked intro" in results_str
+
+    # Check that intro gen was called correctly at the end
+    mock_reconstruct.assert_called_once()
+    mock_extract_banner.assert_called_once_with(test_resume.content)
+    mock_generate_intro.assert_called_once_with(
+        resume_content="reconstructed content for intro gen",
+        job_description="a new job",
+        llm_config=LLMConfig(llm_endpoint=None, api_key=None, llm_model_name=None),
+        original_banner="original banner",
+    )
+
+    # Check that final processing received the generated intro
     mock_process_result.assert_called_once()
-    call_args = mock_process_result.call_args.args[0]
-    assert call_args.introduction == "mocked intro"
+    final_params = mock_process_result.call_args.kwargs["params"]
+    assert final_params.introduction == "mocked intro"
 
 
 def test_process_refined_role_event_success():
@@ -205,13 +227,13 @@ def test_process_refined_role_event_success():
     )
     event = {
         "status": "role_refined",
-        "data": role.model_dump(),
+        "data": role.model_dump(mode="json"),
         "original_index": 0,
     }
 
     message = _process_refined_role_event(event, refined_roles)
 
-    assert refined_roles == {0: role.model_dump()}
+    assert refined_roles == {0: role.model_dump(mode="json")}
     assert message is not None
     assert "event: progress" in message
     assert "data: <li>Refined Role: Engineer at Test Corp</li>" in message
@@ -323,17 +345,18 @@ async def test_experience_refinement_sse_generator_malformed_events(
         resume_content_to_refine=test_resume.content,
         original_resume_content=test_resume.content,
         job_description="a new job",
+        limit_refinement_years=None,
     )
     results = [
         item async for item in experience_refinement_sse_generator(params=params)
     ]
 
-    assert len(results) == 3
-    assert "event: error" in results[0]
-    assert "Refinement finished, but no roles were found to refine." in results[0]
-    assert "event: done" in results[1]
-    assert "<html>final html</html>" in results[1]
-    assert "event: close" in results[2]
+    # The stream skips the malformed event, then proceeds to finalization,
+    # which yields: intro_progress, intro_generated, error (no roles), done, close
+    assert len(results) == 5
+    assert "event: introduction_generated" in "".join(results)
+    assert "event: error" in results[2]
+    assert "Refinement finished, but no roles were found to refine." in results[2]
 
 
 @pytest.mark.asyncio
@@ -379,12 +402,13 @@ async def test_experience_refinement_sse_generator_empty_generator(
         item async for item in experience_refinement_sse_generator(params=params)
     ]
 
-    assert len(results) == 3
-    assert "event: error" in results[0]
-    assert "Refinement finished, but no roles were found to refine." in results[0]
-    assert "event: done" in results[1]
-    assert "<html>final html</html>" in results[1]
-    assert "event: close" in results[2]
+    # intro_progress, intro_generated, error (no roles), done, close
+    assert len(results) == 5
+    assert "event: error" in results[2]
+    assert "Refinement finished, but no roles were found to refine." in results[2]
+    assert "event: done" in results[3]
+    assert "<html>final html</html>" in results[3]
+    assert "event: close" in results[4]
 
 
 @pytest.mark.asyncio
@@ -493,6 +517,28 @@ async def test_experience_refinement_sse_generator_generic_exception(
     mock_handle_exception.assert_called_once_with(error, test_resume.id)
 
 
+
+
+
+
+
+
+
+
+def test_process_sse_event_handles_job_analysis_complete():
+    """Test that _process_sse_event handles a job_analysis_complete event."""
+    refined_roles = {}
+    message_text = "Job analysis has completed."
+    event = {"status": "job_analysis_complete", "message": message_text}
+
+    sse_message = _process_sse_event(event, refined_roles)
+
+    assert sse_message is not None
+    assert "event: progress" in sse_message
+    assert f"data: <li>{message_text}</li>" in sse_message
+    assert not refined_roles
+
+
 @pytest.mark.asyncio
 @patch(
     "resume_editor.app.api.routes.route_logic.resume_ai_logic.create_sse_close_message",
@@ -508,7 +554,7 @@ async def test_experience_refinement_sse_generator_generic_exception(
     "resume_editor.app.api.routes.route_logic.resume_ai_logic.async_refine_experience_section"
 )
 @patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.get_llm_config")
-async def test_generator_breaks_on_timeout_if_task_done(
+async def test_generator_with_progress_but_no_refined_roles(
     mock_get_llm_config,
     mock_async_refine_experience,
     mock_process_result,
@@ -518,7 +564,7 @@ async def test_generator_breaks_on_timeout_if_task_done(
     test_resume,
     caplog,
 ):
-    """Test generator breaks on TimeoutError if the background task is done and the queue is empty."""
+    """Test generator handles a stream that yields progress but no refined roles."""
     mock_get_llm_config.return_value = (None, None, None)
     mock_generate_intro.return_value = "mock intro"
     mock_process_result.return_value = "<html>final html</html>"
@@ -535,6 +581,7 @@ async def test_generator_breaks_on_timeout_if_task_done(
         resume_content_to_refine=test_resume.content,
         original_resume_content=test_resume.content,
         job_description="job",
+        limit_refinement_years=None,
     )
 
     with caplog.at_level(logging.DEBUG):
@@ -542,14 +589,18 @@ async def test_generator_breaks_on_timeout_if_task_done(
             item async for item in experience_refinement_sse_generator(params=params)
         ]
 
-    assert len(results) == 4
+    assert len(results) == 6
+    results_str = "".join(results)
     assert "event: progress" in results[0]
-    assert "event: error" in results[1]
-    assert "Refinement finished, but no roles were found to refine." in results[1]
-    assert "event: done" in results[2]
-    assert "<html>final html</html>" in results[2]
-    assert "not a close message" in results[3]
-    assert "LLM task finished and queue is empty. Closing stream." in caplog.text
+    assert "done" in results[0]
+    assert "event: progress" in results[1]
+    assert "Generating AI introduction" in results[1]
+    assert "event: introduction_generated" in results[2]
+    assert "event: error" in results[3]
+    assert "Refinement finished, but no roles were found to refine." in results[3]
+    assert "event: done" in results[4]
+    assert "<html>final html</html>" in results[4]
+    assert "not a close message" in results[5]
 
 
 @pytest.mark.asyncio
@@ -557,26 +608,25 @@ async def test_generator_breaks_on_timeout_if_task_done(
     "resume_editor.app.api.routes.route_logic.resume_ai_logic.async_refine_experience_section"
 )
 @patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.get_llm_config")
-async def test_generator_cancels_task_on_client_disconnect(
+async def test_generator_handles_client_disconnect_gracefully(
     mock_get_llm_config,
     mock_async_refine_experience,
     test_user,
     test_resume,
     caplog,
 ):
-    """Test that the background LLM task is cancelled when the client disconnects from the generator."""
+    """Test that the generator handles client disconnects gracefully."""
     mock_get_llm_config.return_value = (None, None, None)
 
-    task_was_cancelled = asyncio.Event()
+    generator_was_closed = asyncio.Event()
 
     async def slow_generator():
-        """A mock generator that runs slowly and signals when cancelled."""
+        """A mock generator that runs slowly and signals when closed."""
         try:
             yield {"status": "in_progress", "message": "starting"}
             await asyncio.sleep(10)  # Simulate a long-running process
-        except asyncio.CancelledError:
-            task_was_cancelled.set()
-            raise
+        finally:
+            generator_was_closed.set()
 
     mock_async_refine_experience.return_value = slow_generator()
 
@@ -587,6 +637,7 @@ async def test_generator_cancels_task_on_client_disconnect(
         resume_content_to_refine=test_resume.content,
         original_resume_content=test_resume.content,
         job_description="job",
+        limit_refinement_years=None,
     )
 
     sse_generator = experience_refinement_sse_generator(params=params)
@@ -598,18 +649,19 @@ async def test_generator_cancels_task_on_client_disconnect(
         assert "starting" in first_item
 
         # Simulate the client disconnecting by throwing an exception into the generator.
-        # The generator will catch GeneratorExit, log a warning, and then finish,
-        # which causes athrow to raise StopAsyncIteration.
         with pytest.raises(StopAsyncIteration):
             await sse_generator.athrow(GeneratorExit)
 
     assert f"SSE stream closed for resume {test_resume.id}." in caplog.text
 
-    # Check that the underlying llm_task was cancelled
+    # Check that the underlying generator was closed.
     try:
-        await asyncio.wait_for(task_was_cancelled.wait(), timeout=1.0)
+        await asyncio.wait_for(generator_was_closed.wait(), timeout=1.0)
     except asyncio.TimeoutError:
-        pytest.fail("The llm_task was not cancelled.")
+        pytest.fail("The underlying generator was not closed.")
+
+
+
 
 
 @pytest.mark.asyncio
@@ -623,7 +675,7 @@ async def test_generator_cancels_task_on_client_disconnect(
     "resume_editor.app.api.routes.route_logic.resume_ai_logic.async_refine_experience_section"
 )
 @patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.get_llm_config")
-async def test_generator_continues_on_timeout_if_task_not_done(
+async def test_generator_with_slow_llm_stream(
     mock_get_llm_config,
     mock_async_refine_experience,
     mock_process_result,
@@ -632,14 +684,14 @@ async def test_generator_continues_on_timeout_if_task_not_done(
     test_resume,
     caplog,
 ):
-    """Test that the generator continues on TimeoutError if the background task is not yet done."""
+    """Test that the generator handles a slow/laggy LLM stream."""
     mock_get_llm_config.return_value = (None, None, None)
     mock_generate_intro.return_value = "mock intro"
     mock_process_result.return_value = "<html>final html</html>"
 
     async def slow_generator():
         """A generator that waits before yielding a message."""
-        await asyncio.sleep(1.2)  # longer than the timeout
+        await asyncio.sleep(0.1)
         yield {"status": "in_progress", "message": "I was slow"}
 
     mock_async_refine_experience.return_value = slow_generator()
@@ -651,31 +703,33 @@ async def test_generator_continues_on_timeout_if_task_not_done(
         resume_content_to_refine=test_resume.content,
         original_resume_content=test_resume.content,
         job_description="job",
+        limit_refinement_years=None,
     )
 
     with caplog.at_level(logging.DEBUG):
-        # This will iterate through the generator. It should experience at least one timeout
-        # while waiting for the slow generator.
         results = [
             item async for item in experience_refinement_sse_generator(params=params)
         ]
 
-    # The loop should have timed out at least once, but continued because main_task wasn't done.
-    # The final stream should contain: progress, error, done, close.
-    assert len(results) == 4
+    # The final stream should contain all events, even with a slow stream.
+    # progress, intro_progress, intro_generated, error, done, close
+    assert len(results) == 6
     results_str = "".join(results)
     assert "event: progress" in results_str
     assert "I was slow" in results_str
+    assert "event: introduction_generated" in results_str
     assert "event: error" in results_str
     assert "Refinement finished, but no roles were found to refine" in results_str
     assert "event: done" in results_str
     assert "<html>final html</html>" in results_str
     assert "event: close" in results_str
-    # Check that we did not prematurely log the "task finished" message
-    assert "LLM task finished and queue is empty" not in caplog.text
 
 
 @pytest.mark.asyncio
+@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.extract_banner_text")
+@patch(
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic._reconstruct_refined_resume_content"
+)
 @patch(
     "resume_editor.app.api.routes.route_logic.resume_ai_logic.generate_introduction_from_resume"
 )
@@ -686,238 +740,26 @@ async def test_generator_continues_on_timeout_if_task_not_done(
     "resume_editor.app.api.routes.route_logic.resume_ai_logic.async_refine_experience_section"
 )
 @patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.get_llm_config")
-async def test_experience_refinement_sse_generator_with_introduction(
+async def test_sse_generator_intro_generation_retries_on_failure(
     mock_get_llm_config,
     mock_async_refine_experience,
     mock_process_result,
     mock_generate_intro,
-    test_user,
-    test_resume,
-):
-    """Test SSE refinement where introduction is provided by the stream."""
-    mock_get_llm_config.return_value = (
-        "http://llm.test",
-        "test-model",
-        "decrypted_key",
-    )
-    stream_intro = "Generated Test Intro"
-
-    async def mock_async_generator():
-        yield {"status": "introduction_generated", "data": stream_intro}
-        yield {"status": "in_progress", "message": "doing stuff"}
-
-    mock_async_refine_experience.return_value = mock_async_generator()
-    mock_process_result.return_value = "<html>final refined html</html>"
-
-    mock_db = Mock()
-    params = ExperienceRefinementParams(
-        db=mock_db,
-        user=test_user,
-        resume=test_resume,
-        resume_content_to_refine=test_resume.content,
-        original_resume_content=test_resume.content,
-        job_description="a new job",
-    )
-    results = [
-        item async for item in experience_refinement_sse_generator(params=params)
-    ]
-
-    expected_events = 5
-    assert (
-        len(results) == expected_events
-    ), f"Expected {expected_events} events, got {len(results)}: {results}"
-    results_str = "".join(results)
-    assert "event: introduction_generated" in results_str
-    assert "event: progress" in results_str
-    assert "event: done" in results_str
-    assert "event: error" in results_str
-    assert "Refinement finished, but no roles were found to refine" in results_str
-    assert "event: close" in results_str
-
-    # Assert that the OOB swap for introduction is present
-    assert 'hx-swap-oob="true"' in results_str
-    assert stream_intro in results_str
-
-    mock_get_llm_config.assert_called_once()
-    expected_llm_config = LLMConfig(
-        llm_endpoint="http://llm.test",
-        api_key="decrypted_key",
-        llm_model_name="test-model",
-    )
-    mock_async_refine_experience.assert_called_once_with(
-        resume_content=test_resume.content,
-        job_description="a new job",
-        llm_config=expected_llm_config,
-    )
-
-    mock_generate_intro.assert_not_called()
-    mock_process_result.assert_called_once()
-    call_args = mock_process_result.call_args.args[0]
-    assert call_args.introduction == stream_intro
-    assert not call_args.refined_roles
-
-
-@pytest.mark.asyncio
-@patch(
-    "resume_editor.app.api.routes.route_logic.resume_ai_logic.generate_introduction_from_resume"
-)
-@patch(
-    "resume_editor.app.api.routes.route_logic.resume_ai_logic.process_refined_experience_result"
-)
-@patch(
-    "resume_editor.app.api.routes.route_logic.resume_ai_logic.async_refine_experience_section"
-)
-@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.get_llm_config")
-async def test_experience_refinement_sse_generator_fallback_introduction_fails(
-    mock_get_llm_config,
-    mock_async_refine_experience,
-    mock_process_result,
-    mock_generate_intro,
+    mock_reconstruct,
+    mock_extract_banner,
     test_user,
     test_resume,
     caplog,
 ):
-    """Test SSE refinement with FAILED fallback introduction generation."""
-    mock_get_llm_config.return_value = (
-        "http://llm.test",
-        "test-model",
-        "decrypted_key",
-    )
-    fallback_error = Exception("Fallback failed")
-    mock_generate_intro.side_effect = fallback_error
-
-    # No introduction event from the stream, but one role refined
-    refined_role1 = Role(
-        basics=RoleBasics(
-            company="Refined Company 1",
-            title="Refined Role 1",
-            start_date="2024-01-01",
-        ),
-        summary=RoleSummary(text="Refined Summary 1"),
-    )
-    refined_role1_data = refined_role1.model_dump()
-
-    async def mock_async_generator():
-        yield {"status": "in_progress", "message": "doing stuff"}
-        yield {
-            "status": "role_refined",
-            "data": refined_role1_data,
-            "original_index": 0,
-        }
-
-    mock_async_refine_experience.return_value = mock_async_generator()
-    mock_process_result.return_value = "<html>final html</html>"
-
-    mock_db = Mock()
-    params = ExperienceRefinementParams(
-        db=mock_db,
-        user=test_user,
-        resume=test_resume,
-        resume_content_to_refine=test_resume.content,
-        original_resume_content=test_resume.content,
-        job_description="a new job",
-    )
-
-    with caplog.at_level(logging.DEBUG):
-        results = [
-            item async for item in experience_refinement_sse_generator(params=params)
-        ]
-
-    # Still progresses to 'done' and 'close'
-    assert len(results) == 4
-    results_str = "".join(results)
-    assert "event: progress" in results_str
-    assert "event: done" in results_str
-    assert "event: close" in results_str
-
-    mock_generate_intro.assert_called_once()
-    mock_process_result.assert_called_once()
-
-    # Check that introduction is the default string in the final processing step
-    call_args = mock_process_result.call_args.args[0]
-    expected_default_intro = "Professional summary tailored to the provided job description. Customize this section to emphasize your most relevant experience, accomplishments, and skills."
-    assert call_args.introduction == expected_default_intro
-
-    # Check that the exception was logged
-    assert "Failed to generate introduction fallback: Fallback failed" in caplog.text
-
-
-@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.env.get_template")
-def test_process_sse_event_handles_introduction(mock_get_template):
-    """Test that _process_sse_event handles an introduction_generated event."""
-    refined_roles = {}
-    intro_text = "This is a generated introduction."
-    event = {
-        "status": "introduction_generated",
-        "data": intro_text,
-    }
-
-    mock_template = Mock()
-    mock_template.render.return_value = (
-        f'<div hx-swap-oob="true">{intro_text}</div>'
-    )
-    mock_get_template.return_value = mock_template
-
-    sse_message, introduction = _process_sse_event(event, refined_roles)
-
-    assert introduction == intro_text
-    assert sse_message is not None
-    assert "event: introduction_generated" in sse_message
-    assert 'hx-swap-oob="true"' in sse_message
-    assert intro_text in sse_message
-    assert not refined_roles
-
-    mock_get_template.assert_called_once_with(
-        "partials/resume/_refine_result_intro.html"
-    )
-    mock_template.render.assert_called_once_with(introduction=intro_text)
-
-
-def test_process_sse_event_handles_job_analysis_complete():
-    """Test that _process_sse_event handles a job_analysis_complete event."""
-    refined_roles = {}
-    message_text = "Job analysis has completed."
-    event = {"status": "job_analysis_complete", "message": message_text}
-
-    sse_message, introduction = _process_sse_event(event, refined_roles)
-
-    assert introduction is None
-    assert sse_message is not None
-    assert "event: progress" in sse_message
-    assert f"data: <li>{message_text}</li>" in sse_message
-    assert not refined_roles
-
-
-@pytest.mark.asyncio
-@patch(
-    "resume_editor.app.api.routes.route_logic.resume_ai_logic.generate_introduction_from_resume"
-)
-@patch(
-    "resume_editor.app.api.routes.route_logic.resume_ai_logic.process_refined_experience_result"
-)
-@patch(
-    "resume_editor.app.api.routes.route_logic.resume_ai_logic.async_refine_experience_section"
-)
-@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.get_llm_config")
-async def test_experience_refinement_sse_generator_handles_job_analysis_complete_event(
-    mock_get_llm_config,
-    mock_async_refine_experience,
-    mock_process_result,
-    mock_generate_intro,
-    test_user,
-    test_resume,
-):
-    """Test the SSE generator correctly handles the job_analysis_complete event."""
+    """Test that introduction generation is retried on failure."""
     mock_get_llm_config.return_value = (None, None, None)
-    mock_generate_intro.return_value = "mocked intro"
-    mock_process_result.return_value = "<html>final html</html>"
-
-    analysis_message = "Job analysis complete."
+    mock_generate_intro.side_effect = [Exception("Fail 1"), "Success on 2nd try"]
+    mock_reconstruct.return_value = "content"
+    mock_extract_banner.return_value = "banner"
+    mock_process_result.return_value = "<html>final</html>"
 
     async def mock_async_generator():
         yield {"status": "in_progress", "message": "doing stuff"}
-        yield {"status": "job_analysis_complete", "message": analysis_message}
-        yield {"status": "in_progress", "message": "doing other stuff"}
 
     mock_async_refine_experience.return_value = mock_async_generator()
 
@@ -927,27 +769,257 @@ async def test_experience_refinement_sse_generator_handles_job_analysis_complete
         resume=test_resume,
         resume_content_to_refine=test_resume.content,
         original_resume_content=test_resume.content,
-        job_description="a new job",
+        job_description="a job",
+        limit_refinement_years=None,
     )
+
+    with caplog.at_level(logging.WARNING):
+        _ = [item async for item in experience_refinement_sse_generator(params=params)]
+
+    assert "Attempt 1 to generate introduction failed: Fail 1" in caplog.text
+    assert mock_generate_intro.call_count == 2
+
+    mock_process_result.assert_called_once()
+    final_params = mock_process_result.call_args.kwargs["params"]
+    assert final_params.introduction == "Success on 2nd try"
+
+
+@pytest.mark.asyncio
+@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.extract_banner_text")
+@patch(
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic._reconstruct_refined_resume_content"
+)
+@patch(
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic.generate_introduction_from_resume"
+)
+@patch(
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic.process_refined_experience_result"
+)
+@patch(
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic.async_refine_experience_section"
+)
+@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.get_llm_config")
+async def test_sse_generator_intro_generation_retries_on_empty_string(
+    mock_get_llm_config,
+    mock_async_refine_experience,
+    mock_process_result,
+    mock_generate_intro,
+    mock_reconstruct,
+    mock_extract_banner,
+    test_user,
+    test_resume,
+    caplog,
+):
+    """Test intro generation is retried if the LLM returns an empty string."""
+    mock_get_llm_config.return_value = (None, None, None)
+    # First call returns empty string, second call succeeds
+    mock_generate_intro.side_effect = ["   ", "Success on 2nd try"]
+    mock_reconstruct.return_value = "content"
+    mock_extract_banner.return_value = "banner"
+    mock_process_result.return_value = "<html>final</html>"
+
+    async def mock_async_generator():
+        yield {"status": "in_progress", "message": "doing stuff"}
+
+    mock_async_refine_experience.return_value = mock_async_generator()
+
+    params = ExperienceRefinementParams(
+        db=Mock(),
+        user=test_user,
+        resume=test_resume,
+        resume_content_to_refine=test_resume.content,
+        original_resume_content=test_resume.content,
+        job_description="a job",
+        limit_refinement_years=None,
+    )
+
+    with caplog.at_level(logging.DEBUG):
+        _ = [item async for item in experience_refinement_sse_generator(params=params)]
+
+    assert mock_generate_intro.call_count == 2
+    mock_process_result.assert_called_once()
+    final_params = mock_process_result.call_args.kwargs["params"]
+    assert final_params.introduction == "Success on 2nd try"
+
+
+@pytest.mark.asyncio
+@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.extract_banner_text")
+@patch(
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic._reconstruct_refined_resume_content"
+)
+@patch(
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic.generate_introduction_from_resume"
+)
+@patch(
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic.process_refined_experience_result"
+)
+@patch(
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic.async_refine_experience_section"
+)
+@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.get_llm_config")
+async def test_sse_generator_intro_generation_fallback_on_total_failure(
+    mock_get_llm_config,
+    mock_async_refine_experience,
+    mock_process_result,
+    mock_generate_intro,
+    mock_reconstruct,
+    mock_extract_banner,
+    test_user,
+    test_resume,
+    caplog,
+):
+    """Test intro generation falls back to default if all retries fail."""
+    mock_get_llm_config.return_value = (None, None, None)
+    # All three calls fail
+    mock_generate_intro.side_effect = [
+        Exception("Fail 1"),
+        Exception("Fail 2"),
+        Exception("Fail 3"),
+    ]
+    mock_reconstruct.return_value = "content"
+    mock_extract_banner.return_value = "banner"
+    mock_process_result.return_value = "<html>final</html>"
+
+    async def mock_async_generator():
+        yield {"status": "in_progress", "message": "doing stuff"}
+
+    mock_async_refine_experience.return_value = mock_async_generator()
+
+    params = ExperienceRefinementParams(
+        db=Mock(),
+        user=test_user,
+        resume=test_resume,
+        resume_content_to_refine=test_resume.content,
+        original_resume_content=test_resume.content,
+        job_description="a job",
+        limit_refinement_years=None,
+    )
+
+    with caplog.at_level(logging.ERROR):
+        _ = [item async for item in experience_refinement_sse_generator(params=params)]
+
+    assert (
+        "Failed to generate introduction after all retries. Using default."
+        in caplog.text
+    )
+    assert mock_generate_intro.call_count == 3
+
+    mock_process_result.assert_called_once()
+    final_params = mock_process_result.call_args.kwargs["params"]
+    assert "Professional summary tailored" in final_params.introduction
+
+
+
+
+@pytest.mark.asyncio
+@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.extract_banner_text")
+@patch(
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic._reconstruct_refined_resume_content"
+)
+@patch(
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic.generate_introduction_from_resume"
+)
+@patch(
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic.process_refined_experience_result"
+)
+@patch(
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic.async_refine_experience_section"
+)
+@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.get_llm_config")
+@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.env.get_template")
+async def test_sse_generator_e2e_refine_then_introduce_workflow(
+    mock_get_template,
+    mock_get_llm_config,
+    mock_async_refine_experience,
+    mock_process_result,
+    mock_generate_intro,
+    mock_reconstruct,
+    mock_extract_banner,
+    test_user,
+    test_resume,
+):
+    """
+    Tests the complete end-to-end 'refine-then-introduce' workflow in the SSE generator.
+    It verifies:
+    1. Role refinement events are processed from the LLM stream.
+    2. Introduction generation is triggered *after* role refinement.
+    3. The correct events are yielded in the correct order (progress, role, intro, done, close).
+    """
+    # Arrange
+    # Mock template rendering to isolate from actual template content
+    mock_template = Mock()
+    mock_template.render.return_value = "new mocked intro"
+    mock_get_template.return_value = mock_template
+
+    mock_get_llm_config.return_value = (None, None, None)
+    mock_generate_intro.return_value = "new mocked intro"
+    mock_reconstruct.return_value = "reconstructed content for intro gen"
+    mock_extract_banner.return_value = "original banner"
+    mock_process_result.return_value = "<html>final refined html</html>"
+
+    refined_role = Role(
+        basics=RoleBasics(
+            company="Refined Company", title="Refined Role", start_date="2024-01-01"
+        )
+    )
+    refined_role_data = refined_role.model_dump(mode="json")
+
+    # The async_refine_experience_section stream now ONLY yields refinement events
+    async def mock_refinement_stream():
+        yield {"status": "in_progress", "message": "refining role..."}
+        yield {
+            "status": "role_refined",
+            "data": refined_role_data,
+            "original_index": 0,
+        }
+
+    mock_async_refine_experience.return_value = mock_refinement_stream()
+
+    params = ExperienceRefinementParams(
+        db=Mock(),
+        user=test_user,
+        resume=test_resume,
+        resume_content_to_refine=test_resume.content,
+        original_resume_content=test_resume.content,
+        job_description="a new job",
+        limit_refinement_years=None,
+    )
+
+    # Act
     results = [
         item async for item in experience_refinement_sse_generator(params=params)
     ]
+    result_str = "".join(results)
 
-    # 1st progress, job analysis progress, 2nd progress, error (no roles), done, close
-    expected_events = 6
-    assert (
-        len(results) == expected_events
-    ), f"Expected {expected_events} events, got {len(results)}: {results}"
+    # Assert
+    # Total events:
+    # From refinement stream: 1 progress, 1 role_refined = 2
+    # From main generator: 1 intro progress, 1 intro generated, 1 done, 1 close = 4
+    # Total = 6
+    assert len(results) == 6, f"Expected 6 events, but got {len(results)}: {results}"
 
-    results_str = "".join(results)
+    # 1. Check for refinement events
+    assert "data: <li>refining role...</li>" in result_str
+    assert "data: <li>Refined Role: Refined Role at Refined Company</li>" in result_str
 
-    # Check for all progress messages
-    assert "data: <li>doing stuff</li>" in results_str
-    assert f"data: <li>{analysis_message}</li>" in results_str
-    assert "data: <li>doing other stuff</li>" in results_str
+    # 2. Check for introduction events
+    assert "data: <li>Generating AI introduction...</li>" in result_str
+    assert "event: introduction_generated" in result_str
+    assert "data: new mocked intro" in result_str
 
-    # Check for final events
-    assert "event: error" in results_str  # because no roles were refined
-    assert "Refinement finished, but no roles were found to refine." in results_str
-    assert "event: done" in results_str
-    assert "event: close" in results_str
+    # 3. Check for final events
+    assert "event: done" in result_str
+    assert "data: <html>final refined html</html>" in result_str
+    assert "event: close" in result_str
+
+    # 4. Verify mocks to confirm flow
+    mock_reconstruct.assert_called_once()
+    mock_generate_intro.assert_called_once_with(
+        resume_content="reconstructed content for intro gen",
+        job_description="a new job",
+        llm_config=LLMConfig(llm_endpoint=None, api_key=None, llm_model_name=None),
+        original_banner="original banner",
+    )
+    mock_process_result.assert_called_once()
+    final_params = mock_process_result.call_args.kwargs["params"]
+    assert final_params.introduction == "new mocked intro"

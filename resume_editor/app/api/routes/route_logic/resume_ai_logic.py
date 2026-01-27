@@ -1,8 +1,7 @@
-import asyncio
 import html
 import logging
 from pathlib import Path
-from typing import AsyncGenerator
+from typing import Any, AsyncGenerator
 
 from cryptography.fernet import InvalidToken
 from fastapi import HTTPException
@@ -22,6 +21,7 @@ from resume_editor.app.api.routes.route_logic.resume_crud import (
     create_resume as create_resume_db,
 )
 from resume_editor.app.api.routes.route_logic.resume_serialization import (
+    extract_banner_text,
     extract_experience_info,
     serialize_experience_to_markdown,
 )
@@ -232,7 +232,10 @@ def create_sse_introduction_message(introduction: str) -> str:
     """
     intro_template = env.get_template("partials/resume/_refine_result_intro.html")
     intro_html = intro_template.render(introduction=introduction)
-    return create_sse_message(event="introduction_generated", data=intro_html)
+    return create_sse_message(
+        event="introduction_generated",
+        data=intro_html,
+    )
 
 
 def create_sse_error_message(message: str, is_warning: bool = False) -> str:
@@ -528,11 +531,15 @@ def _process_refined_role_event(
     try:
         # Validate data and create a progress message
         role = Role.model_validate(data)
-        refined_roles[index] = data
-        if role.basics and role.basics.title and role.basics.company:
-            return create_sse_progress_message(
-                f"Refined Role: {role.basics.title} at {role.basics.company}",
-            )
+
+        # A valid role must have 'basics'. If it's missing, treat as validation failure.
+        if not role.basics:
+            raise ValueError("Refined role data is missing 'basics' section.")
+
+        refined_roles[index] = role.model_dump(mode="json")
+        return create_sse_progress_message(
+            f"Refined Role: {role.basics.title} at {role.basics.company}",
+        )
     except Exception as e:
         _msg = f"Failed to validate refined role data: {e!s}"
         log.exception(_msg)
@@ -543,7 +550,7 @@ def _process_refined_role_event(
 def _process_sse_event(
     event: dict,
     refined_roles: dict,
-) -> tuple[str | None, str | None]:
+) -> str | None:
     """Processes a single SSE event from the experience refinement stream.
 
     This helper function updates the state of refined roles and determines
@@ -554,25 +561,21 @@ def _process_sse_event(
         refined_roles (dict): A dictionary to be updated with refined role data.
 
     Returns:
-        tuple[str | None, str | None]: A tuple containing an optional SSE message
-                                       to yield and optional new introduction text.
+        str | None: An optional SSE message to yield.
 
     Notes:
         1.  Gets the 'status' from the event dictionary.
         2.  If status is 'in_progress', creates a progress message.
         3.  If status is 'job_analysis_complete', creates a progress message.
-        4.  If status is 'introduction_generated', creates a progress message
-            confirming generation and extracts the introduction text.
-        5.  If status is 'role_refined', processes the role data and creates a
+        4.  If status is 'role_refined', processes the role data and creates a
             progress message.
-        6.  Returns a tuple with the SSE message and the introduction text (if any).
+        5.  Returns the SSE message.
 
     """
     _msg = f"_process_sse_event starting with event: {event}"
     log.debug(_msg)
 
     sse_message = None
-    new_introduction = None
 
     status = event.get("status")
 
@@ -581,20 +584,14 @@ def _process_sse_event(
     elif status == "job_analysis_complete":
         message = event.get("message", "")
         sse_message = create_sse_progress_message(message)
-    elif status == "introduction_generated":
-        introduction_text = event.get("data")
-        new_introduction = introduction_text
-        if introduction_text:
-            sse_message = create_sse_introduction_message(introduction_text)
     elif status == "role_refined":
         sse_message = _process_refined_role_event(event, refined_roles)
     else:
         _msg = f"Unhandled SSE event received: {event}"
         log.warning(_msg)
-    result = (sse_message, new_introduction)
     _msg = "_process_sse_event returning"
     log.debug(_msg)
-    return result
+    return sse_message
 
 
 def _handle_sse_exception(e: Exception, resume_id: int) -> str:
@@ -628,131 +625,104 @@ def _handle_sse_exception(e: Exception, resume_id: int) -> str:
     return result
 
 
-async def _process_llm_stream_events(
+async def _stream_llm_events(
     params: "ExperienceRefinementParams",
     llm_config: LLMConfig,
-    message_queue: asyncio.Queue,
-) -> tuple[dict, str | None]:
-    """Process events from the LLM stream and put them on the queue."""
-    refined_roles = {}
-    introduction = None
-
-    async for event in async_refine_experience_section(
+    refined_roles: dict,
+) -> AsyncGenerator[str, None]:
+    """Streams events from the LLM and yields SSE messages."""
+    refinement_stream = async_refine_experience_section(
         resume_content=params.resume_content_to_refine,
         job_description=params.job_description,
         llm_config=llm_config,
-    ):
-        sse_message, new_introduction = _process_sse_event(event, refined_roles)
-        if sse_message:
-            await message_queue.put(sse_message)
-        if new_introduction is not None:
-            introduction = new_introduction
-
-    return refined_roles, introduction
-
-
-async def _finalize_llm_refinement(
-    refined_roles: dict,
-    introduction: str | None,
-    params: "ExperienceRefinementParams",
-    message_queue: asyncio.Queue,
-    llm_config: LLMConfig,
-):
-    """Finalize refinement, process results, and queue done/error messages."""
-    # Always ensure an introduction is produced.
-    needs_intro = introduction is None or (
-        isinstance(introduction, str) and not introduction.strip()
     )
-    if needs_intro:
-        _msg = "No introduction captured from stream; generating introduction fallback."
-        log.debug(_msg)
-        try:
-            introduction = generate_introduction_from_resume(
-                resume_content=params.original_resume_content,
-                job_description=params.job_description,
-                llm_config=llm_config,
-            )
-        except Exception as e:
-            _msg = f"Failed to generate introduction fallback: {e!s}"
-            log.exception(_msg)
+    try:
+        async for event in refinement_stream:
+            sse_message = _process_sse_event(event, refined_roles)
+            if sse_message:
+                yield sse_message
+    finally:
+        # Ensure the underlying generator is closed to prevent resource leaks
+        await refinement_stream.aclose()
 
-    # If still missing, provide a deterministic default introduction.
-    if introduction is None or (
-        isinstance(introduction, str) and not introduction.strip()
-    ):
-        introduction = "Professional summary tailored to the provided job description. Customize this section to emphasize your most relevant experience, accomplishments, and skills."
 
-    if not refined_roles:
-        await message_queue.put(
-            create_sse_error_message(
-                "Refinement finished, but no roles were found to refine.",
-                is_warning=True,
-            ),
-        )
+async def _stream_final_events(
+    refined_roles: dict,
+    params: "ExperienceRefinementParams",
+    llm_config: LLMConfig,
+) -> AsyncGenerator[str, None]:
+    """Finalize refinement, process results, and yields SSE messages."""
+    # We now always generate the introduction here at the end.
     limit_years_int = (
         int(params.limit_refinement_years) if params.limit_refinement_years else None
     )
+
+    # 1. Reconstruct the resume with refined roles but no new introduction yet.
+    reconstruct_params = ProcessExperienceResultParams(
+        resume_id=params.resume.id,
+        original_resume_content=params.original_resume_content,
+        resume_content_to_refine=params.resume_content_to_refine,
+        refined_roles=refined_roles,
+        job_description=params.job_description,
+        introduction=None,  # Intentionally None to get content for intro generation
+        limit_refinement_years=limit_years_int,
+    )
+    refined_resume_for_intro_gen = _reconstruct_refined_resume_content(
+        params=reconstruct_params,
+    )
+
+    # 2. Extract original banner for context
+    original_banner = extract_banner_text(params.original_resume_content)
+
+    # 3. Generate a new introduction with retries
+    yield create_sse_progress_message("Generating AI introduction...")
+    generated_introduction = None
+    for i in range(3):  # Retry up to 3 times
+        try:
+            _msg = f"Attempt {i + 1} to generate introduction."
+            log.debug(_msg)
+            generated_introduction = generate_introduction_from_resume(
+                resume_content=refined_resume_for_intro_gen,
+                job_description=params.job_description,
+                llm_config=llm_config,
+                original_banner=original_banner,
+            )
+            if generated_introduction and generated_introduction.strip():
+                _msg = "Introduction generated successfully."
+                log.debug(_msg)
+                break  # Success
+            else:
+                generated_introduction = None  # Reset on empty result
+        except Exception as e:
+            _msg = f"Attempt {i + 1} to generate introduction failed: {e!s}"
+            log.warning(_msg)
+
+    # 4. Fallback to default if generation failed
+    if not generated_introduction:
+        _msg = "Failed to generate introduction after all retries. Using default."
+        log.error(_msg)
+        generated_introduction = "Professional summary tailored to the provided job description. Customize this section to emphasize your most relevant experience, accomplishments, and skills."
+
+    yield create_sse_introduction_message(generated_introduction)
+
+    if not refined_roles:
+        yield create_sse_error_message(
+            "Refinement finished, but no roles were found to refine.",
+            is_warning=True,
+        )
+
+    # 5. Pass generated intro to final processing
     process_params = ProcessExperienceResultParams(
         resume_id=params.resume.id,
         original_resume_content=params.original_resume_content,
         resume_content_to_refine=params.resume_content_to_refine,
         refined_roles=refined_roles,
         job_description=params.job_description,
-        introduction=introduction,
+        introduction=generated_introduction,
         limit_refinement_years=limit_years_int,
     )
-    result_html = process_refined_experience_result(process_params)
-    await message_queue.put(create_sse_done_message(result_html))
-
-
-async def _llm_task(params: "ExperienceRefinementParams", message_queue: asyncio.Queue):
-    """The main background task for performing LLM refinement."""
-    try:
-        llm_endpoint, llm_model_name, api_key = get_llm_config(
-            params.db,
-            params.user.id,
-        )
-        llm_config = LLMConfig(
-            llm_endpoint=llm_endpoint,
-            api_key=api_key,
-            llm_model_name=llm_model_name,
-        )
-
-        refined_roles, introduction = await _process_llm_stream_events(
-            params=params,
-            llm_config=llm_config,
-            message_queue=message_queue,
-        )
-
-        await _finalize_llm_refinement(
-            refined_roles=refined_roles,
-            introduction=introduction,
-            params=params,
-            message_queue=message_queue,
-            llm_config=llm_config,
-        )
-
-    except Exception as e:
-        await message_queue.put(_handle_sse_exception(e, params.resume.id))
-    finally:
-        await message_queue.put(create_sse_close_message())
-
-
-async def _yield_messages_from_queue(
-    message_queue: asyncio.Queue,
-    main_task: asyncio.Task,
-) -> AsyncGenerator[str, None]:
-    """Yields messages from the queue until a 'close' event is received."""
-    while True:
-        try:
-            message = await asyncio.wait_for(message_queue.get(), timeout=1)
-            yield message
-            if "event: close" in message:
-                break
-        except asyncio.TimeoutError:
-            if main_task.done() and message_queue.empty():
-                log.debug("LLM task finished and queue is empty. Closing stream.")
-                break
+    result_html = process_refined_experience_result(params=process_params)
+    yield create_sse_done_message(result_html)
 
 
 async def experience_refinement_sse_generator(
@@ -760,14 +730,9 @@ async def experience_refinement_sse_generator(
 ) -> AsyncGenerator[str, None]:
     """Generates SSE events for the experience refinement process.
 
-    This function orchestrates the asynchronous experience refinement by running a
-    background task (`_llm_task`) that performs the LLM calls. It yields
-    messages from a queue, including progress, generated introductions, and the
-    final result.
-
-    The background task captures the introduction from the LLM stream and passes
-    it to `process_refined_experience_result` to ensure the final preview
-    includes it.
+    This function orchestrates the asynchronous experience refinement by calling
+    helper async generators to stream LLM events and then finalize the process.
+    It is a much simpler, single-task implementation.
 
     Args:
         params (ExperienceRefinementParams): An object containing all parameters
@@ -779,23 +744,45 @@ async def experience_refinement_sse_generator(
     """
     _msg = f"Streaming refinement for resume {params.resume.id} for section experience"
     log.debug(_msg)
-    message_queue: asyncio.Queue = asyncio.Queue()
 
-    main_task = asyncio.create_task(_llm_task(params, message_queue))
-
+    closed_by_client = False
     try:
-        async for message in _yield_messages_from_queue(message_queue, main_task):
-            yield message
+        llm_endpoint, llm_model_name, api_key = get_llm_config(
+            params.db,
+            params.user.id,
+        )
+        llm_config = LLMConfig(
+            llm_endpoint=llm_endpoint,
+            api_key=api_key,
+            llm_model_name=llm_model_name,
+        )
+
+        refined_roles: dict[int, Any] = {}
+        async for sse_message in _stream_llm_events(
+            params=params,
+            llm_config=llm_config,
+            refined_roles=refined_roles,
+        ):
+            yield sse_message
+
+        async for sse_message in _stream_final_events(
+            refined_roles=refined_roles,
+            params=params,
+            llm_config=llm_config,
+        ):
+            yield sse_message
+
     except GeneratorExit:
+        closed_by_client = True
         _msg = f"SSE stream closed for resume {params.resume.id}."
         log.warning(_msg)
+    except Exception as e:
+        yield _handle_sse_exception(e, params.resume.id)
     finally:
-        # Ensure the background task is cancelled if the client disconnects or
-        # the stream is otherwise closed.
-        if not main_task.done():
-            main_task.cancel()
-        _msg = "SSE generator finished."
-        log.debug(_msg)
+        if not closed_by_client:
+            yield create_sse_close_message()
+            _msg = "SSE generator finished."
+            log.debug(_msg)
 
 
 def handle_save_as_new_refinement(params: SaveAsNewParams) -> DatabaseResume:
