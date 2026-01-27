@@ -886,3 +886,68 @@ def test_process_sse_event_handles_job_analysis_complete():
     assert "event: progress" in sse_message
     assert f"data: <li>{message_text}</li>" in sse_message
     assert not refined_roles
+
+
+@pytest.mark.asyncio
+@patch(
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic.generate_introduction_from_resume"
+)
+@patch(
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic.process_refined_experience_result"
+)
+@patch(
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic.async_refine_experience_section"
+)
+@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.get_llm_config")
+async def test_experience_refinement_sse_generator_handles_job_analysis_complete_event(
+    mock_get_llm_config,
+    mock_async_refine_experience,
+    mock_process_result,
+    mock_generate_intro,
+    test_user,
+    test_resume,
+):
+    """Test the SSE generator correctly handles the job_analysis_complete event."""
+    mock_get_llm_config.return_value = (None, None, None)
+    mock_generate_intro.return_value = "mocked intro"
+    mock_process_result.return_value = "<html>final html</html>"
+
+    analysis_message = "Job analysis complete."
+
+    async def mock_async_generator():
+        yield {"status": "in_progress", "message": "doing stuff"}
+        yield {"status": "job_analysis_complete", "message": analysis_message}
+        yield {"status": "in_progress", "message": "doing other stuff"}
+
+    mock_async_refine_experience.return_value = mock_async_generator()
+
+    params = ExperienceRefinementParams(
+        db=Mock(),
+        user=test_user,
+        resume=test_resume,
+        resume_content_to_refine=test_resume.content,
+        original_resume_content=test_resume.content,
+        job_description="a new job",
+    )
+    results = [
+        item async for item in experience_refinement_sse_generator(params=params)
+    ]
+
+    # 1st progress, job analysis progress, 2nd progress, error (no roles), done, close
+    expected_events = 6
+    assert (
+        len(results) == expected_events
+    ), f"Expected {expected_events} events, got {len(results)}: {results}"
+
+    results_str = "".join(results)
+
+    # Check for all progress messages
+    assert "data: <li>doing stuff</li>" in results_str
+    assert f"data: <li>{analysis_message}</li>" in results_str
+    assert "data: <li>doing other stuff</li>" in results_str
+
+    # Check for final events
+    assert "event: error" in results_str  # because no roles were refined
+    assert "Refinement finished, but no roles were found to refine." in results_str
+    assert "event: done" in results_str
+    assert "event: close" in results_str

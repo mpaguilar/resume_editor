@@ -4353,6 +4353,24 @@ Notes:
 
 ---
 
+## function: `extract_banner_text(resume_content: str) -> str | None`
+
+Extract banner text from resume content.
+
+Args:
+    resume_content (str): The Markdown content of the resume to parse.
+
+Returns:
+    str | None: The banner text if found, otherwise None.
+
+Notes:
+    1. Parses the resume content using `_parse_resume`.
+    2. Safely accesses the `personal` section and its `banner` attribute.
+    3. Extracts the text from the banner object.
+    4. Returns the banner text or None if not found or on parsing error.
+
+---
+
 ## function: `serialize_personal_info_to_markdown(personal_info: PersonalInfoResponse | None) -> str`
 
 Serialize personal information to Markdown format.
@@ -6348,7 +6366,7 @@ Notes:
 
 ---
 
-## function: `_generate_introduction_from_analysis(job_analysis_json: str, resume_content: str, llm: ChatOpenAI) -> str`
+## function: `_generate_introduction_from_analysis(job_analysis_json: str, resume_content: str, llm: ChatOpenAI, original_banner: str | None) -> str`
 
 Orchestrates the resume analysis and introduction synthesis steps.
 
@@ -6357,6 +6375,7 @@ Args:
                              conforming to the `JobKeyRequirements` model.
     resume_content (str): The full Markdown content of the resume.
     llm (ChatOpenAI): An initialized ChatOpenAI client instance.
+    original_banner (str | None): The original banner text from the resume, to provide context to the LLM.
 
 Returns:
     str: The generated introduction as a Markdown-formatted bulleted list,
@@ -6373,7 +6392,7 @@ Notes:
 
 ---
 
-## function: `generate_introduction_from_resume(resume_content: str, job_description: str, llm_config: LLMConfig) -> str`
+## function: `generate_introduction_from_resume(resume_content: str, job_description: str, llm_config: LLMConfig, original_banner: str | None) -> str`
 
 Generates a resume introduction using a multi-step LLM chain.
 
@@ -6381,6 +6400,7 @@ Args:
     resume_content (str): The full Markdown content of the resume.
     job_description (str): The job description to align the introduction with.
     llm_config (LLMConfig): Configuration for the LLM client.
+    original_banner (str | None): The original banner text from the resume, to provide context to the LLM.
 
 Returns:
     str: The generated introduction, or an empty string if generation fails.
@@ -7160,13 +7180,40 @@ Returns:
 
 ---
 
+## function: `_reconstruct_refined_resume_content(params: ProcessExperienceResultParams) -> str`
+
+Reconstructs resume markdown with refined experience roles.
+
+This function takes refined role data, combines it with original projects,
+and reconstructs the full resume markdown content, preserving other sections
+from the original resume.
+
+Args:
+    params (ProcessExperienceResultParams): An object containing all parameters
+        needed for the reconstruction.
+
+Returns:
+    str: The complete, reconstructed resume content as a Markdown string.
+
+Notes:
+    1.  Extracts raw sections for Personal, Education, and Certifications to preserve them exactly.
+    2.  Updates the banner in the raw Personal section if an introduction is provided.
+    3.  Extracts projects from `original_resume_content` to preserve them.
+    4.  Extracts roles from `resume_content_to_refine`, which is the base for refinement.
+    5.  Updates the roles list with the `refined_roles` data from the LLM.
+    6.  Creates a new `ExperienceResponse` with the refined roles and original projects.
+    7.  Reconstructs the resume by combining the raw personal/education/certifications
+        sections with the newly serialized experience section.
+    8.  Returns the final, complete markdown string.
+
+---
+
 ## function: `process_refined_experience_result(params: ProcessExperienceResultParams) -> str`
 
-Processes refined experience roles and reconstructs the full resume.
+Processes refined experience roles and generates the final HTML result.
 
-This function takes the refined roles from the LLM, combines them with the
-original projects, and reconstructs the entire resume. It then generates
-the final HTML result to be sent in the 'done' SSE event.
+This function calls a helper to reconstruct the resume content with refined
+roles, and then generates the final HTML for the 'done' SSE event.
 
 Args:
     params (ProcessExperienceResultParams): An object containing all parameters
@@ -7176,13 +7223,8 @@ Returns:
     str: The complete HTML content for the body of the `done` event.
 
 Notes:
-    1.  Extracts raw sections for Personal, Education, and Certifications to preserve them exactly.
-    2.  Updates the banner in the raw Personal section if an introduction is provided.
-    3.  Extracts projects from `original_resume_content` and roles from `resume_content_to_refine`.
-    4.  Updates the roles list with the `refined_roles` data from the LLM.
-    5.  Creates a new `ExperienceResponse` with the refined roles and original projects.
-    6.  Reconstructs the resume using updated raw personal, raw education/certifications, and serialized experience.
-    7.  The final, complete markdown is passed to `_create_refine_result_html` to generate the HTML for the UI.
+    1.  Calls `_reconstruct_refined_resume_content` to get the final resume markdown.
+    2.  Passes the reconstructed content to `_create_refine_result_html` to generate the UI.
 
 ---
 
@@ -7210,11 +7252,12 @@ Returns:
 Notes:
     1.  Gets the 'status' from the event dictionary.
     2.  If status is 'in_progress', creates a progress message.
-    3.  If status is 'introduction_generated', creates a progress message
+    3.  If status is 'job_analysis_complete', creates a progress message.
+    4.  If status is 'introduction_generated', creates a progress message
         confirming generation and extracts the introduction text.
-    4.  If status is 'role_refined', processes the role data and creates a
+    5.  If status is 'role_refined', processes the role data and creates a
         progress message.
-    5.  Returns a tuple with the SSE message and the introduction text (if any).
+    6.  Returns a tuple with the SSE message and the introduction text (if any).
 
 ---
 

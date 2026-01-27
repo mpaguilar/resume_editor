@@ -165,11 +165,13 @@ def test_generate_introduction_from_analysis_success(
         ),
         GeneratedIntroduction(strengths=["Expert in Python", "Loves backend work"]),
     ]
+    original_banner = "This is the original banner"
 
     introduction = _generate_introduction_from_analysis(
         job_analysis_json=job_analysis_json,
         resume_content=resume_content_fixture,
         llm=mock_llm_sync,
+        original_banner=original_banner,
     )
 
     assert introduction == "- Expert in Python\n- Loves backend work"
@@ -180,6 +182,7 @@ def test_generate_introduction_from_analysis_success(
     assert resume_analysis_call.args[1] == CandidateAnalysis
     assert resume_analysis_call.kwargs["resume_content"] == resume_content_fixture
     assert resume_analysis_call.kwargs["job_requirements"] == job_analysis_json
+    assert resume_analysis_call.kwargs["original_banner"] == original_banner
 
     # Check call arguments for synthesis
     synthesis_call = mock_invoke_chain_and_parse.call_args_list[1]
@@ -210,10 +213,12 @@ def test_generate_introduction_from_analysis_failure(
         job_analysis_json=job_analysis_json,
         resume_content=resume_content_fixture,
         llm=mock_llm_sync,
+        original_banner=None,
     )
 
     assert introduction == ""
     mock_invoke_chain_and_parse.assert_called_once()
+    assert mock_invoke_chain_and_parse.call_args.kwargs["original_banner"] == ""
 
     _msg = "test_generate_introduction_from_analysis_failure returning"
     log.debug(_msg)
@@ -249,15 +254,21 @@ def test_generate_introduction_from_resume_end_to_end_mocked(
         ),
     ]
 
+    original_banner = "This is the original banner."
     result = generate_introduction_from_resume(
         resume_content=resume_content_fixture,
         job_description=job_description_fixture,
         llm_config=llm_config_fixture,
+        original_banner=original_banner,
     )
 
     assert result == "- Expert in Python\n- Great with FastAPI"
     assert mock_init_llm.call_count == 1
     assert mock_llm_sync.invoke.call_count == 3
+
+    # Check that original_banner was in the prompt for the resume analysis call
+    resume_analysis_prompt_value = mock_llm_sync.invoke.call_args_list[1].args[0]
+    assert original_banner in resume_analysis_prompt_value.to_string()
 
     _msg = "test_generate_introduction_from_resume_end_to_end_mocked returning"
     log.debug(_msg)
@@ -283,12 +294,14 @@ def test_generate_introduction_from_resume_success(
         key_skills=["Python"], candidate_priorities=["Backend"]
     )
     mock_internal_generate.return_value = "This is a generated introduction."
+    original_banner = "This is a banner."
 
     # Call the function under test
     result = generate_introduction_from_resume(
         resume_content=resume_content_fixture,
         job_description=job_description_fixture,
         llm_config=llm_config_fixture,
+        original_banner=original_banner,
     )
 
     # Assert the final result
@@ -310,6 +323,7 @@ def test_generate_introduction_from_resume_success(
         == resume_content_fixture
     )
     assert "job_analysis_json" in mock_internal_generate.call_args.kwargs
+    assert mock_internal_generate.call_args.kwargs["original_banner"] == original_banner
 
     _msg = "test_generate_introduction_from_resume_success returning"
     log.debug(_msg)
@@ -336,6 +350,7 @@ def test_generate_introduction_from_resume_job_analysis_fails(
         resume_content=resume_content_fixture,
         job_description=job_description_fixture,
         llm_config=llm_config_fixture,
+        original_banner="some banner",
     )
 
     assert result == ""

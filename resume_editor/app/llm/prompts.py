@@ -219,6 +219,8 @@ Resume Content:
 {resume_content}
 ---
 
+Here is the original banner for context and relevance: {original_banner}
+
 Now, output the JSON object:
 """
 

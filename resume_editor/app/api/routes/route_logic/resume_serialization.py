@@ -234,6 +234,40 @@ def extract_certifications_info(resume_content: str) -> CertificationsResponse:
     return CertificationsResponse(certifications=certs_list)
 
 
+def extract_banner_text(resume_content: str) -> str | None:
+    """Extract banner text from resume content.
+
+    Args:
+        resume_content (str): The Markdown content of the resume to parse.
+
+    Returns:
+        str | None: The banner text if found, otherwise None.
+
+    Notes:
+        1. Parses the resume content using `_parse_resume`.
+        2. Safely accesses the `personal` section and its `banner` attribute.
+        3. Extracts the text from the banner object.
+        4. Returns the banner text or None if not found or on parsing error.
+
+    """
+    log.debug("extract_banner_text starting")
+    try:
+        parsed_resume = _parse_resume(resume_content)
+        personal_section = getattr(parsed_resume, "personal", None)
+        if personal_section:
+            banner = getattr(personal_section, "banner", None)
+            if banner and hasattr(banner, "text"):
+                log.debug("extract_banner_text returning")
+                return banner.text
+    except ValueError:
+        log.warning("Could not parse resume to extract banner text.")
+        # Return None on parsing error as per design for this simple extractor
+        return None
+
+    log.debug("extract_banner_text returning")
+    return None
+
+
 def serialize_personal_info_to_markdown(
     personal_info: PersonalInfoResponse | None,
 ) -> str:

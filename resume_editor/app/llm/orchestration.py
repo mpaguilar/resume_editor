@@ -450,6 +450,7 @@ def _generate_introduction_from_analysis(
     job_analysis_json: str,
     resume_content: str,
     llm: ChatOpenAI,
+    original_banner: str | None = None,
 ) -> str:
     """Orchestrates the resume analysis and introduction synthesis steps.
 
@@ -458,6 +459,7 @@ def _generate_introduction_from_analysis(
                                  conforming to the `JobKeyRequirements` model.
         resume_content (str): The full Markdown content of the resume.
         llm (ChatOpenAI): An initialized ChatOpenAI client instance.
+        original_banner (str | None): The original banner text from the resume, to provide context to the LLM.
 
     Returns:
         str: The generated introduction as a Markdown-formatted bulleted list,
@@ -491,6 +493,7 @@ def _generate_introduction_from_analysis(
             CandidateAnalysis,
             resume_content=resume_content,
             job_requirements=job_analysis_json,
+            original_banner=original_banner or "",
         )
 
         # Step 3 from original: Synthesis
@@ -525,6 +528,7 @@ def generate_introduction_from_resume(
     resume_content: str,
     job_description: str,
     llm_config: LLMConfig,
+    original_banner: str | None = None,
 ) -> str:
     """Generates a resume introduction using a multi-step LLM chain.
 
@@ -532,6 +536,7 @@ def generate_introduction_from_resume(
         resume_content (str): The full Markdown content of the resume.
         job_description (str): The job description to align the introduction with.
         llm_config (LLMConfig): Configuration for the LLM client.
+        original_banner (str | None): The original banner text from the resume, to provide context to the LLM.
 
     Returns:
         str: The generated introduction, or an empty string if generation fails.
@@ -575,6 +580,7 @@ def generate_introduction_from_resume(
         job_analysis_json=job_analysis.model_dump_json(),
         resume_content=resume_content,
         llm=llm,
+        original_banner=original_banner,
     )
 
     _msg = "generate_introduction_from_resume returning"

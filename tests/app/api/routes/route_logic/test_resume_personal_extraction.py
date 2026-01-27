@@ -4,6 +4,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from resume_editor.app.api.routes.route_logic.resume_serialization import (
+    extract_banner_text,
     extract_personal_info,
 )
 from resume_editor.app.api.routes.route_models import PersonalInfoResponse
@@ -107,3 +108,51 @@ def test_extract_personal_info_with_parsing_error(mock_parse_resume):
     """Test that extract_personal_info raises a ValueError when parsing fails."""
     with pytest.raises(ValueError, match="Failed to parse personal info from resume content."):
         extract_personal_info("some invalid content")
+
+
+def test_extract_banner_text_with_banner():
+    """Test extract_banner_text returns banner text when present."""
+    content = textwrap.dedent(
+        """\
+        # Personal
+        ## Banner
+        This is a banner.
+        """
+    )
+    result = extract_banner_text(content)
+    assert result == "This is a banner."
+
+
+def test_extract_banner_text_without_banner():
+    """Test extract_banner_text returns None when banner is not present."""
+    content = textwrap.dedent(
+        """\
+        # Personal
+        ## Contact Information
+        Name: John Doe
+        """
+    )
+    result = extract_banner_text(content)
+    assert result is None
+
+
+def test_extract_banner_text_no_personal_section():
+    """Test extract_banner_text returns None when personal section is missing."""
+    content = textwrap.dedent(
+        """\
+        # Education
+        School: University of Life
+        """
+    )
+    result = extract_banner_text(content)
+    assert result is None
+
+
+@patch(
+    "resume_editor.app.api.routes.route_logic.resume_serialization._parse_resume",
+    side_effect=ValueError("mocked error"),
+)
+def test_extract_banner_text_with_parsing_error(mock_parse_resume):
+    """Test extract_banner_text returns None when parsing fails."""
+    result = extract_banner_text("some invalid content")
+    assert result is None

@@ -382,31 +382,33 @@ def create_sse_close_message() -> str:
     return create_sse_message(event="close", data="stream complete")
 
 
-def process_refined_experience_result(params: ProcessExperienceResultParams) -> str:
-    """Processes refined experience roles and reconstructs the full resume.
+def _reconstruct_refined_resume_content(params: ProcessExperienceResultParams) -> str:
+    """Reconstructs resume markdown with refined experience roles.
 
-    This function takes the refined roles from the LLM, combines them with the
-    original projects, and reconstructs the entire resume. It then generates
-    the final HTML result to be sent in the 'done' SSE event.
+    This function takes refined role data, combines it with original projects,
+    and reconstructs the full resume markdown content, preserving other sections
+    from the original resume.
 
     Args:
         params (ProcessExperienceResultParams): An object containing all parameters
-            needed for processing the result.
+            needed for the reconstruction.
 
     Returns:
-        str: The complete HTML content for the body of the `done` event.
+        str: The complete, reconstructed resume content as a Markdown string.
 
     Notes:
         1.  Extracts raw sections for Personal, Education, and Certifications to preserve them exactly.
         2.  Updates the banner in the raw Personal section if an introduction is provided.
-        3.  Extracts projects from `original_resume_content` and roles from `resume_content_to_refine`.
-        4.  Updates the roles list with the `refined_roles` data from the LLM.
-        5.  Creates a new `ExperienceResponse` with the refined roles and original projects.
-        6.  Reconstructs the resume using updated raw personal, raw education/certifications, and serialized experience.
-        7.  The final, complete markdown is passed to `_create_refine_result_html` to generate the HTML for the UI.
+        3.  Extracts projects from `original_resume_content` to preserve them.
+        4.  Extracts roles from `resume_content_to_refine`, which is the base for refinement.
+        5.  Updates the roles list with the `refined_roles` data from the LLM.
+        6.  Creates a new `ExperienceResponse` with the refined roles and original projects.
+        7.  Reconstructs the resume by combining the raw personal/education/certifications
+            sections with the newly serialized experience section.
+        8.  Returns the final, complete markdown string.
 
     """
-    _msg = "process_refined_experience_result starting"
+    _msg = "_reconstruct_refined_resume_content starting"
     log.debug(_msg)
 
     # 1. Extract raw sections to preserve formatting and IDs
@@ -465,7 +467,35 @@ def process_refined_experience_result(params: ProcessExperienceResultParams) -> 
 
     final_content = "\n".join(filter(None, sections))
 
-    # 8. Generate the final HTML for the refinement result UI
+    _msg = "_reconstruct_refined_resume_content returning"
+    log.debug(_msg)
+    return final_content
+
+
+def process_refined_experience_result(params: ProcessExperienceResultParams) -> str:
+    """Processes refined experience roles and generates the final HTML result.
+
+    This function calls a helper to reconstruct the resume content with refined
+    roles, and then generates the final HTML for the 'done' SSE event.
+
+    Args:
+        params (ProcessExperienceResultParams): An object containing all parameters
+            needed for processing the result.
+
+    Returns:
+        str: The complete HTML content for the body of the `done` event.
+
+    Notes:
+        1.  Calls `_reconstruct_refined_resume_content` to get the final resume markdown.
+        2.  Passes the reconstructed content to `_create_refine_result_html` to generate the UI.
+
+    """
+    _msg = "process_refined_experience_result starting"
+    log.debug(_msg)
+
+    final_content = _reconstruct_refined_resume_content(params)
+
+    # Generate the final HTML for the refinement result UI
     result_html_params = RefineResultParams(
         resume_id=params.resume_id,
         target_section_val="experience",

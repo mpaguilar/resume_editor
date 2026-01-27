@@ -64,3 +64,8 @@ def test_intro_synthesize_prompt_for_bulleted_prioritized_list():
     assert "direct professional work experience" in prompt.lower()
     assert "strengths" in prompt.lower()
     assert "json object" in prompt.lower()
+
+
+def test_intro_analyze_resume_prompt_has_original_banner():
+    """Tests that INTRO_ANALYZE_RESUME_HUMAN_PROMPT includes original_banner placeholder."""
+    assert "{original_banner}" in INTRO_ANALYZE_RESUME_HUMAN_PROMPT
