@@ -60,4 +60,4 @@ USER app
 EXPOSE 8000
 
 # Command to run the FastAPI application using gunicorn with uvicorn workers
-CMD ["gunicorn", "-w", "4", "-k", "uvicorn.workers.UvicornWorker", "--bind", "0.0.0.0:8000", "resume_editor.app.main:create_app()"]
+CMD ["gunicorn", "-w", "4", "-k", "uvicorn.workers.UvicornWorker", "--bind", "0.0.0.0:8000", "--timeout", "240", "resume_editor.app.main:create_app()"]
