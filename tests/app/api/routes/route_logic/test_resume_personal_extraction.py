@@ -110,42 +110,44 @@ def test_extract_personal_info_with_parsing_error(mock_parse_resume):
         extract_personal_info("some invalid content")
 
 
-def test_extract_banner_text_with_banner():
-    """Test extract_banner_text returns banner text when present."""
-    content = textwrap.dedent(
-        """\
-        # Personal
-        ## Banner
-        This is a banner.
-        """
-    )
+@pytest.mark.parametrize(
+    "content, expected_banner",
+    [
+        (
+            textwrap.dedent(
+                """\
+                # Personal
+                ## Banner
+                This is a banner.
+                """
+            ),
+            "This is a banner.",
+        ),
+        (
+            textwrap.dedent(
+                """\
+                # Personal
+                ## Contact Information
+                Name: John Doe
+                """
+            ),
+            None,
+        ),
+        (
+            textwrap.dedent(
+                """\
+                # Education
+                School: University of Life
+                """
+            ),
+            None,
+        ),
+    ],
+)
+def test_extract_banner_text(content: str, expected_banner: str | None):
+    """Test extract_banner_text with various resume contents."""
     result = extract_banner_text(content)
-    assert result == "This is a banner."
-
-
-def test_extract_banner_text_without_banner():
-    """Test extract_banner_text returns None when banner is not present."""
-    content = textwrap.dedent(
-        """\
-        # Personal
-        ## Contact Information
-        Name: John Doe
-        """
-    )
-    result = extract_banner_text(content)
-    assert result is None
-
-
-def test_extract_banner_text_no_personal_section():
-    """Test extract_banner_text returns None when personal section is missing."""
-    content = textwrap.dedent(
-        """\
-        # Education
-        School: University of Life
-        """
-    )
-    result = extract_banner_text(content)
-    assert result is None
+    assert result == expected_banner
 
 
 @patch(

@@ -6388,10 +6388,16 @@ Notes:
 
 Orchestrates the resume analysis and introduction synthesis steps.
 
+This function is part of a multi-step, fact-based introduction generation process.
+It takes a pre-analyzed set of job requirements and uses an LLM to analyze the
+entirety of the candidate's resume for factual evidence that supports their
+qualifications for the role. It then synthesizes an introduction based *only*
+on that evidence.
+
 Args:
     job_analysis_json (str): A JSON string representing the pre-analyzed job requirements,
                              conforming to the `JobKeyRequirements` model.
-    resume_content (str): The full Markdown content of the resume.
+    resume_content (str): The full Markdown content of the resume, which will be scoured for evidence.
     llm (ChatOpenAI): An initialized ChatOpenAI client instance.
     original_banner (str | None): The original banner text from the resume, to provide context to the LLM.
 
@@ -6400,10 +6406,8 @@ Returns:
          or an empty string if generation fails.
 
 Notes:
-    1.  **Step 1: Resume Analysis**: Creates a chain with `INTRO_ANALYZE_RESUME_PROMPT` and a parser for `CandidateAnalysis`.
-        It invokes this chain with the `resume_content` and the `job_analysis_json`.
-    2.  **Step 2: Introduction Synthesis**: Creates a chain with `INTRO_SYNTHESIZE_INTRODUCTION_PROMPT` and a parser for `GeneratedIntroduction`.
-        It invokes this chain with the JSON output from the resume analysis step.
+    1.  **Step 1: Resume Analysis**: Creates a chain with `INTRO_ANALYZE_RESUME_PROMPT`. This prompt instructs the LLM to act as a recruiter, analyzing the `resume_content` to find factual evidence for each requirement in `job_analysis_json`. The output is parsed into a `CandidateAnalysis` model.
+    2.  **Step 2: Introduction Synthesis**: Creates a chain with `INTRO_SYNTHESIZE_INTRODUCTION_PROMPT`. This prompt takes the evidence from the previous step and synthesizes a concise, compelling introduction. It is strictly instructed to only use the provided evidence. The output is parsed into a `GeneratedIntroduction` model.
     3.  Extracts the `strengths` list from the final Pydantic object and formats it as a Markdown bulleted list.
     4.  Handles JSON decoding and Pydantic validation errors by logging and returning an empty string.
     5.  This function performs multiple network requests to the configured LLM endpoint.
@@ -6412,22 +6416,28 @@ Notes:
 
 ## function: `generate_introduction_from_resume(resume_content: str, job_description: str, llm_config: LLMConfig, original_banner: str | None) -> str`
 
-Generates a resume introduction using a multi-step LLM chain.
+Generates a resume introduction using a multi-step, fact-based LLM chain.
+
+This function orchestrates a sequence of LLM calls to produce a tailored
+introduction (or "banner") for a resume based on a specific job description.
+The process is designed to be fact-based, meaning the LLM first analyzes the
+job, then scours the *entire resume* for evidence supporting the candidate's
+qualifications, and finally writes an introduction based *only* on that evidence.
 
 Args:
-    resume_content (str): The full Markdown content of the resume.
+    resume_content (str): The full Markdown content of the resume to be analyzed.
     job_description (str): The job description to align the introduction with.
     llm_config (LLMConfig): Configuration for the LLM client.
     original_banner (str | None): The original banner text from the resume, to provide context to the LLM.
 
 Returns:
-    str: The generated introduction, or an empty string if generation fails.
+    str: The generated introduction as a Markdown string, or an empty string if generation fails.
 
 Notes:
     1.  Initializes a ChatOpenAI client using the provided `llm_config`.
-    2.  **Step 1: Job Analysis**: Creates a chain with `INTRO_ANALYZE_JOB_PROMPT` to extract key skills and priorities from the job description.
-    3.  Calls `_generate_introduction_from_analysis` with the job analysis result to perform the subsequent resume analysis and synthesis steps.
-    4.  Handles exceptions during the job analysis step and returns an empty string on failure.
+    2.  **Step 1: Job Analysis**: Creates and invokes a chain with `INTRO_ANALYZE_JOB_PROMPT` to extract key skills and priorities from the `job_description`.
+    3.  **Step 2 & 3 (Delegation)**: Calls `_generate_introduction_from_analysis` with the job analysis result. This sub-process performs the detailed, fact-finding resume analysis and the final introduction synthesis.
+    4.  Handles exceptions during the initial job analysis step and returns an empty string on failure.
     5.  This function performs multiple network requests to the configured LLM endpoint.
 
 ---
@@ -7056,31 +7066,12 @@ Raises:
     ValueError: If the resume content is malformed and cannot be parsed.
 
 Notes:
-    1.  Check if `introduction` is `None` or an empty/whitespace string. If so, return `resume_content` immediately.
-    2.  Extract raw sections for Personal, Education, Certifications, and Experience.
-    3.  Update the banner in the raw Personal section using `_update_banner_in_raw_personal`.
-    4.  Concatenate the sections to form the updated resume content.
-    5.  Return the newly reconstructed Markdown string.
-
----
-
-## function: `_replace_resume_banner(resume_content: str, introduction: str | None) -> str`
-
-Parse a resume, replace its banner, and reconstruct it.
-
-This function is a wrapper that calls `reconstruct_resume_with_new_introduction`
-to update the banner section of a resume with a new introduction.
-
-Args:
-    resume_content (str): The full markdown content of the resume.
-    introduction (str | None): The new introduction text for the banner.
-        If None or whitespace-only, the original content is returned unchanged.
-
-Returns:
-    str: The reconstructed markdown string with the updated banner.
-
-Notes:
-    1. This function delegates its logic to `reconstruct_resume_with_new_introduction`.
+    1.  If `introduction` is `None` or an empty string, return original content.
+    2.  Extract the raw text of the 'personal' section.
+    3.  Generate an updated 'personal' section with the new banner/introduction.
+    4.  If an original 'personal' section existed, replace it in the full content.
+    5.  If not, append the new 'personal' section to the end of the content.
+    6.  Return the modified content.
 
 ---
 
@@ -7126,18 +7117,6 @@ Args:
 
 Returns:
     str: The formatted SSE 'progress' message.
-
----
-
-## function: `create_sse_introduction_message(introduction: str) -> str`
-
-Creates an SSE 'introduction_generated' message.
-
-Args:
-    introduction (str): The introduction text.
-
-Returns:
-    str: The formatted SSE 'introduction_generated' message.
 
 ---
 
@@ -7204,7 +7183,7 @@ Reconstructs resume markdown with refined experience roles.
 
 This function takes refined role data, combines it with original projects,
 and reconstructs the full resume markdown content, preserving other sections
-from the original resume.
+from the original resume. It does NOT handle introduction generation.
 
 Args:
     params (ProcessExperienceResultParams): An object containing all parameters
@@ -7214,35 +7193,38 @@ Returns:
     str: The complete, reconstructed resume content as a Markdown string.
 
 Notes:
-    1.  Extracts raw sections for Personal, Education, and Certifications to preserve them exactly.
-    2.  Updates the banner in the raw Personal section if an introduction is provided.
-    3.  Extracts projects from `original_resume_content` to preserve them.
-    4.  Extracts roles from `resume_content_to_refine`, which is the base for refinement.
-    5.  Updates the roles list with the `refined_roles` data from the LLM.
-    6.  Creates a new `ExperienceResponse` with the refined roles and original projects.
-    7.  Reconstructs the resume by combining the raw personal/education/certifications
+    1.  Extracts raw sections for Personal, Education, and Certifications to preserve them exactly as is.
+    2.  Extracts projects from `original_resume_content` to preserve them.
+    3.  Extracts roles from `resume_content_to_refine`, which is the base for refinement.
+    4.  Updates the roles list with the `refined_roles` data from the LLM.
+    5.  Creates a new `ExperienceResponse` with the refined roles and original projects.
+    6.  Reconstructs the resume by combining the raw personal, education, and certifications
         sections with the newly serialized experience section.
-    8.  Returns the final, complete markdown string.
+    7.  Returns the final, complete markdown string.
 
 ---
 
-## function: `process_refined_experience_result(params: ProcessExperienceResultParams) -> str`
+## function: `process_refined_experience_result(resume_id: int, final_content: str, job_description: str, introduction: str | None, limit_refinement_years: int | None) -> str`
 
-Processes refined experience roles and generates the final HTML result.
+Generates the final HTML result for a refined experience.
 
-This function calls a helper to reconstruct the resume content with refined
-roles, and then generates the final HTML for the 'done' SSE event.
+This function takes the final reconstructed content and generates the
+HTML for the 'done' SSE event.
 
 Args:
-    params (ProcessExperienceResultParams): An object containing all parameters
-        needed for processing the result.
+    resume_id (int): ID of the resume being processed.
+    final_content (str): The final, fully reconstructed resume content.
+    job_description (str): The job description used for refinement.
+    introduction (str | None): The newly generated introduction.
+    limit_refinement_years (int | None): The year limit used for filtering.
 
 Returns:
     str: The complete HTML content for the body of the `done` event.
 
 Notes:
-    1.  Calls `_reconstruct_refined_resume_content` to get the final resume markdown.
-    2.  Passes the reconstructed content to `_create_refine_result_html` to generate the UI.
+    1.  This function does not perform any content reconstruction.
+    2.  It passes the provided content and metadata to `_create_refine_result_html`
+        to generate the final UI.
 
 ---
 

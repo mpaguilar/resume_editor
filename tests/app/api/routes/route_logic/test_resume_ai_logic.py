@@ -3,7 +3,6 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from resume_editor.app.api.routes.route_logic.resume_ai_logic import (
-    _replace_resume_banner,
     _update_banner_in_raw_personal,
     handle_save_as_new_refinement,
     reconstruct_resume_with_new_introduction,
@@ -11,21 +10,6 @@ from resume_editor.app.api.routes.route_logic.resume_ai_logic import (
 from resume_editor.app.api.routes.route_models import PersonalInfoResponse
 from resume_editor.app.models.resume.personal import Banner
 from resume_editor.app.models.resume_model import Resume as DatabaseResume
-
-
-@patch(
-    "resume_editor.app.api.routes.route_logic.resume_ai_logic.reconstruct_resume_with_new_introduction"
-)
-def test_replace_resume_banner_is_wrapper(mock_reconstruct: MagicMock) -> None:
-    """Test that _replace_resume_banner calls reconstruct_resume_with_new_introduction."""
-    mock_reconstruct.return_value = "sentinel"
-    content = "my content"
-    intro = "my intro"
-
-    result = _replace_resume_banner(content, intro)
-
-    mock_reconstruct.assert_called_once_with(resume_content=content, introduction=intro)
-    assert result == "sentinel"
 
 
 
@@ -156,84 +140,72 @@ def test_reconstruct_resume_with_new_introduction_success(
     mock_update_banner: MagicMock,
 ) -> None:
     """Test reconstruct_resume_with_new_introduction successfully replaces banner when introduction is provided."""
-    original_content = "# Personal\nName: John Doe\n# Experience\nSome content"
+    original_content = "# Personal\nName: John Doe\n\n# Experience\nSome content"
+    original_personal_section = "# Personal\nName: John Doe\n"
     new_introduction = "This is a new introduction"
+    updated_personal_section = (
+        "# Personal\nName: John Doe\n\n## Banner\nThis is a new introduction\n"
+    )
 
-    # Mock raw extraction
-    def extract_raw_side_effect(content, section):
-        if section == "personal":
-            return "# Personal\nName: John Doe\n"
-        if section == "experience":
-            return "# Experience\nSome content\n"
-        return ""
-    mock_extract_raw.side_effect = extract_raw_side_effect
-
-    # Mock banner update
-    mock_update_banner.return_value = "# Personal\n## Banner\nThis is a new introduction\nName: John Doe\n"
+    mock_extract_raw.return_value = original_personal_section
+    mock_update_banner.return_value = updated_personal_section
 
     result = reconstruct_resume_with_new_introduction(
         original_content, new_introduction
     )
 
-    # Verify raw extraction was called for all sections
-    assert mock_extract_raw.call_count == 4
-    mock_extract_raw.assert_any_call(original_content, "personal")
-    mock_extract_raw.assert_any_call(original_content, "education")
-    mock_extract_raw.assert_any_call(original_content, "certifications")
-    mock_extract_raw.assert_any_call(original_content, "experience")
+    # Verify raw extraction was called for the personal section
+    mock_extract_raw.assert_called_once_with(original_content, "personal")
 
     # Verify banner update was called
-    mock_update_banner.assert_called_once_with("# Personal\nName: John Doe\n", new_introduction)
+    mock_update_banner.assert_called_once_with(
+        original_personal_section, new_introduction
+    )
 
-    # Verify result contains the new banner and other content is preserved
-    expected_content = "# Personal\n## Banner\nThis is a new introduction\nName: John Doe\n\n# Experience\nSome content\n"
+    # Verify result uses str.replace correctly
+    expected_content = original_content.replace(
+        original_personal_section, updated_personal_section
+    )
     assert result == expected_content
 
 
 @patch("resume_editor.app.api.routes.route_logic.resume_ai_logic._update_banner_in_raw_personal")
 @patch("resume_editor.app.api.routes.route_logic.resume_ai_logic._extract_raw_section")
-def test_reconstruct_resume_with_new_introduction_empty_result_from_update(
+def test_reconstruct_resume_with_new_introduction_appends_when_no_personal_section(
     mock_extract_raw: MagicMock,
     mock_update_banner: MagicMock,
 ) -> None:
-    """Test reconstruct_resume_with_new_introduction when update returns empty string."""
-    original_content = "some content"
-    new_introduction = "Intro"
+    """Test that a personal section is appended if one does not exist."""
+    # Arrange
+    original_content = "# Experience\nDeveloper at a company"
+    new_introduction = "This is a new introduction"
 
+    # When no personal section is found, _extract_raw_section returns an empty string.
     mock_extract_raw.return_value = ""
-    mock_update_banner.return_value = ""
 
+    # _update_banner_in_raw_personal will create a new personal section from scratch.
+    updated_personal_section = (
+        "# Personal\n\n## Banner\n\nThis is a new introduction\n"
+    )
+    mock_update_banner.return_value = updated_personal_section
+
+    # Act
     result = reconstruct_resume_with_new_introduction(
         original_content, new_introduction
     )
 
-    assert result == ""
+    # Assert
+    # Verify that the logic tried to find a personal section
+    mock_extract_raw.assert_called_once_with(original_content, "personal")
 
+    # Verify that the banner update logic was called with an empty string
+    mock_update_banner.assert_called_once_with("", new_introduction)
 
-@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic._update_banner_in_raw_personal")
-@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic._extract_raw_section")
-def test_reconstruct_resume_with_new_introduction_missing_experience(
-    mock_extract_raw: MagicMock,
-    mock_update_banner: MagicMock,
-) -> None:
-    """Test reconstruct_resume_with_new_introduction with missing experience."""
-    original_content = "some content"
-    new_introduction = "Intro"
-
-    def extract_raw_side_effect(content, section):
-        if section == "personal":
-            return "# Personal\n"
-        return ""
-    mock_extract_raw.side_effect = extract_raw_side_effect
-
-    mock_update_banner.return_value = "# Personal\n## Banner\nIntro\n"
-
-    result = reconstruct_resume_with_new_introduction(
-        original_content, new_introduction
+    # Verify that the new personal section was appended to the original content
+    expected_content = (
+        original_content.rstrip() + "\n\n" + updated_personal_section.strip() + "\n"
     )
-
-    assert "# Personal" in result
-    assert "# Experience" not in result
+    assert result == expected_content
 
 
 def test_update_banner_in_raw_personal_replaces_content_with_correct_spacing():

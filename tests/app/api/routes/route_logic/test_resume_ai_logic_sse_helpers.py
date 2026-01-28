@@ -11,7 +11,6 @@ from resume_editor.app.api.routes.route_logic.resume_ai_logic import (
     create_sse_close_message,
     create_sse_done_message,
     create_sse_error_message,
-    create_sse_introduction_message,
     create_sse_message,
     create_sse_progress_message,
 )
@@ -49,49 +48,6 @@ def test_create_sse_progress_message_with_html():
         result == "event: progress\ndata: <li>&lt;p&gt;In progress...&lt;/p&gt;</li>\n\n"
     )
 
-
-@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.env.get_template")
-def test_create_sse_introduction_message(mock_get_template):
-    """Test create_sse_introduction_message."""
-    mock_template = Mock()
-    mock_template.render.return_value = (
-        '<div id="refine_introduction_preview" hx-swap-oob="true">intro html</div>'
-    )
-    mock_get_template.return_value = mock_template
-    intro = "This is an introduction."
-
-    result = create_sse_introduction_message(intro)
-
-    mock_get_template.assert_called_once_with(
-        "partials/resume/_refine_result_intro.html"
-    )
-    mock_template.render.assert_called_once_with(introduction=intro)
-    assert (
-        result
-        == 'event: introduction_generated\ndata: <div id="refine_introduction_preview" hx-swap-oob="true">intro html</div>\n\n'
-    )
-
-
-@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.env.get_template")
-def test_create_sse_introduction_message_with_html(mock_get_template):
-    """Test create_sse_introduction_message handles HTML escaping from Jinja."""
-    mock_template = Mock()
-    mock_template.render.return_value = (
-        '<div id="refine_introduction_preview" hx-swap-oob="true">&lt;p&gt;Intro&lt;/p&gt;</div>'
-    )
-    mock_get_template.return_value = mock_template
-    intro = "<p>Intro</p>"
-
-    result = create_sse_introduction_message(intro)
-
-    mock_get_template.assert_called_once_with(
-        "partials/resume/_refine_result_intro.html"
-    )
-    mock_template.render.assert_called_once_with(introduction=intro)
-    assert (
-        result
-        == 'event: introduction_generated\ndata: <div id="refine_introduction_preview" hx-swap-oob="true">&lt;p&gt;Intro&lt;/p&gt;</div>\n\n'
-    )
 
 
 def test_create_sse_error_message_error():

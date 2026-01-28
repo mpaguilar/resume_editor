@@ -26,6 +26,9 @@ from resume_editor.app.models.resume.experience import (
 
 @pytest.mark.asyncio
 @patch(
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic.reconstruct_resume_with_new_introduction"
+)
+@patch(
     "resume_editor.app.api.routes.route_logic.resume_ai_logic.generate_introduction_from_resume"
 )
 @patch(
@@ -40,12 +43,14 @@ async def test_sse_generator_processes_multiple_roles(
     mock_async_refine_experience,
     mock_process_result,
     mock_generate_intro,
+    mock_reconstruct_with_intro,
     test_user,
     test_resume,
 ):
     """Test the SSE generator correctly processes multiple 'role_refined' events."""
     mock_get_llm_config.return_value = (None, None, None)
     mock_generate_intro.return_value = "mocked intro"
+    mock_reconstruct_with_intro.return_value = "final content"
     mock_process_result.return_value = "<html>final html</html>"
 
     refined_role1 = Role(
@@ -95,8 +100,8 @@ async def test_sse_generator_processes_multiple_roles(
         item async for item in experience_refinement_sse_generator(params=params)
     ]
 
-    # 1 progress, 2 roles, 1 intro progress, 1 intro generated, 1 done, 1 close
-    expected_events = 7
+    # 1 progress, 2 roles, 1 intro progress, 1 done, 1 close
+    expected_events = 6
     assert (
         len(results) == expected_events
     ), f"Expected {expected_events} events, got {len(results)}: {results}"
@@ -111,9 +116,8 @@ async def test_sse_generator_processes_multiple_roles(
         "data: <li>Refined Role: Refined Role 2 at Refined Company 2</li>"
         in results_str
     )
-    assert "event: introduction_generated" in results_str
-    assert 'id="refine_introduction_preview"' in results_str
-    assert "mocked intro" in results_str
+    assert "event: introduction_generated" not in results_str
+    assert 'id="refine_introduction_preview"' not in results_str
     assert "event: done" in results_str
     assert "data: <html>final html</html>" in results_str
     assert "event: close" in results_str
@@ -124,6 +128,9 @@ async def test_sse_generator_processes_multiple_roles(
 
 @pytest.mark.asyncio
 @patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.extract_banner_text")
+@patch(
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic.reconstruct_resume_with_new_introduction"
+)
 @patch(
     "resume_editor.app.api.routes.route_logic.resume_ai_logic._reconstruct_refined_resume_content"
 )
@@ -142,7 +149,8 @@ async def test_sse_generator_generates_introduction_at_end(
     mock_async_refine_experience,
     mock_process_result,
     mock_generate_intro,
-    mock_reconstruct,
+    mock_reconstruct_roles,
+    mock_reconstruct_intro,
     mock_extract_banner,
     test_user,
     test_resume,
@@ -150,7 +158,8 @@ async def test_sse_generator_generates_introduction_at_end(
     """Test intro is generated at the end, using refined content."""
     mock_get_llm_config.return_value = (None, None, None)
     mock_generate_intro.return_value = "mocked intro"
-    mock_reconstruct.return_value = "reconstructed content for intro gen"
+    mock_reconstruct_roles.return_value = "reconstructed content for intro gen"
+    mock_reconstruct_intro.return_value = "final content with new intro"
     mock_extract_banner.return_value = "original banner"
     mock_process_result.return_value = "<html>final refined html</html>"
     # The generator provides one role, but no introduction event
@@ -188,19 +197,18 @@ async def test_sse_generator_generates_introduction_at_end(
     ]
 
     # Assertions
-    # 1 progress, 1 role, 1 intro progress, 1 intro generated, 1 done, 1 close
-    expected_events = 6
+    # 1 progress, 1 role, 1 intro progress, 1 done, 1 close
+    expected_events = 5
     assert (
         len(results) == expected_events
     ), f"Expected {expected_events} events, got {len(results)}: {results}"
 
     results_str = "".join(results)
-    assert "event: introduction_generated" in results_str
-    assert 'id="refine_introduction_preview"' in results_str
-    assert "mocked intro" in results_str
+    assert "event: introduction_generated" not in results_str
+    assert 'id="refine_introduction_preview"' not in results_str
 
     # Check that intro gen was called correctly at the end
-    mock_reconstruct.assert_called_once()
+    mock_reconstruct_roles.assert_called_once()
     mock_extract_banner.assert_called_once_with(test_resume.content)
     mock_generate_intro.assert_called_once_with(
         resume_content="reconstructed content for intro gen",
@@ -209,10 +217,19 @@ async def test_sse_generator_generates_introduction_at_end(
         original_banner="original banner",
     )
 
+    mock_reconstruct_intro.assert_called_once_with(
+        resume_content="reconstructed content for intro gen",
+        introduction="mocked intro",
+    )
+
     # Check that final processing received the generated intro
-    mock_process_result.assert_called_once()
-    final_params = mock_process_result.call_args.kwargs["params"]
-    assert final_params.introduction == "mocked intro"
+    mock_process_result.assert_called_once_with(
+        resume_id=test_resume.id,
+        final_content="final content with new intro",
+        job_description="a new job",
+        introduction="mocked intro",
+        limit_refinement_years=None,
+    )
 
 
 def test_process_refined_role_event_success():
@@ -352,11 +369,11 @@ async def test_experience_refinement_sse_generator_malformed_events(
     ]
 
     # The stream skips the malformed event, then proceeds to finalization,
-    # which yields: intro_progress, intro_generated, error (no roles), done, close
-    assert len(results) == 5
-    assert "event: introduction_generated" in "".join(results)
-    assert "event: error" in results[2]
-    assert "Refinement finished, but no roles were found to refine." in results[2]
+    # which yields: intro_progress, error (no roles), done, close
+    assert len(results) == 4
+    assert "event: introduction_generated" not in "".join(results)
+    assert "event: error" in results[1]
+    assert "Refinement finished, but no roles were found to refine." in results[1]
 
 
 @pytest.mark.asyncio
@@ -402,13 +419,13 @@ async def test_experience_refinement_sse_generator_empty_generator(
         item async for item in experience_refinement_sse_generator(params=params)
     ]
 
-    # intro_progress, intro_generated, error (no roles), done, close
-    assert len(results) == 5
-    assert "event: error" in results[2]
-    assert "Refinement finished, but no roles were found to refine." in results[2]
-    assert "event: done" in results[3]
-    assert "<html>final html</html>" in results[3]
-    assert "event: close" in results[4]
+    # intro_progress, error (no roles), done, close
+    assert len(results) == 4
+    assert "event: error" in results[1]
+    assert "Refinement finished, but no roles were found to refine." in results[1]
+    assert "event: done" in results[2]
+    assert "<html>final html</html>" in results[2]
+    assert "event: close" in results[3]
 
 
 @pytest.mark.asyncio
@@ -589,18 +606,17 @@ async def test_generator_with_progress_but_no_refined_roles(
             item async for item in experience_refinement_sse_generator(params=params)
         ]
 
-    assert len(results) == 6
+    assert len(results) == 5
     results_str = "".join(results)
     assert "event: progress" in results[0]
     assert "done" in results[0]
     assert "event: progress" in results[1]
     assert "Generating AI introduction" in results[1]
-    assert "event: introduction_generated" in results[2]
-    assert "event: error" in results[3]
-    assert "Refinement finished, but no roles were found to refine." in results[3]
-    assert "event: done" in results[4]
-    assert "<html>final html</html>" in results[4]
-    assert "not a close message" in results[5]
+    assert "event: error" in results[2]
+    assert "Refinement finished, but no roles were found to refine." in results[2]
+    assert "event: done" in results[3]
+    assert "<html>final html</html>" in results[3]
+    assert "not a close message" in results[4]
 
 
 @pytest.mark.asyncio
@@ -712,12 +728,12 @@ async def test_generator_with_slow_llm_stream(
         ]
 
     # The final stream should contain all events, even with a slow stream.
-    # progress, intro_progress, intro_generated, error, done, close
-    assert len(results) == 6
+    # progress, intro_progress, error, done, close
+    assert len(results) == 5
     results_str = "".join(results)
     assert "event: progress" in results_str
     assert "I was slow" in results_str
-    assert "event: introduction_generated" in results_str
+    assert "event: introduction_generated" not in results_str
     assert "event: error" in results_str
     assert "Refinement finished, but no roles were found to refine" in results_str
     assert "event: done" in results_str
@@ -727,6 +743,9 @@ async def test_generator_with_slow_llm_stream(
 
 @pytest.mark.asyncio
 @patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.extract_banner_text")
+@patch(
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic.reconstruct_resume_with_new_introduction"
+)
 @patch(
     "resume_editor.app.api.routes.route_logic.resume_ai_logic._reconstruct_refined_resume_content"
 )
@@ -745,7 +764,8 @@ async def test_sse_generator_intro_generation_retries_on_failure(
     mock_async_refine_experience,
     mock_process_result,
     mock_generate_intro,
-    mock_reconstruct,
+    mock_reconstruct_roles,
+    mock_reconstruct_intro,
     mock_extract_banner,
     test_user,
     test_resume,
@@ -754,8 +774,9 @@ async def test_sse_generator_intro_generation_retries_on_failure(
     """Test that introduction generation is retried on failure."""
     mock_get_llm_config.return_value = (None, None, None)
     mock_generate_intro.side_effect = [Exception("Fail 1"), "Success on 2nd try"]
-    mock_reconstruct.return_value = "content"
+    mock_reconstruct_roles.return_value = "content"
     mock_extract_banner.return_value = "banner"
+    mock_reconstruct_intro.return_value = "final content"
     mock_process_result.return_value = "<html>final</html>"
 
     async def mock_async_generator():
@@ -779,13 +800,20 @@ async def test_sse_generator_intro_generation_retries_on_failure(
     assert "Attempt 1 to generate introduction failed: Fail 1" in caplog.text
     assert mock_generate_intro.call_count == 2
 
-    mock_process_result.assert_called_once()
-    final_params = mock_process_result.call_args.kwargs["params"]
-    assert final_params.introduction == "Success on 2nd try"
+    mock_process_result.assert_called_once_with(
+        resume_id=test_resume.id,
+        final_content="final content",
+        job_description="a job",
+        introduction="Success on 2nd try",
+        limit_refinement_years=None,
+    )
 
 
 @pytest.mark.asyncio
 @patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.extract_banner_text")
+@patch(
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic.reconstruct_resume_with_new_introduction"
+)
 @patch(
     "resume_editor.app.api.routes.route_logic.resume_ai_logic._reconstruct_refined_resume_content"
 )
@@ -804,7 +832,8 @@ async def test_sse_generator_intro_generation_retries_on_empty_string(
     mock_async_refine_experience,
     mock_process_result,
     mock_generate_intro,
-    mock_reconstruct,
+    mock_reconstruct_roles,
+    mock_reconstruct_intro,
     mock_extract_banner,
     test_user,
     test_resume,
@@ -814,7 +843,8 @@ async def test_sse_generator_intro_generation_retries_on_empty_string(
     mock_get_llm_config.return_value = (None, None, None)
     # First call returns empty string, second call succeeds
     mock_generate_intro.side_effect = ["   ", "Success on 2nd try"]
-    mock_reconstruct.return_value = "content"
+    mock_reconstruct_roles.return_value = "content"
+    mock_reconstruct_intro.return_value = "final content"
     mock_extract_banner.return_value = "banner"
     mock_process_result.return_value = "<html>final</html>"
 
@@ -837,13 +867,20 @@ async def test_sse_generator_intro_generation_retries_on_empty_string(
         _ = [item async for item in experience_refinement_sse_generator(params=params)]
 
     assert mock_generate_intro.call_count == 2
-    mock_process_result.assert_called_once()
-    final_params = mock_process_result.call_args.kwargs["params"]
-    assert final_params.introduction == "Success on 2nd try"
+    mock_process_result.assert_called_once_with(
+        resume_id=test_resume.id,
+        final_content="final content",
+        job_description="a job",
+        introduction="Success on 2nd try",
+        limit_refinement_years=None,
+    )
 
 
 @pytest.mark.asyncio
 @patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.extract_banner_text")
+@patch(
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic.reconstruct_resume_with_new_introduction"
+)
 @patch(
     "resume_editor.app.api.routes.route_logic.resume_ai_logic._reconstruct_refined_resume_content"
 )
@@ -862,7 +899,8 @@ async def test_sse_generator_intro_generation_fallback_on_total_failure(
     mock_async_refine_experience,
     mock_process_result,
     mock_generate_intro,
-    mock_reconstruct,
+    mock_reconstruct_roles,
+    mock_reconstruct_intro,
     mock_extract_banner,
     test_user,
     test_resume,
@@ -876,7 +914,8 @@ async def test_sse_generator_intro_generation_fallback_on_total_failure(
         Exception("Fail 2"),
         Exception("Fail 3"),
     ]
-    mock_reconstruct.return_value = "content"
+    mock_reconstruct_roles.return_value = "content"
+    mock_reconstruct_intro.return_value = "final content"
     mock_extract_banner.return_value = "banner"
     mock_process_result.return_value = "<html>final</html>"
 
@@ -905,14 +944,17 @@ async def test_sse_generator_intro_generation_fallback_on_total_failure(
     assert mock_generate_intro.call_count == 3
 
     mock_process_result.assert_called_once()
-    final_params = mock_process_result.call_args.kwargs["params"]
-    assert "Professional summary tailored" in final_params.introduction
+    args, kwargs = mock_process_result.call_args
+    assert "Professional summary tailored" in kwargs["introduction"]
 
 
 
 
 @pytest.mark.asyncio
 @patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.extract_banner_text")
+@patch(
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic.reconstruct_resume_with_new_introduction"
+)
 @patch(
     "resume_editor.app.api.routes.route_logic.resume_ai_logic._reconstruct_refined_resume_content"
 )
@@ -926,14 +968,13 @@ async def test_sse_generator_intro_generation_fallback_on_total_failure(
     "resume_editor.app.api.routes.route_logic.resume_ai_logic.async_refine_experience_section"
 )
 @patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.get_llm_config")
-@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.env.get_template")
 async def test_sse_generator_e2e_refine_then_introduce_workflow(
-    mock_get_template,
     mock_get_llm_config,
     mock_async_refine_experience,
     mock_process_result,
     mock_generate_intro,
-    mock_reconstruct,
+    mock_reconstruct_roles,
+    mock_reconstruct_intro,
     mock_extract_banner,
     test_user,
     test_resume,
@@ -946,14 +987,10 @@ async def test_sse_generator_e2e_refine_then_introduce_workflow(
     3. The correct events are yielded in the correct order (progress, role, intro, done, close).
     """
     # Arrange
-    # Mock template rendering to isolate from actual template content
-    mock_template = Mock()
-    mock_template.render.return_value = "new mocked intro"
-    mock_get_template.return_value = mock_template
-
     mock_get_llm_config.return_value = (None, None, None)
     mock_generate_intro.return_value = "new mocked intro"
-    mock_reconstruct.return_value = "reconstructed content for intro gen"
+    mock_reconstruct_roles.return_value = "reconstructed content for intro gen"
+    mock_reconstruct_intro.return_value = "final content with new intro"
     mock_extract_banner.return_value = "original banner"
     mock_process_result.return_value = "<html>final refined html</html>"
 
@@ -994,18 +1031,17 @@ async def test_sse_generator_e2e_refine_then_introduce_workflow(
     # Assert
     # Total events:
     # From refinement stream: 1 progress, 1 role_refined = 2
-    # From main generator: 1 intro progress, 1 intro generated, 1 done, 1 close = 4
-    # Total = 6
-    assert len(results) == 6, f"Expected 6 events, but got {len(results)}: {results}"
+    # From main generator: 1 intro progress, 1 done, 1 close = 3
+    # Total = 5
+    assert len(results) == 5, f"Expected 5 events, but got {len(results)}: {results}"
 
     # 1. Check for refinement events
     assert "data: <li>refining role...</li>" in result_str
     assert "data: <li>Refined Role: Refined Role at Refined Company</li>" in result_str
 
-    # 2. Check for introduction events
+    # 2. Check for introduction progress
     assert "data: <li>Generating AI introduction...</li>" in result_str
-    assert "event: introduction_generated" in result_str
-    assert "data: new mocked intro" in result_str
+    assert "event: introduction_generated" not in result_str
 
     # 3. Check for final events
     assert "event: done" in result_str
@@ -1013,13 +1049,21 @@ async def test_sse_generator_e2e_refine_then_introduce_workflow(
     assert "event: close" in result_str
 
     # 4. Verify mocks to confirm flow
-    mock_reconstruct.assert_called_once()
+    mock_reconstruct_roles.assert_called_once()
     mock_generate_intro.assert_called_once_with(
         resume_content="reconstructed content for intro gen",
         job_description="a new job",
         llm_config=LLMConfig(llm_endpoint=None, api_key=None, llm_model_name=None),
         original_banner="original banner",
     )
-    mock_process_result.assert_called_once()
-    final_params = mock_process_result.call_args.kwargs["params"]
-    assert final_params.introduction == "new mocked intro"
+    mock_reconstruct_intro.assert_called_once_with(
+        resume_content="reconstructed content for intro gen",
+        introduction="new mocked intro",
+    )
+    mock_process_result.assert_called_once_with(
+        resume_id=test_resume.id,
+        final_content="final content with new intro",
+        job_description="a new job",
+        introduction="new mocked intro",
+        limit_refinement_years=None,
+    )

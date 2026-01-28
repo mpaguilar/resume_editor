@@ -15,7 +15,7 @@ class RefineResultParams(BaseModel):
 
     resume_id: int
     refined_content: str
-    introduction: str
+    introduction: str | None = None
     job_description: str | None = None
     limit_refinement_years: int | None = None
 

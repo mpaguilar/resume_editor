@@ -76,11 +76,7 @@ These are snippets of HTML intended to be swapped into a page dynamically via HT
 
 *   `resume_editor/app/templates/partials/resume/_refine_result.html`
     *   **Type**: Partial
-    *   **Purpose**: Displays the suggested AI refinement in a text area. Includes buttons to "Discard" the suggestion or "Save as New" resume.
-
-*   `resume_editor/app/templates/partials/resume/_refine_result_intro.html`
-    *   **Type**: Partial
-    *   **Purpose**: An out-of-band (OOB) swap target for displaying a generated introduction during AI refinement. It is swapped into the `_refine_result.html` view.
+    *   **Purpose**: Displays the result of an AI refinement process. It includes the generated introduction, the full refined resume content in a text area, and buttons to "Discard" or "Save as New".
 
 *   `resume_editor/app/templates/admin/partials/user_list.html`
     *   **Type**: Partial

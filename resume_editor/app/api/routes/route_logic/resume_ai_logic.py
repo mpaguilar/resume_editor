@@ -72,11 +72,12 @@ def reconstruct_resume_with_new_introduction(
         ValueError: If the resume content is malformed and cannot be parsed.
 
     Notes:
-        1.  Check if `introduction` is `None` or an empty/whitespace string. If so, return `resume_content` immediately.
-        2.  Extract raw sections for Personal, Education, Certifications, and Experience.
-        3.  Update the banner in the raw Personal section using `_update_banner_in_raw_personal`.
-        4.  Concatenate the sections to form the updated resume content.
-        5.  Return the newly reconstructed Markdown string.
+        1.  If `introduction` is `None` or an empty string, return original content.
+        2.  Extract the raw text of the 'personal' section.
+        3.  Generate an updated 'personal' section with the new banner/introduction.
+        4.  If an original 'personal' section existed, replace it in the full content.
+        5.  If not, append the new 'personal' section to the end of the content.
+        6.  Return the modified content.
 
     """
     _msg = "reconstruct_resume_with_new_introduction starting"
@@ -87,63 +88,28 @@ def reconstruct_resume_with_new_introduction(
         log.debug(_msg)
         return resume_content
 
-    # Extract raw sections
-    raw_personal = _extract_raw_section(resume_content, "personal")
-    raw_education = _extract_raw_section(resume_content, "education")
-    raw_certifications = _extract_raw_section(resume_content, "certifications")
-    raw_experience = _extract_raw_section(resume_content, "experience")
+    original_personal_section = _extract_raw_section(resume_content, "personal")
 
-    # Update banner in raw personal section
-    updated_raw_personal = _update_banner_in_raw_personal(
-        raw_personal,
+    # This will create a new personal section with a banner if one doesn't exist.
+    updated_personal_section = _update_banner_in_raw_personal(
+        original_personal_section,
         introduction,
     )
 
-    # Reconstruct content
-    sections = []
-    if updated_raw_personal.strip():
-        sections.append(updated_raw_personal.strip() + "\n")
-    if raw_education.strip():
-        sections.append(raw_education.strip() + "\n")
-    if raw_certifications.strip():
-        sections.append(raw_certifications.strip() + "\n")
-    if raw_experience.strip():
-        sections.append(raw_experience.strip() + "\n")
-
-    updated_content = "\n".join(filter(None, sections))
+    if original_personal_section:
+        updated_content = resume_content.replace(
+            original_personal_section,
+            updated_personal_section,
+        )
+    else:
+        # Append the new section
+        updated_content = (
+            resume_content.rstrip() + "\n\n" + updated_personal_section.strip() + "\n"
+        )
 
     _msg = "reconstruct_resume_with_new_introduction returning"
     log.debug(_msg)
     return updated_content
-
-
-def _replace_resume_banner(resume_content: str, introduction: str | None) -> str:
-    """Parse a resume, replace its banner, and reconstruct it.
-
-    This function is a wrapper that calls `reconstruct_resume_with_new_introduction`
-    to update the banner section of a resume with a new introduction.
-
-    Args:
-        resume_content (str): The full markdown content of the resume.
-        introduction (str | None): The new introduction text for the banner.
-            If None or whitespace-only, the original content is returned unchanged.
-
-    Returns:
-        str: The reconstructed markdown string with the updated banner.
-
-    Notes:
-        1. This function delegates its logic to `reconstruct_resume_with_new_introduction`.
-
-    """
-    _msg = "_replace_resume_banner starting"
-    log.debug(_msg)
-    result = reconstruct_resume_with_new_introduction(
-        resume_content=resume_content,
-        introduction=introduction,
-    )
-    _msg = "_replace_resume_banner returning"
-    log.debug(_msg)
-    return result
 
 
 def get_llm_config(
@@ -218,24 +184,6 @@ def create_sse_progress_message(message: str) -> str:
     log.debug(_msg)
     progress_html = f"<li>{html.escape(message)}</li>"
     return create_sse_message(event="progress", data=progress_html)
-
-
-def create_sse_introduction_message(introduction: str) -> str:
-    """Creates an SSE 'introduction_generated' message.
-
-    Args:
-        introduction (str): The introduction text.
-
-    Returns:
-        str: The formatted SSE 'introduction_generated' message.
-
-    """
-    intro_template = env.get_template("partials/resume/_refine_result_intro.html")
-    intro_html = intro_template.render(introduction=introduction)
-    return create_sse_message(
-        event="introduction_generated",
-        data=intro_html,
-    )
 
 
 def create_sse_error_message(message: str, is_warning: bool = False) -> str:
@@ -371,7 +319,6 @@ class ProcessExperienceResultParams(BaseModel):
     resume_content_to_refine: str
     refined_roles: dict
     job_description: str
-    introduction: str | None
     limit_refinement_years: int | None
 
 
@@ -390,7 +337,7 @@ def _reconstruct_refined_resume_content(params: ProcessExperienceResultParams) -
 
     This function takes refined role data, combines it with original projects,
     and reconstructs the full resume markdown content, preserving other sections
-    from the original resume.
+    from the original resume. It does NOT handle introduction generation.
 
     Args:
         params (ProcessExperienceResultParams): An object containing all parameters
@@ -400,15 +347,14 @@ def _reconstruct_refined_resume_content(params: ProcessExperienceResultParams) -
         str: The complete, reconstructed resume content as a Markdown string.
 
     Notes:
-        1.  Extracts raw sections for Personal, Education, and Certifications to preserve them exactly.
-        2.  Updates the banner in the raw Personal section if an introduction is provided.
-        3.  Extracts projects from `original_resume_content` to preserve them.
-        4.  Extracts roles from `resume_content_to_refine`, which is the base for refinement.
-        5.  Updates the roles list with the `refined_roles` data from the LLM.
-        6.  Creates a new `ExperienceResponse` with the refined roles and original projects.
-        7.  Reconstructs the resume by combining the raw personal/education/certifications
+        1.  Extracts raw sections for Personal, Education, and Certifications to preserve them exactly as is.
+        2.  Extracts projects from `original_resume_content` to preserve them.
+        3.  Extracts roles from `resume_content_to_refine`, which is the base for refinement.
+        4.  Updates the roles list with the `refined_roles` data from the LLM.
+        5.  Creates a new `ExperienceResponse` with the refined roles and original projects.
+        6.  Reconstructs the resume by combining the raw personal, education, and certifications
             sections with the newly serialized experience section.
-        8.  Returns the final, complete markdown string.
+        7.  Returns the final, complete markdown string.
 
     """
     _msg = "_reconstruct_refined_resume_content starting"
@@ -422,40 +368,34 @@ def _reconstruct_refined_resume_content(params: ProcessExperienceResultParams) -
         "certifications",
     )
 
-    # 2. Update the banner in the raw personal section
-    updated_raw_personal = _update_banner_in_raw_personal(
-        raw_personal,
-        params.introduction,
-    )
-
-    # 3. Extract experience from original content to preserve projects
+    # 2. Extract experience from original content to preserve projects
     original_experience_info = extract_experience_info(params.original_resume_content)
 
-    # 4. Get the roles that were subject to refinement (from potentially filtered content)
+    # 3. Get the roles that were subject to refinement (from potentially filtered content)
     refinement_base_experience = extract_experience_info(
         params.resume_content_to_refine,
     )
     # Create a mutable copy
     final_roles = list(refinement_base_experience.roles)
 
-    # 5. Update the roles list with the refined data from the LLM
+    # 4. Update the roles list with the refined data from the LLM
     for index, role_data in params.refined_roles.items():
         if 0 <= index < len(final_roles):
             final_roles[index] = Role.model_validate(role_data)
 
-    # 6. Create the final ExperienceResponse with refined roles and original projects
+    # 5. Create the final ExperienceResponse with refined roles and original projects
     updated_experience = ExperienceResponse(
         roles=final_roles,
         projects=original_experience_info.projects,
     )
 
-    # 7. Reconstruct the full resume markdown string
+    # 6. Reconstruct the full resume markdown string
     # We manually combine sections to use raw content where needed
     sections = []
 
-    # Personal (Raw + Updated Banner)
-    if updated_raw_personal.strip():
-        sections.append(updated_raw_personal.strip() + "\n")
+    # Personal (Raw)
+    if raw_personal.strip():
+        sections.append(raw_personal.strip() + "\n")
 
     # Education (Raw)
     if raw_education.strip():
@@ -475,37 +415,45 @@ def _reconstruct_refined_resume_content(params: ProcessExperienceResultParams) -
     return final_content
 
 
-def process_refined_experience_result(params: ProcessExperienceResultParams) -> str:
-    """Processes refined experience roles and generates the final HTML result.
+def process_refined_experience_result(
+    resume_id: int,
+    final_content: str,
+    job_description: str,
+    introduction: str | None,
+    limit_refinement_years: int | None,
+) -> str:
+    """Generates the final HTML result for a refined experience.
 
-    This function calls a helper to reconstruct the resume content with refined
-    roles, and then generates the final HTML for the 'done' SSE event.
+    This function takes the final reconstructed content and generates the
+    HTML for the 'done' SSE event.
 
     Args:
-        params (ProcessExperienceResultParams): An object containing all parameters
-            needed for processing the result.
+        resume_id (int): ID of the resume being processed.
+        final_content (str): The final, fully reconstructed resume content.
+        job_description (str): The job description used for refinement.
+        introduction (str | None): The newly generated introduction.
+        limit_refinement_years (int | None): The year limit used for filtering.
 
     Returns:
         str: The complete HTML content for the body of the `done` event.
 
     Notes:
-        1.  Calls `_reconstruct_refined_resume_content` to get the final resume markdown.
-        2.  Passes the reconstructed content to `_create_refine_result_html` to generate the UI.
+        1.  This function does not perform any content reconstruction.
+        2.  It passes the provided content and metadata to `_create_refine_result_html`
+            to generate the final UI.
 
     """
     _msg = "process_refined_experience_result starting"
     log.debug(_msg)
 
-    final_content = _reconstruct_refined_resume_content(params)
-
     # Generate the final HTML for the refinement result UI
     result_html_params = RefineResultParams(
-        resume_id=params.resume_id,
+        resume_id=resume_id,
         target_section_val="experience",
         refined_content=final_content,
-        job_description=params.job_description,
-        introduction=params.introduction or "",
-        limit_refinement_years=params.limit_refinement_years,
+        job_description=job_description,
+        introduction=introduction or "",
+        limit_refinement_years=limit_refinement_years,
     )
     result_html = _create_refine_result_html(params=result_html_params)
 
@@ -651,27 +599,44 @@ async def _stream_final_events(
     params: "ExperienceRefinementParams",
     llm_config: LLMConfig,
 ) -> AsyncGenerator[str, None]:
-    """Finalize refinement, process results, and yields SSE messages."""
-    # We now always generate the introduction here at the end.
+    """Handles the final sequential steps of AI refinement.
+
+    This coroutine executes after experience refinement is complete. It orchestrates
+    the following steps:
+    1. Reconstructs the resume with the newly refined roles.
+    2. Generates a new fact-based introduction using the updated resume content.
+    3. Reconstructs the resume a final time to insert the new introduction.
+    4. Yields a warning message if no roles were refined.
+    5. Calls `process_refined_experience_result` to generate the final HTML.
+    6. Yields the 'done' event with the final HTML.
+
+    Args:
+        refined_roles (dict): A dictionary of refined role data.
+        params (ExperienceRefinementParams): The original refinement parameters.
+        llm_config (LLMConfig): The LLM configuration.
+
+    Yields:
+        str: SSE messages for introduction progress, potential warnings, and the final 'done' event.
+
+    """
     limit_years_int = (
         int(params.limit_refinement_years) if params.limit_refinement_years else None
     )
 
-    # 1. Reconstruct the resume with refined roles but no new introduction yet.
-    reconstruct_params = ProcessExperienceResultParams(
+    # 1. Reconstruct the resume with just the refined roles to create a base for intro generation
+    reconstruct_params_for_roles = ProcessExperienceResultParams(
         resume_id=params.resume.id,
         original_resume_content=params.original_resume_content,
         resume_content_to_refine=params.resume_content_to_refine,
         refined_roles=refined_roles,
         job_description=params.job_description,
-        introduction=None,  # Intentionally None to get content for intro generation
         limit_refinement_years=limit_years_int,
     )
-    refined_resume_for_intro_gen = _reconstruct_refined_resume_content(
-        params=reconstruct_params,
+    resume_with_refined_roles = _reconstruct_refined_resume_content(
+        params=reconstruct_params_for_roles,
     )
 
-    # 2. Extract original banner for context
+    # 2. Extract original banner for LLM context
     original_banner = extract_banner_text(params.original_resume_content)
 
     # 3. Generate a new introduction with retries
@@ -682,7 +647,7 @@ async def _stream_final_events(
             _msg = f"Attempt {i + 1} to generate introduction."
             log.debug(_msg)
             generated_introduction = generate_introduction_from_resume(
-                resume_content=refined_resume_for_intro_gen,
+                resume_content=resume_with_refined_roles,
                 job_description=params.job_description,
                 llm_config=llm_config,
                 original_banner=original_banner,
@@ -691,19 +656,25 @@ async def _stream_final_events(
                 _msg = "Introduction generated successfully."
                 log.debug(_msg)
                 break  # Success
-            else:
-                generated_introduction = None  # Reset on empty result
+            _msg = f"Attempt {i + 1} yielded empty introduction."
+            log.warning(_msg)
+            generated_introduction = None  # Reset on empty result
         except Exception as e:
             _msg = f"Attempt {i + 1} to generate introduction failed: {e!s}"
             log.warning(_msg)
+            generated_introduction = None
 
-    # 4. Fallback to default if generation failed
+    # 4. Fallback if all retries fail
     if not generated_introduction:
         _msg = "Failed to generate introduction after all retries. Using default."
         log.error(_msg)
         generated_introduction = "Professional summary tailored to the provided job description. Customize this section to emphasize your most relevant experience, accomplishments, and skills."
 
-    yield create_sse_introduction_message(generated_introduction)
+    # 5. Create final resume content with the new introduction
+    final_content = reconstruct_resume_with_new_introduction(
+        resume_content=resume_with_refined_roles,
+        introduction=generated_introduction,
+    )
 
     if not refined_roles:
         yield create_sse_error_message(
@@ -711,35 +682,39 @@ async def _stream_final_events(
             is_warning=True,
         )
 
-    # 5. Pass generated intro to final processing
-    process_params = ProcessExperienceResultParams(
+    # 6. Generate final HTML and yield 'done' event
+    result_html = process_refined_experience_result(
         resume_id=params.resume.id,
-        original_resume_content=params.original_resume_content,
-        resume_content_to_refine=params.resume_content_to_refine,
-        refined_roles=refined_roles,
+        final_content=final_content,
         job_description=params.job_description,
         introduction=generated_introduction,
         limit_refinement_years=limit_years_int,
     )
-    result_html = process_refined_experience_result(params=process_params)
     yield create_sse_done_message(result_html)
 
 
 async def experience_refinement_sse_generator(
     params: "ExperienceRefinementParams",
 ) -> AsyncGenerator[str, None]:
-    """Generates SSE events for the experience refinement process.
+    """Orchestrates the entire sequential AI refinement process via SSE.
 
-    This function orchestrates the asynchronous experience refinement by calling
-    helper async generators to stream LLM events and then finalize the process.
-    It is a much simpler, single-task implementation.
+    This function manages the two main phases of AI refinement:
+    1.  **Experience Refinement**: It calls `_stream_llm_events` to stream
+        per-role refinements from the LLM, collecting the results.
+    2.  **Finalization**: It calls `_stream_final_events` to:
+        a. Reconstruct the resume with the refined roles.
+        b. Generate a fact-based introduction based on the updated content.
+        c. Reconstruct the resume again to include the new introduction.
+        d. Generate the final HTML and yield the 'done' and 'close' SSE events.
+
+    It also handles exceptions and client disconnections gracefully.
 
     Args:
         params (ExperienceRefinementParams): An object containing all parameters
             needed for the SSE generation.
 
     Yields:
-        str: Formatted SSE message strings.
+        str: Formatted SSE message strings for progress, errors, and completion.
 
     """
     _msg = f"Streaming refinement for resume {params.resume.id} for section experience"
