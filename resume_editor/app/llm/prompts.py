@@ -184,21 +184,27 @@ Now, output the JSON object:
 """
 
 
-INTRO_ANALYZE_RESUME_SYSTEM_PROMPT = """As a resume analyst, your task is to review the `Resume Content` and find factual evidence that supports each of the `Job Key Requirements`. You will not assess or give an opinion; you will only extract facts.
+INTRO_ANALYZE_RESUME_SYSTEM_PROMPT = """As a resume analyst, extract factual evidence from `Resume Content` for each `Job Key Requirement`. Do not assess or judge—only extract specific, verifiable facts.
 
 **Instructions:**
-1.  **Iterate Through Requirements:** For each skill in `job_requirements.key_skills` and each priority in `job_requirements.candidate_priorities`, you will perform the following analysis.
-2.  **Scan ENTIRE Resume:** Read the entire `Resume Content`, including the 'Personal' (especially the banner), 'Experience' (roles and projects), 'Education', and 'Certifications' sections.
-3.  **Extract Factual Evidence:** Identify and extract specific, verifiable facts from the resume that support the requirement. A fact can be a direct quote or a concise, factual summary (e.g., "Managed a team of 5 engineers," "Certified in AWS Solutions Architect," "Graduated with a B.S. in Computer Science").
-4.  **Attribute Evidence:** For each piece of evidence you find, you MUST attribute it to its source section: 'Work Experience', 'Education', 'Project', 'Certification', or 'Personal'.
-5.  **Evaluate Relevance for Work Experience:** If, and only if, the evidence comes from 'Work Experience', you MUST evaluate its relevance. Label it as `"relevance": "direct"` if the experience directly maps to one of the job's primary duties, or `"relevance": "indirect"` if the experience is related but not a core responsibility. For all other source sections, relevance should be `null`.
-6.  **Handle Missing Evidence:** If you can find no supporting evidence for a given requirement in the entire resume, the `evidence` list for that requirement MUST be empty. Do not invent or infer evidence.
+1. **Iterate Through Requirements:** For each item in `job_requirements.key_skills` and `job_requirements.candidate_priorities`, scan the entire `Resume Content` (Personal [especially banner], Experience [roles/projects], Education, Certifications).
+2. **Extract Precise Evidence:** Identify concrete facts that support each requirement. Capture:
+   - Specific technology/skill names (e.g., "Python", "Jenkins")
+   - Company/organization names where the skill was applied
+   - Exact certification titles and degree names
+   - Direct quotes or concise factual summaries (e.g., "Led team of 5 engineers")
+3. **Attribute & Classify:** For each evidence item:
+   - Set `source_section`: 'Work Experience', 'Education', 'Project', 'Certification', or 'Personal'
+   - For 'Work Experience' only, set `relevance`: 'direct' (matches primary duty) or 'indirect' (related but not core)
+   - For all other sections, `relevance` is `null`
+4. **No Inference:** If zero evidence exists for a requirement, return an empty `evidence` list. Do not invent or imply.
 
 **Output Format:**
-Your response MUST be a single JSON object enclosed in ```json ... ```, conforming to the following schema. Your output will be an object containing a single key "analysis", which is a list of objects. Each object in the list will have a `job_requirement` and a list of `evidence` found for it.
+JSON object with single key "analysis" containing a list. Each item has `job_requirement` and `evidence` list.
 
 {format_instructions}
 """
+
 INTRO_ANALYZE_RESUME_HUMAN_PROMPT = """Job Key Requirements:
 ---
 {job_requirements}
@@ -215,29 +221,42 @@ Now, output the JSON object:
 """
 
 
-INTRO_SYNTHESIZE_INTRODUCTION_SYSTEM_PROMPT = """As a resume writing expert, your task is to synthesize the provided `Candidate Analysis` into a bulleted list of key strengths. Your response must be exclusively and verifiably based on the facts provided.
+INTRO_SYNTHESIZE_INTRODUCTION_SYSTEM_PROMPT = """As a resume writing expert, synthesize `Candidate Analysis` into 3-5 concise, factual bullet points. Every statement must be verifiable from the `evidence` fields—no exaggeration, embellishment, or superlatives.
 
-**Crucial Rules & Prioritization:**
-1.  **Exclusively Factual:** Every statement in your generated `strengths` list MUST be a direct summary of the information contained in the `evidence` fields of the `Candidate Analysis`. You are forbidden from exaggerating, embellishing, inventing, or using superlatives (e.g., "expert," "strong," "extensive"). Your tone must be neutral, objective, and factual. You are a synthesizer, not an interpreter.
-2.  **Generate a List of Strengths:** Your output will be a JSON object containing a `strengths` key, which holds a list of strings. Each string is a concise bullet point highlighting a key strength. Generate 3-5 bullet points.
-3.  **Strict Prioritization:** You MUST order the bullet points in the final `strengths` list according to the following strict priority, based on the `source_section` and `relevance` of the supporting `evidence`:
-    1.  Evidence from 'Work Experience' with 'relevance': 'direct'.
-    2.  Evidence from 'Work Experience' with 'relevance': 'indirect'.
-    3.  Evidence from 'Certification'.
-    4.  Evidence from 'Project'.
-    5.  Evidence from 'Education'.
-    6.  Evidence from 'Personal'.
-4.  **Accurate Phrasing:** Each bullet point must accurately reflect the nature and source of the evidence.
-    *   For 'Work Experience', use neutral, professional phrasing like "Professional experience..." or action verbs like "Engineered...".
-    *   For 'Certification', use phrases like "Holds certification in...".
-    *   For 'Project', use "Project-based experience with...".
-    *   Do NOT misrepresent the source. A project is not professional work experience. A certification is not a demonstration of skill in a work context.
+**Crucial Rules:**
+1. **Exclusively Factual:** Base every bullet point directly on provided evidence. Be neutral and objective.
+2. **Group & Consolidate:** Combine evidence for related requirements into single bullets. All CI/CD evidence becomes one bullet; all cloud platform evidence becomes another.
+3. **Concise Parenthetical Format:** Use this exact structure: "**Skill/Strength** (Entity1, Entity2, ...)" where entities are company names, certification titles, or project names.
+   - Example: "Experienced with CI/CD (Bank of America, Mr. Cooper)"
+   - Example with related techs: "Experienced with Jenkins, Azure DevOps, and GitHub Actions (Bank of America, Mr. Cooper, Merit Pages)"
+   - Always include specific technology, certification, and company names when present in evidence
+4. **Strict Prioritization:** Order bullets by evidence strength:
+   1. Work Experience (direct relevance)
+   2. Work Experience (indirect relevance)
+   3. Certification
+   4. Project
+   5. Education
+   6. Personal
+5. **Accurate Representation:** Match phrasing to source:
+   - Work Experience: Use action verbs or "Professional experience with..."
+   - Certification: "Holds certification in..."
+   - Project: "Project-based experience with..."
+   - Never misrepresent the source type
 
 **Output Format:**
-Your response MUST be a single JSON object enclosed in ```json ... ```. The JSON object must conform to the following schema, containing a `strengths` key with a list of strings.
+JSON object with `strengths` key containing list of strings.
 
 {format_instructions}
 """
+
+INTRO_SYNTHESIZE_INTRODUCTION_HUMAN_PROMPT = """Candidate Analysis:
+---
+{candidate_analysis}
+---
+
+Output JSON:
+"""
+
 INTRO_SYNTHESIZE_INTRODUCTION_HUMAN_PROMPT = """Candidate Analysis:
 ---
 {candidate_analysis}
