@@ -1950,6 +1950,10 @@
     "filename": "orchestration.py",
     "functions": [
       [
+        "_parse_json_with_fix(json_string: str) -> Any",
+        "Parse a JSON string, attempting to fix common LLM-produced errors.\n\nSpecifically, this function handles `json.JSONDecodeError` caused by\n\"Invalid \\escape\" by replacing single backslashes with double backslashes\nand retrying the parse.\n\nArgs:\n    json_string (str): The JSON string to parse.\n\nReturns:\n    Any: The parsed Python object.\n\nRaises:\n    json.JSONDecodeError: If parsing fails even after attempting a fix,\n        or if the initial error is not an \"Invalid \\escape\" error."
+      ],
+      [
         "_unwrap_exception_group(e: Exception) -> UnknownType",
         "Unwraps an ExceptionGroup if it contains a single non-cancellation error.\n\nArgs:\n    e (Exception): The exception to inspect.\n\nRaises:\n    The unwrapped exception if conditions are met, otherwise re-raises the original exception.\n\nNotes:\n    1. If 'e' is not an ExceptionGroup, it is re-raised.\n    2. If 'e' is an ExceptionGroup, it filters out any asyncio.CancelledError exceptions.\n    3. If exactly one non-cancellation error remains, that single error is raised.\n    4. Otherwise, the original ExceptionGroup is re-raised."
       ],
@@ -1959,7 +1963,7 @@
       ],
       [
         "_invoke_chain_and_parse(chain: Any, pydantic_model: Any) -> Any",
-        "Invokes a LangChain chain, gets content, parses JSON, and validates with Pydantic.\n\nArgs:\n    chain (Any): The LangChain runnable chain to invoke.\n    pydantic_model (Any): The Pydantic model to validate the parsed JSON against.\n    **kwargs (Any): Keyword arguments to pass to the chain's invoke method.\n\nReturns:\n    Any: An instance of the `pydantic_model` populated with the parsed data.\n\nRaises:\n    json.JSONDecodeError: If the LLM's response content is not valid JSON.\n    ValidationError: If the parsed JSON does not conform to the `pydantic_model`.\n\nNotes:\n    1. Invokes the provided LangChain `chain` with the given `kwargs`.\n    2. Extracts the content string from the result.\n    3. Parses the content string as JSON using `parse_json_markdown`.\n    4. Validates the parsed JSON against the `pydantic_model`.\n    5. Returns the validated Pydantic model instance.\n    6. No network, disk, or database access is performed."
+        "Invokes a LangChain chain, gets content, parses JSON, and validates with Pydantic.\n\nArgs:\n    chain (Any): The LangChain runnable chain to invoke.\n    pydantic_model (Any): The Pydantic model to validate the parsed JSON against.\n    **kwargs (Any): Keyword arguments to pass to the chain's invoke method.\n\nReturns:\n    Any: An instance of the `pydantic_model` populated with the parsed data.\n\nRaises:\n    ValueError: If parsing or validation fails.\n\nNotes:\n    1. Invokes the provided LangChain `chain` with the given `kwargs`.\n    2. Extracts the content string from the result.\n    3. Parses the content string as JSON using `_parse_json_with_fix`.\n    4. Validates the parsed JSON against the `pydantic_model`.\n    5. Returns the validated Pydantic model instance.\n    6. On JSON decoding or Pydantic validation errors, logs the exception\n       and raises a `ValueError`."
       ],
       [
         "_generate_introduction_from_analysis(job_analysis_json: str, resume_content: str, llm: ChatOpenAI, original_banner: str | None) -> str",

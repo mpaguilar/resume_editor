@@ -52,29 +52,29 @@ def test_intro_analyze_resume_prompt_is_factual_and_structured():
     """Tests that INTRO_ANALYZE_RESUME_SYSTEM_PROMPT is for factual, structured evidence."""
     prompt = INTRO_ANALYZE_RESUME_SYSTEM_PROMPT
     assert "factual evidence" in prompt.lower()
-    assert "source section" in prompt.lower()
-    assert "do not invent or infer evidence" in prompt.lower()
-    assert "must be empty" in prompt.lower()
+    assert "source_section" in prompt.lower()
+    assert "do not invent or imply" in prompt.lower()
+    assert "empty `evidence` list" in prompt.lower()
     assert "relevance" in prompt
     assert "'Personal'" in prompt
-    assert '"direct"' in prompt
-    assert '"indirect"' in prompt
+    assert "'direct' (matches primary duty)" in prompt
+    assert "'indirect' (related but not core)" in prompt
 
 
 def test_intro_synthesize_prompt_is_exclusive_and_prioritized():
     """Tests that INTRO_SYNTHESIZE_INTRODUCTION_SYSTEM_PROMPT is for an exclusive, prioritized list."""
     prompt = INTRO_SYNTHESIZE_INTRODUCTION_SYSTEM_PROMPT
     assert "exclusively factual" in prompt.lower()
-    assert "exclusively and verifiably based on the facts provided" in prompt.lower()
-    assert "you are forbidden from" in prompt.lower()
+    assert "verifiable from the `evidence` fields" in prompt
+    assert "no exaggeration, embellishment, or superlatives" in prompt.lower()
     assert "strict prioritization" in prompt.lower()
     # Check prioritization order
-    assert "Evidence from 'Work Experience' with 'relevance': 'direct'" in prompt
-    assert "Evidence from 'Work Experience' with 'relevance': 'indirect'" in prompt
-    assert "Evidence from 'Certification'" in prompt
-    assert "Evidence from 'Project'" in prompt
-    assert "Evidence from 'Education'" in prompt
-    assert "Evidence from 'Personal'" in prompt
+    assert "1. work experience (direct relevance)" in prompt.lower()
+    assert "2. work experience (indirect relevance)" in prompt.lower()
+    assert "3. certification" in prompt.lower()
+    assert "4. project" in prompt.lower()
+    assert "5. education" in prompt.lower()
+    assert "6. personal" in prompt.lower()
 
 
 def test_intro_analyze_resume_prompt_has_original_banner():

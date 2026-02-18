@@ -60,98 +60,6 @@ def job_description_fixture():
     return "Software Engineer with Python experience."
 
 
-@pytest.mark.parametrize(
-    "mock_result_content, pydantic_model, expected_result",
-    [
-        (
-            '{"key_skills": ["Python", "FastAPI"], "candidate_priorities": ["Backend"]}',
-            JobKeyRequirements,
-            JobKeyRequirements(
-                key_skills=["Python", "FastAPI"], candidate_priorities=["Backend"]
-            ),
-        ),
-        (
-            '{"analysis": [{"job_requirement": "python", "evidence": [{"evidence": "strong experience", "source_section": "Work", "relevance": "direct"}]}]}',
-            CandidateAnalysis,
-            CandidateAnalysis(
-                analysis=[
-                    {
-                        "job_requirement": "python",
-                        "evidence": [
-                            {
-                                "evidence": "strong experience",
-                                "source_section": "Work",
-                                "relevance": "direct",
-                            }
-                        ],
-                    }
-                ]
-            ),
-        ),
-        (
-            '{"strengths": ["Strength 1", "Strength 2"]}',
-            GeneratedIntroduction,
-            GeneratedIntroduction(strengths=["Strength 1", "Strength 2"]),
-        ),
-    ],
-)
-def test_invoke_chain_and_parse_success(
-    mock_llm_sync,
-    mock_result_content,
-    pydantic_model,
-    expected_result,
-):
-    """Test _invoke_chain_and_parse successfully parses and validates."""
-    _msg = "test_invoke_chain_and_parse_success starting"
-    log.debug(_msg)
-
-    mock_llm_sync.invoke.return_value = MagicMock(content=mock_result_content)
-    mock_chain = MagicMock()
-    mock_chain.invoke.return_value = mock_llm_sync.invoke.return_value
-
-    result = _invoke_chain_and_parse(mock_chain, pydantic_model)
-
-    assert result == expected_result
-    mock_chain.invoke.assert_called_once()
-
-    _msg = "test_invoke_chain_and_parse_success returning"
-    log.debug(_msg)
-
-
-@pytest.mark.parametrize(
-    "mock_result_content, pydantic_model, expected_exception",
-    [
-        (
-            '{"invalid_field": "value"}',
-            JobKeyRequirements,
-            ValidationError,
-        ),  # Invalid JSON structure
-        (
-            "not valid json",
-            JobKeyRequirements,
-            json.JSONDecodeError,
-        ),  # Malformed JSON
-    ],
-)
-def test_invoke_chain_and_parse_failure(
-    mock_llm_sync,
-    mock_result_content,
-    pydantic_model,
-    expected_exception,
-):
-    """Test _invoke_chain_and_parse handles parsing and validation errors."""
-    _msg = "test_invoke_chain_and_parse_failure starting"
-    log.debug(_msg)
-
-    mock_llm_sync.invoke.return_value = MagicMock(content=mock_result_content)
-    mock_chain = MagicMock()
-    mock_chain.invoke.return_value = mock_llm_sync.invoke.return_value
-
-    with pytest.raises(expected_exception):
-        _invoke_chain_and_parse(mock_chain, pydantic_model)
-
-    _msg = "test_invoke_chain_and_parse_failure returning"
-    log.debug(_msg)
 
 
 @patch(
@@ -364,7 +272,7 @@ def test_generate_introduction_from_resume_job_analysis_fails(
     _msg = "test_generate_introduction_from_resume_job_analysis_fails starting"
     log.debug(_msg)
 
-    mock_invoke_chain_and_parse.side_effect = json.JSONDecodeError("err", "doc", 0)
+    mock_invoke_chain_and_parse.side_effect = ValueError("test error")
 
     result = generate_introduction_from_resume(
         resume_content=resume_content_fixture,

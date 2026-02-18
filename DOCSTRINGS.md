@@ -6322,6 +6322,26 @@ Notes:
 ===
 # File: `resume_editor/app/llm/orchestration.py`
 
+## function: `_parse_json_with_fix(json_string: str) -> Any`
+
+Parse a JSON string, attempting to fix common LLM-produced errors.
+
+Specifically, this function handles `json.JSONDecodeError` caused by
+"Invalid \escape" by replacing single backslashes with double backslashes
+and retrying the parse.
+
+Args:
+    json_string (str): The JSON string to parse.
+
+Returns:
+    Any: The parsed Python object.
+
+Raises:
+    json.JSONDecodeError: If parsing fails even after attempting a fix,
+        or if the initial error is not an "Invalid \escape" error.
+
+---
+
 ## function: `_unwrap_exception_group(e: Exception) -> UnknownType`
 
 Unwraps an ExceptionGroup if it contains a single non-cancellation error.
@@ -6371,16 +6391,16 @@ Returns:
     Any: An instance of the `pydantic_model` populated with the parsed data.
 
 Raises:
-    json.JSONDecodeError: If the LLM's response content is not valid JSON.
-    ValidationError: If the parsed JSON does not conform to the `pydantic_model`.
+    ValueError: If parsing or validation fails.
 
 Notes:
     1. Invokes the provided LangChain `chain` with the given `kwargs`.
     2. Extracts the content string from the result.
-    3. Parses the content string as JSON using `parse_json_markdown`.
+    3. Parses the content string as JSON using `_parse_json_with_fix`.
     4. Validates the parsed JSON against the `pydantic_model`.
     5. Returns the validated Pydantic model instance.
-    6. No network, disk, or database access is performed.
+    6. On JSON decoding or Pydantic validation errors, logs the exception
+       and raises a `ValueError`.
 
 ---
 

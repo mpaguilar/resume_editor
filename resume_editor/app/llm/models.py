@@ -105,7 +105,8 @@ class CandidateRequirementAnalysis(BaseModel):
     """Links a single job requirement to factual evidence from the resume."""
 
     job_requirement: str = Field(
-        ..., description="A single key skill or priority from the job description.",
+        ...,
+        description="A single key skill or priority from the job description.",
     )
     evidence: list[FactualEvidence] = Field(
         default_factory=list,
