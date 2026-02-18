@@ -66,6 +66,7 @@ These are known mappings:
 - `resume_editor/app/models/resume_model.py` -> `tests/app/models/test_resume_model.py`
 - `resume_editor/app/models/user.py` -> `tests/app/models/test_user.py`
 - `resume_editor/app/models/user_settings.py` -> `tests/app/models/test_user_settings.py`
+- `resume_editor/app/utils/filename_utils.py` -> `tests/app/utils/test_filename_utils.py`
 - `resume_editor/app/web/admin.py` -> `tests/app/web/test_admin.py`
 - `resume_editor/app/web/admin.py` -> `tests/app/web/test_admin.py`
 - `resume_editor/app/web/pages.py` -> `tests/app/web/test_main_web.py`

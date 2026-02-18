@@ -7378,3 +7378,55 @@ Verify handle_save_as_new_refinement calls banner replacement with None introduc
 
 ===
 
+===
+# File: `resume_editor/app/utils/filename_utils.py`
+
+## function: `sanitize_filename_component(component: str) -> str`
+
+Sanitizes a string component for use in a filename.
+
+The sanitization logic is as follows:
+1. Trims leading/trailing whitespace and removes apostrophes.
+2. Replaces spaces and any character that is not an ASCII letter, number,
+   underscore, or period with a single underscore.
+3. Collapses any sequence of multiple underscores into a single one.
+4. Collapses any sequence of multiple periods into a single one.
+5. Removes any underscores immediately preceding a period.
+6. Removes any leading or trailing underscores from the resulting string.
+Case is preserved throughout.
+
+Args:
+    component (str): The string component to sanitize.
+
+Returns:
+    str: The sanitized string component.
+
+---
+
+## function: `generate_resume_filename(resume_db: 'DatabaseResume', resume_writer: 'WriterResume', extension: str) -> str`
+
+Generates a sanitized filename for a resume.
+
+The filename format depends on whether the resume is a "base" or "refined" version.
+
+- For base resumes (`is_base=True`), the format is:
+  `{sanitized_resume_name}.{extension}`
+- For refined resumes (`is_base=False`), the format is:
+  `{sanitized_candidate_name}_{sanitized_resume_name}.{extension}`
+
+If a refined resume is processed but the candidate's name is not found in the
+parsed resume_writer object, it gracefully falls back to the base resume format.
+
+Args:
+    resume_db ("DatabaseResume"): The database model instance for the resume.
+    resume_writer ("WriterResume"): The parsed `resume_writer` object.
+    extension (str): The file extension to use (e.g., "docx", "md").
+
+Returns:
+    str: The generated, sanitized filename.
+
+---
+
+
+===
+
