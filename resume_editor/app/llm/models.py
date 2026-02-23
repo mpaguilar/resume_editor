@@ -1,4 +1,5 @@
 import logging
+from datetime import datetime
 from typing import Literal
 
 from pydantic import BaseModel, Field
@@ -129,4 +130,107 @@ class GeneratedIntroduction(BaseModel):
     strengths: list[str] = Field(
         ...,
         description="A bulleted list of the candidate's key strengths and qualifications, tailored to the job.",
+    )
+
+
+class RefinedRoleRecord(BaseModel):
+    """A record tracking a single refined role for the checkpoint system.
+
+    This model captures the refined data for a single professional role,
+    including the description, skills, and metadata about when it was refined.
+    Used as part of the RunningLog to enable failure recovery and resume
+    refinement from where it left off.
+
+    Args:
+        original_index: The position of this role in the original resume.
+        company: The company name for this role.
+        title: The job title for this role.
+        refined_description: The refined description/summary of the role.
+        relevant_skills: List of relevant skills identified during refinement.
+        start_date: The start date of the role.
+        end_date: The end date of the role (None if current position).
+        timestamp: When this role was refined.
+
+    """
+
+    original_index: int = Field(
+        ...,
+        description="The position of this role in the original resume.",
+    )
+    company: str = Field(
+        ...,
+        description="The company name for this role.",
+    )
+    title: str = Field(
+        ...,
+        description="The job title for this role.",
+    )
+    refined_description: str = Field(
+        ...,
+        description="The refined description/summary of the role.",
+    )
+    relevant_skills: list[str] = Field(
+        default_factory=list,
+        description="List of relevant skills identified during refinement.",
+    )
+    start_date: datetime = Field(
+        ...,
+        description="The start date of the role.",
+    )
+    end_date: datetime | None = Field(
+        None,
+        description="The end date of the role (None if current position).",
+    )
+    timestamp: datetime = Field(
+        ...,
+        description="When this role was refined.",
+    )
+
+
+class RunningLog(BaseModel):
+    """A container for tracking an entire refinement session.
+
+    This model maintains the state of a resume refinement session,
+    including the job description, cached job analysis, and all
+    refined roles. It enables failure recovery by allowing refinement
+    to resume from where it left off if an error occurs.
+
+    Args:
+        resume_id: The ID of the resume being refined.
+        user_id: The ID of the user performing the refinement.
+        job_description: The job description text being targeted.
+        job_analysis: Cached job analysis (None until analyzed).
+        refined_roles: List of successfully refined roles.
+        created_at: When this log was created.
+        updated_at: When this log was last updated.
+
+    """
+
+    resume_id: int = Field(
+        ...,
+        description="The ID of the resume being refined.",
+    )
+    user_id: int = Field(
+        ...,
+        description="The ID of the user performing the refinement.",
+    )
+    job_description: str = Field(
+        ...,
+        description="The job description text being targeted.",
+    )
+    job_analysis: JobAnalysis | None = Field(
+        None,
+        description="Cached job analysis (None until analyzed).",
+    )
+    refined_roles: list[RefinedRoleRecord] = Field(
+        default_factory=list,
+        description="List of successfully refined roles.",
+    )
+    created_at: datetime = Field(
+        ...,
+        description="When this log was created.",
+    )
+    updated_at: datetime = Field(
+        ...,
+        description="When this log was last updated.",
     )

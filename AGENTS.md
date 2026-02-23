@@ -196,6 +196,192 @@ HTMX POST returns loader fragment, GET initiates stream:
 </div>
 ```
 
+## AI Refinement User Flow
+
+Understanding the exact user experience is critical when working on AI refinement features.
+
+### User Journey
+
+```
+Dashboard ──[Edit]──> Editor ──[Refine with AI]──> Refine Page ──[Start Refinement]──> SSE Progress Stream
+```
+
+### Step-by-Step Flow
+
+**1. Dashboard Entry Point** (`/dashboard`)
+- User sees list of their resumes
+- Each resume has an "Edit" button
+- Base resumes (is_base=true) are the starting point for refinement
+
+**2. Editor Page** (`/resumes/{id}/edit`)
+- Shows resume content in a text area for manual editing
+- **"Refine with AI" button** is visible ONLY for base resumes (`{% if resume.is_base %}`)
+- User can also Export (Markdown or DOCX) from here
+
+**3. Refine Page** (`/resumes/{id}/refine`)
+- Simple form with two inputs:
+  - **Years Limit** (small text box, optional): Limits which experience roles are refined by date
+  - **Job Description** (large textarea, required): The job posting text to align with
+- **"Start Refinement"** button initiates the process
+- **NO changes are made to the resume yet** - user is just configuring the refinement
+
+**4. SSE Stream Processing**
+
+When user clicks "Start Refinement", the form POSTs to `/api/resumes/{id}/refine/stream` which returns an SSE loader fragment. This establishes an SSE connection to `GET /api/resumes/{id}/refine/stream` with the job description and optional year limit as query parameters.
+
+The user sees real-time progress messages:
+
+| Order | Progress Message | What's Happening |
+|-------|-----------------|------------------|
+| 1 | "Parsing resume..." | Extracting experience roles from Markdown |
+| 2 | "Analyzing job description..." | LLM call to analyze job requirements |
+| 3 | "Job analysis complete" | Job analysis finished |
+| 4 | "Refining role 'Title @ Company'..." | **Per-role LLM refinement** (one per role) |
+| 5 | "Generating AI introduction..." | Creating banner based on refined content |
+| 6 | Final result display | Shows refined resume with Accept/Discard/Save As New |
+
+### Critical User Experience Point
+
+**The user waits passively during refinement.** They do not:
+- Edit the job description mid-process
+- Cancel individual roles
+- Interact with the page until completion or error
+
+**When errors occur:** The SSE stream shows retry attempts. If all retries fail, it terminates with an error message. The user sees retry progress and/or the error message in the progress list. If they click "Start Refinement" again, the process **resumes from checkpoint** and skips already-refined roles.
+
+### Failure Modes
+
+There are two observed failure patterns during refinement:
+
+**Failure Mode A: LLM Response Error (With Automatic Retry)**
+- **Symptom:** SSE stream shows retry messages like "[Attempt 1 failed: Empty response. Retrying in 3s...]" followed by eventual error or success
+- **Behavior:** System automatically retries up to 3 times (1 initial + 2 retries) with 3-second delays between attempts
+- **Recovery:** If all retries fail, stream terminates with error. User clicks "Start Refinement" to resume from checkpoint (skips already-refined roles)
+- **Cause:** LLM returns empty or non-JSON response, causing `JSONDecodeError` in `refine_role()`. Retry mechanism handles transient failures.
+
+**Failure Mode B: Stream Loop/Repetition**
+- **Symptom:** Progress messages start repeating - user sees "Parsing resume..." again after already seeing role refinement progress
+- **Behavior:** SSE stream continues but restarts the entire refinement sequence from step 1
+- **Recovery:** User can click "Cancel" button to stop the stream, then click "Start Refinement" again
+- **Cause:** Unknown - intermittent, not captured in logs yet
+
+**Important UX Notes:**
+- Browser refresh during refinement = intentional feature to start over
+- Automatic retry mechanism - up to 3 attempts with 3-second delays for transient LLM failures
+- Resume cannot be edited during refinement (no UI for it), so resume state is stable
+- User cannot change job description mid-refinement - they must cancel and start new refinement
+
+### Running Log / Checkpoint System
+
+To enable recovery from failures and enhanced banner generation, the system maintains a **running log** of refined roles:
+
+**Purpose:**
+1. **Failure Recovery:** If refinement fails partway through, already-refined roles are preserved and skipped on retry
+2. **Banner Enhancement:** Accumulated role data (skills, companies) is used to generate more accurate, context-rich banners
+
+**Terminology:**
+- **Job Description**: Text the user enters in the "Job Description" textarea (the target job posting)
+- **Role**: An experience entry from the resume (company, title, dates, description, skills)
+
+**Lifecycle:**
+- **Created:** Empty list when user clicks "Start Refinement"
+- **Populated:** As each role is successfully refined (appended to list in real-time)
+- **Persisted:** Server-side only, survives retry attempts (browser refresh clears it)
+- **Cleared:** When refinement completes successfully AND new resume is generated, or if job description changes
+
+**Data Captured Per Role:**
+- Original index (position in resume)
+- Company name
+- Job title
+- Refined description (summary, responsibilities)
+- Relevant skills (extracted during refinement)
+- Start/end dates
+- Timestamp of refinement
+
+**Recovery Behavior:**
+- When user clicks "Start Refinement" again after a failure (new HTTP request), check for existing running log from previous request
+- If log exists, skip already-refined roles
+- Job analysis is cached and reused (no duplicate LLM call)
+- Concurrent refinement continues with only unrefined roles
+- Stream shows "Resuming from previous attempt..." then continues with "Refining role 'Title @ Company'..."
+- If no log exists (first attempt), start fresh with empty list and new job analysis
+
+**Button State Management:**
+- "Start Refinement" button is **disabled** while refinement is in progress
+- Button is **re-enabled** when refinement completes (success or failure)
+- User can click again after an error to resume from where it failed
+- User can click again after success to start a completely new refinement
+
+**Log Lifecycle:**
+- Created empty when "Start Refinement" is clicked
+- Populated as each role is successfully refined
+- Used to resume if refinement fails (error occurs)
+- Discarded when:
+  - Refinement completes successfully (refined resume returned)
+  - User navigates away or refreshes the page
+  - User explicitly cancels and restarts
+
+### Retry Mechanism
+
+The refinement process includes an **automatic retry mechanism** for transient LLM failures:
+
+**Retry Configuration:**
+- **Max attempts:** 3 total (1 initial + 2 retries)
+- **Delay:** Fixed 3-second delay between retry attempts
+- **Semaphore behavior:** Released during delay to allow other roles to proceed
+
+**Retryable Errors:**
+- `JSONDecodeError` - Empty or malformed JSON response from LLM
+- `TimeoutError` - LLM call timeout
+- `ConnectionError` - Network connectivity issues
+- Rate limiting (HTTP 429)
+
+**Non-Retryable Errors (fail immediately):**
+- `AuthenticationError` - Invalid API key
+- `ValidationError` - Pydantic schema validation failure
+- `InvalidToken` - Encryption/decryption failure
+
+**User Experience:**
+- Progress messages show retry attempts: "[Attempt 1 failed: Empty response. Retrying in 3s...]"
+- Final error message includes role context: "Unable to refine 'Title @ Company' after 3 attempts"
+- Debug logging captures truncated LLM responses (first 500 chars) for troubleshooting
+
+**Implementation:**
+- Located in `refine_role()` in `resume_editor/app/llm/orchestration.py`
+- Helper functions: `_is_retryable_error()`, `_handle_retry_delay()`, `_log_failed_attempt()`
+- Progress callbacks via `progress_callback` parameter for SSE updates
+
+### Refinement Scope
+
+**What gets refined:**
+- ✓ Introduction/Banner (regenerated based on refined experience)
+- ✓ Experience roles (each role's summary, responsibilities, skills)
+
+**What does NOT get refined:**
+- ✗ Personal information (name, contact, etc.)
+- ✗ Education section
+- ✗ Certifications
+- ✗ Projects (preserved but not refined)
+
+### User Actions After Refinement
+
+After successful refinement, the user sees the refined resume and has three options:
+
+1. **Accept** - Updates the current base resume with refined content
+2. **Discard** - Redirects back to editor, no changes saved
+3. **Save As New** - Creates a new refined resume (child of base), keeps base unchanged
+
+### Key Files for AI Refinement
+
+```
+resume_editor/app/api/routes/resume_ai.py              # SSE endpoints
+resume_editor/app/api/routes/route_logic/resume_ai_logic.py  # Core refinement logic
+resume_editor/app/llm/orchestration.py                 # LLM calls and concurrency
+resume_editor/app/templates/refine.html               # Refine page UI
+resume_editor/app/templates/partials/resume/_refine_sse_loader.html  # SSE progress UI
+resume_editor/app/templates/partials/resume/_refine_result.html      # Final result UI
+```
+
 ## Common Tasks
 
 ### Adding a New Resume Section

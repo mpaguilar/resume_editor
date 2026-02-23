@@ -10,6 +10,10 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from resume_editor.app.api.dependencies import get_resume_for_user
+from resume_editor.app.api.routes.route_logic.refinement_checkpoint import (
+    running_log_manager,
+)
+from resume_editor.app.llm.models import RunningLog
 from resume_editor.app.api.routes.route_logic.resume_ai_logic import (
     create_sse_close_message,
     create_sse_error_message,
@@ -261,6 +265,56 @@ def _build_filtered_content_if_needed(
     return result
 
 
+def _get_or_create_running_log(
+    resume_id: int,
+    user_id: int,
+    job_description: str,
+) -> RunningLog:
+    """Get existing running log or create new one.
+
+    Args:
+        resume_id: The resume ID
+        user_id: The user ID
+        job_description: The job description for validation
+
+    Returns:
+        RunningLog: Existing log if valid, or new empty log
+
+    Notes:
+        1. Check for existing log via running_log_manager.get_log()
+        2. If exists and job_description matches, return existing log
+        3. If exists but job_description changed, clear old log and create new
+        4. If no log exists, create new empty log
+        5. Log all decisions at debug level
+
+    """
+    _msg = "_get_or_create_running_log starting"
+    log.debug(_msg)
+
+    existing_log = running_log_manager.get_log(resume_id, user_id)
+
+    if existing_log is not None:
+        if running_log_manager.job_description_matches(
+            resume_id, user_id, job_description
+        ):
+            _msg = "Found existing running log for resumption"
+            log.debug(_msg)
+            _msg = "_get_or_create_running_log returning"
+            log.debug(_msg)
+            return existing_log
+
+        _msg = "Job description changed, clearing old log"
+        log.debug(_msg)
+        running_log_manager.clear_log(resume_id, user_id)
+
+    new_log = running_log_manager.create_log(resume_id, user_id, job_description)
+    _msg = "Created new running log"
+    log.debug(_msg)
+    _msg = "_get_or_create_running_log returning"
+    log.debug(_msg)
+    return new_log
+
+
 async def _experience_refinement_stream(
     params: _ExperienceStreamParams,
 ) -> AsyncGenerator[str, None]:
@@ -285,6 +339,13 @@ async def _experience_refinement_stream(
     """
     _msg = "Starting SSE stream for resume refinement"
     log.debug(_msg)
+
+    running_log = _get_or_create_running_log(
+        resume_id=params.resume.id,
+        user_id=params.current_user.id,
+        job_description=params.job_description,
+    )
+
     try:
         content_to_refine = _build_filtered_content_if_needed(
             resume_content=params.resume.content,
@@ -316,10 +377,19 @@ async def _experience_refinement_stream(
         original_resume_content=params.resume.content,
         job_description=params.job_description,
         limit_refinement_years=params.limit_refinement_years,
+        running_log=running_log,
     )
-    generator = experience_refinement_sse_generator(params=exp_params)
-    async for item in generator:
-        yield item
+    try:
+        generator = experience_refinement_sse_generator(params=exp_params)
+        async for item in generator:
+            yield item
+        _msg = "Refinement completed successfully, clearing running log"
+        log.debug(_msg)
+        running_log_manager.clear_log(params.resume.id, params.current_user.id)
+    except Exception:
+        _msg = "Refinement failed, keeping running log for resumption"
+        log.debug(_msg)
+        raise
 
 
 async def _extract_original_limit_str_from_post(

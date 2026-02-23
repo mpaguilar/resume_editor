@@ -2,8 +2,10 @@ import asyncio
 import json
 import logging
 import re
-from typing import Any, AsyncGenerator
+from collections.abc import AsyncGenerator, Awaitable, Callable
+from typing import Any
 
+from cryptography.fernet import InvalidToken
 from langchain_core.output_parsers import PydanticOutputParser, StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.utils.json import parse_json_markdown
@@ -44,7 +46,7 @@ DEFAULT_LLM_TEMPERATURE = 0.2
 
 
 def _parse_json_with_fix(json_string: str) -> Any:
-    """Parse a JSON string, attempting to fix common LLM-produced errors.
+    r"""Parse a JSON string, attempting to fix common LLM-produced errors.
 
     Specifically, this function handles `json.JSONDecodeError` caused by
     "Invalid \escape" by replacing single backslashes with double backslashes
@@ -85,11 +87,13 @@ def _unwrap_exception_group(e: Exception):
         e (Exception): The exception to inspect.
 
     Raises:
-        The unwrapped exception if conditions are met, otherwise re-raises the original exception.
+        The unwrapped exception if conditions are met, otherwise re-raises the
+        original exception.
 
     Notes:
         1. If 'e' is not an ExceptionGroup, it is re-raised.
-        2. If 'e' is an ExceptionGroup, it filters out any asyncio.CancelledError exceptions.
+        2. If 'e' is an ExceptionGroup, it filters out any asyncio.CancelledError
+           exceptions.
         3. If exactly one non-cancellation error remains, that single error is raised.
         4. Otherwise, the original ExceptionGroup is re-raised.
 
@@ -114,9 +118,12 @@ def _initialize_llm_client(llm_config: LLMConfig) -> ChatOpenAI:
         ChatOpenAI: An initialized ChatOpenAI client instance.
 
     Notes:
-        1.  Determines the model name, using the provided `llm_model_name` or falling back to a default.
-        2.  Sets up LLM parameters for temperature, endpoint, and headers (if OpenRouter is used).
-        3.  Sets the API key if provided, or uses a dummy key if a custom endpoint is specified without a key.
+        1.  Determines the model name, using the provided `llm_model_name` or falling
+            back to a default.
+        2.  Sets up LLM parameters for temperature, endpoint, and headers (if OpenRouter
+            is used).
+        3.  Sets the API key if provided, or uses a dummy key if a custom endpoint is
+            specified without a key.
         4.  Returns an initialized `ChatOpenAI` client.
 
     """
@@ -149,17 +156,21 @@ async def analyze_job_description(
 
     Args:
         job_description (str): The job description to analyze.
-        llm_config (LLMConfig): LLM configuration including endpoint, API key, and model name.
-        resume_content_for_context (str): The full resume content, used to provide context for the analysis.
+        llm_config (LLMConfig): LLM configuration including endpoint, API key, and model
+            name.
+        resume_content_for_context (str): The full resume content, used to provide
+            context for the analysis.
 
     Returns:
         JobAnalysis: The structured analysis of the job description.
 
     Notes:
-        1. Set up a `PydanticOutputParser` for structured output based on the `JobAnalysis` model.
+        1. Set up a `PydanticOutputParser` for structured output based on the
+           `JobAnalysis` model.
         2. Prepare prompt components for with resume content for context.
         3. Create a `ChatPromptTemplate` with instructions for the LLM.
-        4. Determine the model name, using the provided `llm_model_name` or falling back to a default.
+        4. Determine the model name, using the provided `llm_model_name` or falling
+           back to a default.
         5. Initialize the `ChatOpenAI` client.
         6. Create a chain combining the prompt, LLM, and a `StrOutputParser`.
         7. Asynchronously invoke the chain with the job description and resume content.
@@ -167,7 +178,8 @@ async def analyze_job_description(
         9. Return the `JobAnalysis` object.
 
     Network access:
-        - This function makes a network request to the LLM endpoint specified by llm_endpoint.
+        - This function makes a network request to the LLM endpoint specified by
+          llm_endpoint.
 
     """
     _msg = "analyze_job_description starting"
@@ -234,7 +246,8 @@ async def _refine_role_and_put_on_queue(
     the parent `TaskGroup`.
 
     Args:
-        job (RoleRefinementJob): The refinement job containing the role, job analysis, LLM configuration, and original index.
+        job (RoleRefinementJob): The refinement job containing the role, job analysis,
+            LLM configuration, and original index.
         semaphore (asyncio.Semaphore): The semaphore to control concurrency.
         event_queue (asyncio.Queue): The queue to send events to.
 
@@ -244,7 +257,8 @@ async def _refine_role_and_put_on_queue(
     Notes:
         1. This function is a coroutine.
         2. It waits to acquire the provided semaphore.
-        3. Once acquired, it puts an 'in_progress' status message onto the `event_queue`.
+        3. Once acquired, it puts an 'in_progress' status message onto the
+           `event_queue`.
         4. It calls `refine_role` to perform the actual LLM refinement.
         5. On success, it puts the `role_refined` event onto the queue.
         6. On failure, the exception from `refine_role` will cause this task to fail.
@@ -268,10 +282,16 @@ async def _refine_role_and_put_on_queue(
             "Semaphore acquired, refining role for index %d",
             job.original_index,
         )
+
+        async def _progress_callback(message: str) -> None:
+            await event_queue.put({"status": "in_progress", "message": message})
+
         refined_role = await refine_role(
             role=job.role,
             job_analysis=job.job_analysis,
             llm_config=job.llm_config,
+            semaphore=semaphore,
+            progress_callback=_progress_callback,
         )
         await event_queue.put(
             {
@@ -287,50 +307,98 @@ async def async_refine_experience_section(
     job_description: str,
     llm_config: LLMConfig,
     max_concurrency: int = 5,
+    job_analysis: JobAnalysis | None = None,
+    skip_indices: set[int] | None = None,
 ) -> AsyncGenerator[dict[str, Any], None]:
     """Orchestrates the CONCURRENT refinement of the 'experience' section of a resume.
 
     Args:
         resume_content (str): The full Markdown content of the resume.
         job_description (str): The job description to align the resume with.
-        llm_config (LLMConfig): LLM configuration including endpoint, API key, and model name.
+        llm_config (LLMConfig): LLM configuration including endpoint, API key, and model
+            name.
         max_concurrency (int): The maximum number of roles to refine in parallel.
+        job_analysis (JobAnalysis | None): Optional cached job analysis. If provided,
+            skips the analysis step.
+        skip_indices (set[int] | None): Optional set of role indices to skip during
+            refinement.
 
     Yields:
         dict[str, Any]: Status updates and refined role data.
 
     Notes:
-        1. Yields progress messages for parsing the resume and analyzing the job description.
-        2. Extracts experience information from the resume. If no roles are found, the function returns.
-        3. Analyzes the job description to get key requirements, yielding a `job_analysis_complete` event.
-        4. Creates an `asyncio.Queue` for events and a `Semaphore` to limit concurrency.
-        5. For each role, a background task is created to perform refinement and put events on the queue.
-        6. Enters a loop to consume events from the queue, yielding them until all roles are processed.
-        7. After the event loop, `asyncio.gather` is called to ensure all background tasks have completed.
+        1. Yields progress messages for parsing the resume and analyzing the job
+           description.
+        2. Extracts experience information from the resume. If no roles are found, the
+           function returns.
+        3. If job_analysis is not provided, analyzes the job description to get key
+           requirements, yielding a `job_analysis_complete` event. If provided, uses the
+           cached analysis.
+        4. Filters roles based on skip_indices - skipped roles yield a progress message
+           and are not refined.
+        5. Creates an `asyncio.Queue` for events and a `Semaphore` to limit concurrency.
+        6. For each non-skipped role, a background task is created to perform
+           refinement.
+        7. Enters a loop to consume events from the queue, yielding them until all roles
+           are processed.
+        8. After the event loop, `asyncio.gather` is called to ensure all background
+           tasks have completed.
 
     """
-    log.debug("async_refine_experience_section starting")
+    _msg = "async_refine_experience_section starting"
+    log.debug(_msg)
+
+    # Initialize skip_indices to empty set if None
+    skip_indices = skip_indices or set()
 
     # 1. Parse the experience section of the resume
     yield {"status": "in_progress", "message": "Parsing resume..."}
     log.debug("Parsing resume...")
     experience_info = extract_experience_info(resume_content)
 
-    # 2. Analyze the job description
-    yield {"status": "in_progress", "message": "Analyzing job description..."}
-    log.debug("Analyzing job description...")
+    # 2. Analyze the job description (or use cached analysis)
+    if job_analysis is None:
+        yield {"status": "in_progress", "message": "Analyzing job description..."}
+        log.debug("Analyzing job description...")
 
-    job_analysis, _ = await analyze_job_description(
-        job_description=job_description,
-        llm_config=llm_config,
-        resume_content_for_context=resume_content,
-    )
+        job_analysis, _ = await analyze_job_description(
+            job_description=job_description,
+            llm_config=llm_config,
+            resume_content_for_context=resume_content,
+        )
+    else:
+        _msg = "Using cached job analysis"
+        log.debug(_msg)
+
     yield {"status": "job_analysis_complete", "message": "Job analysis complete."}
 
-    # 3. Create and dispatch tasks for role refinement
-    num_roles = len(experience_info.roles) if experience_info.roles else 0
-    if num_roles == 0:
-        log.warning("No roles found in experience section to refine.")
+    # 3. Filter roles based on skip_indices
+    roles_to_refine = [
+        (i, role)
+        for i, role in enumerate(experience_info.roles)
+        if i not in skip_indices
+    ]
+
+    # Yield skip messages for skipped roles
+    for index, role in enumerate(experience_info.roles):
+        if index in skip_indices:
+            role_title = (
+                f"{role.basics.title} @ {role.basics.company}"
+                if role.basics
+                else f"Role {index}"
+            )
+            yield {
+                "status": "in_progress",
+                "message": f"Skipping role '{role_title}' (already refined)",
+            }
+            _msg = f"Skipping role at index {index} (already refined)"
+            log.debug(_msg)
+
+    # 4. Create and dispatch tasks for role refinement
+    num_roles_to_refine = len(roles_to_refine)
+    if num_roles_to_refine == 0:
+        _msg = "No roles to refine after filtering"
+        log.debug(_msg)
         return
 
     event_queue = asyncio.Queue()
@@ -339,7 +407,7 @@ async def async_refine_experience_section(
     tasks = []
     try:
         async with asyncio.TaskGroup() as tg:
-            for index, role in enumerate(experience_info.roles):
+            for index, role in roles_to_refine:
                 job = RoleRefinementJob(
                     role=role,
                     job_analysis=job_analysis,
@@ -355,9 +423,9 @@ async def async_refine_experience_section(
                 )
                 tasks.append(task)
 
-            # 4. Yield events from the queue
+            # 5. Yield events from the queue
             processed_count = 0
-            while processed_count < num_roles:
+            while processed_count < num_roles_to_refine:
                 event = await event_queue.get()
                 if event.get("status") in ("role_refined",):
                     processed_count += 1
@@ -369,26 +437,296 @@ async def async_refine_experience_section(
         # If it's an ExceptionGroup with a single meaningful exception, unwrap it
         # to simplify error handling for the caller.
         _unwrap_exception_group(e)
-    log.debug("async_refine_experience_section finishing")
+    _msg = "async_refine_experience_section finishing"
+    log.debug(_msg)
+
+
+def _is_retryable_error(e: Exception) -> bool:
+    """Determine if an error is retryable.
+
+    Args:
+        e (Exception): The exception to check.
+
+    Returns:
+        bool: True if the error is retryable, False otherwise.
+
+    Notes:
+        1. Retryable errors include: json.JSONDecodeError, TimeoutError, ConnectionError.
+        2. Non-retryable errors include: AuthenticationError, pydantic.ValidationError,
+           InvalidToken.
+        3. Uses isinstance() checks to determine error type.
+
+    """
+    retryable_types = (json.JSONDecodeError, TimeoutError, ConnectionError)
+    non_retryable_types = (AuthenticationError, ValidationError, InvalidToken)
+
+    if isinstance(e, retryable_types):
+        return True
+    if isinstance(e, non_retryable_types):
+        return False
+    return False
+
+
+def _truncate_for_log(text: str, max_len: int = 500) -> str:
+    """Truncate text for logging purposes.
+
+    Args:
+        text (str): The text to potentially truncate.
+        max_len (int): Maximum length before truncation. Defaults to 500.
+
+    Returns:
+        str: The original text if within max_len, otherwise truncated with "...".
+
+    Notes:
+        1. If text length exceeds max_len, truncates and appends "...".
+        2. Otherwise returns the text unchanged.
+
+    """
+    if len(text) > max_len:
+        return text[:max_len] + "..."
+    return text
+
+
+def _log_failed_attempt(
+    role: Role,
+    attempt: int,
+    response: str,
+    error: Exception,
+    job_analysis: JobAnalysis,
+) -> None:
+    """Log a failed role refinement attempt.
+
+    Args:
+        role (Role): The role being refined.
+        attempt (int): The attempt number that failed.
+        response (str): The LLM response that caused the failure.
+        error (Exception): The exception that occurred.
+        job_analysis (JobAnalysis): The job analysis context.
+
+    Returns:
+        None
+
+    Notes:
+        1. Logs at DEBUG level.
+        2. Includes truncated response using _truncate_for_log.
+        3. Includes role context: company, title.
+        4. Includes job analysis summary.
+        5. Includes error type.
+        6. Formats message into variable per CONVENTIONS.md (no f-strings in log call).
+
+    """
+    truncated_response = _truncate_for_log(response)
+    job_summary = job_analysis.model_dump_json(indent=2)
+    error_type = type(error).__name__
+
+    _msg = (
+        f"Failed attempt {attempt} for role '{role.basics.title} @ {role.basics.company}'. "
+        f"Error type: {error_type}. "
+        f"Job analysis: {job_summary}. Response: {truncated_response}"
+    )
+    log.debug(_msg)
+
+
+def _create_error_context(role: Role, max_attempts: int) -> str:
+    """Create a user-friendly error message for failed refinement.
+
+    Args:
+        role (Role): The role that failed to refine.
+        max_attempts (int): The maximum number of attempts that were made.
+
+    Returns:
+        str: A formatted error message with instructions for the user.
+
+    Notes:
+        1. Returns formatted error message with role title and company.
+        2. Includes the number of attempts made.
+        3. Mentions potential AI service issues.
+        4. Provides instruction to click Start Refinement to resume.
+
+    """
+    _msg = (
+        f"Unable to refine '{role.basics.title} @ {role.basics.company}' "
+        f"after {max_attempts} attempts. The AI service may be experiencing issues. "
+        "Click Start Refinement to resume."
+    )
+    return _msg
+
+
+async def _attempt_refine_role(
+    chain: Any,
+    job_analysis_json: str,
+    role_json: str,
+) -> tuple[bool, RefinedRole | None, Exception | None]:
+    """Attempt a single LLM refinement invocation.
+
+    Args:
+        chain (Any): The LangChain runnable chain to invoke.
+        job_analysis_json (str): JSON string of the job analysis.
+        role_json (str): JSON string of the role to refine.
+
+    Returns:
+        tuple[bool, RefinedRole | None, Exception | None]: A tuple containing:
+            - success (bool): True if the attempt succeeded, False otherwise.
+            - result (RefinedRole | None): The refined role if successful, None otherwise.
+            - error (Exception | None): The exception if failed, None otherwise.
+
+    Notes:
+        1. Invokes the chain asynchronously with job_analysis_json and role_json.
+        2. Parses the response using _parse_json_with_fix for robustness.
+        3. Validates the parsed JSON against the RefinedRole model.
+        4. Returns (True, refined_role, None) on success.
+        5. Catches exceptions and returns (False, None, error) on failure.
+        6. Re-raises AuthenticationError immediately as it is non-retryable.
+
+    Network access:
+        - This function makes a network request to the LLM endpoint.
+
+    """
+    try:
+        response_str = await chain.ainvoke(
+            {
+                "job_analysis_json": job_analysis_json,
+                "role_json": role_json,
+            },
+        )
+        parsed_json = _parse_json_with_fix(response_str)
+        refined_role = RefinedRole.model_validate(parsed_json)
+        return True, refined_role, None
+    except AuthenticationError:
+        raise
+    except Exception as e:
+        return False, None, e
+
+
+async def _handle_retry_delay(
+    attempt: int,
+    role: Role,
+    response_str: str,
+    error: Exception,
+    job_analysis: JobAnalysis,
+    semaphore: asyncio.Semaphore | None,
+    progress_callback: Callable[[str], Awaitable[None]] | None,
+) -> None:
+    """Handle the delay and logging between retry attempts.
+
+    Args:
+        attempt (int): The current attempt number (0-indexed).
+        role (Role): The role being refined.
+        response_str (str): The LLM response string.
+        error (Exception): The error that occurred.
+        job_analysis (JobAnalysis): The job analysis context.
+        semaphore (asyncio.Semaphore | None): Optional semaphore to release during delay.
+        progress_callback (Callable[[str], Awaitable[None]] | None): Optional callback
+            for progress updates.
+
+    Returns:
+        None
+
+    Notes:
+        1. Logs the failed attempt using _log_failed_attempt.
+        2. Calls progress_callback with retry message if provided.
+        3. Releases semaphore if provided.
+        4. Sleeps for 3 seconds.
+        5. Re-acquires semaphore if provided.
+
+    """
+    _log_failed_attempt(
+        role=role,
+        attempt=attempt + 1,
+        response=response_str,
+        error=error,
+        job_analysis=job_analysis,
+    )
+
+    if progress_callback is not None:
+        _retry_msg = f"Retrying role refinement for '{role.basics.title} @ {role.basics.company}' (attempt {attempt + 2}/3)..."
+        await progress_callback(_retry_msg)
+
+    if semaphore is not None:
+        semaphore.release()
+
+    await asyncio.sleep(3)
+
+    if semaphore is not None:
+        await semaphore.acquire()
+
+
+async def _process_refinement_error(
+    attempt: int,
+    error: Exception,
+    role: Role,
+    response_str: str,
+    job_analysis: JobAnalysis,
+    semaphore: asyncio.Semaphore | None,
+    progress_callback: Callable[[str], Awaitable[None]] | None,
+) -> bool:
+    """Process an error from a refinement attempt and decide whether to retry.
+
+    Args:
+        attempt (int): The current attempt number (0-indexed).
+        error (Exception): The error that occurred.
+        role (Role): The role being refined.
+        response_str (str): The LLM response string.
+        job_analysis (JobAnalysis): The job analysis context.
+        semaphore (asyncio.Semaphore | None): Optional semaphore for retry delays.
+        progress_callback (Callable[[str], Awaitable[None]] | None): Optional callback
+            for progress updates.
+
+    Returns:
+        bool: True if should retry, False if max attempts reached.
+
+    Raises:
+        Exception: Re-raises the error if it is not retryable.
+
+    Notes:
+        1. Checks if the error is retryable using _is_retryable_error.
+        2. If not retryable, re-raises the error immediately.
+        3. If retryable and not the last attempt, calls _handle_retry_delay.
+        4. Returns True if retry should proceed, False if max attempts reached.
+
+    """
+    if not _is_retryable_error(error):
+        raise error
+
+    if attempt < 2:  # Not the last attempt
+        await _handle_retry_delay(
+            attempt=attempt,
+            role=role,
+            response_str=response_str,
+            error=error,
+            job_analysis=job_analysis,
+            semaphore=semaphore,
+            progress_callback=progress_callback,
+        )
+        return True
+    return False
 
 
 async def refine_role(
     role: Role,
     job_analysis: JobAnalysis,
     llm_config: LLMConfig,
+    semaphore: asyncio.Semaphore | None = None,
+    progress_callback: Callable[[str], Awaitable[None]] | None = None,
 ) -> RefinedRole:
     """Uses an LLM to refine a single resume Role based on a job analysis.
 
     Args:
         role (Role): The structured Role object to refine.
         job_analysis (JobAnalysis): The structured job analysis to align with.
-        llm_config (LLMConfig): LLM configuration including endpoint, API key, and model name.
+        llm_config (LLMConfig): LLM configuration including endpoint, API key, and model
+            name.
+        semaphore (asyncio.Semaphore | None): Optional semaphore to release/reacquire
+            during retry delays.
+        progress_callback (Callable[[str], Awaitable[None]] | None): Optional callback
+            for progress updates during retries.
 
     Returns:
         RefinedRole: The refined and validated Role object.
 
     Raises:
-        ValueError: If the LLM response is not valid JSON or fails Pydantic validation.
+        ValueError: If the LLM response is not valid JSON or fails Pydantic validation after all retries.
+        AuthenticationError: If authentication fails (not retryable).
 
     Notes:
         1. Set up a PydanticOutputParser for structured output based on the `RefinedRole` model.
@@ -396,9 +734,9 @@ async def refine_role(
         3. Create a PromptTemplate with instructions for the LLM.
         4. Initialize the ChatOpenAI client.
         5. Create a chain combining the prompt, LLM, and a string output parser.
-        6. Asynchronously invoke the chain with the serialized JSON data.
-        7. Parse the LLM's string response to extract the JSON using `_parse_json_with_fix` for robustness.
-        8. Validate the extracted JSON against the `RefinedRole` model.
+        6. Attempt the LLM call up to 3 times using _attempt_refine_role().
+        7. On failure, call _process_refinement_error() to decide whether to retry.
+        8. If all attempts fail, raise ValueError with `_create_error_context()` message.
         9. Preserves the original `inclusion_status` of the role, as this is a user-controlled setting.
         10. Return the validated `RefinedRole` object.
 
@@ -426,24 +764,40 @@ async def refine_role(
     role_json = role.model_dump_json(indent=2)
     job_analysis_json = job_analysis.model_dump_json(indent=2)
 
-    try:
-        response_str = await chain.ainvoke(
-            {
-                "job_analysis_json": job_analysis_json,
-                "role_json": role_json,
-            },
-        )
-        parsed_json = _parse_json_with_fix(response_str)
-        refined_role = RefinedRole.model_validate(parsed_json)
+    last_error: Exception | None = None
+    refined_role: RefinedRole | None = None
+    response_str: str = ""
 
-    except AuthenticationError:
-        raise
-    except Exception as e:
-        _msg = f"An unexpected error occurred during role refinement: {e!s}"
-        log.exception(_msg)
-        raise ValueError(
-            "The AI service returned an unexpected response. Please try again.",
-        ) from e
+    for attempt in range(3):
+        success, result, error = await _attempt_refine_role(
+            chain=chain,
+            job_analysis_json=job_analysis_json,
+            role_json=role_json,
+        )
+
+        if success:
+            refined_role = result
+            break
+
+        # Handle failure and decide whether to retry
+        # error is never None when success is False
+        last_error = error  # type: ignore[assignment]
+        should_retry = await _process_refinement_error(
+            attempt=attempt,
+            error=last_error,  # type: ignore[arg-type]
+            role=role,
+            response_str=response_str,
+            job_analysis=job_analysis,
+            semaphore=semaphore,
+            progress_callback=progress_callback,
+        )
+
+        if not should_retry:
+            break
+
+    if refined_role is None:
+        _error_msg = _create_error_context(role, 3)
+        raise ValueError(_error_msg) from last_error
 
     # Preserve the original inclusion status, as the AI should not decide this.
     refined_role.basics.inclusion_status = role.basics.inclusion_status
@@ -523,11 +877,22 @@ def _generate_introduction_from_analysis(
              or an empty string if generation fails.
 
     Notes:
-        1.  **Step 1: Resume Analysis**: Creates a chain with `INTRO_ANALYZE_RESUME_PROMPT`. This prompt instructs the LLM to act as a recruiter, analyzing the `resume_content` to find factual evidence for each requirement in `job_analysis_json`. The output is parsed into a `CandidateAnalysis` model.
-        2.  **Step 2: Introduction Synthesis**: Creates a chain with `INTRO_SYNTHESIZE_INTRODUCTION_PROMPT`. This prompt takes the evidence from the previous step and synthesizes a concise, compelling introduction. It is strictly instructed to only use the provided evidence. The output is parsed into a `GeneratedIntroduction` model.
-        3.  Extracts the `strengths` list from the final Pydantic object and formats it as a Markdown bulleted list.
-        4.  Handles JSON decoding and Pydantic validation errors by logging and returning an empty string.
-        5.  This function performs multiple network requests to the configured LLM endpoint.
+        1.  **Step 1: Resume Analysis**: Creates a chain with
+            `INTRO_ANALYZE_RESUME_PROMPT`. This prompt instructs the LLM to act as a
+            recruiter, analyzing the `resume_content` to find factual evidence for each
+            requirement in `job_analysis_json`. The output is parsed into a
+            `CandidateAnalysis` model.
+        2.  **Step 2: Introduction Synthesis**: Creates a chain with
+            `INTRO_SYNTHESIZE_INTRODUCTION_PROMPT`. This prompt takes the evidence from
+            the previous step and synthesizes a concise, compelling introduction. It is
+            strictly instructed to only use the provided evidence. The output is parsed
+            into a `GeneratedIntroduction` model.
+        3.  Extracts the `strengths` list from the final Pydantic object and formats it
+            as a Markdown bulleted list.
+        4.  Handles JSON decoding and Pydantic validation errors by logging and
+            returning an empty string.
+        5.  This function performs multiple network requests to the configured LLM
+            endpoint.
 
     """
     _msg = "_generate_introduction_from_analysis starting"
@@ -604,10 +969,16 @@ def generate_introduction_from_resume(
 
     Notes:
         1.  Initializes a ChatOpenAI client using the provided `llm_config`.
-        2.  **Step 1: Job Analysis**: Creates and invokes a chain with `INTRO_ANALYZE_JOB_PROMPT` to extract key skills and priorities from the `job_description`.
-        3.  **Step 2 & 3 (Delegation)**: Calls `_generate_introduction_from_analysis` with the job analysis result. This sub-process performs the detailed, fact-finding resume analysis and the final introduction synthesis.
-        4.  Handles exceptions during the initial job analysis step and returns an empty string on failure.
-        5.  This function performs multiple network requests to the configured LLM endpoint.
+        2.  **Step 1: Job Analysis**: Creates and invokes a chain with
+            `INTRO_ANALYZE_JOB_PROMPT` to extract key skills and priorities from the
+            `job_description`.
+        3.  **Step 2 & 3 (Delegation)**: Calls `_generate_introduction_from_analysis` with
+            the job analysis result. This sub-process performs the detailed, fact-finding
+            resume analysis and the final introduction synthesis.
+        4.  Handles exceptions during the initial job analysis step and returns an empty
+            string on failure.
+        5.  This function performs multiple network requests to the configured LLM
+            endpoint.
 
     """
     _msg = "generate_introduction_from_resume starting"

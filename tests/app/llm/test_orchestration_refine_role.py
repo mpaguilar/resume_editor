@@ -50,7 +50,11 @@ LLM_INIT_PARAMS = [
         None,
         "key",
         "custom-model",
-        {"model": "custom-model", "temperature": DEFAULT_LLM_TEMPERATURE, "api_key": "key"},
+        {
+            "model": "custom-model",
+            "temperature": DEFAULT_LLM_TEMPERATURE,
+            "api_key": "key",
+        },
     ),
     # Case 4: No endpoint, no API key (relies on env var)
     (
@@ -142,14 +146,15 @@ def mock_chain_invocations_for_role_refine():
     """
     Fixture to mock the LangChain chain invocation for role refinement.
     """
-    with patch(
-        "resume_editor.app.llm.orchestration.ChatOpenAI"
-    ) as mock_chat_openai_class, patch(
-        "resume_editor.app.llm.orchestration.ChatPromptTemplate"
-    ) as mock_prompt_template_class, patch(
-        "resume_editor.app.llm.orchestration.PydanticOutputParser"
-    ), patch(
-        "resume_editor.app.llm.orchestration.StrOutputParser"
+    with (
+        patch(
+            "resume_editor.app.llm.orchestration.ChatOpenAI"
+        ) as mock_chat_openai_class,
+        patch(
+            "resume_editor.app.llm.orchestration.ChatPromptTemplate"
+        ) as mock_prompt_template_class,
+        patch("resume_editor.app.llm.orchestration.PydanticOutputParser"),
+        patch("resume_editor.app.llm.orchestration.StrOutputParser"),
     ):
         mock_prompt_from_messages = MagicMock()
         mock_prompt_template_class.from_messages.return_value = (
@@ -223,41 +228,49 @@ async def test_refine_role_success(mock_chain_invocations_for_role_refine):
     invoke_args = final_chain.ainvoke.call_args.args[0]
 
     assert invoke_args["role_json"] == mock_role.model_dump_json(indent=2)
-    assert (
-        invoke_args["job_analysis_json"]
-        == mock_job_analysis.model_dump_json(indent=2)
+    assert invoke_args["job_analysis_json"] == mock_job_analysis.model_dump_json(
+        indent=2
     )
 
 
 @pytest.mark.asyncio
 async def test_refine_role_json_decode_error(mock_chain_invocations_for_role_refine):
-    """Test that refine_role handles JSON decoding errors."""
+    """Test that refine_role handles JSON decoding errors with retry logic."""
     final_chain = mock_chain_invocations_for_role_refine["final_chain"]
     final_chain.ainvoke.return_value = "```json\n{ not valid json }\n```"
 
-    with pytest.raises(ValueError, match="unexpected response"):
+    with pytest.raises(ValueError, match="Unable to refine"):
         await refine_role(
             role=create_mock_role(),
             job_analysis=create_mock_job_analysis(),
             llm_config=LLMConfig(),
         )
+
+    # Verify that the chain was called 3 times (due to retry logic)
+    assert final_chain.ainvoke.call_count == 3
 
 
 @pytest.mark.asyncio
 async def test_refine_role_pydantic_validation_error(
     mock_chain_invocations_for_role_refine,
 ):
-    """Test that refine_role handles Pydantic validation errors."""
+    """Test that refine_role handles Pydantic validation errors (not retryable)."""
+    from pydantic import ValidationError
+
     final_chain = mock_chain_invocations_for_role_refine["final_chain"]
     # Return valid JSON but with missing required fields within the "basics" object.
     final_chain.ainvoke.return_value = '```json\n{"basics": {"company": "foo"}}\n```'
 
-    with pytest.raises(ValueError, match="unexpected response"):
+    # ValidationError is not retryable, so it should raise immediately
+    with pytest.raises(ValidationError):
         await refine_role(
             role=create_mock_role(),
             job_analysis=create_mock_job_analysis(),
             llm_config=LLMConfig(),
         )
+
+    # Verify that the chain was called only once (no retries for non-retryable errors)
+    assert final_chain.ainvoke.call_count == 1
 
 
 @pytest.mark.asyncio
@@ -286,11 +299,11 @@ async def test_refine_role_prompt_content(mock_chain_invocations_for_role_refine
     human_template = messages[1][1]
 
     # Check that crucial rules and spec are always in the system template
-    assert "Your single most important and non-negotiable instruction" in system_template
-    assert "As an expert resume writer" in system_template
     assert (
-        "your task is to refine the provided `role` JSON object" in system_template
+        "Your single most important and non-negotiable instruction" in system_template
     )
+    assert "As an expert resume writer" in system_template
+    assert "your task is to refine the provided `role` JSON object" in system_template
     assert "{format_instructions}" in system_template
     assert "Role to Refine:" in human_template
     assert "Job Analysis (for context):" in human_template
@@ -355,14 +368,254 @@ async def test_refine_role_general_exception(
     mock_chain_invocations_for_role_refine,
 ):
     """
-    Test that a general exception from the LLM call is propagated during role refinement.
+    Test that a general exception from the LLM call is not retryable and raises immediately.
     """
     final_chain = mock_chain_invocations_for_role_refine["final_chain"]
     final_chain.ainvoke.side_effect = Exception("Something unexpected happened")
 
-    with pytest.raises(ValueError, match="unexpected response"):
+    # General exceptions are not retryable, so it should raise immediately
+    with pytest.raises(Exception, match="Something unexpected happened"):
         await refine_role(
             role=create_mock_role(),
             job_analysis=create_mock_job_analysis(),
             llm_config=LLMConfig(),
         )
+
+    # Verify that the chain was called only once (no retries for non-retryable errors)
+    assert final_chain.ainvoke.call_count == 1
+
+
+@pytest.mark.asyncio
+async def test_refine_role_success_on_second_attempt(
+    mock_chain_invocations_for_role_refine,
+):
+    """Test that refine_role succeeds on the second attempt after one retryable failure.
+
+    Args:
+        mock_chain_invocations_for_role_refine: Fixture providing mocked chain invocations.
+
+    Returns:
+        None
+
+    Notes:
+        1. Configure the mock chain to fail first with JSONDecodeError, then succeed.
+        2. Patch asyncio.sleep to return immediately.
+        3. Call refine_role with mock role and job analysis.
+        4. Verify the result is a RefinedRole with expected content.
+        5. Verify the chain was called exactly 2 times.
+        6. Verify asyncio.sleep was called once with 3 seconds.
+
+    """
+    final_chain = mock_chain_invocations_for_role_refine["final_chain"]
+
+    # First call fails with JSONDecodeError (retryable), second succeeds
+    final_chain.ainvoke.side_effect = [
+        "```json\n{ not valid json }\n```",  # First attempt fails
+        final_chain.ainvoke.return_value,  # Second attempt succeeds (use original mock return)
+    ]
+
+    mock_role = create_mock_role()
+    mock_job_analysis = create_mock_job_analysis()
+
+    with patch("resume_editor.app.llm.orchestration.asyncio.sleep") as mock_sleep:
+        mock_sleep.return_value = None
+
+        result = await refine_role(
+            role=mock_role,
+            job_analysis=mock_job_analysis,
+            llm_config=LLMConfig(),
+        )
+
+    assert isinstance(result, RefinedRole)
+    assert result.summary.text == "Refined summary."
+    assert result.responsibilities.text == "* Do refined things."
+    assert result.skills.skills == ["Refined Skill"]
+
+    # Verify the chain was called exactly 2 times (1 failure + 1 success)
+    assert final_chain.ainvoke.call_count == 2
+
+    # Verify sleep was called once with 3 seconds
+    mock_sleep.assert_called_once_with(3)
+
+
+@pytest.mark.asyncio
+async def test_refine_role_success_on_third_attempt(
+    mock_chain_invocations_for_role_refine,
+):
+    """Test that refine_role succeeds on the third attempt after two retryable failures.
+
+    Args:
+        mock_chain_invocations_for_role_refine: Fixture providing mocked chain invocations.
+
+    Returns:
+        None
+
+    Notes:
+        1. Configure the mock chain to fail twice with JSONDecodeError, then succeed.
+        2. Patch asyncio.sleep to return immediately.
+        3. Call refine_role with mock role and job analysis.
+        4. Verify the result is a RefinedRole with expected content.
+        5. Verify the chain was called exactly 3 times.
+        6. Verify asyncio.sleep was called twice with 3 seconds each.
+
+    """
+    final_chain = mock_chain_invocations_for_role_refine["final_chain"]
+
+    # First two calls fail with JSONDecodeError (retryable), third succeeds
+    final_chain.ainvoke.side_effect = [
+        "```json\n{ not valid json }\n```",  # First attempt fails
+        "```json\n{ still not valid }\n```",  # Second attempt fails
+        final_chain.ainvoke.return_value,  # Third attempt succeeds
+    ]
+
+    mock_role = create_mock_role()
+    mock_job_analysis = create_mock_job_analysis()
+
+    with patch("resume_editor.app.llm.orchestration.asyncio.sleep") as mock_sleep:
+        mock_sleep.return_value = None
+
+        result = await refine_role(
+            role=mock_role,
+            job_analysis=mock_job_analysis,
+            llm_config=LLMConfig(),
+        )
+
+    assert isinstance(result, RefinedRole)
+    assert result.summary.text == "Refined summary."
+    assert result.responsibilities.text == "* Do refined things."
+    assert result.skills.skills == ["Refined Skill"]
+
+    # Verify the chain was called exactly 3 times (2 failures + 1 success)
+    assert final_chain.ainvoke.call_count == 3
+
+    # Verify sleep was called twice with 3 seconds each
+    assert mock_sleep.call_count == 2
+    mock_sleep.assert_called_with(3)
+
+
+@pytest.mark.asyncio
+async def test_refine_role_semaphore_release_during_retry(
+    mock_chain_invocations_for_role_refine,
+):
+    """Test that the semaphore is properly released and reacquired during retry delays.
+
+    Args:
+        mock_chain_invocations_for_role_refine: Fixture providing mocked chain invocations.
+
+    Returns:
+        None
+
+    Notes:
+        1. Create a mock semaphore with AsyncMock for acquire/release.
+        2. Configure the mock chain to fail once then succeed.
+        3. Patch asyncio.sleep to return immediately.
+        4. Call refine_role with the mock semaphore.
+        5. Verify semaphore.release was called once before sleep.
+        6. Verify semaphore.acquire was called once after sleep.
+        7. Verify the chain was called 2 times.
+
+    """
+    final_chain = mock_chain_invocations_for_role_refine["final_chain"]
+
+    # First call fails, second succeeds
+    final_chain.ainvoke.side_effect = [
+        "```json\n{ not valid json }\n```",  # First attempt fails
+        final_chain.ainvoke.return_value,  # Second attempt succeeds
+    ]
+
+    mock_role = create_mock_role()
+    mock_job_analysis = create_mock_job_analysis()
+
+    # Create mock semaphore
+    mock_semaphore = MagicMock()
+    mock_semaphore.release = MagicMock()
+    mock_semaphore.acquire = AsyncMock()
+
+    with patch("resume_editor.app.llm.orchestration.asyncio.sleep") as mock_sleep:
+        mock_sleep.return_value = None
+
+        result = await refine_role(
+            role=mock_role,
+            job_analysis=mock_job_analysis,
+            llm_config=LLMConfig(),
+            semaphore=mock_semaphore,
+        )
+
+    assert isinstance(result, RefinedRole)
+
+    # Verify semaphore.release was called once before sleep
+    mock_semaphore.release.assert_called_once()
+
+    # Verify semaphore.acquire was called once after sleep
+    mock_semaphore.acquire.assert_called_once()
+
+    # Verify the chain was called 2 times
+    assert final_chain.ainvoke.call_count == 2
+
+
+@pytest.mark.asyncio
+async def test_refine_role_progress_callback_during_retry(
+    mock_chain_invocations_for_role_refine,
+):
+    """Test that the progress callback is called during retry attempts.
+
+    Args:
+        mock_chain_invocations_for_role_refine: Fixture providing mocked chain invocations.
+
+    Returns:
+        None
+
+    Notes:
+        1. Create an AsyncMock for the progress callback.
+        2. Configure the mock chain to fail twice then succeed.
+        3. Patch asyncio.sleep to return immediately.
+        4. Call refine_role with the progress callback.
+        5. Verify the callback was called twice (once per retry).
+        6. Verify callback messages contain expected retry information.
+        7. Verify the chain was called 3 times.
+
+    """
+    final_chain = mock_chain_invocations_for_role_refine["final_chain"]
+
+    # First two calls fail, third succeeds
+    final_chain.ainvoke.side_effect = [
+        "```json\n{ not valid json }\n```",  # First attempt fails
+        "```json\n{ still not valid }\n```",  # Second attempt fails
+        final_chain.ainvoke.return_value,  # Third attempt succeeds
+    ]
+
+    mock_role = create_mock_role()
+    mock_job_analysis = create_mock_job_analysis()
+
+    # Create mock progress callback
+    progress_callback = AsyncMock()
+
+    with patch("resume_editor.app.llm.orchestration.asyncio.sleep") as mock_sleep:
+        mock_sleep.return_value = None
+
+        result = await refine_role(
+            role=mock_role,
+            job_analysis=mock_job_analysis,
+            llm_config=LLMConfig(),
+            progress_callback=progress_callback,
+        )
+
+    assert isinstance(result, RefinedRole)
+
+    # Verify the callback was called twice (once per retry after failures)
+    assert progress_callback.call_count == 2
+
+    # Verify callback messages contain expected retry information
+    first_call_args = progress_callback.call_args_list[0].args[0]
+    second_call_args = progress_callback.call_args_list[1].args[0]
+
+    assert "Retrying role refinement" in first_call_args
+    assert "attempt 2/3" in first_call_args
+    assert "Old Title @ Old Company" in first_call_args
+
+    assert "Retrying role refinement" in second_call_args
+    assert "attempt 3/3" in second_call_args
+    assert "Old Title @ Old Company" in second_call_args
+
+    # Verify the chain was called 3 times
+    assert final_chain.ainvoke.call_count == 3

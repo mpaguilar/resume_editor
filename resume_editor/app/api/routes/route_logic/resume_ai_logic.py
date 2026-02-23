@@ -1,5 +1,6 @@
 import html
 import logging
+from datetime import datetime
 from pathlib import Path
 from typing import Any, AsyncGenerator
 
@@ -16,6 +17,9 @@ from resume_editor.app.api.routes.html_fragments import (
 )
 from resume_editor.app.api.routes.route_logic.resume_crud import (
     ResumeCreateParams,
+)
+from resume_editor.app.api.routes.route_logic.refinement_checkpoint import (
+    running_log_manager,
 )
 from resume_editor.app.api.routes.route_logic.resume_crud import (
     create_resume as create_resume_db,
@@ -34,7 +38,7 @@ from resume_editor.app.api.routes.route_models import (
     SaveAsNewParams,
 )
 from resume_editor.app.core.security import decrypt_data
-from resume_editor.app.llm.models import LLMConfig
+from resume_editor.app.llm.models import LLMConfig, RefinedRoleRecord, RunningLog
 from resume_editor.app.llm.orchestration import (
     async_refine_experience_section,
     generate_introduction_from_resume,
@@ -573,25 +577,178 @@ def _handle_sse_exception(e: Exception, resume_id: int) -> str:
     return result
 
 
+def _build_skip_indices_from_log(running_log: RunningLog | None) -> set[int]:
+    """Extract already-refined role indices from running log.
+
+    Args:
+        running_log: The running log containing refined roles, or None.
+
+    Returns:
+        set[int]: A set of original indices that have already been refined.
+
+    Notes:
+        1. If running_log is None or has no refined_roles, returns empty set.
+        2. Extracts the original_index from each RefinedRoleRecord in the log.
+
+    """
+    _msg = "_build_skip_indices_from_log starting"
+    log.debug(_msg)
+
+    if not running_log or not running_log.refined_roles:
+        _msg = "_build_skip_indices_from_log returning empty set"
+        log.debug(_msg)
+        return set()
+
+    indices = {role.original_index for role in running_log.refined_roles}
+
+    _msg = "_build_skip_indices_from_log returning"
+    log.debug(_msg)
+    return indices
+
+
+def _create_refined_role_record(
+    original_index: int,
+    role_data: dict,
+) -> RefinedRoleRecord:
+    """Create a RefinedRoleRecord from refined role data.
+
+    Args:
+        original_index: The position of this role in the original resume.
+        role_data: The refined role data dictionary from the LLM.
+
+    Returns:
+        RefinedRoleRecord: A record tracking the refined role.
+
+    Notes:
+        1. Extracts basics (company, title, dates) from role_data.
+        2. Extracts refined_description from summary.text if available.
+        3. Extracts relevant_skills from skills.items if available.
+        4. Uses current timestamp for the record.
+
+    """
+    _msg = "_create_refined_role_record starting"
+    log.debug(_msg)
+
+    basics = role_data.get("basics", {})
+    summary = role_data.get("summary", {})
+    skills = role_data.get("skills", {})
+
+    company = basics.get("company", "")
+    title = basics.get("title", "")
+    start_date_str = basics.get("start_date")
+    end_date_str = basics.get("end_date")
+
+    # Parse dates
+    start_date = datetime.now()
+    if start_date_str:
+        try:
+            start_date = datetime.fromisoformat(start_date_str)
+        except ValueError:
+            pass
+
+    end_date = None
+    if end_date_str:
+        try:
+            end_date = datetime.fromisoformat(end_date_str)
+        except ValueError:
+            pass
+
+    # Get refined description from summary
+    refined_description = summary.get("text", "") if isinstance(summary, dict) else ""
+
+    # Get relevant skills
+    relevant_skills = skills.get("items", []) if isinstance(skills, dict) else []
+
+    record = RefinedRoleRecord(
+        original_index=original_index,
+        company=company,
+        title=title,
+        refined_description=refined_description,
+        relevant_skills=relevant_skills,
+        start_date=start_date,
+        end_date=end_date,
+        timestamp=datetime.now(),
+    )
+
+    _msg = "_create_refined_role_record returning"
+    log.debug(_msg)
+    return record
+
+
 async def _stream_llm_events(
     params: "ExperienceRefinementParams",
     llm_config: LLMConfig,
     refined_roles: dict,
+    running_log: RunningLog | None = None,
 ) -> AsyncGenerator[str, None]:
-    """Streams events from the LLM and yields SSE messages."""
+    """Streams events from the LLM and yields SSE messages.
+
+    Args:
+        params: The refinement parameters.
+        llm_config: The LLM configuration.
+        refined_roles: Dictionary to collect refined role data.
+        running_log: Optional running log for checkpoint/resumption support.
+
+    Yields:
+        str: SSE formatted messages.
+
+    Notes:
+        1. Builds skip_indices from running_log if available.
+        2. Passes cached job_analysis to async_refine_experience_section if available.
+        3. As each role is refined, adds it to the running log.
+
+    """
+    _msg = "_stream_llm_events starting"
+    log.debug(_msg)
+
+    # Build skip indices from running log
+    skip_indices = _build_skip_indices_from_log(running_log)
+    if skip_indices:
+        _msg = f"Skipping already refined roles: {skip_indices}"
+        log.debug(_msg)
+
+    # Get cached job analysis if available
+    job_analysis = running_log.job_analysis if running_log else None
+    if job_analysis:
+        _msg = "Using cached job analysis from running log"
+        log.debug(_msg)
+
     refinement_stream = async_refine_experience_section(
         resume_content=params.resume_content_to_refine,
         job_description=params.job_description,
         llm_config=llm_config,
+        job_analysis=job_analysis,
+        skip_indices=skip_indices,
     )
     try:
         async for event in refinement_stream:
+            # If this is a role_refined event, add it to the running log
+            if event.get("status") == "role_refined" and running_log:
+                original_index = event.get("original_index")
+                data = event.get("data")
+                if original_index is not None and data:
+                    try:
+                        role_record = _create_refined_role_record(original_index, data)
+                        running_log_manager.add_refined_role(
+                            resume_id=params.resume.id,
+                            user_id=params.user.id,
+                            role_record=role_record,
+                        )
+                        _msg = f"Added refined role at index {original_index} to running log"
+                        log.debug(_msg)
+                    except Exception as e:
+                        _msg = f"Failed to create refined role record: {e!s}"
+                        log.exception(_msg)
+
             sse_message = _process_sse_event(event, refined_roles)
             if sse_message:
                 yield sse_message
     finally:
         # Ensure the underlying generator is closed to prevent resource leaks
         await refinement_stream.aclose()
+
+    _msg = "_stream_llm_events returning"
+    log.debug(_msg)
 
 
 async def _stream_final_events(
@@ -708,6 +865,7 @@ async def experience_refinement_sse_generator(
         d. Generate the final HTML and yield the 'done' and 'close' SSE events.
 
     It also handles exceptions and client disconnections gracefully.
+    Supports checkpoint/resumption for failure recovery.
 
     Args:
         params (ExperienceRefinementParams): An object containing all parameters
@@ -716,9 +874,30 @@ async def experience_refinement_sse_generator(
     Yields:
         str: Formatted SSE message strings for progress, errors, and completion.
 
+    Notes:
+        1. Retrieves the running log for this resume/user if one exists.
+        2. Checks if we're resuming from a previous attempt (log has refined_roles).
+        3. If resuming, yields a "Resuming from previous attempt..." message.
+        4. Passes the running log to _stream_llm_events for checkpoint support.
+
     """
     _msg = f"Streaming refinement for resume {params.resume.id} for section experience"
     log.debug(_msg)
+
+    # Retrieve existing running log if available (for resumption)
+    running_log = running_log_manager.get_log(params.resume.id, params.user.id)
+    if running_log:
+        _msg = f"Found existing running log for resume {params.resume.id}"
+        log.debug(_msg)
+    else:
+        _msg = f"No existing running log for resume {params.resume.id}"
+        log.debug(_msg)
+
+    # Check if we're resuming from a previous attempt
+    is_resuming = running_log is not None and len(running_log.refined_roles) > 0
+    if is_resuming:
+        _msg = f"Resuming refinement for resume {params.resume.id} with {len(running_log.refined_roles)} roles already refined"
+        log.debug(_msg)
 
     closed_by_client = False
     try:
@@ -732,11 +911,39 @@ async def experience_refinement_sse_generator(
             llm_model_name=llm_model_name,
         )
 
+        # If resuming, yield a resumption message first
+        if is_resuming:
+            yield create_sse_progress_message("Resuming from previous attempt...")
+
         refined_roles: dict[int, Any] = {}
+
+        # Pre-populate refined_roles from running log if resuming
+        if running_log:
+            for role_record in running_log.refined_roles:
+                # Convert RefinedRoleRecord back to role dict format
+                role_dict = {
+                    "basics": {
+                        "company": role_record.company,
+                        "title": role_record.title,
+                        "start_date": role_record.start_date.isoformat(),
+                        "end_date": role_record.end_date.isoformat()
+                        if role_record.end_date
+                        else None,
+                    },
+                    "summary": {"text": role_record.refined_description},
+                    "skills": {"items": role_record.relevant_skills},
+                }
+                refined_roles[role_record.original_index] = role_dict
+                _msg = (
+                    f"Pre-populated refined role at index {role_record.original_index}"
+                )
+                log.debug(_msg)
+
         async for sse_message in _stream_llm_events(
             params=params,
             llm_config=llm_config,
             refined_roles=refined_roles,
+            running_log=running_log,
         ):
             yield sse_message
 

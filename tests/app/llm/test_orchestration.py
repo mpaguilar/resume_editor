@@ -74,9 +74,7 @@ def test_invoke_chain_and_parse_success(mock_parse_json_with_fix):
     result = _invoke_chain_and_parse(mock_chain, _TestModel, arg="test")
 
     mock_chain.invoke.assert_called_once_with({"arg": "test"})
-    mock_parse_json_with_fix.assert_called_once_with(
-        '{"key": "value", "number": 123}'
-    )
+    mock_parse_json_with_fix.assert_called_once_with('{"key": "value", "number": 123}')
     assert isinstance(result, _TestModel)
     assert result.key == "value"
     assert result.number == 123
@@ -90,7 +88,8 @@ def test_invoke_chain_and_parse_parse_failure(mock_parse_json_with_fix):
     mock_parse_json_with_fix.side_effect = json.JSONDecodeError("msg", "doc", 0)
 
     with pytest.raises(
-        ValueError, match="The AI service returned an unexpected response. Please try again."
+        ValueError,
+        match="The AI service returned an unexpected response. Please try again.",
     ):
         _invoke_chain_and_parse(mock_chain, _TestModel)
     mock_parse_json_with_fix.assert_called_once_with("invalid json")
@@ -104,7 +103,8 @@ def test_invoke_chain_and_parse_validation_failure(mock_parse_json_with_fix):
     mock_parse_json_with_fix.return_value = {"key": "value"}  # missing 'number'
 
     with pytest.raises(
-        ValueError, match="The AI service returned an unexpected response. Please try again."
+        ValueError,
+        match="The AI service returned an unexpected response. Please try again.",
     ):
         _invoke_chain_and_parse(mock_chain, _TestModel)
 
@@ -165,9 +165,7 @@ async def test_refine_role_success(
     # `prompt | llm | StrOutputParser()`
     # The result of `ChatPromptTemplate.from_messages().partial()` is the prompt.
     # The `|` operator is `__or__`.
-    mock_prompt_template.from_messages.return_value.partial.return_value.__or__.return_value.__or__.return_value = (
-        mock_chain
-    )
+    mock_prompt_template.from_messages.return_value.partial.return_value.__or__.return_value.__or__.return_value = mock_chain
 
     refined_role_dict = {
         "basics": {
@@ -205,22 +203,19 @@ async def test_refine_role_parse_failure(
     sample_job_analysis,
     sample_llm_config,
 ):
-    """Test refine_role handles JSON parsing failure."""
+    """Test refine_role handles JSON parsing failure with retry logic."""
     # Mocking the chain and its invocation
     mock_chain = MagicMock()
     mock_chain.ainvoke = AsyncMock(return_value="invalid json")
 
-    mock_prompt_template.from_messages.return_value.partial.return_value.__or__.return_value.__or__.return_value = (
-        mock_chain
-    )
+    mock_prompt_template.from_messages.return_value.partial.return_value.__or__.return_value.__or__.return_value = mock_chain
 
     mock_parse_json.side_effect = json.JSONDecodeError("msg", "doc", 0)
 
-    # Call and assert
-    with pytest.raises(
-        ValueError, match="The AI service returned an unexpected response. Please try again."
-    ):
+    # Call and assert - JSONDecodeError is retryable, so it will retry 3 times
+    with pytest.raises(ValueError, match="Unable to refine"):
         await refine_role(sample_role, sample_job_analysis, sample_llm_config)
 
-    mock_chain.ainvoke.assert_awaited_once()
-    mock_parse_json.assert_called_once_with("invalid json")
+    # Should be called 3 times due to retry logic
+    assert mock_chain.ainvoke.await_count == 3
+    assert mock_parse_json.call_count == 3

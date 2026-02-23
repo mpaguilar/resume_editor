@@ -659,3 +659,4 @@ class ExperienceRefinementParams(BaseModel):
     original_resume_content: str
     job_description: str
     limit_refinement_years: int | None = None
+    running_log: Any = None
