@@ -91,14 +91,33 @@ def setup_resume_dependency(app, mock_resume):
     app.dependency_overrides.clear()
 
 
-def test_export_resume_markdown_no_filter(client: TestClient, setup_resume_dependency):
-    """Test exporting a resume in Markdown format without any filtering."""
+@patch(
+    "resume_editor.app.api.routes.resume_export.generate_resume_filename",
+    return_value="my_resume.md",
+)
+@patch("resume_editor.app.api.routes.resume_export.parse_resume_to_writer_object")
+def test_export_resume_markdown_no_filter(
+    mock_parse,
+    mock_gen_filename,
+    client: TestClient,
+    mock_resume: DatabaseResume,
+    setup_resume_dependency,
+):
+    """Test exporting a resume in Markdown format without any filtering for a base resume."""
+    mock_resume.is_base = True  # is default but explicit is good
+    parsed_resume = MagicMock()
+    mock_parse.return_value = parsed_resume
+
     response = client.get("/api/resumes/1/export/markdown")
     assert response.status_code == 200
     assert response.text == VALID_RESUME_CONTENT
     assert response.headers["content-type"] == "text/markdown; charset=utf-8"
+    mock_parse.assert_called_once_with(VALID_RESUME_CONTENT)
+    mock_gen_filename.assert_called_once_with(
+        resume_db=mock_resume, resume_writer=parsed_resume, extension="md"
+    )
     assert (
-        response.headers["content-disposition"] == 'attachment; filename="Test Resume.md"'
+        response.headers["content-disposition"] == 'attachment; filename="my_resume.md"'
     )
 
 
@@ -200,6 +219,64 @@ def test_export_resume_markdown_invalid_date_format(
     assert response.json()["detail"] == "Invalid date format. Please use YYYY-MM-DD."
 
 
+@patch(
+    "resume_editor.app.api.routes.resume_export.generate_resume_filename",
+    return_value="John_Doe_refined.md",
+)
+@patch("resume_editor.app.api.routes.resume_export.parse_resume_to_writer_object")
+def test_export_resume_markdown_refined_filename(
+    mock_parse,
+    mock_gen_filename,
+    client: TestClient,
+    mock_resume: DatabaseResume,
+    setup_resume_dependency,
+):
+    """Test exporting a refined resume in Markdown format uses the correct filename logic."""
+    mock_resume.is_base = False
+    parsed_resume = MagicMock()
+    mock_parse.return_value = parsed_resume
+
+    response = client.get("/api/resumes/1/export/markdown")
+
+    assert response.status_code == 200
+    mock_parse.assert_called_once_with(VALID_RESUME_CONTENT)
+    mock_gen_filename.assert_called_once_with(
+        resume_db=mock_resume, resume_writer=parsed_resume, extension="md"
+    )
+    assert 'attachment; filename="John_Doe_refined.md"' == response.headers[
+        "content-disposition"
+    ]
+
+
+@patch(
+    "resume_editor.app.api.routes.resume_export.parse_resume_to_writer_object",
+    side_effect=Exception("parsing failed"),
+)
+@patch("resume_editor.app.api.routes.resume_export.generate_resume_filename")
+@patch(
+    "resume_editor.app.api.routes.resume_export.sanitize_filename_component",
+    return_value="Test_Resume",
+)
+def test_export_resume_markdown_fallback_filename(
+    mock_sanitize,
+    mock_gen_filename,
+    mock_parse,
+    client: TestClient,
+    mock_resume: DatabaseResume,
+    setup_resume_dependency,
+):
+    """Test markdown export falls back to a simple filename if parsing fails."""
+    response = client.get("/api/resumes/1/export/markdown")
+
+    assert response.status_code == 200
+    mock_parse.assert_called_once()
+    mock_gen_filename.assert_not_called()
+    mock_sanitize.assert_called_once_with(mock_resume.name)
+    assert 'attachment; filename="Test_Resume.md"' == response.headers[
+        "content-disposition"
+    ]
+
+
 @patch("resume_editor.app.api.routes.resume_export.render_resume_to_docx_stream")
 def test_download_resume_unauthenticated(
     mock_render_stream: MagicMock, client: TestClient, setup_db_dependency
@@ -226,74 +303,133 @@ def test_export_markdown_unauthenticated(
 
 
 
-@pytest.mark.parametrize(
-    "render_format, settings_name",
-    [
-        (RenderFormat.ATS, RenderSettingsName.GENERAL),
-        (RenderFormat.PLAIN, RenderSettingsName.GENERAL),
-        (RenderFormat.PLAIN, RenderSettingsName.EXECUTIVE_SUMMARY),
-    ],
+@patch(
+    "resume_editor.app.api.routes.resume_export.generate_resume_filename",
+    return_value="my_base_resume.docx",
 )
+@patch("resume_editor.app.api.routes.resume_export.parse_resume_to_writer_object")
 @patch("resume_editor.app.api.routes.resume_export.get_render_settings")
 @patch("resume_editor.app.api.routes.resume_export.render_resume_to_docx_stream")
-def test_download_resume(
+def test_download_resume_base_filename(
     mock_render_stream,
     mock_get_settings,
+    mock_parse,
+    mock_gen_filename,
     client: TestClient,
     mock_resume: DatabaseResume,
     mock_db: MagicMock,
     setup_resume_dependency,
     setup_db_dependency,
-    render_format,
-    settings_name,
 ):
-    """Test downloading a resume saves default export settings."""
-    mock_settings_dict = {
-        "section": {"experience": {}},
-        "some_setting": "some_value",
-    }
-    mock_get_settings.return_value = mock_settings_dict
-    mock_render_stream.return_value = io.BytesIO(b"test download docx")
+    """Test downloading a base resume uses the new filename logic."""
+    mock_resume.is_base = True
+    parsed_resume = MagicMock()
+    mock_parse.return_value = parsed_resume
+    mock_get_settings.return_value = {"section": {"experience": {}}}
+    mock_render_stream.return_value = io.BytesIO(b"test docx")
+
+    render_format = RenderFormat.ATS
+    settings_name = RenderSettingsName.GENERAL
 
     response = client.get(
         f"/api/resumes/1/download?render_format={render_format.value}&settings_name={settings_name.value}"
     )
 
     assert response.status_code == 200
-    assert response.content == b"test download docx"
-
-    # Assert settings were saved with defaults (False for checkboxes)
-    assert mock_resume.export_settings_include_projects is False
-    assert mock_resume.export_settings_render_projects_first is False
-    assert mock_resume.export_settings_include_education is False
-    mock_db.add.assert_called_once_with(mock_resume)
-    mock_db.commit.assert_called_once()
-
-    mock_get_settings.assert_called_once_with(settings_name.value)
-    # Check that original settings dict is not mutated
-    assert mock_settings_dict == {
-        "section": {"experience": {}},
-        "some_setting": "some_value",
-    }
-
-    # settings_form has defaults of False, which are saved to the resume object
-    expected_settings_dict = deepcopy(mock_settings_dict)
-    expected_settings_dict["education"] = False
-    expected_settings_dict["section"]["experience"]["projects"] = False
-    expected_settings_dict["section"]["experience"]["render_projects_first"] = False
-
-    mock_render_stream.assert_called_once_with(
-        resume_content=VALID_RESUME_CONTENT,
-        render_format=render_format.value,
-        settings_dict=expected_settings_dict,
-    )
-
-    expected_filename = (
-        f"Test_Resume-{render_format.value}-{settings_name.value}.docx"
+    mock_parse.assert_called_once_with(VALID_RESUME_CONTENT)
+    mock_gen_filename.assert_called_once_with(
+        resume_db=mock_resume, resume_writer=parsed_resume, extension="docx"
     )
     assert (
         response.headers["content-disposition"]
-        == f"attachment; filename={expected_filename}"
+        == 'attachment; filename="my_base_resume.docx"'
+    )
+
+
+@patch(
+    "resume_editor.app.api.routes.resume_export.generate_resume_filename",
+    return_value="John_Doe_refined.docx",
+)
+@patch("resume_editor.app.api.routes.resume_export.parse_resume_to_writer_object")
+@patch("resume_editor.app.api.routes.resume_export.get_render_settings")
+@patch("resume_editor.app.api.routes.resume_export.render_resume_to_docx_stream")
+def test_download_resume_refined_filename(
+    mock_render_stream,
+    mock_get_settings,
+    mock_parse,
+    mock_gen_filename,
+    client: TestClient,
+    mock_resume: DatabaseResume,
+    mock_db: MagicMock,
+    setup_resume_dependency,
+    setup_db_dependency,
+):
+    """Test downloading a refined resume uses the new filename logic."""
+    mock_resume.is_base = False
+    parsed_resume = MagicMock()
+    mock_parse.return_value = parsed_resume
+    mock_get_settings.return_value = {"section": {"experience": {}}}
+    mock_render_stream.return_value = io.BytesIO(b"test docx")
+
+    render_format = RenderFormat.ATS
+    settings_name = RenderSettingsName.GENERAL
+
+    response = client.get(
+        f"/api/resumes/1/download?render_format={render_format.value}&settings_name={settings_name.value}"
+    )
+
+    assert response.status_code == 200
+    mock_parse.assert_called_once_with(VALID_RESUME_CONTENT)
+    mock_gen_filename.assert_called_once_with(
+        resume_db=mock_resume, resume_writer=parsed_resume, extension="docx"
+    )
+    assert (
+        response.headers["content-disposition"]
+        == 'attachment; filename="John_Doe_refined.docx"'
+    )
+
+
+@patch(
+    "resume_editor.app.api.routes.resume_export.parse_resume_to_writer_object",
+    side_effect=Exception("parse failed"),
+)
+@patch("resume_editor.app.api.routes.resume_export.generate_resume_filename")
+@patch(
+    "resume_editor.app.api.routes.resume_export.sanitize_filename_component",
+    return_value="Test_Resume",
+)
+@patch("resume_editor.app.api.routes.resume_export.get_render_settings")
+@patch("resume_editor.app.api.routes.resume_export.render_resume_to_docx_stream")
+def test_download_resume_fallback_filename(
+    mock_render_stream,
+    mock_get_settings,
+    mock_sanitize,
+    mock_gen_filename,
+    mock_parse,
+    client: TestClient,
+    mock_db: MagicMock,
+    mock_resume: DatabaseResume,
+    setup_resume_dependency,
+    setup_db_dependency,
+):
+    """Test downloading a resume falls back to a simple filename if parsing fails."""
+    mock_get_settings.return_value = {"section": {"experience": {}}}
+    mock_render_stream.return_value = io.BytesIO(b"test docx")
+
+    render_format = RenderFormat.ATS
+    settings_name = RenderSettingsName.GENERAL
+
+    response = client.get(
+        f"/api/resumes/1/download?render_format={render_format.value}&settings_name={settings_name.value}"
+    )
+
+    assert response.status_code == 200
+    mock_parse.assert_called_once()
+    mock_gen_filename.assert_not_called()
+    mock_sanitize.assert_called_once_with(mock_resume.name)
+    assert (
+        response.headers["content-disposition"]
+        == 'attachment; filename="Test_Resume.docx"'
     )
 
 

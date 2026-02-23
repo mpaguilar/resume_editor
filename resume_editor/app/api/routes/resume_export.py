@@ -1,7 +1,7 @@
 import logging
 from copy import deepcopy
 from datetime import date
-from typing import Annotated
+from typing import TYPE_CHECKING, Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from fastapi.responses import StreamingResponse
@@ -13,6 +13,9 @@ from resume_editor.app.api.routes.route_logic.resume_export import (
 )
 from resume_editor.app.api.routes.route_logic.resume_filtering import (
     filter_experience_by_date,
+)
+from resume_editor.app.api.routes.route_logic.resume_parsing import (
+    parse_resume_to_writer_object,
 )
 from resume_editor.app.api.routes.route_logic.resume_reconstruction import (
     build_complete_resume_from_sections,
@@ -30,6 +33,14 @@ from resume_editor.app.api.routes.route_models import (
 from resume_editor.app.core.rendering_settings import get_render_settings
 from resume_editor.app.database.database import get_db
 from resume_editor.app.models.resume_model import Resume as DatabaseResume
+from resume_editor.app.utils.filename_utils import (
+    generate_resume_filename,
+    sanitize_filename_component,
+)
+
+if TYPE_CHECKING:
+    from resume_writer.models.resume import Resume as WriterResume
+
 
 log = logging.getLogger(__name__)
 
@@ -136,10 +147,12 @@ async def export_resume_markdown(
     Notes:
         1. Fetches the resume using the get_resume_for_user dependency.
         2. If a date range is provided, filters the experience section before exporting.
-        3. Creates a Response object with the resume's content.
-        4. Sets the 'Content-Type' header to 'text/markdown'.
-        5. Sets the 'Content-Disposition' header to trigger a file download with the resume's name.
-        6. Returns the response.
+        3. Attempts to parse the resume content to generate a dynamic filename.
+        4. On parsing failure, falls back to a simple sanitized filename based on `resume.name`.
+        5. Creates a Response object with the resume's content.
+        6. Sets the 'Content-Type' header to 'text/markdown'.
+        7. Sets the 'Content-Disposition' header to trigger a file download with the generated filename.
+        8. Returns the response.
 
     """
     parsed_start_date, parsed_end_date = _parse_date_range(start_date, end_date)
@@ -156,8 +169,20 @@ async def export_resume_markdown(
         log.exception(_msg)
         raise HTTPException(status_code=422, detail=_msg)
 
+    try:
+        parsed_resume: WriterResume = parse_resume_to_writer_object(resume.content)
+        filename = generate_resume_filename(
+            resume_db=resume,
+            resume_writer=parsed_resume,
+            extension="md",
+        )
+    except Exception:
+        _msg = f"Could not parse resume {resume.id} to generate filename, falling back."
+        log.warning(_msg)
+        filename = f"{sanitize_filename_component(resume.name)}.md"
+
     headers = {
-        "Content-Disposition": f'attachment; filename="{resume.name}.md"',
+        "Content-Disposition": f'attachment; filename="{filename}"',
     }
     return Response(
         content=content_to_export,
@@ -191,6 +216,14 @@ async def download_resume(
     Raises:
         HTTPException: If the resume is not found, or if rendering fails.
 
+    Notes:
+        1. Persists the user's chosen export settings from the form to the database.
+        2. If a date range is provided, filters the experience section before rendering.
+        3. Attempts to parse the resume content to generate a dynamic filename.
+        4. If parsing fails, it falls back to a simple sanitized filename.
+        5. Renders the resume content to a DOCX filestream.
+        6. Returns a StreamingResponse with the correct headers to trigger a download.
+
     """
     _msg = (
         f"download_resume starting for format {download_params.render_format.value}, "
@@ -203,6 +236,18 @@ async def download_resume(
     resume.export_settings_include_education = settings_form.include_education
     db.add(resume)
     db.commit()
+
+    try:
+        parsed_resume: WriterResume = parse_resume_to_writer_object(resume.content)
+        filename = generate_resume_filename(
+            resume_db=resume,
+            resume_writer=parsed_resume,
+            extension="docx",
+        )
+    except Exception:
+        _msg = f"Could not parse resume {resume.id} to generate filename, falling back."
+        log.warning(_msg)
+        filename = f"{sanitize_filename_component(resume.name)}.docx"
 
     parsed_start_date, parsed_end_date = _parse_date_range(
         download_params.start_date,
@@ -250,13 +295,8 @@ async def download_resume(
         log.exception(_msg)
         raise HTTPException(status_code=500, detail=_msg)
 
-    filename = (
-        f"{resume.name.replace(' ', '_')}-"
-        f"{download_params.render_format.value}-{download_params.settings_name.value}.docx"
-    )
-
     headers = {
-        "Content-Disposition": f"attachment; filename={filename}",
+        "Content-Disposition": f'attachment; filename="{filename}"',
     }
     return StreamingResponse(
         file_stream,

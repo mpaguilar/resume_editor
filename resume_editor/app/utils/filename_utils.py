@@ -49,7 +49,9 @@ def sanitize_filename_component(component: str) -> str:
 
 
 def generate_resume_filename(
-    resume_db: "DatabaseResume", resume_writer: "WriterResume", extension: str,
+    resume_db: "DatabaseResume",
+    resume_writer: "WriterResume",
+    extension: str,
 ) -> str:
     """Generates a sanitized filename for a resume.
 
