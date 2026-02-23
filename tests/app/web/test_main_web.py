@@ -630,5 +630,245 @@ def test_update_settings_form_submission(mock_update_user_settings):
     app.dependency_overrides.clear()
 
 
+@patch("resume_editor.app.web.pages.update_user_settings")
+def test_update_settings_empty_api_key_preserved(mock_update_user_settings):
+    """
+    GIVEN an authenticated user with existing API key
+    WHEN they submit settings form with empty api_key field
+    THEN the existing API key is preserved and other fields are updated.
+    """
+    app = create_app()
+    client = TestClient(app)
+    app.dependency_overrides.clear()
+
+    mock_user = User(
+        data=UserData(
+            id_=1, username="testuser", email="test@test.com", hashed_password="hashed"
+        )
+    )
+
+    def get_mock_user():
+        return mock_user
+
+    mock_db = MagicMock()
+
+    def get_mock_db():
+        yield mock_db
+
+    app.dependency_overrides[get_current_user_from_cookie] = get_mock_user
+    app.dependency_overrides[get_db] = get_mock_db
+
+    form_data = {
+        "llm_endpoint": "http://new-endpoint.com",
+        "llm_model_name": "new-model",
+        "api_key": "",
+    }
+
+    response = client.post("/settings", data=form_data)
+
+    assert response.status_code == 200
+    mock_update_user_settings.assert_called_once()
+
+    args, kwargs = mock_update_user_settings.call_args
+    settings_data = kwargs["settings_data"]
+    assert isinstance(settings_data, UserSettingsUpdateRequest)
+    assert settings_data.llm_endpoint == "http://new-endpoint.com"
+    assert settings_data.llm_model_name == "new-model"
+    # Empty string is passed through (CRUD handles preservation)
+    assert settings_data.api_key == ""
+
+    app.dependency_overrides.clear()
 
 
+@patch("resume_editor.app.web.pages.update_user_settings")
+def test_update_settings_only_endpoint_changed(mock_update_user_settings):
+    """
+    GIVEN an authenticated user
+    WHEN they submit settings form with only llm_endpoint changed
+    THEN only the endpoint is updated, other fields remain unchanged.
+    """
+    app = create_app()
+    client = TestClient(app)
+    app.dependency_overrides.clear()
+
+    mock_user = User(
+        data=UserData(
+            id_=1, username="testuser", email="test@test.com", hashed_password="hashed"
+        )
+    )
+
+    def get_mock_user():
+        return mock_user
+
+    mock_db = MagicMock()
+
+    def get_mock_db():
+        yield mock_db
+
+    app.dependency_overrides[get_current_user_from_cookie] = get_mock_user
+    app.dependency_overrides[get_db] = get_mock_db
+
+    form_data = {
+        "llm_endpoint": "http://new-endpoint.com",
+    }
+
+    response = client.post("/settings", data=form_data)
+
+    assert response.status_code == 200
+    mock_update_user_settings.assert_called_once()
+
+    args, kwargs = mock_update_user_settings.call_args
+    settings_data = kwargs["settings_data"]
+    assert isinstance(settings_data, UserSettingsUpdateRequest)
+    assert settings_data.llm_endpoint == "http://new-endpoint.com"
+    assert settings_data.llm_model_name is None
+    assert settings_data.api_key is None
+
+    app.dependency_overrides.clear()
+
+
+@patch("resume_editor.app.web.pages.update_user_settings")
+def test_update_settings_only_model_name_changed(mock_update_user_settings):
+    """
+    GIVEN an authenticated user
+    WHEN they submit settings form with only llm_model_name changed
+    THEN only the model name is updated, other fields remain unchanged.
+    """
+    app = create_app()
+    client = TestClient(app)
+    app.dependency_overrides.clear()
+
+    mock_user = User(
+        data=UserData(
+            id_=1, username="testuser", email="test@test.com", hashed_password="hashed"
+        )
+    )
+
+    def get_mock_user():
+        return mock_user
+
+    mock_db = MagicMock()
+
+    def get_mock_db():
+        yield mock_db
+
+    app.dependency_overrides[get_current_user_from_cookie] = get_mock_user
+    app.dependency_overrides[get_db] = get_mock_db
+
+    form_data = {
+        "llm_model_name": "new-model",
+    }
+
+    response = client.post("/settings", data=form_data)
+
+    assert response.status_code == 200
+    mock_update_user_settings.assert_called_once()
+
+    args, kwargs = mock_update_user_settings.call_args
+    settings_data = kwargs["settings_data"]
+    assert isinstance(settings_data, UserSettingsUpdateRequest)
+    assert settings_data.llm_endpoint is None
+    assert settings_data.llm_model_name == "new-model"
+    assert settings_data.api_key is None
+
+    app.dependency_overrides.clear()
+
+
+@patch("resume_editor.app.web.pages.update_user_settings")
+def test_update_settings_all_fields_empty(mock_update_user_settings):
+    """
+    GIVEN an authenticated user
+    WHEN they submit settings form with all fields empty
+    THEN no settings are changed but request succeeds.
+    """
+    app = create_app()
+    client = TestClient(app)
+    app.dependency_overrides.clear()
+
+    mock_user = User(
+        data=UserData(
+            id_=1, username="testuser", email="test@test.com", hashed_password="hashed"
+        )
+    )
+
+    def get_mock_user():
+        return mock_user
+
+    mock_db = MagicMock()
+
+    def get_mock_db():
+        yield mock_db
+
+    app.dependency_overrides[get_current_user_from_cookie] = get_mock_user
+    app.dependency_overrides[get_db] = get_mock_db
+
+    form_data = {
+        "llm_endpoint": "",
+        "llm_model_name": "",
+        "api_key": "",
+    }
+
+    response = client.post("/settings", data=form_data)
+
+    assert response.status_code == 200
+    mock_update_user_settings.assert_called_once()
+
+    args, kwargs = mock_update_user_settings.call_args
+    settings_data = kwargs["settings_data"]
+    assert isinstance(settings_data, UserSettingsUpdateRequest)
+    assert settings_data.llm_endpoint == ""
+    assert settings_data.llm_model_name == ""
+    assert settings_data.api_key == ""
+
+    assert "Your settings have been updated" in response.text
+
+    app.dependency_overrides.clear()
+
+
+@patch("resume_editor.app.web.pages.update_user_settings")
+def test_update_settings_missing_form_fields(mock_update_user_settings):
+    """
+    GIVEN an authenticated user
+    WHEN they submit settings form with some fields missing entirely
+    THEN the request succeeds with None for missing fields.
+    """
+    app = create_app()
+    client = TestClient(app)
+    app.dependency_overrides.clear()
+
+    mock_user = User(
+        data=UserData(
+            id_=1, username="testuser", email="test@test.com", hashed_password="hashed"
+        )
+    )
+
+    def get_mock_user():
+        return mock_user
+
+    mock_db = MagicMock()
+
+    def get_mock_db():
+        yield mock_db
+
+    app.dependency_overrides[get_current_user_from_cookie] = get_mock_user
+    app.dependency_overrides[get_db] = get_mock_db
+
+    # Only send llm_endpoint, missing other fields entirely
+    form_data = {
+        "llm_endpoint": "http://new-endpoint.com",
+    }
+
+    response = client.post("/settings", data=form_data)
+
+    assert response.status_code == 200
+    mock_update_user_settings.assert_called_once()
+
+    args, kwargs = mock_update_user_settings.call_args
+    settings_data = kwargs["settings_data"]
+    assert isinstance(settings_data, UserSettingsUpdateRequest)
+    assert settings_data.llm_endpoint == "http://new-endpoint.com"
+    # Missing fields should be None
+    assert settings_data.llm_model_name is None
+    assert settings_data.api_key is None
+
+    app.dependency_overrides.clear()

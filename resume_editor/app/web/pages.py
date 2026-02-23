@@ -402,18 +402,21 @@ async def settings_page(
 
 @router.post("/settings", response_class=HTMLResponse)
 async def update_settings(
-    llm_endpoint: Annotated[str, Form()],
-    llm_model_name: Annotated[str, Form()],
-    api_key: Annotated[str, Form()],
     db: Annotated[Session, Depends(get_db)],
     current_user: Annotated[User, Depends(get_current_user_from_cookie)],
+    llm_endpoint: Annotated[str | None, Form()] = None,
+    llm_model_name: Annotated[str | None, Form()] = None,
+    api_key: Annotated[str | None, Form()] = None,
 ) -> HTMLResponse:
     """Handle user settings update.
 
     Args:
-        llm_endpoint (str): The LLM endpoint from the form.
-        llm_model_name (str): The LLM model name from the form.
-        api_key (str): The API key from the form.
+        llm_endpoint (str | None): The LLM endpoint from the form.
+            None means no change.
+        llm_model_name (str | None): The LLM model name from the form.
+            None means no change.
+        api_key (str | None): The API key from the form.
+            None or empty means no change.
         db (Session): The database session.
         current_user: The authenticated user.
 

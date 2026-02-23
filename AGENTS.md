@@ -309,3 +309,4 @@ Keep files under 1000 lines. Split into modules as needed.
 4. **Missing format_instructions**: Every LLM call needs explicit output formatting
 5. **Not using Annotated**: FastAPI dependency injection must use `Annotated` pattern
 6. **resume_writer availability**: Don't add checks for this module - it should always be there
+7. **Required form fields for settings updates**: Settings forms with masked fields (like API keys) must use optional form parameters (`str | None = None`) to allow partial updates without re-entering sensitive data. See `update_settings` in `resume_editor/app/web/pages.py` for the correct pattern.

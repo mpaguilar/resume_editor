@@ -12,16 +12,6 @@ wheels/
 # nodejs and npm
 node_modules/
 
-# aider
-.aider.chat.history.md
-.aider.input.history
-.aider.tags.cache.v3/
-.aider.tags.cache.v4/
-.aider/
-.aider.model.settings.yml
-.aider.model.metadata.json
-.aiderignore
-
 # caches and config
 .vscode/
 .mypy_cache/
@@ -37,3 +27,5 @@ linting.sh
 /_* 
 !/_*/
 dev_notes/
+docs/
+.git-commit-msg
