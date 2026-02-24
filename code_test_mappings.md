@@ -79,6 +79,8 @@ These are known mappings:
 - `resume_editor/app/web/admin.py` -> `tests/app/web/test_admin.py`
 - `resume_editor/app/web/pages.py` -> `tests/app/web/test_main_web.py`
 - `resume_editor/app/web/pages.py` -> `tests/app/web/test_resume_web.py`
+- `resume_editor/app/templates/partials/resume/_resume_list.html` -> `tests/app/templates/test_resume_templates.py`
+- `resume_editor/app/templates/pages/resume_view.html` -> `tests/app/templates/test_resume_templates.py`
 
 Note:
 - In `resume_editor/app/api/routes/resume_ai.py`, the internal helper `_experience_refinement_stream` now receives a single `_ExperienceStreamParams` instance. Tests that patch this helper should assert the object's field values.

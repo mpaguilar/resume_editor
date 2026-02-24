@@ -210,22 +210,30 @@ Dashboard ──[Edit]──> Editor ──[Refine with AI]──> Refine Page �
 
 **1. Dashboard Entry Point** (`/dashboard`)
 - User sees list of their resumes
-- Each resume has an "Edit" button
+- Base resumes show **[Refine]** button (purple) before **[Edit]** button - goes directly to refine page
 - Base resumes (is_base=true) are the starting point for refinement
+- Refined resumes show **[View]** button instead (no Refine button)
 
 **2. Editor Page** (`/resumes/{id}/edit`)
 - Shows resume content in a text area for manual editing
 - **"Refine with AI" button** is visible ONLY for base resumes (`{% if resume.is_base %}`)
 - User can also Export (Markdown or DOCX) from here
 
-**3. Refine Page** (`/resumes/{id}/refine`)
+**3. View Page** (`/resumes/{id}/view`)
+- Displays a refined resume's content (read-only view)
+- **"New refinement" button** appears next to "Export" for refined resumes (`{% if not resume.is_base %}`)
+  - Enabled when `resume.parent_id` exists - links to `/resumes/{parent_id}/refine`
+  - Disabled (gray) with tooltip when `resume.parent_id` is null - "No base resume available for this refined resume"
+- Base resumes do NOT show this button (they use the dashboard "Refine" button instead)
+
+**4. Refine Page** (`/resumes/{id}/refine`)
 - Simple form with two inputs:
   - **Years Limit** (small text box, optional): Limits which experience roles are refined by date
   - **Job Description** (large textarea, required): The job posting text to align with
 - **"Start Refinement"** button initiates the process
 - **NO changes are made to the resume yet** - user is just configuring the refinement
 
-**4. SSE Stream Processing**
+**5. SSE Stream Processing**
 
 When user clicks "Start Refinement", the form POSTs to `/api/resumes/{id}/refine/stream` which returns an SSE loader fragment. This establishes an SSE connection to `GET /api/resumes/{id}/refine/stream` with the job description and optional year limit as query parameters.
 

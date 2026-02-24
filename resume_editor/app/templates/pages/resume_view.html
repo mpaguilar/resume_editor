@@ -7,6 +7,17 @@
     <div class="flex justify-between items-center mb-4">
         <h1 class="text-2xl font-bold">Viewing Resume: {{ resume.name }}</h1>
         <div class="flex items-center gap-2">
+            {% if not resume.is_base %}
+                {% if resume.parent_id %}
+                    <a href="/resumes/{{ resume.parent_id }}/refine" class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded text-sm">
+                        New refinement
+                    </a>
+                {% else %}
+                    <button disabled title="No base resume available for this refined resume" class="bg-gray-400 text-white px-4 py-2 rounded text-sm cursor-not-allowed">
+                        New refinement
+                    </button>
+                {% endif %}
+            {% endif %}
              <button
                 type="button"
                 onclick="document.getElementById('export-modal-{{ resume.id }}').classList.remove('hidden')"
