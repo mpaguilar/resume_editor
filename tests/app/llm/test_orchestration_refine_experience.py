@@ -627,3 +627,44 @@ def test_unwrap_exception_group_non_group_exception():
     with pytest.raises(ValueError, match="fail") as excinfo:
         _unwrap_exception_group(exc)
     assert excinfo.value is exc
+
+
+@pytest.mark.asyncio
+@patch("resume_editor.app.llm.orchestration.refine_role", new_callable=AsyncMock)
+@patch(
+    "resume_editor.app.llm.orchestration.analyze_job_description",
+    new_callable=AsyncMock,
+)
+@patch("resume_editor.app.llm.orchestration.extract_experience_info")
+async def test_job_analysis_complete_event_includes_job_analysis_data(
+    mock_extract_experience,
+    mock_analyze_job,
+    mock_refine_role,
+):
+    """Test that job_analysis_complete event includes the job_analysis data."""
+    # Arrange
+    mock_extract_experience.return_value = ExperienceResponse(
+        roles=[create_mock_role()], projects=[]
+    )
+    job_analysis = create_mock_job_analysis()
+    mock_analyze_job.return_value = (job_analysis, None)
+    mock_refine_role.return_value = create_mock_refined_role()
+
+    # Act
+    events = []
+    async for event in async_refine_experience_section(
+        resume_content="resume",
+        job_description="job",
+        llm_config=LLMConfig(),
+    ):
+        events.append(event)
+
+    # Assert
+    job_analysis_event = next(
+        (e for e in events if e.get("status") == "job_analysis_complete"), None
+    )
+    assert job_analysis_event is not None
+    assert "job_analysis" in job_analysis_event
+    assert job_analysis_event["job_analysis"]["key_skills"] == job_analysis.key_skills
+    assert job_analysis_event["job_analysis"]["primary_duties"] == job_analysis.primary_duties
+    assert job_analysis_event["job_analysis"]["themes"] == job_analysis.themes

@@ -44,6 +44,10 @@ class JobAnalysis(BaseModel):
         ...,
         description="A list of high-level themes, company culture points, or recurring keywords (e.g., 'fast-paced environment,' 'data-driven decisions').",
     )
+    inferred_themes: list[str] = Field(
+        default_factory=list,
+        description="Implicit themes inferred from job description language, tone, and subtext (e.g., 'leadership potential,' 'collaborative culture').",
+    )
 
 
 class RefinedRole(BaseModel):
@@ -233,4 +237,77 @@ class RunningLog(BaseModel):
     updated_at: datetime = Field(
         ...,
         description="When this log was last updated.",
+    )
+
+
+class CrossSectionEvidence(BaseModel):
+    """Evidence extracted from non-experience sections (Education, Certifications, Projects).
+
+    This model captures relevant facts from sections of the resume outside
+    of work experience that support the candidate's qualifications for a job.
+
+    Args:
+        section_type: The type of section (Education, Certification, Project).
+        content: The factual content extracted from the section.
+        relevance_score: How relevant this evidence is to the job (1-10).
+
+    """
+
+    section_type: str = Field(
+        ...,
+        description="The type of section: 'Education', 'Certification', or 'Project'.",
+    )
+    content: str = Field(
+        ...,
+        description="The factual content or achievement extracted from the section.",
+    )
+    relevance_score: int = Field(
+        ...,
+        ge=1,
+        le=10,
+        description="Relevance score from 1-10 indicating how well this supports job requirements.",
+    )
+
+
+class BannerBullet(BaseModel):
+    """A single bullet point for the resume banner/introduction.
+
+    Each bullet represents a category of skills or experience with
+    a bold prefix and supporting description with company associations.
+
+    Args:
+        category: The bold prefix category (e.g., 'Leadership', 'Cloud Platforms').
+        description: The descriptive text with skills and parenthetical companies.
+
+    """
+
+    category: str = Field(
+        ...,
+        description="The bold prefix category that semantically groups this bullet (e.g., 'Leadership', 'Cloud Platforms').",
+    )
+    description: str = Field(
+        ...,
+        description="The descriptive text listing skills with parenthetical company associations where applicable.",
+    )
+
+
+class GeneratedBanner(BaseModel):
+    """The complete generated banner with multiple bullet points.
+
+    This model contains the structured banner content generated from
+    the running log data, organized into semantically coherent bullets.
+
+    Args:
+        bullets: List of BannerBullet objects representing the banner content.
+        education_bullet: Optional bullet for education if highly relevant.
+
+    """
+
+    bullets: list[BannerBullet] = Field(
+        default_factory=list,
+        description="List of bullet points for the banner, ordered by relevance to the job.",
+    )
+    education_bullet: BannerBullet | None = Field(
+        None,
+        description="Optional education bullet, only included if directly relevant to job requirements.",
     )

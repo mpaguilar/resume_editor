@@ -41,6 +41,7 @@ from resume_editor.app.core.security import decrypt_data
 from resume_editor.app.llm.models import LLMConfig, RefinedRoleRecord, RunningLog
 from resume_editor.app.llm.orchestration import (
     async_refine_experience_section,
+    generate_banner_from_running_log,
     generate_introduction_from_resume,
 )
 from resume_editor.app.models.resume.experience import Role
@@ -722,6 +723,25 @@ async def _stream_llm_events(
     )
     try:
         async for event in refinement_stream:
+            # If this is a job_analysis_complete event, store the job_analysis
+            if event.get("status") == "job_analysis_complete":
+                job_analysis_data = event.get("job_analysis")
+                if job_analysis_data and running_log:
+                    try:
+                        from resume_editor.app.llm.models import JobAnalysis
+
+                        job_analysis = JobAnalysis.model_validate(job_analysis_data)
+                        running_log_manager.update_job_analysis(
+                            resume_id=params.resume.id,
+                            user_id=params.user.id,
+                            job_analysis=job_analysis,
+                        )
+                        _msg = "Stored job_analysis in running log"
+                        log.debug(_msg)
+                    except Exception as e:
+                        _msg = f"Failed to store job_analysis: {e!s}"
+                        log.exception(_msg)
+
             # If this is a role_refined event, add it to the running log
             if event.get("status") == "role_refined" and running_log:
                 original_index = event.get("original_index")
@@ -755,6 +775,7 @@ async def _stream_final_events(
     refined_roles: dict,
     params: "ExperienceRefinementParams",
     llm_config: LLMConfig,
+    running_log: RunningLog | None = None,
 ) -> AsyncGenerator[str, None]:
     """Handles the final sequential steps of AI refinement.
 
@@ -762,6 +783,8 @@ async def _stream_final_events(
     the following steps:
     1. Reconstructs the resume with the newly refined roles.
     2. Generates a new fact-based introduction using the updated resume content.
+       If running_log is provided, uses generate_banner_from_running_log for
+       role-centric banner generation with cross-section evidence.
     3. Reconstructs the resume a final time to insert the new introduction.
     4. Yields a warning message if no roles were refined.
     5. Calls `process_refined_experience_result` to generate the final HTML.
@@ -771,6 +794,9 @@ async def _stream_final_events(
         refined_roles (dict): A dictionary of refined role data.
         params (ExperienceRefinementParams): The original refinement parameters.
         llm_config (LLMConfig): The LLM configuration.
+        running_log (RunningLog | None): Optional running log for banner generation
+            using refined role data. If provided, uses the new banner generation
+            function which leverages cross-section evidence.
 
     Yields:
         str: SSE messages for introduction progress, potential warnings, and the final 'done' event.
@@ -799,27 +825,53 @@ async def _stream_final_events(
     # 3. Generate a new introduction with retries
     yield create_sse_progress_message("Generating AI introduction...")
     generated_introduction = None
-    for i in range(3):  # Retry up to 3 times
+
+    # Try new banner generation from running log first (if available)
+    if running_log is not None and running_log.refined_roles:
+        _msg = "Attempting banner generation from running log"
+        log.debug(_msg)
         try:
-            _msg = f"Attempt {i + 1} to generate introduction."
-            log.debug(_msg)
-            generated_introduction = generate_introduction_from_resume(
-                resume_content=resume_with_refined_roles,
-                job_description=params.job_description,
+            generated_introduction = generate_banner_from_running_log(
+                running_log=running_log,
+                original_resume_content=params.original_resume_content,
                 llm_config=llm_config,
                 original_banner=original_banner,
             )
             if generated_introduction and generated_introduction.strip():
-                _msg = "Introduction generated successfully."
+                _msg = "Banner generated successfully from running log"
                 log.debug(_msg)
-                break  # Success
-            _msg = f"Attempt {i + 1} yielded empty introduction."
-            log.warning(_msg)
-            generated_introduction = None  # Reset on empty result
+            else:
+                _msg = "Banner generation from running log returned empty, falling back"
+                log.warning(_msg)
+                generated_introduction = None
         except Exception as e:
-            _msg = f"Attempt {i + 1} to generate introduction failed: {e!s}"
+            _msg = f"Banner generation from running log failed: {e!s}"
             log.warning(_msg)
             generated_introduction = None
+
+    # Fall back to legacy introduction generation if needed
+    if generated_introduction is None:
+        for i in range(3):  # Retry up to 3 times
+            try:
+                _msg = f"Attempt {i + 1} to generate introduction (legacy method)."
+                log.debug(_msg)
+                generated_introduction = generate_introduction_from_resume(
+                    resume_content=resume_with_refined_roles,
+                    job_description=params.job_description,
+                    llm_config=llm_config,
+                    original_banner=original_banner,
+                )
+                if generated_introduction and generated_introduction.strip():
+                    _msg = "Introduction generated successfully (legacy method)."
+                    log.debug(_msg)
+                    break  # Success
+                _msg = f"Attempt {i + 1} yielded empty introduction."
+                log.warning(_msg)
+                generated_introduction = None  # Reset on empty result
+            except Exception as e:
+                _msg = f"Attempt {i + 1} to generate introduction failed: {e!s}"
+                log.warning(_msg)
+                generated_introduction = None
 
     # 4. Fallback if all retries fail
     if not generated_introduction:
@@ -951,6 +1003,7 @@ async def experience_refinement_sse_generator(
             refined_roles=refined_roles,
             params=params,
             llm_config=llm_config,
+            running_log=running_log,
         ):
             yield sse_message
 

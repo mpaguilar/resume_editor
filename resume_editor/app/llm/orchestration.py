@@ -18,14 +18,20 @@ from resume_editor.app.api.routes.route_logic.resume_serialization import (
 )
 from resume_editor.app.llm.models import (
     CandidateAnalysis,
+    CrossSectionEvidence,
+    GeneratedBanner,
     GeneratedIntroduction,
     JobAnalysis,
     JobKeyRequirements,
     LLMConfig,
     RefinedRole,
+    RefinedRoleRecord,
     RoleRefinementJob,
+    RunningLog,
 )
 from resume_editor.app.llm.prompts import (
+    BANNER_GENERATION_HUMAN_PROMPT,
+    BANNER_GENERATION_SYSTEM_PROMPT,
     INTRO_ANALYZE_JOB_HUMAN_PROMPT,
     INTRO_ANALYZE_JOB_SYSTEM_PROMPT,
     INTRO_ANALYZE_RESUME_HUMAN_PROMPT,
@@ -370,7 +376,11 @@ async def async_refine_experience_section(
         _msg = "Using cached job analysis"
         log.debug(_msg)
 
-    yield {"status": "job_analysis_complete", "message": "Job analysis complete."}
+    yield {
+        "status": "job_analysis_complete",
+        "message": "Job analysis complete.",
+        "job_analysis": job_analysis.model_dump(mode="json"),
+    }
 
     # 3. Filter roles based on skip_indices
     roles_to_refine = [
@@ -1018,3 +1028,486 @@ def generate_introduction_from_resume(
     _msg = "generate_introduction_from_resume returning"
     log.debug(_msg)
     return introduction
+
+
+def _extract_cross_section_evidence(
+    resume_content: str, job_analysis: JobAnalysis
+) -> list[CrossSectionEvidence]:
+    """Extract relevant evidence from Education, Certifications, and Projects sections.
+
+    This function parses the resume content to identify facts from non-experience
+    sections that support the candidate's qualifications for the job.
+
+    Args:
+        resume_content: The full Markdown content of the resume.
+        job_analysis: The job analysis containing key skills and themes.
+
+    Returns:
+        list[CrossSectionEvidence]: A list of evidence items from cross-section sources,
+            ordered by relevance score (highest first).
+
+    Notes:
+        1. Parses Education section for degrees relevant to job requirements.
+        2. Parses Certifications section for credentials matching job skills.
+        3. Parses Projects section for demonstrable skills.
+        4. Scores each piece of evidence by relevance to job_analysis.
+        5. Returns evidence sorted by relevance_score descending.
+        6. This is a heuristic extraction; scores are approximate.
+
+    """
+    _msg = "_extract_cross_section_evidence starting"
+    log.debug(_msg)
+
+    evidence_list: list[CrossSectionEvidence] = []
+    job_skills_lower = [skill.lower() for skill in job_analysis.key_skills]
+    job_themes_lower = [
+        theme.lower() for theme in job_analysis.themes + job_analysis.inferred_themes
+    ]
+
+    # Extract Education section
+    education_section = _extract_section_content(resume_content, "education")
+    if education_section:
+        # Look for degree mentions that might be relevant
+        degree_keywords = [
+            "bachelor",
+            "master",
+            "phd",
+            "doctorate",
+            "bs",
+            "ms",
+            "ba",
+            "ma",
+            "mba",
+        ]
+        for line in education_section.split("\n"):
+            line_lower = line.lower()
+            if any(keyword in line_lower for keyword in degree_keywords):
+                # Score based on relevance to job
+                relevance = _calculate_education_relevance(
+                    line, job_skills_lower, job_themes_lower
+                )
+                if relevance >= 5:  # Only include if reasonably relevant
+                    evidence_list.append(
+                        CrossSectionEvidence(
+                            section_type="Education",
+                            content=line.strip(),
+                            relevance_score=relevance,
+                        ),
+                    )
+
+    # Extract Certifications section
+    certifications_section = _extract_section_content(resume_content, "certifications")
+    if certifications_section:
+        for line in certifications_section.split("\n"):
+            line_stripped = line.strip()
+            if line_stripped and not line_stripped.startswith("#"):
+                relevance = _calculate_certification_relevance(
+                    line_stripped, job_skills_lower
+                )
+                if relevance >= 6:  # Certifications should be fairly relevant
+                    evidence_list.append(
+                        CrossSectionEvidence(
+                            section_type="Certification",
+                            content=line_stripped,
+                            relevance_score=relevance,
+                        ),
+                    )
+
+    # Extract Projects section
+    projects_section = _extract_section_content(resume_content, "projects")
+    if projects_section:
+        # Split by project headers (### or similar)
+        project_chunks = _split_projects_section(projects_section)
+        for chunk in project_chunks:
+            relevance = _calculate_project_relevance(
+                chunk, job_skills_lower, job_themes_lower
+            )
+            if relevance >= 5:
+                evidence_list.append(
+                    CrossSectionEvidence(
+                        section_type="Project",
+                        content=chunk.strip()[:200],  # Truncate long content
+                        relevance_score=relevance,
+                    ),
+                )
+
+    # Sort by relevance score descending
+    evidence_list.sort(key=lambda x: x.relevance_score, reverse=True)
+
+    _msg = (
+        f"_extract_cross_section_evidence returning {len(evidence_list)} evidence items"
+    )
+    log.debug(_msg)
+    return evidence_list
+
+
+def _extract_section_content(resume_content: str, section_name: str) -> str | None:
+    """Extract the raw content of a section from resume markdown.
+
+    Args:
+        resume_content: The full Markdown content of the resume.
+        section_name: The name of the section to extract (e.g., 'education').
+
+    Returns:
+        str | None: The content of the section, or None if not found.
+
+    Notes:
+        1. Looks for a header matching # SectionName (case-insensitive).
+        2. Captures all content until the next # header or end of content.
+        3. Returns None if section is not found.
+
+    """
+    lines = resume_content.splitlines()
+    section_header = f"# {section_name.lower()}"
+    in_section = False
+    captured_lines = []
+
+    for line in lines:
+        stripped = line.strip().lower()
+        # Check for section header
+        if stripped.startswith(section_header) and not stripped.startswith("## "):
+            in_section = True
+            continue
+        # Check for next main section
+        if in_section and stripped.startswith("# ") and not stripped.startswith("## "):
+            break
+        if in_section:
+            captured_lines.append(line)
+
+    if captured_lines:
+        return "\n".join(captured_lines).strip()
+    return None
+
+
+def _calculate_education_relevance(
+    education_line: str, job_skills_lower: list[str], job_themes_lower: list[str]
+) -> int:
+    """Calculate relevance score for an education entry.
+
+    Args:
+        education_line: A line from the education section.
+        job_skills_lower: Lowercase job skills for matching.
+        job_themes_lower: Lowercase job themes for matching.
+
+    Returns:
+        int: Relevance score from 1-10.
+
+    Notes:
+        1. Base score of 5 for any degree.
+        2. +2 if field of study matches job skills/themes.
+        3. +1 if advanced degree (Master's/PhD) and job suggests seniority.
+        4. Capped at 10.
+
+    """
+    score = 5
+    line_lower = education_line.lower()
+
+    # Check for field relevance
+    for skill in job_skills_lower:
+        if skill in line_lower:
+            score += 2
+            break
+
+    for theme in job_themes_lower:
+        if theme in line_lower:
+            score += 1
+            break
+
+    # Boost for advanced degrees if job seems senior
+    if any(term in line_lower for term in ["master", "phd", "doctorate", "mba"]):
+        if any(
+            term in " ".join(job_themes_lower)
+            for term in ["senior", "lead", "principal", "advanced"]
+        ):
+            score += 1
+
+    return min(score, 10)
+
+
+def _calculate_certification_relevance(
+    cert_line: str, job_skills_lower: list[str]
+) -> int:
+    """Calculate relevance score for a certification entry.
+
+    Args:
+        cert_line: A line from the certifications section.
+        job_skills_lower: Lowercase job skills for matching.
+
+    Returns:
+        int: Relevance score from 1-10.
+
+    Notes:
+        1. Base score of 6 for any certification.
+        2. +3 if certification directly matches a job skill.
+        3. Capped at 10.
+
+    """
+    score = 6
+    line_lower = cert_line.lower()
+
+    for skill in job_skills_lower:
+        if skill in line_lower:
+            score += 3
+            break
+
+    return min(score, 10)
+
+
+def _calculate_project_relevance(
+    project_chunk: str, job_skills_lower: list[str], job_themes_lower: list[str]
+) -> int:
+    """Calculate relevance score for a project entry.
+
+    Args:
+        project_chunk: A chunk of text describing a project.
+        job_skills_lower: Lowercase job skills for matching.
+        job_themes_lower: Lowercase job themes for matching.
+
+    Returns:
+        int: Relevance score from 1-10.
+
+    Notes:
+        1. Base score of 4 for any project.
+        2. +2 for each matching job skill (up to +4).
+        3. +1 for each matching theme (up to +2).
+        4. Capped at 10.
+
+    """
+    score = 4
+    chunk_lower = project_chunk.lower()
+
+    skill_matches = sum(1 for skill in job_skills_lower if skill in chunk_lower)
+    score += min(skill_matches * 2, 4)
+
+    theme_matches = sum(1 for theme in job_themes_lower if theme in chunk_lower)
+    score += min(theme_matches, 2)
+
+    return min(score, 10)
+
+
+def _split_projects_section(projects_section: str) -> list[str]:
+    """Split the projects section into individual project chunks.
+
+    Args:
+        projects_section: The content of the projects section.
+
+    Returns:
+        list[str]: List of project chunks.
+
+    Notes:
+        1. Splits on ### headers (project titles).
+        2. If no headers found, treats entire section as one project.
+
+    """
+    lines = projects_section.splitlines()
+    chunks = []
+    current_chunk = []
+
+    for line in lines:
+        if line.strip().startswith("### "):
+            if current_chunk:
+                chunks.append("\n".join(current_chunk))
+                current_chunk = []
+        current_chunk.append(line)
+
+    if current_chunk:
+        chunks.append("\n".join(current_chunk))
+
+    return chunks if chunks else [projects_section]
+
+
+def _format_role_data_for_banner(
+    refined_roles: list[RefinedRoleRecord],
+) -> list[dict[str, Any]]:
+    """Format refined role records for banner generation input.
+
+    Args:
+        refined_roles: List of refined role records from the running log.
+
+    Returns:
+        list[dict[str, Any]]: Formatted role data suitable for LLM prompt.
+
+    Notes:
+        1. Extracts key information: company, title, description, skills.
+        2. Structures data to emphasize skills with company associations.
+        3. Orders roles by recency (using original_index as proxy).
+
+    """
+    _msg = "_format_role_data_for_banner starting"
+    log.debug(_msg)
+
+    formatted_roles = []
+    for role in refined_roles:
+        role_data = {
+            "company": role.company,
+            "title": role.title,
+            "description": role.refined_description[:300]
+            if len(role.refined_description) > 300
+            else role.refined_description,  # Truncate if needed
+            "skills": role.relevant_skills,
+            "position": role.original_index,
+        }
+        formatted_roles.append(role_data)
+
+    # Sort by position (original index) to maintain resume order
+    formatted_roles.sort(key=lambda x: x["position"])
+
+    _msg = (
+        f"_format_role_data_for_banner returning {len(formatted_roles)} formatted roles"
+    )
+    log.debug(_msg)
+    return formatted_roles
+
+
+def _invoke_banner_generation_chain(
+    llm: ChatOpenAI,
+    job_analysis: JobAnalysis,
+    refined_roles: list[RefinedRoleRecord],
+    cross_section_evidence: list[CrossSectionEvidence],
+    original_banner: str | None,
+) -> GeneratedBanner | None:
+    """Invoke the LLM chain for banner generation.
+
+    Args:
+        llm: Initialized ChatOpenAI client.
+        job_analysis: The job analysis for context.
+        refined_roles: List of refined role records.
+        cross_section_evidence: Cross-section evidence for context.
+        original_banner: Original banner for context (optional).
+
+    Returns:
+        GeneratedBanner | None: The generated banner or None if generation fails.
+
+    Notes:
+        1. Creates a prompt with BANNER_GENERATION_SYSTEM_PROMPT.
+        2. Formats all input data as JSON strings.
+        3. Invokes the chain and parses the response.
+        4. Validates against GeneratedBanner model.
+        5. Returns None on any error.
+
+    """
+    _msg = "_invoke_banner_generation_chain starting"
+    log.debug(_msg)
+
+    try:
+        parser = PydanticOutputParser(pydantic_object=GeneratedBanner)
+
+        prompt = ChatPromptTemplate.from_messages(
+            [
+                ("system", BANNER_GENERATION_SYSTEM_PROMPT),
+                ("human", BANNER_GENERATION_HUMAN_PROMPT),
+            ],
+        ).partial(format_instructions=parser.get_format_instructions())
+
+        chain = prompt | llm | StrOutputParser()
+
+        # Format input data
+        formatted_roles = _format_role_data_for_banner(refined_roles)
+
+        response_str = chain.invoke(
+            {
+                "job_analysis_json": job_analysis.model_dump_json(),
+                "refined_roles_json": json.dumps(formatted_roles, indent=2),
+                "cross_section_evidence_json": json.dumps(
+                    [e.model_dump() for e in cross_section_evidence], indent=2
+                ),
+                "original_banner": original_banner or "",
+            },
+        )
+
+        parsed_json = _parse_json_with_fix(response_str)
+        banner = GeneratedBanner.model_validate(parsed_json)
+
+        _msg = "_invoke_banner_generation_chain returning successfully"
+        log.debug(_msg)
+        return banner
+
+    except Exception as e:
+        _msg = f"Banner generation chain failed: {e!s}"
+        log.exception(_msg)
+        return None
+
+
+def generate_banner_from_running_log(
+    running_log: RunningLog,
+    original_resume_content: str,
+    llm_config: LLMConfig,
+    original_banner: str | None = None,
+) -> str:
+    """Generate a resume banner using refined data from the RunningLog.
+
+    This is the primary function for generating banners in the new checkpoint-based
+    workflow. It uses the refined role data and cross-section evidence to create
+    a semantically coherent, role-centric banner.
+
+    Args:
+        running_log: The running log containing refined roles and job analysis.
+        original_resume_content: The original resume content for cross-section extraction.
+        llm_config: Configuration for the LLM client.
+        original_banner: The original banner text for context (optional).
+
+    Returns:
+        str: The generated banner as a Markdown-formatted string, or empty string if generation fails.
+
+    Notes:
+        1. Validates that running_log has job_analysis and refined_roles.
+        2. Extracts cross-section evidence from the original resume.
+        3. Initializes the LLM client.
+        4. Invokes the banner generation chain.
+        5. Formats the result as Markdown bullet points.
+        6. Falls back to empty string if generation fails.
+
+    """
+    _msg = "generate_banner_from_running_log starting"
+    log.debug(_msg)
+
+    # Validate inputs
+    if not running_log.job_analysis:
+        _msg = "Running log has no job_analysis, cannot generate banner"
+        log.warning(_msg)
+        return ""
+
+    if not running_log.refined_roles:
+        _msg = "Running log has no refined_roles, cannot generate banner"
+        log.warning(_msg)
+        return ""
+
+    # Extract cross-section evidence
+    cross_section_evidence = _extract_cross_section_evidence(
+        resume_content=original_resume_content,
+        job_analysis=running_log.job_analysis,
+    )
+
+    # Initialize LLM
+    llm = _initialize_llm_client(llm_config)
+
+    # Generate banner
+    banner = _invoke_banner_generation_chain(
+        llm=llm,
+        job_analysis=running_log.job_analysis,
+        refined_roles=running_log.refined_roles,
+        cross_section_evidence=cross_section_evidence,
+        original_banner=original_banner,
+    )
+
+    if banner is None:
+        _msg = "Banner generation returned None"
+        log.warning(_msg)
+        return ""
+
+    # Format the banner as Markdown
+    banner_lines = []
+    for bullet in banner.bullets:
+        banner_lines.append(f"- **{bullet.category}:** {bullet.description}")
+
+    # Add education bullet if present and relevant
+    if banner.education_bullet:
+        banner_lines.append(
+            f"- **{banner.education_bullet.category}:** {banner.education_bullet.description}"
+        )
+
+    result = "\n".join(banner_lines)
+
+    _msg = "generate_banner_from_running_log returning"
+    log.debug(_msg)
+    return result

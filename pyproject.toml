@@ -1,6 +1,6 @@
 [project]
 name = "resume-editor"
-version = "0.94.1"
+version = "0.95.1"
 description = "Edits and refines resumes"
 readme = "README.md"
 requires-python = ">=3.12"
@@ -46,7 +46,7 @@ addopts = "-rx --asyncio-mode=auto"
 log_cli_level = "DEBUG"
 
 [tool.uv.sources]
-resume-writer = { git = "https://github.com/mpaguilar/resume_writer.git", rev = "95fb19c" }
+resume-writer = { git = "https://github.com/mpaguilar/resume_writer.git", rev = "dcac892" }
 
 [tool.ruff]
 exclude = ["temporal-samples-python"]
@@ -67,7 +67,7 @@ ignore = ["D201", "D202",
     ]
 
 [tool.ruff.lint.per-file-ignores]
-"**/tests/**/*" = ["ANN", "D", "I"]
+"**/tests/**/*" = ["ANN", "D", "I", "DTZ", "COM812", "PERF401", "PLC0415", "ARG001", "PLR0913", "INP001", "E501"]
 
 [tool.ruff.lint.mccabe]
 max-complexity = 5

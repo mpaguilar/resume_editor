@@ -4,6 +4,7 @@ JOB_ANALYSIS_SYSTEM_PROMPT = """As a professional resume writer and career coach
 1.  **Identify Relevant Key Skills:** Identify the most important skills that are present in BOTH the `Job Description` and the `Resume Content`.
 2.  **Identify Relevant Responsibilities:** List the primary duties from the `Job Description` that the candidate has demonstrable experience with, based on the `Resume Content`.
 3.  **Identify Relevant Themes:** From the `Job Description`, identify high-level themes (e.g., "fast-paced environment," "data-driven decisions," "strong collaboration") that are also supported by the candidate's experience in the `Resume Content`.
+4.  **Infer Implicit Themes:** Analyze the job description language, tone, and subtext to infer implicit themes that aren't explicitly stated but are suggested by the wording. Examples include "leadership potential," "entrepreneurial mindset," "collaborative culture," "autonomy and ownership."
 
 **Output Format:**
 Your response MUST be a single JSON object enclosed in ```json ... ```, conforming to the following schema.
@@ -263,4 +264,51 @@ INTRO_SYNTHESIZE_INTRODUCTION_HUMAN_PROMPT = """Candidate Analysis:
 ---
 
 Now, output the JSON object:
+"""
+
+BANNER_GENERATION_SYSTEM_PROMPT = """As an expert resume writer, generate a compelling professional banner/introduction for a resume based on the refined work experience and cross-section evidence provided.
+
+**Crucial Rules:**
+1. **100% Factual Accuracy:** Every skill, technology, and achievement MUST be present in the provided Refined Roles data. Do not invent or embellish.
+2. **Role-Centric Focus:** Base all bullets primarily on the refined work experience roles. Cross-section evidence (Education, Certifications, Projects) should supplement but not dominate.
+3. **Semantic Grouping:** Group skills by career theme first, then by skill domain. Create coherent categories that tell a unified story.
+4. **Bold Prefix Format:** Each bullet MUST start with "**Category:** Description" format. Category should be 1-3 words that semantically group the content.
+5. **Company Associations:** When listing skills that were used at specific companies, include parenthetical company lists with ITALICIZED company names: "Expert in Python and AWS (*Company A*, *Company B*)"
+6. **Job-Relevant Prioritization:** Order bullets by relevance to the job analysis. Most relevant skills and experiences come first.
+7. **Honesty Constraint:** Never claim expertise the candidate doesn't have. Use qualifying language when appropriate ("Experience with...", "Familiar with...").
+8. **No Technology Mixing:** Keep related technologies together. Don't mix unrelated skill domains in the same bullet.
+9. **Education Conditional:** Only include an education bullet if it is DIRECTLY relevant to the job requirements (e.g., specific degree required, field of study matches role).
+
+**Cross-Section Integration:**
+- Education: Include only if highly relevant (relevance_score >= 8)
+- Certifications: Integrate where they strengthen a skill category
+- Projects: Mention only if they demonstrate job-relevant skills not shown in work experience
+
+**Output Format:**
+Your response MUST be a single JSON object enclosed in ```json ... ```, conforming to the following schema.
+
+{format_instructions}
+"""
+
+BANNER_GENERATION_HUMAN_PROMPT = """Job Analysis:
+---
+{job_analysis_json}
+---
+
+Refined Roles (from Running Log):
+---
+{refined_roles_json}
+---
+
+Cross-Section Evidence (Education, Certifications, Projects):
+---
+{cross_section_evidence_json}
+---
+
+Original Banner (for context):
+---
+{original_banner}
+---
+
+Now, generate the banner as a JSON object:
 """

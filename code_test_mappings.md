@@ -29,6 +29,7 @@ These are known mappings:
 - `resume_editor/app/api/routes/route_logic/refinement_checkpoint.py` -> `tests/app/api/routes/route_logic/test_refinement_checkpoint.py`
 - `resume_editor/app/api/routes/route_logic/resume_ai_logic.py` -> `tests/app/api/routes/route_logic/test_resume_ai_logic.py`
 - `resume_editor/app/api/routes/route_logic/resume_ai_logic.py` -> `tests/app/api/routes/route_logic/test_resume_ai_logic_actions.py`
+- `resume_editor/app/api/routes/route_logic/resume_ai_logic.py` -> `tests/app/api/routes/route_logic/test_resume_ai_logic_banner.py`
 - `resume_editor/app/api/routes/route_logic/resume_ai_logic.py` -> `tests/app/api/routes/route_logic/test_resume_ai_logic_checkpoint.py`
 - `resume_editor/app/api/routes/route_logic/resume_ai_logic.py` -> `tests/app/api/routes/route_logic/test_resume_ai_logic_config.py`
 - `resume_editor/app/api/routes/route_logic/resume_ai_logic.py` -> `tests/app/api/routes/route_logic/test_resume_ai_logic_processing.py`
@@ -57,7 +58,9 @@ These are known mappings:
 - `resume_editor/app/llm/models.py` -> `tests/app/llm/test_models.py`
 - `resume_editor/app/llm/models.py` -> `tests/app/llm/test_models_checkpoint.py`
 - `resume_editor/app/llm/orchestration.py` -> `tests/app/llm/test_orchestration.py`
+- `resume_editor/app/llm/orchestration.py` -> `tests/app/llm/test_orchestration_banner_generation.py`
 - `resume_editor/app/llm/orchestration.py` -> `tests/app/llm/test_orchestration_checkpoint.py`
+- `resume_editor/app/llm/orchestration.py` -> `tests/app/llm/test_orchestration_cross_section.py`
 - `resume_editor/app/llm/orchestration.py` -> `tests/app/llm/test_orchestration_analyze_job.py`
 - `resume_editor/app/llm/orchestration.py` -> `tests/app/llm/test_orchestration_introduction.py`
 - `resume_editor/app/llm/orchestration.py` -> `tests/app/llm/test_orchestration_introduction_generation.py`

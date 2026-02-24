@@ -1,10 +1,13 @@
 from resume_editor.app.llm.prompts import (
+    BANNER_GENERATION_HUMAN_PROMPT,
+    BANNER_GENERATION_SYSTEM_PROMPT,
     INTRO_ANALYZE_JOB_HUMAN_PROMPT,
     INTRO_ANALYZE_JOB_SYSTEM_PROMPT,
     INTRO_ANALYZE_RESUME_HUMAN_PROMPT,
     INTRO_ANALYZE_RESUME_SYSTEM_PROMPT,
     INTRO_SYNTHESIZE_INTRODUCTION_HUMAN_PROMPT,
     INTRO_SYNTHESIZE_INTRODUCTION_SYSTEM_PROMPT,
+    JOB_ANALYSIS_SYSTEM_PROMPT,
     ROLE_REFINE_SYSTEM_PROMPT,
 )
 
@@ -80,3 +83,54 @@ def test_intro_synthesize_prompt_is_exclusive_and_prioritized():
 def test_intro_analyze_resume_prompt_has_original_banner():
     """Tests that INTRO_ANALYZE_RESUME_HUMAN_PROMPT includes original_banner placeholder."""
     assert "{original_banner}" in INTRO_ANALYZE_RESUME_HUMAN_PROMPT
+
+
+def test_job_analysis_prompt_has_theme_inference():
+    """Tests that JOB_ANALYSIS_SYSTEM_PROMPT includes theme inference instruction."""
+    assert "Infer Implicit Themes" in JOB_ANALYSIS_SYSTEM_PROMPT
+    assert (
+        "inferred_themes" in JOB_ANALYSIS_SYSTEM_PROMPT.lower()
+        or "implicit themes" in JOB_ANALYSIS_SYSTEM_PROMPT.lower()
+    )
+
+
+def test_banner_generation_system_prompt_exists_and_not_empty():
+    """Tests that BANNER_GENERATION_SYSTEM_PROMPT exists and is not empty."""
+    assert BANNER_GENERATION_SYSTEM_PROMPT is not None
+    assert isinstance(BANNER_GENERATION_SYSTEM_PROMPT, str)
+    assert len(BANNER_GENERATION_SYSTEM_PROMPT.strip()) > 0
+
+
+def test_banner_generation_system_prompt_has_required_elements():
+    """Tests that BANNER_GENERATION_SYSTEM_PROMPT contains all required instructions."""
+    prompt = BANNER_GENERATION_SYSTEM_PROMPT
+    # Key requirements from the implementation plan
+    assert "100% Factual Accuracy" in prompt
+    assert "Role-Centric Focus" in prompt
+    assert "Semantic Grouping" in prompt
+    assert "Bold Prefix Format" in prompt
+    assert "**Category:**" in prompt
+    assert "Company Associations" in prompt
+    assert "parenthetical company lists" in prompt.lower()
+    assert "Job-Relevant Prioritization" in prompt
+    assert "Honesty Constraint" in prompt
+    assert "Education Conditional" in prompt
+    assert "relevance_score >= 8" in prompt
+    # Company names must be italicized
+    assert "ITALICIZED" in prompt or "italicized" in prompt.lower()
+    assert "*Company A*" in prompt or "*Company" in prompt
+
+
+def test_banner_generation_human_prompt_exists_and_has_placeholders():
+    """Tests that BANNER_GENERATION_HUMAN_PROMPT exists and has required placeholders."""
+    assert BANNER_GENERATION_HUMAN_PROMPT is not None
+    assert isinstance(BANNER_GENERATION_HUMAN_PROMPT, str)
+    assert "{job_analysis_json}" in BANNER_GENERATION_HUMAN_PROMPT
+    assert "{refined_roles_json}" in BANNER_GENERATION_HUMAN_PROMPT
+    assert "{cross_section_evidence_json}" in BANNER_GENERATION_HUMAN_PROMPT
+    assert "{original_banner}" in BANNER_GENERATION_HUMAN_PROMPT
+
+
+def test_banner_generation_prompts_are_different():
+    """Tests that system and human prompts are different."""
+    assert BANNER_GENERATION_SYSTEM_PROMPT != BANNER_GENERATION_HUMAN_PROMPT

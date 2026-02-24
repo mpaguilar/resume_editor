@@ -363,6 +363,41 @@ The refinement process includes an **automatic retry mechanism** for transient L
 - ✗ Certifications
 - ✗ Projects (preserved but not refined)
 
+### Banner Generation Output Format
+
+The AI-generated banner uses a **role-centric evidence extraction** approach that leverages data from the `RunningLog`:
+
+**Format:**
+- **Bold prefix format:** Each bullet starts with `**Category:** Description`
+- **Maximum 5 brief bullets** (usually 3-5)
+- **Semantic grouping:** Related skills are grouped under coherent themes
+
+**Data Sources:**
+1. **Experience Section (from RunningLog):**
+   - Uses `RefinedRoleRecord` data for each refined role
+   - Company, title, relevant skills, and refined description
+   - Skills already filtered for job relevance during refinement
+
+2. **Cross-Section Evidence (from raw resume):**
+   - **Education:** Conditionally included only if directly relevant to job
+   - **Certifications:** Integrated where they strengthen skill categories
+   - **Projects:** Mentioned if they demonstrate job-relevant skills not in work experience
+
+**Example Output:**
+```markdown
+- **Enterprise Architecture:** Designed cloud-native solutions using AWS and Azure (*Company A*, *Company B*)
+- **Technical Leadership:** Led teams of 5-10 engineers across multiple projects (*Company C*, *Company D*)
+- **Certifications:** AWS Solutions Architect, Azure Administrator
+- **Education:** BS Computer Science, MS Data Science (only if relevant)
+```
+
+**Key Principles:**
+- 100% factual accuracy - no invented skills or experiences
+- Company associations shown in parenthetical format with **italicized** company names: "Skill (*Company A*, *Company B*)"
+- Job-relevant skills prioritized and appear first
+- No mixing of unrelated technologies in the same bullet
+- Honest representation with qualifying language when appropriate
+
 ### User Actions After Refinement
 
 After successful refinement, the user sees the refined resume and has three options:
