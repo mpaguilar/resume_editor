@@ -45,9 +45,20 @@
             <textarea id="introduction" name="introduction" rows="5" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">{{ resume.introduction or '' }}</textarea>
         </div>
 
+        <!-- NEW: Company field -->
+        <div class="mb-4">
+            <label for="company" class="block text-sm font-medium text-gray-700">Company</label>
+            <input type="text" id="company" name="company" maxlength="255"
+                   value="{{ resume.company or '' }}"
+                   class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                   placeholder="Target company name">
+            <p class="text-xs text-gray-500 mt-1">Maximum 255 characters</p>
+        </div>
+
         <div class="mb-4">
             <label for="notes" class="block text-sm font-medium text-gray-700">Notes</label>
-            <textarea id="notes" name="notes" rows="5" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">{{ resume.notes or '' }}</textarea>
+            <textarea id="notes" name="notes" rows="5" maxlength="5000" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">{{ resume.notes or '' }}</textarea>
+            <p class="text-xs text-gray-500 mt-1">Maximum 5000 characters</p>
         </div>
 
         <div>

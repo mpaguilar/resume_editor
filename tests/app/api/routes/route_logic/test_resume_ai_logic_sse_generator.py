@@ -23,7 +23,6 @@ from resume_editor.app.models.resume.experience import (
 )
 
 
-
 @pytest.mark.asyncio
 @patch(
     "resume_editor.app.api.routes.route_logic.resume_ai_logic.reconstruct_resume_with_new_introduction"
@@ -102,9 +101,9 @@ async def test_sse_generator_processes_multiple_roles(
 
     # 1 progress, 2 roles, 1 intro progress, 1 done, 1 close
     expected_events = 6
-    assert (
-        len(results) == expected_events
-    ), f"Expected {expected_events} events, got {len(results)}: {results}"
+    assert len(results) == expected_events, (
+        f"Expected {expected_events} events, got {len(results)}: {results}"
+    )
     results_str = "".join(results)
     assert "event: progress" in results_str
     assert "data: <li>doing stuff</li>" in results_str
@@ -121,9 +120,6 @@ async def test_sse_generator_processes_multiple_roles(
     assert "event: done" in results_str
     assert "data: <html>final html</html>" in results_str
     assert "event: close" in results_str
-
-
-
 
 
 @pytest.mark.asyncio
@@ -199,9 +195,9 @@ async def test_sse_generator_generates_introduction_at_end(
     # Assertions
     # 1 progress, 1 role, 1 intro progress, 1 done, 1 close
     expected_events = 5
-    assert (
-        len(results) == expected_events
-    ), f"Expected {expected_events} events, got {len(results)}: {results}"
+    assert len(results) == expected_events, (
+        f"Expected {expected_events} events, got {len(results)}: {results}"
+    )
 
     results_str = "".join(results)
     assert "event: introduction_generated" not in results_str
@@ -229,6 +225,8 @@ async def test_sse_generator_generates_introduction_at_end(
         job_description="a new job",
         introduction="mocked intro",
         limit_refinement_years=None,
+        company=None,
+        notes=None,
     )
 
 
@@ -534,14 +532,6 @@ async def test_experience_refinement_sse_generator_generic_exception(
     mock_handle_exception.assert_called_once_with(error, test_resume.id)
 
 
-
-
-
-
-
-
-
-
 def test_process_sse_event_handles_job_analysis_complete():
     """Test that _process_sse_event handles a job_analysis_complete event."""
     refined_roles = {}
@@ -677,9 +667,6 @@ async def test_generator_handles_client_disconnect_gracefully(
         pytest.fail("The underlying generator was not closed.")
 
 
-
-
-
 @pytest.mark.asyncio
 @patch(
     "resume_editor.app.api.routes.route_logic.resume_ai_logic.generate_introduction_from_resume"
@@ -806,6 +793,8 @@ async def test_sse_generator_intro_generation_retries_on_failure(
         job_description="a job",
         introduction="Success on 2nd try",
         limit_refinement_years=None,
+        company=None,
+        notes=None,
     )
 
 
@@ -873,6 +862,8 @@ async def test_sse_generator_intro_generation_retries_on_empty_string(
         job_description="a job",
         introduction="Success on 2nd try",
         limit_refinement_years=None,
+        company=None,
+        notes=None,
     )
 
 
@@ -946,8 +937,6 @@ async def test_sse_generator_intro_generation_fallback_on_total_failure(
     mock_process_result.assert_called_once()
     args, kwargs = mock_process_result.call_args
     assert "Professional summary tailored" in kwargs["introduction"]
-
-
 
 
 @pytest.mark.asyncio
@@ -1066,4 +1055,6 @@ async def test_sse_generator_e2e_refine_then_introduce_workflow(
         job_description="a new job",
         introduction="new mocked intro",
         limit_refinement_years=None,
+        company=None,
+        notes=None,
     )

@@ -101,7 +101,8 @@ def test_get_refine_resume_page_not_found():
     app.dependency_overrides[get_db] = get_mock_db
 
     with patch(
-        "resume_editor.app.web.pages.get_resume_by_id_and_user", return_value=mock_resume
+        "resume_editor.app.web.pages.get_resume_by_id_and_user",
+        return_value=mock_resume,
     ) as mock_get_resume:
         response = client.get("/resumes/1/edit")
         assert response.status_code == 200
@@ -169,7 +170,8 @@ def test_resume_editor_page_no_refine_for_refined_resume():
     app.dependency_overrides[get_db] = get_mock_db
 
     with patch(
-        "resume_editor.app.web.pages.get_resume_by_id_and_user", return_value=mock_resume
+        "resume_editor.app.web.pages.get_resume_by_id_and_user",
+        return_value=mock_resume,
     ) as mock_get_resume:
         response = client.get("/resumes/1/edit")
         assert response.status_code == 200
@@ -224,7 +226,8 @@ def test_get_resume_view_page_loads_correctly():
     app.dependency_overrides[get_db] = get_mock_db
 
     with patch(
-        "resume_editor.app.web.pages.get_resume_by_id_and_user", return_value=mock_resume
+        "resume_editor.app.web.pages.get_resume_by_id_and_user",
+        return_value=mock_resume,
     ) as mock_get_resume:
         response = client.get("/resumes/1/view")
         assert response.status_code == 200
@@ -317,7 +320,9 @@ def test_resume_view_page_not_found():
 
     app.dependency_overrides[get_db] = get_mock_db
 
-    with patch("resume_editor.app.web.pages.get_resume_by_id_and_user") as mock_get_resume:
+    with patch(
+        "resume_editor.app.web.pages.get_resume_by_id_and_user"
+    ) as mock_get_resume:
         mock_get_resume.side_effect = HTTPException(
             status_code=404, detail="Resume not found"
         )
@@ -380,33 +385,35 @@ def test_update_resume_view_page_post():
     app.dependency_overrides[get_current_user_from_cookie] = get_mock_user
     app.dependency_overrides[get_db] = get_mock_db
 
-    with patch(
-        "resume_editor.app.web.pages.get_resume_by_id_and_user", return_value=mock_resume
-    ) as mock_get_resume, patch(
-        "resume_editor.app.web.pages.update_resume"
-    ) as mock_update_resume, patch(
-        "resume_editor.app.web.pages.reconstruct_resume_with_new_introduction"
-    ) as mock_reconstruct:
+    with (
+        patch(
+            "resume_editor.app.api.dependencies.get_resume_by_id_and_user",
+            return_value=mock_resume,
+        ) as mock_get_resume,
+        patch("resume_editor.app.web.pages.update_resume") as mock_update_resume,
+        patch(
+            "resume_editor.app.web.pages.reconstruct_resume_with_new_introduction"
+        ) as mock_reconstruct,
+    ):
         mock_reconstruct.return_value = "reconstructed content"
 
         response = client.post(
             "/resumes/1/view",
-            data={"introduction": "New Intro", "notes": "New Notes"},
+            data={"introduction": "New Intro", "notes": "New Notes", "company": ""},
             follow_redirects=False,
         )
 
         assert response.status_code == 303
         assert response.headers["location"] == "/resumes/1/view"
 
-        mock_get_resume.assert_called_once_with(
-            db=mock_db_session, resume_id=1, user_id=1
-        )
+        mock_get_resume.assert_called_once_with(mock_db_session, resume_id=1, user_id=1)
         mock_reconstruct.assert_called_once_with(
             resume_content="# My Resume Content", introduction="New Intro"
         )
         expected_params = ResumeUpdateParams(
             introduction="New Intro",
             notes="New Notes",
+            company="",
             content="reconstructed content",
         )
         mock_update_resume.assert_called_once_with(
@@ -416,7 +423,6 @@ def test_update_resume_view_page_post():
         )
 
     app.dependency_overrides.clear()
-
 
 
 def test_resume_editor_page_not_found():
@@ -450,7 +456,9 @@ def test_resume_editor_page_not_found():
 
     app.dependency_overrides[get_db] = get_mock_db
 
-    with patch("resume_editor.app.web.pages.get_resume_by_id_and_user") as mock_get_resume:
+    with patch(
+        "resume_editor.app.web.pages.get_resume_by_id_and_user"
+    ) as mock_get_resume:
         mock_get_resume.side_effect = HTTPException(
             status_code=404, detail="Resume not found"
         )
@@ -542,11 +550,12 @@ def test_handle_create_resume_success():
     mock_new_resume = DatabaseResume(data=resume_data)
     mock_new_resume.id = 2
 
-    with patch(
-        "resume_editor.app.web.pages.validate_resume_content"
-    ) as mock_validate, patch(
-        "resume_editor.app.web.pages.create_resume_db", return_value=mock_new_resume
-    ) as mock_create_resume:
+    with (
+        patch("resume_editor.app.web.pages.validate_resume_content") as mock_validate,
+        patch(
+            "resume_editor.app.web.pages.create_resume_db", return_value=mock_new_resume
+        ) as mock_create_resume,
+    ):
         response = client.post(
             "/resumes/create",
             data={"name": "New Resume", "content": "Some content"},
@@ -597,11 +606,10 @@ def test_handle_create_resume_validation_error():
     app.dependency_overrides[get_current_user_from_cookie] = get_mock_user
     app.dependency_overrides[get_db] = get_mock_db
 
-    with patch(
-        "resume_editor.app.web.pages.validate_resume_content"
-    ) as mock_validate, patch(
-        "resume_editor.app.web.pages.create_resume_db"
-    ) as mock_create_resume:
+    with (
+        patch("resume_editor.app.web.pages.validate_resume_content") as mock_validate,
+        patch("resume_editor.app.web.pages.create_resume_db") as mock_create_resume,
+    ):
         mock_validate.side_effect = HTTPException(
             status_code=422, detail="Invalid Markdown"
         )
@@ -659,7 +667,8 @@ def test_refine_resume_page_loads_correctly():
     app.dependency_overrides[get_db] = get_mock_db
 
     with patch(
-        "resume_editor.app.web.pages.get_resume_by_id_and_user", return_value=mock_resume
+        "resume_editor.app.web.pages.get_resume_by_id_and_user",
+        return_value=mock_resume,
     ) as mock_get_resume:
         response = client.get("/resumes/1/refine")
         assert response.status_code == 200
@@ -726,7 +735,8 @@ def test_resume_editor_page_has_correct_export_modal():
     app.dependency_overrides[get_db] = get_mock_db
 
     with patch(
-        "resume_editor.app.web.pages.get_resume_by_id_and_user", return_value=mock_resume
+        "resume_editor.app.web.pages.get_resume_by_id_and_user",
+        return_value=mock_resume,
     ) as mock_get_resume:
         response = client.get(f"/resumes/{mock_resume.id}/edit")
         assert response.status_code == 200
@@ -776,5 +786,3 @@ def test_resume_editor_page_has_correct_export_modal():
         )
 
     app.dependency_overrides.clear()
-
-

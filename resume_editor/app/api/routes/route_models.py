@@ -48,6 +48,8 @@ class ResumeSortBy(str, Enum):
 
     NAME_ASC = "name_asc"
     NAME_DESC = "name_desc"
+    COMPANY_ASC = "company_asc"
+    COMPANY_DESC = "company_desc"
     CREATED_AT_ASC = "created_at_asc"
     CREATED_AT_DESC = "created_at_desc"
     UPDATED_AT_ASC = "updated_at_asc"
@@ -154,12 +156,14 @@ class ResumeResponse(BaseModel):
         name (str): The name of the resume.
         notes (str | None): User-provided notes for the resume.
         introduction (str | None): AI-generated introduction for the resume.
+        company (str | None): The company associated with the resume.
 
     Args:
         id (int): The unique database ID assigned to the resume.
         name (str): The name of the resume as provided by the user.
         notes (str | None): User-provided notes for the resume.
         introduction (str | None): AI-generated introduction for the resume.
+        company (str | None): The company associated with the resume.
 
     Returns:
         ResumeResponse: An instance of the model containing the resume ID and name.
@@ -174,6 +178,7 @@ class ResumeResponse(BaseModel):
     name: str
     notes: str | None = None
     introduction: str | None = None
+    company: str | None = None
 
 
 class ResumeDetailResponse(BaseModel):
@@ -185,6 +190,7 @@ class ResumeDetailResponse(BaseModel):
         content (str): The Markdown content of the resume.
         notes (str | None): User-provided notes for the resume.
         introduction (str | None): AI-generated introduction for the resume.
+        company (str | None): The company associated with the resume.
 
     Args:
         id (int): The unique database ID assigned to the resume.
@@ -192,6 +198,7 @@ class ResumeDetailResponse(BaseModel):
         content (str): The full Markdown content of the resume.
         notes (str | None): User-provided notes for the resume.
         introduction (str | None): AI-generated introduction for the resume.
+        company (str | None): The company associated with the resume.
 
     Returns:
         ResumeDetailResponse: An instance of the model containing the resume ID, name, and content.
@@ -207,6 +214,7 @@ class ResumeDetailResponse(BaseModel):
     content: str
     notes: str | None = None
     introduction: str | None = None
+    company: str | None = None
 
 
 class PersonalInfoUpdateRequest(BaseModel):
@@ -336,9 +344,13 @@ class RefineForm:
         self,
         job_description: str = Form(...),
         limit_refinement_years: str | None = Form(None),
+        company: str | None = Form(None),
+        notes: str | None = Form(None),
     ) -> None:
         self.job_description = job_description
         self.limit_refinement_years = limit_refinement_years
+        self.company = company
+        self.notes = notes
 
 
 class RefinementContext:
@@ -349,10 +361,14 @@ class RefinementContext:
         job_description: str | None = Form(None),
         introduction: str | None = Form(None),
         limit_refinement_years: int | None = Form(None),
+        company: str | None = Form(None),
+        notes: str | None = Form(None),
     ) -> None:
         self.job_description = job_description
         self.introduction = introduction
         self.limit_refinement_years = limit_refinement_years
+        self.company = company
+        self.notes = notes
 
 
 class SaveAsNewForm:
@@ -362,10 +378,14 @@ class SaveAsNewForm:
         self,
         refined_content: str = Form(...),
         new_resume_name: str | None = Form(None),
+        company: str | None = Form(None),
+        notes: str | None = Form(None),
         context: RefinementContext = Depends(),
     ) -> None:
         self.refined_content = refined_content
         self.new_resume_name = new_resume_name
+        self.company = company if company is not None else context.company
+        self.notes = notes if notes is not None else context.notes
         self.job_description = context.job_description
         self.introduction = context.introduction
         self.limit_refinement_years = context.limit_refinement_years
@@ -644,7 +664,7 @@ class SaveAsNewParams(BaseModel):
     db: Any
     user: Any
     resume: Any
-    form_data: SaveAsNewForm
+    form_data: Any
 
 
 class ExperienceRefinementParams(BaseModel):
@@ -658,5 +678,7 @@ class ExperienceRefinementParams(BaseModel):
     resume_content_to_refine: str
     original_resume_content: str
     job_description: str
-    limit_refinement_years: int | None = None
+    limit_refinement_years: str | None = None
     running_log: Any = None
+    company: str | None = None
+    notes: str | None = None

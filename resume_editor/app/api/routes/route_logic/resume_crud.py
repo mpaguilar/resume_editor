@@ -53,6 +53,8 @@ class ResumeCreateParams(BaseModel):
     parent_id: int | None = None
     job_description: str | None = None
     introduction: str | None = None
+    company: str | None = None
+    notes: str | None = None
 
 
 class ResumeUpdateParams(BaseModel):
@@ -62,6 +64,7 @@ class ResumeUpdateParams(BaseModel):
     content: str | None = None
     introduction: str | None = None
     notes: str | None = None
+    company: str | None = None
 
 
 def get_week_range(week_offset: int = 0) -> DateRange:
@@ -154,7 +157,7 @@ def apply_resume_filter(
     Notes:
         1. Truncates search query to 100 characters for security.
         2. Splits query into terms by whitespace.
-        3. Each term must match either name OR notes (case-insensitive, partial).
+        3. Each term must match either name OR notes OR company (case-insensitive, partial).
         4. All terms must match (AND logic between terms).
         5. Uses SQLAlchemy ilike for case-insensitive matching.
         6. This function does not execute the query.
@@ -179,13 +182,14 @@ def apply_resume_filter(
         log.debug(_msg)
         return query
 
-    # Build filter conditions - each term must match name OR notes
+    # Build filter conditions - each term must match name OR notes OR company
     term_conditions = []
     for term in terms:
         term_pattern = f"%{term}%"
         term_filter = or_(
             DatabaseResume.name.ilike(term_pattern),
             DatabaseResume.notes.ilike(term_pattern),
+            DatabaseResume.company.ilike(term_pattern),
         )
         term_conditions.append(term_filter)
 
@@ -260,7 +264,7 @@ def get_user_resumes_with_pagination(
         sort_key = sort_criteria[:-5]
         order_func = getattr(DatabaseResume, sort_key).desc()
 
-    base_query = base_query.order_by(DatabaseResume.created_at.desc())
+    base_query = base_query.order_by(DatabaseResume.updated_at.desc())
     refined_query = refined_query.order_by(order_func)
 
     # Execute queries
@@ -385,6 +389,8 @@ def create_resume(
         parent_id=params.parent_id,
         job_description=params.job_description,
         introduction=params.introduction,
+        company=params.company,
+        notes=params.notes,
     )
     resume = DatabaseResume(data=resume_data)
     db.add(resume)
@@ -427,6 +433,8 @@ def update_resume(
         resume.introduction = params.introduction
     if params.notes is not None:
         resume.notes = params.notes
+    if params.company is not None:
+        resume.company = params.company
     db.commit()
     db.refresh(resume)
     return resume

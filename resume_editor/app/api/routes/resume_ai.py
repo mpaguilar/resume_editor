@@ -4,7 +4,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Annotated, AsyncGenerator
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
-from fastapi.responses import RedirectResponse, StreamingResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
@@ -12,6 +12,9 @@ from sqlalchemy.orm import Session
 from resume_editor.app.api.dependencies import get_resume_for_user
 from resume_editor.app.api.routes.route_logic.refinement_checkpoint import (
     running_log_manager,
+)
+from resume_editor.app.api.routes.route_logic.resume_validation import (
+    validate_refinement_form,
 )
 from resume_editor.app.llm.models import RunningLog
 from resume_editor.app.api.routes.route_logic.resume_ai_logic import (
@@ -61,6 +64,8 @@ class _ExperienceStreamParams:
         current_user (User): Authenticated user.
         job_description (str): Job description text for alignment.
         limit_refinement_years (str | None): Original string form of the years limit for metadata.
+        company (str | None): Optional company name for the refined resume.
+        notes (str | None): Optional notes for the refined resume.
 
     """
 
@@ -70,6 +75,8 @@ class _ExperienceStreamParams:
     current_user: User
     job_description: str
     limit_refinement_years: str | None
+    company: str | None = None
+    notes: str | None = None
 
 
 router = APIRouter()
@@ -378,6 +385,8 @@ async def _experience_refinement_stream(
         job_description=params.job_description,
         limit_refinement_years=params.limit_refinement_years,
         running_log=running_log,
+        company=params.company,
+        notes=params.notes,
     )
     try:
         generator = experience_refinement_sse_generator(params=exp_params)
@@ -481,21 +490,39 @@ async def refine_resume_stream_get(
     current_user: Annotated[User, Depends(get_current_user_from_cookie)],
     resume: Annotated[DatabaseResume, Depends(get_resume_for_user)],
     query: Annotated[RefineStreamQueryParams, Depends(get_refine_stream_query)],
+    company: Annotated[str | None, Query()] = None,
+    notes: Annotated[str | None, Query()] = None,
 ) -> StreamingResponse:
     """Refine a resume using an LLM stream via GET.
 
     This endpoint initiates a Server-Sent Events (SSE) stream to provide real-time
     feedback on the combined introduction and experience refinement process.
     """
+    _msg = "refine_resume_stream_get starting"
+    log.debug(_msg)
+
+    # Validate company and notes
+    validation = validate_refinement_form(
+        job_description=query.job_description,
+        company=company,
+        notes=notes,
+    )
+    if not validation.is_valid:
+        error_messages = "; ".join(validation.errors.values())
+        _msg = "refine_resume_stream_get validation failed"
+        log.debug(_msg)
+        return _make_early_error_stream_response(error_messages)
 
     # Early validation of limit_refinement_years with immediate SSE error response on failure
     parsed_limit_years, early_error_response = _parse_limit_years_for_stream(
         query.limit_refinement_years,
     )
     if early_error_response is not None:
+        _msg = "refine_resume_stream_get returning"
+        log.debug(_msg)
         return early_error_response
 
-    return StreamingResponse(
+    result = StreamingResponse(
         _experience_refinement_stream(
             params=_ExperienceStreamParams(
                 resume=resume,
@@ -504,6 +531,8 @@ async def refine_resume_stream_get(
                 current_user=current_user,
                 job_description=query.job_description,
                 limit_refinement_years=query.limit_refinement_years,
+                company=company,
+                notes=notes,
             ),
         ),
         media_type="text/event-stream",
@@ -513,6 +542,9 @@ async def refine_resume_stream_get(
             "X-Accel-Buffering": "no",
         },
     )
+    _msg = "refine_resume_stream_get returning"
+    log.debug(_msg)
+    return result
 
 
 @router.post("/{resume_id}/refine/stream", response_class=StreamingResponse)
@@ -536,6 +568,24 @@ async def refine_resume_stream(
     _msg = "refine_resume_stream starting"
     log.debug(_msg)
 
+    # Validate form data including company and notes
+    validation = validate_refinement_form(
+        job_description=form_data.job_description,
+        company=form_data.company,
+        notes=form_data.notes,
+    )
+    if not validation.is_valid:
+        # Return error for HTMX requests
+        if "HX-Request" in http_request.headers:
+            error_html = "<div class='text-red-500 p-2'>"
+            for field, error in validation.errors.items():
+                error_html += f"<p>{error}</p>"
+            error_html += "</div>"
+            return HTMLResponse(content=error_html)
+        # Return SSE error for direct requests
+        error_messages = "; ".join(validation.errors.values())
+        return _make_early_error_stream_response(error_messages)
+
     # If HTMX posts directly to this endpoint, return the loader fragment so the browser opens a GET EventSource.
     if "HX-Request" in http_request.headers:
         result = templates.TemplateResponse(
@@ -545,6 +595,8 @@ async def refine_resume_stream(
                 "resume_id": resume.id,
                 "job_description": form_data.job_description,
                 "limit_refinement_years": form_data.limit_refinement_years,
+                "company": form_data.company,
+                "notes": form_data.notes,
             },
         )
         _msg = "refine_resume_stream returning"
@@ -575,6 +627,8 @@ async def refine_resume_stream(
                 current_user=current_user,
                 job_description=form_data.job_description,
                 limit_refinement_years=original_limit_str,
+                company=form_data.company,
+                notes=form_data.notes,
             ),
         ),
         media_type="text/event-stream",
@@ -621,6 +675,8 @@ async def refine_resume(
             "resume_id": resume.id,
             "job_description": form_data.job_description,
             "limit_refinement_years": form_data.limit_refinement_years,
+            "company": form_data.company,
+            "notes": form_data.notes,
         },
     )
 

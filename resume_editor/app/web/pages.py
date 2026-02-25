@@ -7,6 +7,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
+from resume_editor.app.api.dependencies import get_resume_for_user
 from resume_editor.app.api.routes.route_logic.resume_ai_logic import (
     reconstruct_resume_with_new_introduction,
 )
@@ -18,6 +19,10 @@ from resume_editor.app.api.routes.route_logic.resume_crud import (
 )
 from resume_editor.app.api.routes.route_logic.resume_crud import (
     create_resume as create_resume_db,
+)
+from resume_editor.app.models.resume_model import Resume as DatabaseResume
+from resume_editor.app.api.routes.route_logic.resume_validation import (
+    validate_company_and_notes,
 )
 from resume_editor.app.api.routes.route_logic.resume_parsing import (
     validate_resume_content,
@@ -244,46 +249,86 @@ async def get_resume_view_page(
     )
 
 
-@router.post("/resumes/{resume_id}/view")
+@router.post("/resumes/{resume_id}/view", response_class=HTMLResponse)
 async def handle_resume_view_update(
     request: Request,
-    resume_id: int,
+    resume: Annotated[DatabaseResume, Depends(get_resume_for_user)],
     db: Annotated[Session, Depends(get_db)],
-    current_user: Annotated[User, Depends(get_current_user_from_cookie)],
-) -> RedirectResponse:
-    """Handle updates to the introduction and notes on the resume view page.
+    introduction: Annotated[str | None, Form()] = None,
+    notes: Annotated[str | None, Form()] = None,
+    company: Annotated[str | None, Form()] = None,
+) -> HTMLResponse:
+    """Handle updates to the view page (introduction, notes, company).
 
     This also reconstructs the main resume content to reflect the updated
     introduction in the banner section.
+
+    Args:
+        request: The HTTP request.
+        resume: The resume being viewed.
+        db: The database session.
+        introduction: The updated introduction (optional).
+        notes: The updated notes (optional).
+        company: The updated company (optional).
+
+    Returns:
+        HTMLResponse: Redirect to view page or error message.
+
+    Notes:
+        1. Validate company and notes using validate_company_and_notes.
+        2. If validation fails, return error HTML for HTMX requests
+           or redirect for regular requests.
+        3. Reconstruct resume content with new introduction.
+        4. Update the resume with all provided fields.
+        5. Redirect back to the view page.
+
     """
-    resume = get_resume_by_id_and_user(
-        db=db,
-        resume_id=resume_id,
-        user_id=current_user.id,
-    )
+    _msg = f"handle_resume_view_update starting for resume {resume.id}"
+    log.debug(_msg)
 
-    form_data = await request.form()
-    introduction = form_data.get("introduction")
-    notes = form_data.get("notes")
+    # Validate company and notes
+    validation = validate_company_and_notes(company, notes)
+    if not validation.is_valid:
+        _msg = "Validation failed for company or notes"
+        log.debug(_msg)
+        # Return error for HTMX requests
+        if "HX-Request" in request.headers:
+            error_html = "<div class='text-red-500 p-2'>"
+            for error in validation.errors.values():
+                error_html += f"<p>{error}</p>"
+            error_html += "</div>"
+            return HTMLResponse(content=error_html)
+        # For regular requests, redirect
+        return RedirectResponse(
+            url=f"/resumes/{resume.id}/view",
+            status_code=status.HTTP_303_SEE_OTHER,
+        )
 
+    # Reconstruct resume content with new introduction
     new_content = reconstruct_resume_with_new_introduction(
-        resume_content=resume.content,
+        resume_content=str(resume.content),
         introduction=introduction,
     )
 
+    # Update the resume
     update_params = ResumeUpdateParams(
         introduction=introduction,
         notes=notes,
+        company=company,
         content=new_content,
     )
-
     update_resume(
         db=db,
         resume=resume,
         params=update_params,
     )
+
+    _msg = "handle_resume_view_update returning"
+    log.debug(_msg)
+
+    # Redirect back to view page
     return RedirectResponse(
-        url=f"/resumes/{resume_id}/view",
+        url=f"/resumes/{resume.id}/view",
         status_code=status.HTTP_303_SEE_OTHER,
     )
 

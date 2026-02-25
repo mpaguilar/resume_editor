@@ -28,6 +28,24 @@
                            class="mt-1 w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
                 </div>
 
+                <!-- NEW: Company field -->
+                <div class="mb-4">
+                    <label for="company" class="block text-sm font-medium text-gray-700">Company</label>
+                    <input type="text" id="company" name="company" maxlength="255"
+                           placeholder="Target company name"
+                           class="mt-1 w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    <p class="text-xs text-gray-500 mt-1">Maximum 255 characters</p>
+                </div>
+
+                <!-- NEW: Notes field -->
+                <div class="mb-4">
+                    <label for="notes" class="block text-sm font-medium text-gray-700">Notes</label>
+                    <textarea id="notes" name="notes" rows="4" maxlength="5000"
+                              placeholder="Add any notes about this refinement..."
+                              class="mt-1 w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"></textarea>
+                    <p class="text-xs text-gray-500 mt-1">Maximum 5000 characters</p>
+                </div>
+
                 <div class="mb-4">
                     <label for="job_description" class="block text-sm font-medium text-gray-700">Job Description</label>
                     <textarea id="job_description" name="job_description" rows="10" required

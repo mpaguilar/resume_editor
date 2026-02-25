@@ -18,6 +18,8 @@ class RefineResultParams(BaseModel):
     introduction: str | None = None
     job_description: str | None = None
     limit_refinement_years: int | None = None
+    company: str | None = None
+    notes: str | None = None
 
 
 TEMPLATES_DIR = Path(__file__).resolve().parent.parent.parent / "templates"

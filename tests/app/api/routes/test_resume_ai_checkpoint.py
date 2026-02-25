@@ -139,6 +139,8 @@ class TestExperienceRefinementStreamIntegration:
         self.mock_params.parsed_limit_years = None
         self.mock_params.db = Mock()
         self.mock_params.limit_refinement_years = None
+        self.mock_params.company = None
+        self.mock_params.notes = None
 
         with patch(
             "resume_editor.app.api.routes.resume_ai.running_log_manager",

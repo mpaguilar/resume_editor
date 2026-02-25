@@ -592,6 +592,68 @@ tests/                   # All tests (mirrors structure)
 
 Keep files under 1000 lines. Split into modules as needed.
 
+## Company and Notes Fields (Checkpoint 098)
+
+### Overview
+The resume editing workflow includes **Company** and **Notes** fields for refined resumes:
+
+- **Company**: Target company for the job application (refined resumes only)
+- **Notes**: User notes about the resume/refinement (editable on both base and refined)
+
+### Field Behavior
+
+**Base Resumes:**
+- Never display company field (they're templates, not job applications)
+- Notes are editable but less commonly used
+
+**Refined Resumes:**
+- Company is set during refinement on the refine page
+- Company and notes are editable on the view page
+- Company always displays in dashboard (shows "N/A" if blank)
+
+### Validation
+
+- **Company**: Max 255 characters
+- **Notes**: Max 5000 characters
+- Validation occurs server-side on form submission
+- Validation errors block refinement (on refine page) or save (on view page)
+
+### Dashboard Integration
+
+**Refined Resume Display Format:**
+```
+Resume Name — Company: Acme Corp
+ID: 385 - Parent: 2
+via gmail (User Name)
+Created: 2026-02-24 • Updated: 2026-02-24
+```
+
+**Search/Filter:**
+- Searches name, notes, AND company fields
+- Case-insensitive partial matching
+- Only applies to refined resumes (base resumes always shown)
+
+**Sorting:**
+- Can sort by company (ascending/descending)
+- Base resumes maintain separate ordering
+
+### Key Files
+
+```
+resume_editor/app/api/routes/resume_ai.py              # Refine page form handling
+resume_editor/app/api/routes/route_logic/resume_validation.py  # Company/notes validation
+resume_editor/app/web/pages.py                         # View page form handling
+resume_editor/app/api/routes/html_fragments.py         # Dashboard list generation
+```
+
+### API Notes
+
+When calling refinement endpoints, company and notes are:
+1. Validated on the POST refine/stream endpoint
+2. Passed through to the SSE stream
+3. Saved to the refined resume upon completion
+4. Editable on the result page before Accept/Save As New
+
 ## Export Formats
 
 - **Markdown**: Validated raw format

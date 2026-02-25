@@ -41,6 +41,8 @@ def test_handle_save_as_new_refinement_success(
         refined_content="full refined content",
         new_resume_name="New Resume",
         context=context,
+        company="Test Company",
+        notes="Test Notes",
     )
     params = SaveAsNewParams(
         db=db, user=test_user, resume=test_resume, form_data=form_data
@@ -69,6 +71,8 @@ def test_handle_save_as_new_refinement_success(
         parent_id=test_resume.id,
         job_description=context.job_description,
         introduction=context.introduction,
+        company="Test Company",
+        notes="Test Notes",
     )
     mock_create.assert_called_once_with(db=db, params=expected_create_params)
 
@@ -95,6 +99,8 @@ def test_handle_save_as_new_refinement_failure_on_validation(
         refined_content="full refined content",
         new_resume_name="New",
         context=context,
+        company=None,
+        notes=None,
     )
     params = SaveAsNewParams(
         db=db, user=test_user, resume=test_resume, form_data=form_data
@@ -158,5 +164,3 @@ Description:
     result = reconstruct_resume_with_new_introduction(original_content, introduction)
 
     assert result.strip() == expected_content.strip()
-
-

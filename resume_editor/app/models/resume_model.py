@@ -24,6 +24,7 @@ class ResumeData:
     parent_id: int | None = None
     notes: str | None = None
     introduction: str | None = None
+    company: str | None = None
     export_settings_include_projects: bool = True
     export_settings_render_projects_first: bool = False
     export_settings_include_education: bool = True
@@ -47,6 +48,7 @@ class Resume(Base):
         children (list[Resume]): The child resumes relationship.
         notes (str | None): User-provided notes for the resume.
         introduction (str | None): AI-generated introduction for the resume.
+        company (str | None): Company name associated with the resume.
 
     """
 
@@ -73,6 +75,7 @@ class Resume(Base):
     parent_id = Column(Integer, ForeignKey("resumes.id"), nullable=True)
     notes = Column(Text, nullable=True)
     introduction = Column(Text, nullable=True)
+    company = Column(String(255), nullable=True)
 
     export_settings_include_projects = Column(
         Boolean,
@@ -132,6 +135,7 @@ class Resume(Base):
         self.parent_id = data.parent_id
         self.notes = data.notes
         self.introduction = data.introduction
+        self.company = data.company
         self.export_settings_include_projects = data.export_settings_include_projects
         self.export_settings_render_projects_first = (
             data.export_settings_render_projects_first
