@@ -27,6 +27,6 @@ linting.sh
 /_* 
 !/_*/
 dev_notes/
-docs/
+_agent/
 .git-commit-msg
 thoughts/
