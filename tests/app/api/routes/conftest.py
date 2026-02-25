@@ -106,12 +106,30 @@ def client_with_db(app):
 def client_with_auth_and_resume(app, client, test_user, test_resume):
     """Fixture for a test client with an authenticated user and a resume."""
     mock_db = Mock()
+
+    # Create mocks for the query chain: db.query().filter().filter().order_by().all()
+    all_mock = Mock()
+    all_mock.side_effect = [
+        [test_resume],
+        [],
+    ]  # First call returns base, second returns refined
+
+    order_by_mock = Mock()
+    order_by_mock.all = all_mock
+
+    inner_filter_mock = Mock()
+    inner_filter_mock.order_by = Mock(return_value=order_by_mock)
+    inner_filter_mock.first.return_value = test_resume
+
+    outer_filter_mock = Mock()
+    outer_filter_mock.filter = Mock(return_value=inner_filter_mock)
+    outer_filter_mock.first.return_value = test_resume
+    outer_filter_mock.all.return_value = [test_resume]
+
     query_mock = Mock()
-    filter_mock = Mock()
-    filter_mock.first.return_value = test_resume
-    filter_mock.all.return_value = [test_resume]
-    query_mock.filter.return_value = filter_mock
-    mock_db.query.return_value = query_mock
+    query_mock.filter = Mock(return_value=outer_filter_mock)
+
+    mock_db.query = Mock(return_value=query_mock)
 
     def get_mock_db_with_resume():
         yield mock_db

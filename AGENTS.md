@@ -108,6 +108,39 @@ return HTMLResponse(content=html_content)
 - `hx-trigger="keyup changed delay:500ms"` - Auto-save pattern
 - `hx-on::after-request="this.reset()"` - Form reset after submission
 
+### HTMX Pagination Pattern
+
+**Critical:** When using `hx-swap="outerHTML"` on a target element, the response MUST include the target element wrapper, or subsequent requests will fail.
+
+**The Problem:**
+Dashboard pagination uses `<div id="resume-list">` as the swap target. When `outerHTML` is used, the entire div is replaced. If the response doesn't include the wrapper div, subsequent pagination clicks fail because `#resume-list` no longer exists in the DOM.
+
+**The Solution:**
+The `_generate_resume_list_html()` function has a `wrap_in_div` parameter that controls whether the response includes the `<div id="resume-list">` wrapper:
+
+```python
+# For HTMX list requests (pagination) - MUST include wrapper
+html_content = _generate_resume_list_html(
+    base_resumes=base_resumes,
+    refined_resumes=refined_resumes,
+    # ... other params
+    wrap_in_div=True,  # Critical for pagination to work
+)
+
+# For update responses (OOB swap) - no wrapper needed
+html_content = _generate_resume_list_html(
+    base_resumes=base_resumes,
+    refined_resumes=refined_resumes,
+    # ... other params
+    wrap_in_div=False,  # OOB swap doesn't need wrapper
+)
+```
+
+**Usage Guidelines:**
+- Use `wrap_in_div=True` for HTMX requests that swap on `#resume-list` directly
+- Use `wrap_in_div=False` for OOB (out-of-band) swaps where the list is updated as a side effect
+- The wrapper div is required for pagination to work across multiple clicks
+
 ### Form Patterns
 Form classes use `Form(...)` parameters:
 ```python
@@ -413,6 +446,41 @@ After successful refinement, the user sees the refined resume and has three opti
 1. **Accept** - Updates the current base resume with refined content
 2. **Discard** - Redirects back to editor, no changes saved
 3. **Save As New** - Creates a new refined resume (child of base), keeps base unchanged
+
+## Dashboard Features
+
+### Pagination and Filtering
+
+The dashboard (`/dashboard`) supports weekly date-based pagination and text filtering for refined resumes.
+
+**Key Components:**
+- `resume_editor/app/api/routes/resume.py` - `list_resumes()` endpoint with `week_offset` and `filter` parameters
+- `resume_editor/app/api/routes/route_logic/resume_crud.py` - `get_user_resumes_with_pagination()`, `apply_resume_filter()`, `get_week_range()`
+- `resume_editor/app/templates/partials/resume/_resume_list.html` - HTMX-powered pagination and filter UI
+
+**Pagination:**
+- Default view shows last 7 days (`week_offset=0`)
+- Uses `pendulum` for date calculations: `pendulum.now().subtract(weeks=week_offset)`
+- Navigation: "Previous Week" / "Next Week" buttons with disabled states at boundaries
+- Base resumes always shown regardless of date range
+
+**Filtering:**
+- Searches both `name` (title) and `notes` fields
+- Case-insensitive partial matching using SQLAlchemy `ilike(f"%{term}%")`
+- AND logic for multiple terms (all terms must match)
+- Max 100 characters: `search_query[:100]`
+- Applied only to refined resumes (base resumes excluded from filter)
+- Triggered by `keyup changed delay:500ms` or Enter key
+
+**URL Parameters:**
+- `week_offset` (int): Week offset from current (-1 = last week, 0 = this week)
+- `filter` (str): Search query string
+- `sort_by` (enum): Sorting criterion (name_asc/desc, created_at_asc/desc, updated_at_asc/desc)
+
+**Behavior:**
+- Filter clears when navigating to different week (pagination links don't include filter)
+- Empty states show context-aware messages
+- Sorting applies to current view (week or filtered results)
 
 ### Key Files for AI Refinement
 

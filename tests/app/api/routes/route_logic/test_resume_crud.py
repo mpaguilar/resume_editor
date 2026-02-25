@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from resume_editor.app.api.routes.route_logic.resume_crud import (
     ResumeCreateParams,
     ResumeUpdateParams,
+    apply_resume_filter,
     create_resume,
     delete_resume,
     get_resume_by_id_and_user,
@@ -76,9 +77,13 @@ def db_with_resumes(db_session_and_engine):
     user_id = 1
 
     # Create resumes with different timestamps and names
-    r_gamma = DatabaseResume(data=ResumeData(user_id=user_id, name="gamma", content="c"))
+    r_gamma = DatabaseResume(
+        data=ResumeData(user_id=user_id, name="gamma", content="c")
+    )
     r_beta = DatabaseResume(data=ResumeData(user_id=user_id, name="beta", content="c"))
-    r_alpha = DatabaseResume(data=ResumeData(user_id=user_id, name="alpha", content="c"))
+    r_alpha = DatabaseResume(
+        data=ResumeData(user_id=user_id, name="alpha", content="c")
+    )
     # Resume for another user to ensure filtering works
     r_delta = DatabaseResume(data=ResumeData(user_id=2, name="delta", content="c"))
 
@@ -375,3 +380,27 @@ def test_delete_resume():
 
     mock_db.delete.assert_called_once_with(mock_resume)
     mock_db.commit.assert_called_once()
+
+
+def test_apply_resume_filter_empty_terms():
+    """Test apply_resume_filter returns unfiltered query when search query is empty or whitespace.
+
+    This covers the edge case in resume_crud.py lines 178-180 where empty search terms
+    should return the original query without applying any filters.
+    """
+    mock_query = Mock()
+
+    # Test with empty string
+    result = apply_resume_filter(mock_query, "")
+    assert result == mock_query
+
+    # Test with whitespace-only string
+    result = apply_resume_filter(mock_query, "   ")
+    assert result == mock_query
+
+    # Test with tab and newline
+    result = apply_resume_filter(mock_query, "\t\n  ")
+    assert result == mock_query
+
+    # Verify no filter was applied
+    mock_query.filter.assert_not_called()

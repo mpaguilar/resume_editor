@@ -1,6 +1,7 @@
 import logging
 from typing import Annotated
 
+import pendulum
 from fastapi import APIRouter, Depends, Form, Request, Response
 from fastapi.responses import HTMLResponse
 from sqlalchemy.orm import Session
@@ -16,7 +17,9 @@ from resume_editor.app.api.routes.html_fragments import (
 from resume_editor.app.api.routes.route_logic.resume_crud import (
     ResumeCreateParams,
     ResumeUpdateParams,
+    get_oldest_resume_date,
     get_user_resumes,
+    get_user_resumes_with_pagination,
 )
 from resume_editor.app.api.routes.route_logic.resume_crud import (
     create_resume as create_resume_db,
@@ -288,58 +291,131 @@ async def delete_resume(
 
 @router.get("", response_model=list[ResumeResponse])
 async def list_resumes(
-    request: Request,
+    http_request: Request,
     db: Annotated[Session, Depends(get_db)],
     current_user: Annotated[User, Depends(get_current_user_from_cookie)],
-    selected_id: int | None = None,
+    week_offset: int | str = 0,
+    filter: str | None = None,
     sort_by: ResumeSortBy | None = None,
+    selected_id: int | None = None,
 ) -> Response:
-    """List all resumes for the current user.
+    """List resumes for the current user with optional pagination and filtering.
 
     Args:
-        request (Request): The HTTP request object.
-        db (Session): The database session dependency.
-        current_user (User): The current authenticated user.
-        selected_id (int | None): Optional ID of a resume to mark as selected in HTMX responses.
-        sort_by (ResumeSortBy | None): The sorting criterion for the resume list.
+        http_request: The HTTP request object.
+        db: The database session dependency.
+        current_user: The current authenticated user.
+        week_offset: Number of weeks to offset from current week (default: 0).
+        filter: Optional search query to filter by name/notes (max 100 chars).
+        sort_by: Optional sorting criterion.
 
     Returns:
-        list[ResumeResponse] | HTMLResponse: A list of resumes with their IDs and names, or HTML for HTMX.
-
-    Raises:
-        HTTPException: If there's an error retrieving the resumes from the database.
+        Response: HTML response for HTMX requests, JSON for API requests.
 
     Notes:
-        1. Queries the database for all resumes belonging to the current user, applying sorting if specified.
-        2. Partitions resumes into `base_resumes` and `refined_resumes`.
-        3. For HTMX requests, generates and returns an HTML fragment with separate lists,
-           optionally highlighting a selected resume.
-        4. For standard API calls, returns a flat list of all resumes as `ResumeResponse` objects.
-        5. Performs database access: Reads from the database via `get_user_resumes`.
-        6. Performs network access: None.
+        1. Validates week_offset is an integer (defaults to 0 if invalid).
+        2. Gets date range based on week_offset using pendulum.
+        3. Retrieves base resumes (always shown) and refined resumes (date-filtered).
+        4. If filter is provided, refined resumes are additionally filtered
+           by name/notes (case-insensitive, partial match, AND logic).
+        5. Determines pagination boundaries based on oldest resume date.
+        6. Returns HTML fragment for HTMX requests, JSON for API requests.
+        7. Performs database queries to retrieve resumes and determine boundaries.
 
     """
-    resumes = get_user_resumes(
+    _msg = "list_resumes starting for user_id=%s week_offset=%s filter=%s"
+    log.debug(_msg, current_user.id, week_offset, filter)
+
+    # Validate and sanitize parameters
+    try:
+        week_offset = int(week_offset)
+    except (ValueError, TypeError):
+        _msg = "list_resumes invalid week_offset, defaulting to 0"
+        log.debug(_msg)
+        week_offset = 0
+
+    # Clamp week_offset to reasonable range (prevent excessive queries)
+    if week_offset < -52:  # Max 1 year back
+        week_offset = -52
+    elif week_offset > 0:  # Can't go to future
+        week_offset = 0
+
+    # Truncate filter to max 100 characters
+    if filter:
+        filter = filter[:100]
+
+    # Get resumes with pagination
+    sort_by_str = sort_by.value if sort_by else None
+    resumes, date_range = get_user_resumes_with_pagination(
         db=db,
         user_id=current_user.id,
-        sort_by=sort_by.value if sort_by else None,
+        week_offset=week_offset,
+        search_query=filter,
+        sort_by=sort_by_str,
     )
+
+    # Separate base and refined resumes
     base_resumes = [r for r in resumes if r.is_base]
     refined_resumes = [r for r in resumes if not r.is_base]
 
-    # Check if this is an HTMX request
-    if "HX-Request" in request.headers:
-        sort_by_val = sort_by.value if sort_by else "updated_at_desc"
+    # Determine pagination boundaries
+    oldest_date = get_oldest_resume_date(db, current_user.id)
+
+    # Has older resumes if we're not at the oldest date yet
+    has_older_resumes = False
+    if oldest_date and week_offset < 0:
+        # Calculate if there are resumes older than current range
+        oldest_week_offset = -1
+        max_iterations = 0
+        max_weeks = 520  # 10 years of weeks to prevent overflow
+        # Ensure oldest_date is naive for comparison with pendulum naive()
+        oldest_date_naive = (
+            oldest_date.replace(tzinfo=None) if oldest_date.tzinfo else oldest_date
+        )
+        while max_iterations < max_weeks:
+            check_range = pendulum.now().add(weeks=oldest_week_offset + 1)
+            if check_range.naive() < oldest_date_naive:
+                break
+            oldest_week_offset -= 1
+            max_iterations += 1
+        has_older_resumes = week_offset > oldest_week_offset
+    elif oldest_date and week_offset == 0:
+        # At current week, check if there are older resumes
+        has_older_resumes = oldest_date < date_range.start_date
+
+    # Has newer resumes if we're not at current week
+    has_newer_resumes = week_offset < 0
+
+    if "HX-Request" in http_request.headers:
+        _msg = "list_resumes returning HTML for HTMX request"
+        log.debug(_msg)
         html_content = _generate_resume_list_html(
             base_resumes=base_resumes,
             refined_resumes=refined_resumes,
             selected_resume_id=selected_id,
-            sort_by=sort_by_val,
+            sort_by=sort_by_str,
+            week_offset=week_offset,
+            has_older_resumes=has_older_resumes,
+            has_newer_resumes=has_newer_resumes,
+            current_filter=filter,
+            week_start=date_range.start_date,
+            week_end=date_range.end_date,
             wrap_in_div=True,
         )
         return HTMLResponse(content=html_content)
 
-    return [ResumeResponse(id=resume.id, name=resume.name) for resume in resumes]
+    _msg = "list_resumes returning JSON for API request"
+    log.debug(_msg)
+    return [
+        ResumeResponse(
+            id=r.id,
+            name=r.name,
+            is_base=r.is_base,
+            created_at=r.created_at,
+            updated_at=r.updated_at,
+        )
+        for r in resumes
+    ]
 
 
 @router.get("/{resume_id}", response_model=ResumeDetailResponse)

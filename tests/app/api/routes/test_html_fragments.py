@@ -100,6 +100,12 @@ def test_generate_resume_list_html_empty():
             refined_resumes=[],
             selected_resume_id=None,
             sort_by="name_asc",
+            week_offset=0,
+            has_older_resumes=False,
+            has_newer_resumes=False,
+            current_filter=None,
+            week_start=None,
+            week_end=None,
         )
 
 
@@ -124,6 +130,12 @@ def test_generate_resume_list_html(test_resume):
             refined_resumes=[],
             selected_resume_id=None,
             sort_by="name_asc",
+            week_offset=0,
+            has_older_resumes=False,
+            has_newer_resumes=False,
+            current_filter=None,
+            week_start=None,
+            week_end=None,
         )
 
 
@@ -149,6 +161,12 @@ def test_generate_resume_list_html_template(test_resume):
             refined_resumes=[],
             selected_resume_id=selected_id,
             sort_by="name_asc",
+            week_offset=0,
+            has_older_resumes=False,
+            has_newer_resumes=False,
+            current_filter=None,
+            week_start=None,
+            week_end=None,
         )
 
 
@@ -193,16 +211,16 @@ def test_generate_resume_list_html_output(test_resume, test_refined_resume):
     assert "Created: 2023-02-20" in html_output
     assert "Updated: 2023-02-21" in html_output
     assert '<input type="text"' in html_output
-    assert 'id="refined-resume-search"' in html_output
-    assert 'placeholder="Filter applied resumes..."' in html_output
+    assert 'id="resume-filter"' in html_output
+    assert 'placeholder="Filter by title or notes..."' in html_output
 
     # Sorting controls assertions
     assert "Sort by:" in html_output
-    assert 'hx-get="/api/resumes?sort_by=name_desc"' in html_output
+    assert 'hx-get="/api/resumes?week_offset=0&sort_by=name_desc"' in html_output
     assert "Name &uarr;" in html_output
-    assert 'hx-get="/api/resumes?sort_by=created_at_desc"' in html_output
+    assert 'hx-get="/api/resumes?week_offset=0&sort_by=created_at_desc"' in html_output
     assert "Created" in html_output
-    assert 'hx-get="/api/resumes?sort_by=updated_at_desc"' in html_output
+    assert 'hx-get="/api/resumes?week_offset=0&sort_by=updated_at_desc"' in html_output
     assert "Modified" in html_output
 
     # Link assertions
@@ -213,9 +231,7 @@ def test_generate_resume_list_html_output(test_resume, test_refined_resume):
     # First item is base resume
     base_resume_item = resume_items[0]
     assert "Test Resume" in base_resume_item.text
-    edit_link = base_resume_item.find(
-        "a", string=lambda s: s and s.strip() == "Edit"
-    )
+    edit_link = base_resume_item.find("a", string=lambda s: s and s.strip() == "Edit")
     assert edit_link is not None
     assert edit_link["href"] == f"/resumes/{test_resume.id}/edit"
 
@@ -343,6 +359,12 @@ def test_generate_resume_list_html_with_refined(test_refined_resume):
             refined_resumes=resumes,
             selected_resume_id=None,
             sort_by="name_asc",
+            week_offset=0,
+            has_older_resumes=False,
+            has_newer_resumes=False,
+            current_filter=None,
+            week_start=None,
+            week_end=None,
         )
 
 
@@ -368,6 +390,12 @@ def test_generate_resume_list_html_with_both(test_resume, test_refined_resume):
             refined_resumes=refined_resumes,
             selected_resume_id=None,
             sort_by="name_asc",
+            week_offset=0,
+            has_older_resumes=False,
+            has_newer_resumes=False,
+            current_filter=None,
+            week_start=None,
+            week_end=None,
         )
 
 
@@ -383,12 +411,12 @@ def test_generate_resume_detail_html_for_base_resume(test_resume):
 
     # Check refine form for "Generate Introduction" checkbox
     assert not soup.find("label", attrs={"for": "generate_introduction"})
-    assert not soup.find("input", attrs={"name": "generate_introduction", "type": "checkbox"})
+    assert not soup.find(
+        "input", attrs={"name": "generate_introduction", "type": "checkbox"}
+    )
 
     # Check for export button and modal
-    export_button = soup.find(
-        "button", string=lambda s: s and s.strip() == "Export"
-    )
+    export_button = soup.find("button", string=lambda s: s and s.strip() == "Export")
     assert export_button is not None
     assert (
         export_button["onclick"]
@@ -405,9 +433,7 @@ def test_generate_resume_detail_html_for_base_resume(test_resume):
     # Check export settings checkboxes (default values)
     include_projects_cb = export_modal.find("input", {"name": "include_projects"})
     assert "checked" in include_projects_cb.attrs
-    render_first_cb = export_modal.find(
-        "input", {"name": "render_projects_first"}
-    )
+    render_first_cb = export_modal.find("input", {"name": "render_projects_first"})
     assert "checked" not in render_first_cb.attrs
     include_education_cb = export_modal.find("input", {"name": "include_education"})
     assert "checked" in include_education_cb.attrs
@@ -457,9 +483,7 @@ def test_generate_resume_detail_html_for_refined_resume(test_refined_resume):
     assert not soup.find("div", id=f"refine-form-container-{test_refined_resume.id}")
 
     # Check for export button and modal
-    export_button = soup.find(
-        "button", string=lambda s: s and s.strip() == "Export"
-    )
+    export_button = soup.find("button", string=lambda s: s and s.strip() == "Export")
     assert export_button is not None
     assert (
         export_button["onclick"]

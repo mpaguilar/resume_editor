@@ -93,41 +93,46 @@ def test_base_resume_shows_refine_button_in_dashboard():
     mock_resume.created_at = datetime.datetime.now(datetime.UTC)
     mock_resume.updated_at = datetime.datetime.now(datetime.UTC)
 
-    mock_db = MagicMock()
-
-    # Set up mock query to return base resumes
-    mock_db.query.return_value.filter.return_value.order_by.return_value.all.return_value = [
-        mock_resume
-    ]
+    # Patch the get_user_resumes_with_pagination function to return our mock data
+    # This is simpler than trying to mock the complex SQLAlchemy query chain
+    mock_date_range = MagicMock()
+    mock_date_range.start_date = datetime.datetime.now() - datetime.timedelta(days=7)
+    mock_date_range.end_date = datetime.datetime.now()
 
     def get_mock_user():
         return mock_user
 
-    def get_mock_db():
-        yield mock_db
-
     app.dependency_overrides[get_current_user_from_cookie] = get_mock_user
-    app.dependency_overrides[get_db] = get_mock_db
 
-    response = client.get("/api/resumes", headers={"HX-Request": "true"})
+    with patch(
+        "resume_editor.app.api.routes.resume.get_oldest_resume_date",
+        return_value=datetime.datetime.now(),
+    ):
+        with patch(
+            "resume_editor.app.api.routes.resume.get_user_resumes_with_pagination",
+            return_value=([mock_resume], mock_date_range),
+        ):
+            response = client.get("/api/resumes", headers={"HX-Request": "true"})
 
-    assert response.status_code == 200
+        assert response.status_code == 200
 
-    soup = BeautifulSoup(response.content, "html.parser")
+        soup = BeautifulSoup(response.content, "html.parser")
 
-    # Find the Refine link
-    refine_link = soup.find("a", href="/resumes/1/refine")
-    assert refine_link is not None, "Refine link should exist for base resume"
-    assert "Refine" in refine_link.text, "Refine link should have 'Refine' text"
+        # Find the Refine link
+        refine_link = soup.find("a", href="/resumes/1/refine")
+        assert refine_link is not None, "Refine link should exist for base resume"
+        assert "Refine" in refine_link.text, "Refine link should have 'Refine' text"
 
-    # Check purple styling classes
-    assert "bg-purple-500" in refine_link.get("class", []), (
-        "Should have bg-purple-500 class"
-    )
-    assert "hover:bg-purple-600" in refine_link.get("class", []), (
-        "Should have hover:bg-purple-600 class"
-    )
-    assert "text-white" in refine_link.get("class", []), "Should have text-white class"
+        # Check purple styling classes
+        assert "bg-purple-500" in refine_link.get("class", []), (
+            "Should have bg-purple-500 class"
+        )
+        assert "hover:bg-purple-600" in refine_link.get("class", []), (
+            "Should have hover:bg-purple-600 class"
+        )
+        assert "text-white" in refine_link.get("class", []), (
+            "Should have text-white class"
+        )
 
     log.debug("test_base_resume_shows_refine_button_in_dashboard returning")
     app.dependency_overrides.clear()
@@ -170,41 +175,46 @@ def test_refined_resume_does_not_show_refine_button_in_dashboard():
     mock_resume.created_at = datetime.datetime.now(datetime.UTC)
     mock_resume.updated_at = datetime.datetime.now(datetime.UTC)
 
-    mock_db = MagicMock()
-
-    # Set up mock query to return refined resumes in refined_resumes section
-    mock_db.query.return_value.filter.return_value.order_by.return_value.all.return_value = [
-        mock_resume
-    ]
+    # Patch the get_user_resumes_with_pagination function to return our mock data
+    # This is simpler than trying to mock the complex SQLAlchemy query chain
+    mock_date_range = MagicMock()
+    mock_date_range.start_date = datetime.datetime.now() - datetime.timedelta(days=7)
+    mock_date_range.end_date = datetime.datetime.now()
 
     def get_mock_user():
         return mock_user
 
-    def get_mock_db():
-        yield mock_db
-
     app.dependency_overrides[get_current_user_from_cookie] = get_mock_user
-    app.dependency_overrides[get_db] = get_mock_db
+    # Don't override get_db - let the route use the real dependency
+    # but patch the function that uses it
 
-    response = client.get("/api/resumes", headers={"HX-Request": "true"})
+    with patch(
+        "resume_editor.app.api.routes.resume.get_oldest_resume_date",
+        return_value=datetime.datetime.now(),
+    ):
+        with patch(
+            "resume_editor.app.api.routes.resume.get_user_resumes_with_pagination",
+            return_value=([mock_resume], mock_date_range),
+        ):
+            response = client.get("/api/resumes", headers={"HX-Request": "true"})
 
-    assert response.status_code == 200
+        assert response.status_code == 200
 
-    soup = BeautifulSoup(response.content, "html.parser")
+        soup = BeautifulSoup(response.content, "html.parser")
 
-    # Find all links - there should be no Refine link for refined resume
-    refine_links = soup.find_all("a", href="/resumes/2/refine")
-    assert len(refine_links) == 0, "Refine link should NOT exist for refined resume"
+        # Find all links - there should be no Refine link for refined resume
+        refine_links = soup.find_all("a", href="/resumes/2/refine")
+        assert len(refine_links) == 0, "Refine link should NOT exist for refined resume"
 
-    # But there should be a View link
-    view_link = soup.find("a", href="/resumes/2/view")
-    assert view_link is not None, "View link should exist for refined resume"
-    assert "View" in view_link.text, "View link should have 'View' text"
+        # But there should be a View link
+        view_link = soup.find("a", href="/resumes/2/view")
+        assert view_link is not None, "View link should exist for refined resume"
+        assert "View" in view_link.text, "View link should have 'View' text"
 
-    # Check blue styling for View button
-    assert "bg-blue-500" in view_link.get("class", []), (
-        "View button should have bg-blue-500 class"
-    )
+        # Check blue styling for View button
+        assert "bg-blue-500" in view_link.get("class", []), (
+            "View button should have bg-blue-500 class"
+        )
 
     log.debug("test_refined_resume_does_not_show_refine_button_in_dashboard returning")
     app.dependency_overrides.clear()

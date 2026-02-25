@@ -40,22 +40,36 @@ def _generate_resume_list_html(
     refined_resumes: list[DatabaseResume],
     selected_resume_id: int | None = None,
     sort_by: str | None = None,
+    week_offset: int = 0,
+    has_older_resumes: bool = False,
+    has_newer_resumes: bool = False,
+    current_filter: str | None = None,
+    week_start: datetime | None = None,
+    week_end: datetime | None = None,
     wrap_in_div: bool = False,
 ) -> str:
     """Generates HTML for a list of resumes, optionally marking one as selected.
 
     Args:
-        base_resumes (list[DatabaseResume]): The list of base resumes to display.
-        refined_resumes (list[DatabaseResume]): The list of refined resumes to display.
-        selected_resume_id (int | None): The ID of the resume to mark as selected.
-        sort_by (str | None): The current sorting key applied to the resume list, if any.
-        wrap_in_div (bool): If True, wrap the generated HTML in a div with id 'resume-list'.
+        base_resumes: The list of base resumes to display.
+        refined_resumes: The list of refined resumes to display.
+        selected_resume_id: The ID of the resume to mark as selected.
+        sort_by: The current sorting key applied to the resume list, if any.
+        week_offset: The current week offset for pagination (0 = current week).
+        has_older_resumes: Whether there are older resumes to navigate to.
+        has_newer_resumes: Whether there are newer resumes to navigate to.
+        current_filter: The current search filter value, if any.
+        week_start: The start date of the current week range.
+        week_end: The end date of the current week range.
+        wrap_in_div: If True, wrap the generated HTML in a div with id 'resume-list'.
 
     Returns:
         str: HTML string for the resume list.
 
     Notes:
         1. Renders the `partials/resume/_resume_list.html` template.
+        2. Passes pagination and filter state for HTMX integration.
+        3. Week range dates are formatted for display in the template.
 
     """
     template = env.get_template("partials/resume/_resume_list.html")
@@ -64,6 +78,12 @@ def _generate_resume_list_html(
         refined_resumes=refined_resumes,
         selected_resume_id=selected_resume_id,
         sort_by=sort_by,
+        week_offset=week_offset,
+        has_older_resumes=has_older_resumes,
+        has_newer_resumes=has_newer_resumes,
+        current_filter=current_filter,
+        week_start=week_start,
+        week_end=week_end,
     )
     if wrap_in_div:
         return f'<div id="resume-list">{rendered_html}</div>'

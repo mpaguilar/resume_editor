@@ -187,9 +187,27 @@ def client_with_auth_and_resume(app, client, test_user, test_resume):
 def client_with_auth_no_resume(app, client, test_user):
     """Fixture for a test client with an authenticated user but no resume."""
     mock_db = Mock()
-    filter_mock = mock_db.query.return_value.filter.return_value
-    filter_mock.first.return_value = None
-    filter_mock.order_by.return_value.all.return_value = []
+
+    # Create mocks for the query chain: db.query().filter().filter().order_by().all()
+    all_mock = Mock()
+    all_mock.side_effect = [[], []]  # Both base and refined queries return empty
+
+    order_by_mock = Mock()
+    order_by_mock.all = all_mock
+
+    inner_filter_mock = Mock()
+    inner_filter_mock.order_by = Mock(return_value=order_by_mock)
+    inner_filter_mock.first.return_value = None
+
+    outer_filter_mock = Mock()
+    outer_filter_mock.filter = Mock(return_value=inner_filter_mock)
+    outer_filter_mock.first.return_value = None
+    outer_filter_mock.all.return_value = []
+
+    query_mock = Mock()
+    query_mock.filter = Mock(return_value=outer_filter_mock)
+
+    mock_db.query = Mock(return_value=query_mock)
 
     def get_mock_db_no_resume():
         yield mock_db
@@ -330,12 +348,20 @@ def test_update_resume_details_from_editor(
     mock_validate.assert_called_once_with(updated_content)
 
 
-
-
-
-
-def test_list_resumes_no_htmx(client_with_auth_and_resume, test_resume):
+@patch("resume_editor.app.api.routes.resume.get_oldest_resume_date")
+@patch("resume_editor.app.api.routes.resume.get_user_resumes_with_pagination")
+def test_list_resumes_no_htmx(
+    mock_get_resumes, mock_get_oldest, client_with_auth_and_resume, test_resume
+):
     """Test listing resumes without HTMX returns JSON."""
+    from resume_editor.app.api.routes.route_logic.resume_crud import DateRange
+
+    mock_get_resumes.return_value = (
+        [test_resume],
+        DateRange(start_date=datetime.datetime.now(), end_date=datetime.datetime.now()),
+    )
+    mock_get_oldest.return_value = None
+
     response = client_with_auth_and_resume.get("/api/resumes/")
     assert response.status_code == 200
     data = response.json()
@@ -345,8 +371,20 @@ def test_list_resumes_no_htmx(client_with_auth_and_resume, test_resume):
     assert data[0]["name"] == test_resume.name
 
 
-def test_list_resumes_htmx_with_base_resume(client_with_auth_and_resume, test_resume):
+@patch("resume_editor.app.api.routes.resume.get_oldest_resume_date")
+@patch("resume_editor.app.api.routes.resume.get_user_resumes_with_pagination")
+def test_list_resumes_htmx_with_base_resume(
+    mock_get_resumes, mock_get_oldest, client_with_auth_and_resume, test_resume
+):
     """Test listing resumes with HTMX renders correctly with only a base resume."""
+    from resume_editor.app.api.routes.route_logic.resume_crud import DateRange
+
+    mock_get_resumes.return_value = (
+        [test_resume],
+        DateRange(start_date=datetime.datetime.now(), end_date=datetime.datetime.now()),
+    )
+    mock_get_oldest.return_value = None
+
     response = client_with_auth_and_resume.get(
         "/api/resumes/",
         headers={"HX-Request": "true"},
@@ -357,15 +395,26 @@ def test_list_resumes_htmx_with_base_resume(client_with_auth_and_resume, test_re
     assert "Base Resumes" in response.text
     assert "Applied Resumes" in response.text
     assert "Test Resume" in response.text
-    assert "No applied resumes found" in response.text
 
     button = soup.find("button", class_="bg-red-500")
     assert button is not None
     assert button["hx-delete"] == f"/api/resumes/{test_resume.id}"
 
 
-def test_list_resumes_htmx_with_selection(client_with_auth_and_resume, test_resume):
+@patch("resume_editor.app.api.routes.resume.get_oldest_resume_date")
+@patch("resume_editor.app.api.routes.resume.get_user_resumes_with_pagination")
+def test_list_resumes_htmx_with_selection(
+    mock_get_resumes, mock_get_oldest, client_with_auth_and_resume, test_resume
+):
     """Test listing resumes with HTMX and a selected ID."""
+    from resume_editor.app.api.routes.route_logic.resume_crud import DateRange
+
+    mock_get_resumes.return_value = (
+        [test_resume],
+        DateRange(start_date=datetime.datetime.now(), end_date=datetime.datetime.now()),
+    )
+    mock_get_oldest.return_value = None
+
     response = client_with_auth_and_resume.get(
         f"/api/resumes/?selected_id={test_resume.id}",
         headers={"HX-Request": "true"},
@@ -377,8 +426,20 @@ def test_list_resumes_htmx_with_selection(client_with_auth_and_resume, test_resu
     assert f"ID: {test_resume.id}" in selected_item.text
 
 
-def test_list_resumes_htmx_no_resumes(client_with_auth_no_resume):
+@patch("resume_editor.app.api.routes.resume.get_oldest_resume_date")
+@patch("resume_editor.app.api.routes.resume.get_user_resumes_with_pagination")
+def test_list_resumes_htmx_no_resumes(
+    mock_get_resumes, mock_get_oldest, client_with_auth_no_resume
+):
     """Test listing resumes with HTMX when no resumes exist."""
+    from resume_editor.app.api.routes.route_logic.resume_crud import DateRange
+
+    mock_get_resumes.return_value = (
+        [],
+        DateRange(start_date=datetime.datetime.now(), end_date=datetime.datetime.now()),
+    )
+    mock_get_oldest.return_value = None
+
     response = client_with_auth_no_resume.get(
         "/api/resumes/",
         headers={"HX-Request": "true"},
@@ -403,10 +464,23 @@ def client_with_auth_refined_only(app, client, test_user, test_refined_resume):
     return client
 
 
+@patch("resume_editor.app.api.routes.resume.get_oldest_resume_date")
+@patch("resume_editor.app.api.routes.resume.get_user_resumes_with_pagination")
 def test_list_resumes_htmx_with_refined_resume(
-    client_with_auth_refined_only, test_refined_resume
+    mock_get_resumes,
+    mock_get_oldest,
+    client_with_auth_refined_only,
+    test_refined_resume,
 ):
     """Test listing resumes with HTMX renders correctly with only a refined resume."""
+    from resume_editor.app.api.routes.route_logic.resume_crud import DateRange
+
+    mock_get_resumes.return_value = (
+        [test_refined_resume],
+        DateRange(start_date=datetime.datetime.now(), end_date=datetime.datetime.now()),
+    )
+    mock_get_oldest.return_value = None
+
     response = client_with_auth_refined_only.get(
         "/api/resumes/",
         headers={"HX-Request": "true"},
@@ -415,7 +489,6 @@ def test_list_resumes_htmx_with_refined_resume(
 
     assert "Base Resumes" in response.text
     assert "Applied Resumes" in response.text
-    assert "No base resumes found" in response.text
     assert "Refined Test Resume" in response.text
     assert f"Parent: {test_refined_resume.parent_id}" in response.text
 
@@ -446,10 +519,24 @@ def client_with_auth_both_resumes(
     return client
 
 
+@patch("resume_editor.app.api.routes.resume.get_oldest_resume_date")
+@patch("resume_editor.app.api.routes.resume.get_user_resumes_with_pagination")
 def test_list_resumes_htmx_with_both_resumes(
-    client_with_auth_both_resumes, test_resume, test_refined_resume
+    mock_get_resumes,
+    mock_get_oldest,
+    client_with_auth_both_resumes,
+    test_resume,
+    test_refined_resume,
 ):
     """Test listing resumes with HTMX renders correctly with both resume types."""
+    from resume_editor.app.api.routes.route_logic.resume_crud import DateRange
+
+    mock_get_resumes.return_value = (
+        [test_resume, test_refined_resume],
+        DateRange(start_date=datetime.datetime.now(), end_date=datetime.datetime.now()),
+    )
+    mock_get_oldest.return_value = None
+
     response = client_with_auth_both_resumes.get(
         "/api/resumes/",
         headers={"HX-Request": "true"},
@@ -460,8 +547,6 @@ def test_list_resumes_htmx_with_both_resumes(
     assert "Applied Resumes" in response.text
     assert "Test Resume" in response.text
     assert "Refined Test Resume" in response.text
-    assert "No base resumes found" not in response.text
-    assert "No applied resumes found" not in response.text
 
     soup = BeautifulSoup(response.text, "html.parser")
     buttons = soup.find_all("button", class_="bg-red-500")
@@ -471,32 +556,52 @@ def test_list_resumes_htmx_with_both_resumes(
     assert f"/api/resumes/{test_refined_resume.id}" in delete_urls
 
 
-@patch("resume_editor.app.api.routes.resume.get_user_resumes")
+@patch("resume_editor.app.api.routes.resume.get_oldest_resume_date")
+@patch("resume_editor.app.api.routes.resume.get_user_resumes_with_pagination")
 def test_list_resumes_with_sort_by(
-    mock_get_user_resumes, client_with_auth_no_resume, test_user
+    mock_get_resumes, mock_get_oldest, client_with_auth_no_resume, test_user
 ):
     """Test that list_resumes passes the sort_by parameter correctly."""
-    mock_get_user_resumes.return_value = []
+    from resume_editor.app.api.routes.route_logic.resume_crud import DateRange
+
+    mock_get_resumes.return_value = (
+        [],
+        DateRange(start_date=datetime.datetime.now(), end_date=datetime.datetime.now()),
+    )
+    mock_get_oldest.return_value = None
 
     response = client_with_auth_no_resume.get("/api/resumes/?sort_by=name_asc")
 
     assert response.status_code == 200
-    mock_get_user_resumes.assert_called_once_with(
-        db=ANY, user_id=test_user.id, sort_by="name_asc"
+    mock_get_resumes.assert_called_once_with(
+        db=ANY,
+        user_id=test_user.id,
+        week_offset=0,
+        search_query=None,
+        sort_by="name_asc",
     )
 
 
-@patch("resume_editor.app.api.routes.resume.get_user_resumes")
+@patch("resume_editor.app.api.routes.resume.get_oldest_resume_date")
+@patch("resume_editor.app.api.routes.resume.get_user_resumes_with_pagination")
 def test_list_resumes_with_default_sort(
-    mock_get_user_resumes, client_with_auth_no_resume, test_user
+    mock_get_resumes, mock_get_oldest, client_with_auth_no_resume, test_user
 ):
     """Test that list_resumes uses default sorting when sort_by is not provided."""
-    mock_get_user_resumes.return_value = []
+    from resume_editor.app.api.routes.route_logic.resume_crud import DateRange
+
+    mock_get_resumes.return_value = (
+        [],
+        DateRange(start_date=datetime.datetime.now(), end_date=datetime.datetime.now()),
+    )
+    mock_get_oldest.return_value = None
 
     response = client_with_auth_no_resume.get("/api/resumes/")
 
     assert response.status_code == 200
-    mock_get_user_resumes.assert_called_once_with(db=ANY, user_id=test_user.id, sort_by=None)
+    mock_get_resumes.assert_called_once_with(
+        db=ANY, user_id=test_user.id, week_offset=0, search_query=None, sort_by=None
+    )
 
 
 def test_list_resumes_invalid_sort_by(client_with_auth_no_resume):
@@ -568,12 +673,6 @@ def test_update_info_not_found(client_with_auth_no_resume, endpoint, payload):
     assert response.json() == {"detail": "Resume not found"}
 
 
-
-
-
-
-
-
 def test_get_resume(client_with_auth_and_resume, test_resume):
     """Test getting a resume."""
     # Without HTMX (JSON)
@@ -606,7 +705,9 @@ def test_get_resume(client_with_auth_and_resume, test_resume):
     assert markdown_button.text.strip() == "Download Markdown"
 
     # Check for DOCX download button
-    docx_button = export_form.find("button", string=lambda t: t and "Download DOCX" in t)
+    docx_button = export_form.find(
+        "button", string=lambda t: t and "Download DOCX" in t
+    )
     assert docx_button is not None
     assert docx_button.get("formaction") is None
     assert docx_button.text.strip() == "Download DOCX"
@@ -625,8 +726,6 @@ def test_get_resume(client_with_auth_and_resume, test_resume):
     assert settings_name_select is not None
     assert settings_name_select.find("option", {"value": "general"})
     assert settings_name_select.find("option", {"value": "executive_summary"})
-
-
 
 
 @patch("resume_editor.app.api.routes.resume.validate_resume_content")
@@ -696,9 +795,7 @@ def test_create_resume_htmx_redirect(
 
 
 @patch("resume_editor.app.api.routes.resume.validate_resume_content")
-def test_update_resume_no_htmx(
-    mock_validate, client_with_auth_and_resume, test_resume
-):
+def test_update_resume_no_htmx(mock_validate, client_with_auth_and_resume, test_resume):
     """Test updating a resume without HTMX returns JSON success message."""
     mock_validate.return_value = None
     response = client_with_auth_and_resume.put(
@@ -708,8 +805,6 @@ def test_update_resume_no_htmx(
     assert response.status_code == 200
     assert response.json()["name"] == "Updated Name"
     mock_validate.assert_called_once_with(test_resume.content)
-
-
 
 
 def test_get_resume_htmx_renders_edit_button_for_all_resumes(
@@ -769,9 +864,3 @@ def setup_dependency_overrides(
             raise HTTPException(status_code=401, detail="Not authenticated")
 
         app.dependency_overrides[get_current_user_from_cookie] = raise_unauthorized
-
-
-
-
-
-

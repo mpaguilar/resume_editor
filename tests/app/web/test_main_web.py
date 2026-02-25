@@ -3,7 +3,7 @@ import logging
 import re
 import runpy
 from datetime import datetime
-from unittest.mock import ANY, MagicMock, patch
+from unittest.mock import ANY, MagicMock, Mock, patch
 
 from bs4 import BeautifulSoup
 from fastapi import HTTPException
@@ -406,8 +406,11 @@ def test_dashboard_as_admin():
     app.dependency_overrides.clear()
 
 
-@patch("resume_editor.app.api.routes.resume.get_user_resumes")
-def test_list_resumes_htmx_request(mock_get_user_resumes):
+@patch("resume_editor.app.api.routes.resume.get_oldest_resume_date")
+@patch("resume_editor.app.api.routes.resume.get_user_resumes_with_pagination")
+def test_list_resumes_htmx_request(
+    mock_get_user_resumes_with_pagination, mock_get_oldest_date
+):
     """
     GIVEN an htmx request to /api/resumes
     WHEN resumes exist for the user
@@ -432,7 +435,14 @@ def test_list_resumes_htmx_request(mock_get_user_resumes):
     mock_resume.created_at = datetime(2023, 1, 1)
     mock_resume.updated_at = datetime(2023, 1, 2)
     mock_resumes = [mock_resume]
-    mock_get_user_resumes.return_value = mock_resumes
+
+    # Create mock date range
+    mock_date_range = Mock()
+    mock_date_range.start_date = datetime(2023, 1, 1)
+    mock_date_range.end_date = datetime(2023, 1, 31)
+
+    mock_get_user_resumes_with_pagination.return_value = (mock_resumes, mock_date_range)
+    mock_get_oldest_date.return_value = datetime(2023, 1, 1)
 
     mock_db = MagicMock()
 
@@ -446,7 +456,9 @@ def test_list_resumes_htmx_request(mock_get_user_resumes):
 
     assert response.status_code == 200
     assert "text/html" in response.headers["content-type"]
-    mock_get_user_resumes.assert_called_once_with(db=mock_db, user_id=1, sort_by=None)
+    mock_get_user_resumes_with_pagination.assert_called_once_with(
+        db=mock_db, user_id=1, week_offset=0, search_query=None, sort_by=None
+    )
     soup = BeautifulSoup(response.content, "html.parser")
 
     resume_item = soup.find("div", class_="resume-item")
@@ -538,12 +550,15 @@ def test_settings_page_displays_model_name():
     app.dependency_overrides.clear()
 
 
-@patch("resume_editor.app.api.routes.resume.get_user_resumes")
-def test_dashboard_uses_sort_by(mock_get_user_resumes):
+@patch("resume_editor.app.api.routes.resume.get_oldest_resume_date")
+@patch("resume_editor.app.api.routes.resume.get_user_resumes_with_pagination")
+def test_dashboard_uses_sort_by(
+    mock_get_user_resumes_with_pagination, mock_get_oldest_date
+):
     """
     GIVEN an htmx request to /api/resumes with a sort_by parameter
     WHEN the endpoint is called
-    THEN get_user_resumes is called with the correct sort_by value.
+    THEN get_user_resumes_with_pagination is called with the correct sort_by value.
     """
     app = create_app()
     client = TestClient(app)
@@ -563,14 +578,21 @@ def test_dashboard_uses_sort_by(mock_get_user_resumes):
     def get_mock_db():
         yield mock_db
 
-    mock_get_user_resumes.return_value = []
+    # Create mock date range with actual datetime values
+    mock_date_range = Mock()
+    mock_date_range.start_date = datetime(2023, 1, 1)
+    mock_date_range.end_date = datetime(2023, 1, 31)
+    mock_get_user_resumes_with_pagination.return_value = ([], mock_date_range)
+    mock_get_oldest_date.return_value = datetime(2023, 1, 1)
 
     app.dependency_overrides[get_current_user_from_cookie] = get_mock_user
     app.dependency_overrides[get_db] = get_mock_db
 
     client.get("/api/resumes?sort_by=name_asc", headers={"HX-Request": "true"})
 
-    mock_get_user_resumes.assert_called_with(db=mock_db, user_id=1, sort_by="name_asc")
+    mock_get_user_resumes_with_pagination.assert_called_with(
+        db=mock_db, user_id=1, week_offset=0, search_query=None, sort_by="name_asc"
+    )
 
     app.dependency_overrides.clear()
 

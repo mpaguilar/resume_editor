@@ -1,33 +1,15 @@
-<div class="p-4 border-b border-gray-200 bg-gray-50 flex justify-between items-center">
-    <div class="flex items-center space-x-4">
-        <span class="text-sm font-medium text-gray-600">Sort by:</span>
-        <a hx-get="/api/resumes?sort_by={% if sort_by == 'name_asc' %}name_desc{% else %}name_asc{% endif %}"
-           hx-target="#resume-list"
-           hx-swap="outerHTML"
-           class="text-sm cursor-pointer {% if sort_by.startswith('name') %}font-bold text-blue-700{% else %}text-blue-600 hover:underline{% endif %}">
-            Name {% if sort_by == 'name_asc' %}&uarr;{% elif sort_by == 'name_desc' %}&darr;{% endif %}
-        </a>
-        <a hx-get="/api/resumes?sort_by={% if sort_by == 'created_at_desc' %}created_at_asc{% else %}created_at_desc{% endif %}"
-           hx-target="#resume-list"
-           hx-swap="outerHTML"
-           class="text-sm cursor-pointer {% if sort_by.startswith('created_at') %}font-bold text-blue-700{% else %}text-blue-600 hover:underline{% endif %}">
-            Created {% if sort_by == 'created_at_desc' %}&darr;{% elif sort_by == 'created_at_asc' %}&uarr;{% endif %}
-        </a>
-        <a hx-get="/api/resumes?sort_by={% if sort_by == 'updated_at_desc' %}updated_at_asc{% else %}updated_at_desc{% endif %}"
-           hx-target="#resume-list"
-           hx-swap="outerHTML"
-           class="text-sm cursor-pointer {% if sort_by.startswith('updated_at') %}font-bold text-blue-700{% else %}text-blue-600 hover:underline{% endif %}">
-            Modified {% if sort_by == 'updated_at_desc' %}&darr;{% elif sort_by == 'updated_at_asc' %}&uarr;{% endif %}
-        </a>
-    </div>
-</div>
-
+<!-- Resume Lists -->
 {% if not base_resumes and not refined_resumes %}
 <div class="text-center py-8">
-    <p class="text-gray-500">No resumes found.</p>
+    <p class="text-gray-500">No resumes found for this time period.</p>
+    {% if current_filter %}
+    <p class="text-gray-400 text-sm mt-2">Try adjusting your filter or navigate to a different week.</p>
+    {% else %}
     <p class="text-gray-400 text-sm mt-2">Create your first resume using the "+ New Resume" button.</p>
+    {% endif %}
 </div>
 {% else %}
+    <!-- Base Resumes Section - Appears first, no controls above -->
     <div>
         <h3 class="text-lg font-semibold text-gray-700 mt-4 mb-2 px-3">Base Resumes</h3>
         {% if base_resumes %}
@@ -61,21 +43,95 @@
         {% endif %}
     </div>
 
+    <!-- Week Navigation and Filter Controls - Between base and refined sections -->
+    <div class="p-4 border-b border-gray-200 bg-gray-50 mt-6">
+        <!-- Week Navigation -->
+        <div class="flex justify-between items-center mb-4">
+            <a hx-get="/api/resumes?week_offset={{ week_offset - 1 }}{% if sort_by %}&sort_by={{ sort_by }}{% endif %}"
+               hx-target="#resume-list"
+               hx-swap="outerHTML"
+               class="text-sm px-3 py-1 rounded {% if has_older_resumes %}bg-blue-500 hover:bg-blue-600 text-white cursor-pointer{% else %}bg-gray-300 text-gray-500 cursor-not-allowed{% endif %}">
+                &larr; Previous Week
+            </a>
+            
+            <span class="text-sm font-medium text-gray-700">
+                {% if week_start and week_end %}
+                    {{ week_start.strftime('%b %d') }} - {{ week_end.strftime('%b %d, %Y') }}
+                {% else %}
+                    Last 7 Days
+                {% endif %}
+            </span>
+            
+            <a hx-get="/api/resumes?week_offset={{ week_offset + 1 }}{% if sort_by %}&sort_by={{ sort_by }}{% endif %}"
+               hx-target="#resume-list"
+               hx-swap="outerHTML"
+               class="text-sm px-3 py-1 rounded {% if has_newer_resumes %}bg-blue-500 hover:bg-blue-600 text-white cursor-pointer{% else %}bg-gray-300 text-gray-500 cursor-not-allowed{% endif %}">
+                Next Week &rarr;
+            </a>
+        </div>
+        
+        <!-- Filter Input -->
+        <div class="flex items-center space-x-2">
+            <input type="text"
+                   name="filter"
+                   id="resume-filter"
+                   placeholder="Filter by title or notes..."
+                   value="{{ current_filter or '' }}"
+                   maxlength="100"
+                   class="flex-1 p-2 border border-gray-300 rounded text-sm"
+                   hx-get="/api/resumes?week_offset={{ week_offset }}{% if sort_by %}&sort_by={{ sort_by }}{% endif %}"
+                   hx-target="#resume-list"
+                   hx-swap="outerHTML"
+                   hx-trigger="keyup changed delay:500ms, search"
+                   hx-vals='js:{filter: document.getElementById("resume-filter").value}'>
+            {% if current_filter %}
+            <button hx-get="/api/resumes?week_offset={{ week_offset }}{% if sort_by %}&sort_by={{ sort_by }}{% endif %}"
+                    hx-target="#resume-list"
+                    hx-swap="outerHTML"
+                    class="text-sm px-3 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded">
+                Clear
+            </button>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Sorting Controls -->
+    <div class="p-4 border-b border-gray-200 bg-gray-50 flex justify-between items-center">
+        <div class="flex items-center space-x-4">
+            <span class="text-sm font-medium text-gray-600">Sort by:</span>
+            <a hx-get="/api/resumes?week_offset={{ week_offset }}{% if current_filter %}&filter={{ current_filter }}{% endif %}&sort_by={% if sort_by == 'name_asc' %}name_desc{% else %}name_asc{% endif %}"
+               hx-target="#resume-list"
+               hx-swap="outerHTML"
+               class="text-sm cursor-pointer {% if sort_by and sort_by.startswith('name') %}font-bold text-blue-700{% else %}text-blue-600 hover:underline{% endif %}">
+                Name {% if sort_by == 'name_asc' %}&uarr;{% elif sort_by == 'name_desc' %}&darr;{% endif %}
+            </a>
+            <a hx-get="/api/resumes?week_offset={{ week_offset }}{% if current_filter %}&filter={{ current_filter }}{% endif %}&sort_by={% if sort_by == 'created_at_desc' %}created_at_asc{% else %}created_at_desc{% endif %}"
+               hx-target="#resume-list"
+               hx-swap="outerHTML"
+               class="text-sm cursor-pointer {% if sort_by and sort_by.startswith('created_at') %}font-bold text-blue-700{% else %}text-blue-600 hover:underline{% endif %}">
+                Created {% if sort_by == 'created_at_desc' %}&darr;{% elif sort_by == 'created_at_asc' %}&uarr;{% endif %}
+            </a>
+            <a hx-get="/api/resumes?week_offset={{ week_offset }}{% if current_filter %}&filter={{ current_filter }}{% endif %}&sort_by={% if sort_by == 'updated_at_desc' %}updated_at_asc{% else %}updated_at_desc{% endif %}"
+               hx-target="#resume-list"
+               hx-swap="outerHTML"
+               class="text-sm cursor-pointer {% if sort_by and sort_by.startswith('updated_at') %}font-bold text-blue-700{% else %}text-blue-600 hover:underline{% endif %}">
+                Modified {% if sort_by == 'updated_at_desc' %}&darr;{% elif sort_by == 'updated_at_asc' %}&uarr;{% endif %}
+            </a>
+        </div>
+    </div>
+
+    <!-- Refined Resumes Section - Appears after all controls -->
     <div class="mt-6">
         <h3 class="text-lg font-semibold text-gray-700 mt-4 mb-2 px-3">Applied Resumes</h3>
-        <div class="px-3 mb-2">
-            <input type="text"
-                   id="refined-resume-search"
-                   placeholder="Filter applied resumes..."
-                   class="w-full p-2 border border-gray-300 rounded"
-                   _="">
-        </div>
          {% if refined_resumes %}
             {% for r in refined_resumes %}
             <div class="resume-item p-3 border-b border-gray-200 flex justify-between items-center{% if selected_resume_id and r.id == selected_resume_id %} selected{% endif %}">
                 <div>
                    <div class="font-medium text-gray-800">{{ r.name }}</div>
                    <div class="text-xs text-gray-500">ID: {{ r.id }} - Parent: {{ r.parent_id }}</div>
+                   {% if r.notes %}
+                   <div class="text-xs text-gray-600 mt-1 italic">{{ r.notes[:100] }}{% if r.notes|length > 100 %}...{% endif %}</div>
+                   {% endif %}
                    <div class="text-xs text-gray-400 mt-1">
                        {% if r.created_at %}Created: {{ r.created_at | strftime('%Y-%m-%d') }}{% endif %}{% if r.created_at and r.updated_at %} &bull; {% endif %}{% if r.updated_at %}Updated: {{ r.updated_at | strftime('%Y-%m-%d') }}{% endif %}
                    </div>
@@ -94,7 +150,13 @@
             </div>
             {% endfor %}
         {% else %}
-            <p class="text-gray-500 px-3 py-2">No applied resumes found.</p>
+            <p class="text-gray-500 px-3 py-2">
+                {% if current_filter %}
+                    No applied resumes match your filter.
+                {% else %}
+                    No applied resumes in this time period.
+                {% endif %}
+            </p>
         {% endif %}
     </div>
 {% endif %}

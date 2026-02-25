@@ -1,5 +1,5 @@
 import datetime
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 import pytest
 from fastapi.testclient import TestClient
@@ -77,21 +77,49 @@ def test_list_resumes_html_response(api_authenticated_client):
     """Test that the list resumes endpoint returns HTML when requested by HTMX."""
     client, mock_db = api_authenticated_client
 
-    # Mock the query result
+    # Mock the query results - the code calls db.query() once, then branches with .filter()
     mock_resume = Mock()
     mock_resume.id = 1
     mock_resume.name = "Test Resume"
     mock_resume.is_base = True
     mock_resume.created_at = datetime.datetime.now(datetime.UTC)
     mock_resume.updated_at = datetime.datetime.now(datetime.UTC)
-    mock_db.query.return_value.filter.return_value.order_by.return_value.all.return_value = [
-        mock_resume
-    ]
 
-    # Make request with HTMX header
-    response = client.get("/api/resumes", headers={"HX-Request": "true"})
-    assert response.status_code == 200
-    assert "Test Resume" in response.text
-    assert 'class="resume-item' in response.text
+    # Set up mock queries - the code calls db.query() once, then branches with .filter()
+    base_result = Mock()
+    base_result.order_by.return_value.all.return_value = [mock_resume]
 
+    refined_result = Mock()
+    refined_result.order_by.return_value.all.return_value = []
 
+    # The user-filtered query that will be branched
+    user_query = Mock()
+
+    def filter_side_effect(*args, **kwargs):
+        # Check if this is filtering by is_base
+        # is_base=True filter returns base_result
+        # is_base=False filter returns refined_result
+        for arg in args:
+            arg_str = str(arg)
+            if "IS True" in arg_str:
+                return base_result
+            elif "IS False" in arg_str:
+                return refined_result
+        return user_query
+
+    user_query.filter.side_effect = filter_side_effect
+    user_query.order_by.return_value.all.return_value = [mock_resume]
+
+    mock_db.query.return_value.filter.return_value = user_query
+
+    # Mock get_oldest_resume_date to return a naive datetime (not a Mock)
+    # Must be naive to match date_range.start_date which uses .naive()
+    with patch(
+        "resume_editor.app.api.routes.resume.get_oldest_resume_date",
+        return_value=datetime.datetime.now(),
+    ):
+        # Make request with HTMX header
+        response = client.get("/api/resumes", headers={"HX-Request": "true"})
+        assert response.status_code == 200
+        assert "Test Resume" in response.text
+        assert 'class="resume-item' in response.text
