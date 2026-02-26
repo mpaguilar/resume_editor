@@ -124,6 +124,62 @@ def extract_education_info(resume_content: str) -> EducationResponse:
     return EducationResponse(degrees=degrees_list)
 
 
+def _extract_roles_list(experience: any) -> list[dict]:
+    """Extract roles from experience object into a list of dictionaries.
+
+    Args:
+        experience: The experience object from parsed resume, may be None.
+
+    Returns:
+        list[dict]: List of role dictionaries extracted from the experience.
+
+    Notes:
+        1. Returns empty list if experience is None or has no roles attribute.
+        2. Iterates through each role in experience.roles.
+        3. Converts each role to dictionary using `_convert_writer_role_to_dict`.
+        4. Filters out empty dictionaries.
+        5. Returns the collected list of role dictionaries.
+
+    """
+    roles_list = []
+    if experience and hasattr(experience, "roles") and experience.roles is not None:
+        for role in experience.roles:
+            role_dict = _convert_writer_role_to_dict(role)
+            if role_dict:
+                roles_list.append(role_dict)
+    return roles_list
+
+
+def _extract_projects_list(experience: any) -> list[dict]:
+    """Extract projects from experience object into a list of dictionaries.
+
+    Args:
+        experience: The experience object from parsed resume, may be None.
+
+    Returns:
+        list[dict]: List of project dictionaries extracted from the experience.
+
+    Notes:
+        1. Returns empty list if experience is None or has no projects attribute.
+        2. Iterates through each project in experience.projects.
+        3. Converts each project to dictionary using `_convert_writer_project_to_dict`.
+        4. Filters out empty dictionaries.
+        5. Returns the collected list of project dictionaries.
+
+    """
+    projects_list = []
+    if (
+        experience
+        and hasattr(experience, "projects")
+        and experience.projects is not None
+    ):
+        for project in experience.projects:
+            project_dict = _convert_writer_project_to_dict(project)
+            if project_dict:
+                projects_list.append(project_dict)
+    return projects_list
+
+
 def extract_experience_info(resume_content: str) -> ExperienceResponse:
     """Extract experience information from resume content.
 
@@ -139,9 +195,9 @@ def extract_experience_info(resume_content: str) -> ExperienceResponse:
     Notes:
         1. Parses the resume content using `_parse_resume`.
         2. Retrieves the experience section. If it's missing but raw content exists, raises ValueError via `_check_for_unparsed_content`.
-        3. Loops through each role, converting it to a dictionary via `_convert_writer_role_to_dict`.
-        4. Loops through each project, converting it to a dictionary via `_convert_writer_project_to_dict`.
-        5. Collects non-empty dictionaries into lists.
+        3. Extracts roles list using `_extract_roles_list`.
+        4. Extracts projects list using `_extract_projects_list`.
+        5. If both lists are empty, checks for unparsed content.
         6. Returns an `ExperienceResponse` with the collected lists.
 
     """
@@ -153,23 +209,8 @@ def extract_experience_info(resume_content: str) -> ExperienceResponse:
 
     experience = parsed_resume.experience
 
-    roles_list = []
-    if experience and hasattr(experience, "roles") and experience.roles is not None:
-        for role in experience.roles:
-            role_dict = _convert_writer_role_to_dict(role)
-            if role_dict:
-                roles_list.append(role_dict)
-
-    projects_list = []
-    if (
-        experience
-        and hasattr(experience, "projects")
-        and experience.projects is not None
-    ):
-        for project in experience.projects:
-            project_dict = _convert_writer_project_to_dict(project)
-            if project_dict:
-                projects_list.append(project_dict)
+    roles_list = _extract_roles_list(experience)
+    projects_list = _extract_projects_list(experience)
 
     if not roles_list and not projects_list:
         _check_for_unparsed_content(resume_content, "experience", None)
@@ -307,6 +348,102 @@ def serialize_personal_info_to_markdown(
     return "# Personal\n\n" + "\n".join(lines) + "\n"
 
 
+def _format_degree_field_line(degree: any, field_name: str, label: str) -> str | None:
+    """Format a single degree field as a markdown line if present.
+
+    Args:
+        degree: The degree object containing the field.
+        field_name (str): The attribute name to get from the degree.
+        label (str): The label to use in the markdown output.
+
+    Returns:
+        str | None: Formatted markdown line or None if field is not present.
+
+    Notes:
+        1. Gets the field value using getattr.
+        2. If value exists, formats it as "Label: Value".
+        3. Returns the formatted string or None.
+
+    """
+    value = getattr(degree, field_name, None)
+    if value:
+        return f"{label}: {value}"
+    return None
+
+
+def _format_degree_date_line(degree: any, field_name: str, label: str) -> str | None:
+    """Format a degree date field as a markdown line if present.
+
+    Args:
+        degree: The degree object containing the date field.
+        field_name (str): The attribute name to get from the degree.
+        label (str): The label to use in the markdown output.
+
+    Returns:
+        str | None: Formatted markdown line or None if date is not present.
+
+    Notes:
+        1. Gets the date value using getattr.
+        2. If date exists, formats it as "Label: MM/YYYY".
+        3. Returns the formatted string or None.
+
+    """
+    date_value = getattr(degree, field_name, None)
+    if date_value:
+        return f"{label}: {date_value.strftime('%m/%Y')}"
+    return None
+
+
+def _add_degree_fields_to_lines(degree: any, lines: list[str]) -> None:
+    """Add all degree fields to the lines list if present.
+
+    Args:
+        degree: The degree object containing fields to serialize.
+        lines (list[str]): The list to append formatted lines to.
+
+    Notes:
+        1. Adds school, degree, major fields if present.
+        2. Adds start_date and end_date formatted as MM/YYYY if present.
+        3. Adds GPA if present.
+
+    """
+    fields = [
+        ("school", "School", _format_degree_field_line),
+        ("degree", "Degree", _format_degree_field_line),
+        ("major", "Major", _format_degree_field_line),
+        ("start_date", "Start date", _format_degree_date_line),
+        ("end_date", "End date", _format_degree_date_line),
+        ("gpa", "GPA", _format_degree_field_line),
+    ]
+
+    for field_name, label, formatter in fields:
+        line = formatter(degree, field_name, label)
+        if line:
+            lines.append(line)
+
+
+def _serialize_single_degree(degree: any) -> list[str]:
+    """Serialize a single degree entry to markdown lines.
+
+    Args:
+        degree: The degree object to serialize.
+
+    Returns:
+        list[str]: List of markdown lines for the degree.
+
+    Notes:
+        1. Adds the "### Degree" header and blank line.
+        2. Adds all degree fields using `_add_degree_fields_to_lines`.
+        3. Adds trailing blank line.
+        4. Returns the list of markdown lines.
+
+    """
+    lines = ["### Degree", ""]
+    _add_degree_fields_to_lines(degree, lines)
+    lines.append("")
+    return lines
+
+
 def serialize_education_to_markdown(education: EducationResponse | None) -> str:
     """Serialize education information to Markdown format.
 
@@ -317,14 +454,12 @@ def serialize_education_to_markdown(education: EducationResponse | None) -> str:
         str: Markdown formatted education section.
 
     Notes:
-        1. Initializes an empty list of lines and adds a heading.
-        2. For each degree in the list:
-            a. Adds a subsection header.
-            b. Adds each field (school, degree, major, start_date, end_date, gpa) as a direct field if present.
-            c. Adds a blank line after each degree.
-        3. Joins the lines with newlines.
-        4. Returns the formatted string with a trailing newline.
-        5. No network, disk, or database access is performed during this function.
+        1. Initializes education with empty degrees if not provided.
+        2. Initializes lines list with headers.
+        3. For each degree, serializes it using `_serialize_single_degree`.
+        4. If any degrees were serialized, returns the formatted string.
+        5. Returns empty string if no degrees present.
+        6. No network, disk, or database access is performed during this function.
 
     """
     if not education or not hasattr(education, "degrees"):
@@ -333,21 +468,7 @@ def serialize_education_to_markdown(education: EducationResponse | None) -> str:
     lines = ["# Education", "", "## Degrees", ""]
 
     for degree in education.degrees:
-        lines.append("### Degree")
-        lines.append("")
-        if getattr(degree, "school", None):
-            lines.append(f"School: {degree.school}")
-        if getattr(degree, "degree", None):
-            lines.append(f"Degree: {degree.degree}")
-        if getattr(degree, "major", None):
-            lines.append(f"Major: {degree.major}")
-        if getattr(degree, "start_date", None):
-            lines.append(f"Start date: {degree.start_date.strftime('%m/%Y')}")
-        if getattr(degree, "end_date", None):
-            lines.append(f"End date: {degree.end_date.strftime('%m/%Y')}")
-        if getattr(degree, "gpa", None):
-            lines.append(f"GPA: {degree.gpa}")
-        lines.append("")
+        lines.extend(_serialize_single_degree(degree))
 
     # Only return content if there are degrees
     if education.degrees:
@@ -447,39 +568,74 @@ def _serialize_role_to_markdown(role: Role) -> list[str]:
     return []
 
 
-def serialize_experience_to_markdown(experience: ExperienceResponse | None) -> str:
-    """Serialize experience information to Markdown format.
+def _extract_roles_from_experience(experience: ExperienceResponse) -> list[str]:
+    """Extract and serialize roles from experience into markdown lines.
 
     Args:
-        experience (ExperienceResponse | None): Experience information to serialize, containing lists of roles and projects.
+        experience (ExperienceResponse): Experience object containing roles.
 
     Returns:
-        str: Markdown formatted experience section.
+        list[str]: List of markdown lines for all roles.
 
     Notes:
-        1. Checks if the experience object is empty.
-        2. Initializes an empty list of lines.
-        3. If projects exist, serializes each one using `_serialize_project_to_markdown`.
-        4. If roles exist, serializes each one using `_serialize_role_to_markdown`.
-        5. If any content was generated, builds the final Markdown string with `# Experience`, `## Projects` (if any), and `## Roles` (if any) headers.
-        6. Joins the lines with newlines and returns the formatted string with a trailing newline.
-        7. Returns an empty string if no experience data is present or all items are omitted.
-        8. No network, disk, or database access is performed during this function.
+        1. Checks if experience has a roles attribute with data.
+        2. Iterates through each role and serializes it using `_serialize_role_to_markdown`.
+        3. Collects all serialized role lines into a single list.
+        4. Returns the combined list of markdown lines.
 
     """
-    if not experience:
-        experience = ExperienceResponse(roles=[], projects=[])
-
-    project_lines = []
-    if hasattr(experience, "projects") and experience.projects:
-        for project in experience.projects:
-            project_lines.extend(_serialize_project_to_markdown(project))
-
     role_lines = []
     if hasattr(experience, "roles") and experience.roles:
         for role in experience.roles:
             role_lines.extend(_serialize_role_to_markdown(role))
+    return role_lines
 
+
+def _extract_projects_from_experience(experience: ExperienceResponse) -> list[str]:
+    """Extract and serialize projects from experience into markdown lines.
+
+    Args:
+        experience (ExperienceResponse): Experience object containing projects.
+
+    Returns:
+        list[str]: List of markdown lines for all projects.
+
+    Notes:
+        1. Checks if experience has a projects attribute with data.
+        2. Iterates through each project and serializes it using `_serialize_project_to_markdown`.
+        3. Collects all serialized project lines into a single list.
+        4. Returns the combined list of markdown lines.
+
+    """
+    project_lines = []
+    if hasattr(experience, "projects") and experience.projects:
+        for project in experience.projects:
+            project_lines.extend(_serialize_project_to_markdown(project))
+    return project_lines
+
+
+def _build_experience_markdown(
+    project_lines: list[str],
+    role_lines: list[str],
+) -> str:
+    """Build the final experience markdown string from project and role lines.
+
+    Args:
+        project_lines (list[str]): Markdown lines for projects section.
+        role_lines (list[str]): Markdown lines for roles section.
+
+    Returns:
+        str: Complete markdown formatted experience section.
+
+    Notes:
+        1. Returns empty string if both project_lines and role_lines are empty.
+        2. Initializes the lines list with the main "# Experience" header.
+        3. If project_lines exist, adds the "## Projects" header and project content.
+        4. If role_lines exist, adds the "## Roles" header and role content.
+        5. Joins all lines with newlines and appends a trailing newline.
+        6. Returns the formatted markdown string.
+
+    """
     if not project_lines and not role_lines:
         return ""
 
@@ -494,6 +650,154 @@ def serialize_experience_to_markdown(experience: ExperienceResponse | None) -> s
     return "\n".join(lines) + "\n"
 
 
+def serialize_experience_to_markdown(experience: ExperienceResponse | None) -> str:
+    """Serialize experience information to Markdown format.
+
+    Args:
+        experience (ExperienceResponse | None): Experience information to serialize, containing lists of roles and projects.
+
+    Returns:
+        str: Markdown formatted experience section.
+
+    Notes:
+        1. Checks if the experience object is empty, creates empty response if so.
+        2. Extracts project lines using `_extract_projects_from_experience`.
+        3. Extracts role lines using `_extract_roles_from_experience`.
+        4. Builds final markdown using `_build_experience_markdown`.
+        5. No network, disk, or database access is performed during this function.
+
+    """
+    if not experience:
+        experience = ExperienceResponse(roles=[], projects=[])
+
+    project_lines = _extract_projects_from_experience(experience)
+    role_lines = _extract_roles_from_experience(experience)
+
+    return _build_experience_markdown(project_lines, role_lines)
+
+
+def _format_certification_field(cert: any, field: str, label: str) -> str | None:
+    """Format a certification field as a markdown line if present.
+
+    Args:
+        cert: The certification object containing the field.
+        field (str): The attribute name to get from the certification.
+        label (str): The label to use in the markdown output.
+
+    Returns:
+        str | None: Formatted markdown line or None if field is not present.
+
+    Notes:
+        1. Gets the field value using getattr.
+        2. If value exists, formats it as "Label: Value".
+        3. Returns the formatted string or None.
+
+    """
+    value = getattr(cert, field, None)
+    if value:
+        return f"{label}: {value}"
+    return None
+
+
+def _format_certification_date(cert: any, field: str, label: str) -> str | None:
+    """Format a certification date field as a markdown line if present.
+
+    Args:
+        cert: The certification object containing the date field.
+        field (str): The attribute name to get from the certification.
+        label (str): The label to use in the markdown output.
+
+    Returns:
+        str | None: Formatted markdown line or None if date is not present.
+
+    Notes:
+        1. Gets the date value using getattr.
+        2. If date exists, formats it as "Label: MM/YYYY".
+        3. Returns the formatted string or None.
+
+    """
+    date_value = getattr(cert, field, None)
+    if date_value:
+        return f"{label}: {date_value.strftime('%m/%Y')}"
+    return None
+
+
+def _append_field_if_present(
+    cert: any,
+    lines: list[str],
+    field: str,
+    label: str,
+    formatter: any,
+) -> None:
+    """Append a formatted field line if the field is present.
+
+    Args:
+        cert: The object containing the field.
+        lines (list[str]): The list to append to.
+        field (str): The attribute name to get.
+        label (str): The label for the output.
+        formatter: The formatting function to use.
+
+    """
+    line = formatter(cert, field, label)
+    if line:
+        lines.append(line)
+
+
+def _add_certification_fields_to_lines(cert: any, lines: list[str]) -> None:
+    """Add all certification fields to the lines list if present.
+
+    Args:
+        cert: The certification object containing fields to serialize.
+        lines (list[str]): The list to append formatted lines to.
+
+    Notes:
+        1. Adds name, issuer, certification_id fields if present.
+        2. Adds issued and expires dates formatted as MM/YYYY if present.
+
+    """
+    # Simple text fields
+    _append_field_if_present(cert, lines, "name", "Name", _format_certification_field)
+    _append_field_if_present(
+        cert, lines, "issuer", "Issuer", _format_certification_field
+    )
+
+    # Date fields
+    _append_field_if_present(
+        cert, lines, "issued", "Issued", _format_certification_date
+    )
+    _append_field_if_present(
+        cert, lines, "expires", "Expires", _format_certification_date
+    )
+
+    # ID field
+    _append_field_if_present(
+        cert, lines, "certification_id", "Certification ID", _format_certification_field
+    )
+
+
+def _serialize_single_certification(cert: any) -> list[str]:
+    """Serialize a single certification entry to markdown lines.
+
+    Args:
+        cert: The certification object to serialize.
+
+    Returns:
+        list[str]: List of markdown lines for the certification.
+
+    Notes:
+        1. Adds the "## Certification" header and blank line.
+        2. Adds all certification fields using `_add_certification_fields_to_lines`.
+        3. Adds trailing blank line.
+        4. Returns the list of markdown lines.
+
+    """
+    lines = ["## Certification", ""]
+    _add_certification_fields_to_lines(cert, lines)
+    lines.append("")
+    return lines
+
+
 def serialize_certifications_to_markdown(
     certifications: CertificationsResponse | None,
 ) -> str:
@@ -506,14 +810,12 @@ def serialize_certifications_to_markdown(
         str: Markdown formatted certifications section.
 
     Notes:
-        1. Initializes an empty list of lines and adds a heading.
-        2. For each certification in the list:
-            a. Adds a subsection header.
-            b. Adds each field (name, issuer, id, issued_date, expiry_date) as direct fields if present.
-            c. Adds a blank line after each certification.
-        3. Joins the lines with newlines.
-        4. Returns the formatted string with a trailing newline.
-        5. No network, disk, or database access is performed during this function.
+        1. Initializes certifications with empty list if not provided.
+        2. Initializes lines list with header.
+        3. For each certification, serializes it using `_serialize_single_certification`.
+        4. If any certifications were serialized, returns the formatted string.
+        5. Returns empty string if no certifications present.
+        6. No network, disk, or database access is performed during this function.
 
     """
     if not certifications or not hasattr(certifications, "certifications"):
@@ -522,19 +824,7 @@ def serialize_certifications_to_markdown(
     lines = ["# Certifications", ""]
 
     for cert in certifications.certifications:
-        lines.append("## Certification")
-        lines.append("")
-        if getattr(cert, "name", None):
-            lines.append(f"Name: {cert.name}")
-        if getattr(cert, "issuer", None):
-            lines.append(f"Issuer: {cert.issuer}")
-        if getattr(cert, "issued", None):
-            lines.append(f"Issued: {cert.issued.strftime('%m/%Y')}")
-        if getattr(cert, "expires", None):
-            lines.append(f"Expires: {cert.expires.strftime('%m/%Y')}")
-        if getattr(cert, "certification_id", None):
-            lines.append(f"Certification ID: {cert.certification_id}")
-        lines.append("")
+        lines.extend(_serialize_single_certification(cert))
 
     if certifications.certifications:
         return "\n".join(lines) + "\n"

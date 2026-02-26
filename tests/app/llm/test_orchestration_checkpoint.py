@@ -9,6 +9,7 @@ import pytest
 
 from resume_editor.app.api.routes.route_models import ExperienceResponse
 from resume_editor.app.llm.models import JobAnalysis, LLMConfig, RefinedRole
+from resume_editor.app.llm.orchestration_refinement import RefinementState
 from resume_editor.app.llm.orchestration import async_refine_experience_section
 from resume_editor.app.models.resume.experience import (
     Role,
@@ -113,13 +114,13 @@ class TestAsyncRefineExperienceSectionWithCheckpoint:
         """Test that the function accepts the new job_analysis and skip_indices parameters."""
         with (
             patch(
-                "resume_editor.app.llm.orchestration.extract_experience_info"
+                "resume_editor.app.llm.orchestration_refinement.extract_experience_info"
             ) as mock_extract,
             patch(
-                "resume_editor.app.llm.orchestration.analyze_job_description"
+                "resume_editor.app.llm.orchestration_analysis.analyze_job_description"
             ) as mock_analyze,
             patch(
-                "resume_editor.app.llm.orchestration._refine_role_and_put_on_queue"
+                "resume_editor.app.llm.orchestration_refinement._refine_role_and_put_on_queue"
             ) as mock_refine,
         ):
             mock_extract.return_value = ExperienceResponse(roles=[])
@@ -131,8 +132,9 @@ class TestAsyncRefineExperienceSectionWithCheckpoint:
                 job_description=sample_job_description,
                 llm_config=llm_config,
                 max_concurrency=5,
-                job_analysis=mock_job_analysis,
-                skip_indices={0, 2},
+                state=RefinementState(
+                    job_analysis=mock_job_analysis, skip_indices={0, 2}
+                ),
             ):
                 pass  # Just consume the generator
 
@@ -150,10 +152,10 @@ class TestAsyncRefineExperienceSectionWithCheckpoint:
         """Test that when job_analysis is provided, analyze_job_description is not called."""
         with (
             patch(
-                "resume_editor.app.llm.orchestration.extract_experience_info"
+                "resume_editor.app.llm.orchestration_refinement.extract_experience_info"
             ) as mock_extract,
             patch(
-                "resume_editor.app.llm.orchestration.analyze_job_description"
+                "resume_editor.app.llm.orchestration_analysis.analyze_job_description"
             ) as mock_analyze,
         ):
             mock_extract.return_value = ExperienceResponse(roles=[])
@@ -164,7 +166,7 @@ class TestAsyncRefineExperienceSectionWithCheckpoint:
                 resume_content=sample_resume_content,
                 job_description=sample_job_description,
                 llm_config=llm_config,
-                job_analysis=mock_job_analysis,
+                state=RefinementState(job_analysis=mock_job_analysis),
             ):
                 events.append(event)
 
@@ -188,10 +190,10 @@ class TestAsyncRefineExperienceSectionWithCheckpoint:
         """Test that when job_analysis is None, analyze_job_description IS called."""
         with (
             patch(
-                "resume_editor.app.llm.orchestration.extract_experience_info"
+                "resume_editor.app.llm.orchestration_refinement.extract_experience_info"
             ) as mock_extract,
             patch(
-                "resume_editor.app.llm.orchestration.analyze_job_description"
+                "resume_editor.app.llm.orchestration_analysis.analyze_job_description"
             ) as mock_analyze,
         ):
             mock_extract.return_value = ExperienceResponse(roles=[])
@@ -202,7 +204,7 @@ class TestAsyncRefineExperienceSectionWithCheckpoint:
                 resume_content=sample_resume_content,
                 job_description=sample_job_description,
                 llm_config=llm_config,
-                job_analysis=None,
+                state=RefinementState(job_analysis=None),
             ):
                 events.append(event)
 
@@ -242,13 +244,13 @@ class TestAsyncRefineExperienceSectionWithCheckpoint:
 
         with (
             patch(
-                "resume_editor.app.llm.orchestration.extract_experience_info"
+                "resume_editor.app.llm.orchestration_refinement.extract_experience_info"
             ) as mock_extract,
             patch(
-                "resume_editor.app.llm.orchestration.analyze_job_description"
+                "resume_editor.app.llm.orchestration_analysis.analyze_job_description"
             ) as mock_analyze,
             patch(
-                "resume_editor.app.llm.orchestration._refine_role_and_put_on_queue"
+                "resume_editor.app.llm.orchestration_refinement._refine_role_and_put_on_queue"
             ) as mock_refine,
         ):
             mock_extract.return_value = mock_experience_response
@@ -260,8 +262,9 @@ class TestAsyncRefineExperienceSectionWithCheckpoint:
                 resume_content=sample_resume_content,
                 job_description=sample_job_description,
                 llm_config=llm_config,
-                job_analysis=mock_job_analysis,
-                skip_indices={0, 2},  # Skip first and third roles
+                state=RefinementState(
+                    job_analysis=mock_job_analysis, skip_indices={0, 2}
+                ),  # Skip first and third roles
             ):
                 events.append(event)
 
@@ -303,13 +306,13 @@ class TestAsyncRefineExperienceSectionWithCheckpoint:
 
         with (
             patch(
-                "resume_editor.app.llm.orchestration.extract_experience_info"
+                "resume_editor.app.llm.orchestration_refinement.extract_experience_info"
             ) as mock_extract,
             patch(
-                "resume_editor.app.llm.orchestration.analyze_job_description"
+                "resume_editor.app.llm.orchestration_analysis.analyze_job_description"
             ) as mock_analyze,
             patch(
-                "resume_editor.app.llm.orchestration._refine_role_and_put_on_queue"
+                "resume_editor.app.llm.orchestration_refinement._refine_role_and_put_on_queue"
             ) as mock_refine,
         ):
             mock_extract.return_value = mock_experience_response
@@ -321,8 +324,9 @@ class TestAsyncRefineExperienceSectionWithCheckpoint:
                 resume_content=sample_resume_content,
                 job_description=sample_job_description,
                 llm_config=llm_config,
-                job_analysis=mock_job_analysis,
-                skip_indices={0, 2},
+                state=RefinementState(
+                    job_analysis=mock_job_analysis, skip_indices={0, 2}
+                ),
             ):
                 events.append(event)
 
@@ -347,10 +351,10 @@ class TestAsyncRefineExperienceSectionWithCheckpoint:
         """Test that the function works without the new parameters (backward compatibility)."""
         with (
             patch(
-                "resume_editor.app.llm.orchestration.extract_experience_info"
+                "resume_editor.app.llm.orchestration_refinement.extract_experience_info"
             ) as mock_extract,
             patch(
-                "resume_editor.app.llm.orchestration.analyze_job_description"
+                "resume_editor.app.llm.orchestration_analysis.analyze_job_description"
             ) as mock_analyze,
         ):
             mock_extract.return_value = ExperienceResponse(roles=[])
@@ -402,13 +406,13 @@ class TestAsyncRefineExperienceSectionWithCheckpoint:
 
         with (
             patch(
-                "resume_editor.app.llm.orchestration.extract_experience_info"
+                "resume_editor.app.llm.orchestration_refinement.extract_experience_info"
             ) as mock_extract,
             patch(
-                "resume_editor.app.llm.orchestration.analyze_job_description"
+                "resume_editor.app.llm.orchestration_analysis.analyze_job_description"
             ) as mock_analyze,
             patch(
-                "resume_editor.app.llm.orchestration._refine_role_and_put_on_queue"
+                "resume_editor.app.llm.orchestration_refinement._refine_role_and_put_on_queue"
             ) as mock_refine,
         ):
             mock_extract.return_value = mock_experience_response
@@ -420,8 +424,9 @@ class TestAsyncRefineExperienceSectionWithCheckpoint:
                 resume_content=sample_resume_content,
                 job_description=sample_job_description,
                 llm_config=llm_config,
-                job_analysis=mock_job_analysis,
-                skip_indices=set(),  # Empty set - refine all
+                state=RefinementState(
+                    job_analysis=mock_job_analysis, skip_indices=set()
+                ),  # Empty set - refine all
             ):
                 events.append(event)
 
@@ -462,13 +467,13 @@ class TestAsyncRefineExperienceSectionWithCheckpoint:
 
         with (
             patch(
-                "resume_editor.app.llm.orchestration.extract_experience_info"
+                "resume_editor.app.llm.orchestration_refinement.extract_experience_info"
             ) as mock_extract,
             patch(
-                "resume_editor.app.llm.orchestration.analyze_job_description"
+                "resume_editor.app.llm.orchestration_analysis.analyze_job_description"
             ) as mock_analyze,
             patch(
-                "resume_editor.app.llm.orchestration._refine_role_and_put_on_queue"
+                "resume_editor.app.llm.orchestration_refinement._refine_role_and_put_on_queue"
             ) as mock_refine,
         ):
             mock_extract.return_value = mock_experience_response
@@ -480,8 +485,9 @@ class TestAsyncRefineExperienceSectionWithCheckpoint:
                 resume_content=sample_resume_content,
                 job_description=sample_job_description,
                 llm_config=llm_config,
-                job_analysis=mock_job_analysis,
-                skip_indices=None,  # None - refine all
+                state=RefinementState(
+                    job_analysis=mock_job_analysis, skip_indices=None
+                ),  # None - refine all
             ):
                 events.append(event)
 
@@ -501,13 +507,13 @@ class TestAsyncRefineExperienceSectionWithCheckpoint:
         """Test that when all roles are skipped, no refinement tasks are created."""
         with (
             patch(
-                "resume_editor.app.llm.orchestration.extract_experience_info"
+                "resume_editor.app.llm.orchestration_refinement.extract_experience_info"
             ) as mock_extract,
             patch(
-                "resume_editor.app.llm.orchestration.analyze_job_description"
+                "resume_editor.app.llm.orchestration_analysis.analyze_job_description"
             ) as mock_analyze,
             patch(
-                "resume_editor.app.llm.orchestration._refine_role_and_put_on_queue"
+                "resume_editor.app.llm.orchestration_refinement._refine_role_and_put_on_queue"
             ) as mock_refine,
         ):
             mock_extract.return_value = mock_experience_response
@@ -518,8 +524,9 @@ class TestAsyncRefineExperienceSectionWithCheckpoint:
                 resume_content=sample_resume_content,
                 job_description=sample_job_description,
                 llm_config=llm_config,
-                job_analysis=mock_job_analysis,
-                skip_indices={0, 1, 2},  # Skip all roles
+                state=RefinementState(
+                    job_analysis=mock_job_analysis, skip_indices={0, 1, 2}
+                ),  # Skip all roles
             ):
                 events.append(event)
 

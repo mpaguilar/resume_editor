@@ -9,6 +9,7 @@ from resume_editor.app.api.routes.resume_ai import (
     refine_resume_stream,
     _make_early_error_stream_response,
     RefineStreamQueryParams,
+    RefineStreamOptionalParams,
 )
 from resume_editor.app.api.routes.route_models import RefineForm
 from resume_editor.app.models.resume_model import Resume as DatabaseResume
@@ -68,14 +69,17 @@ class TestRefineStreamGetValidationErrors:
             job_description="Test job",
             limit_refinement_years=None,
         )
+        optional = RefineStreamOptionalParams(
+            company=long_company,
+            notes=None,
+        )
 
         response = await refine_resume_stream_get(
             db=mock_db,
             current_user=test_user,
             resume=test_resume,
             query=query,
-            company=long_company,
-            notes=None,
+            optional=optional,
         )
 
         # Should return SSE error response
@@ -93,14 +97,17 @@ class TestRefineStreamGetValidationErrors:
             job_description="Test job",
             limit_refinement_years=None,
         )
+        optional = RefineStreamOptionalParams(
+            company=None,
+            notes=long_notes,
+        )
 
         response = await refine_resume_stream_get(
             db=mock_db,
             current_user=test_user,
             resume=test_resume,
             query=query,
-            company=None,
-            notes=long_notes,
+            optional=optional,
         )
 
         # Should return SSE error response

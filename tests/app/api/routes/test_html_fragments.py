@@ -6,6 +6,7 @@ import pytest
 from bs4 import BeautifulSoup
 
 from resume_editor.app.api.routes.html_fragments import (
+    GenerateResumeListHtmlParams,
     RefineResultParams,
     _create_refine_result_html,
     _date_format_filter,
@@ -86,11 +87,13 @@ def test_generate_resume_list_html_empty():
         mock_template = MagicMock()
         mock_env.get_template.return_value = mock_template
         _generate_resume_list_html(
-            base_resumes=[],
-            refined_resumes=[],
-            selected_resume_id=None,
-            sort_by="name_asc",
-            wrap_in_div=False,
+            GenerateResumeListHtmlParams(
+                base_resumes=[],
+                refined_resumes=[],
+                selected_resume_id=None,
+                sort_by="name_asc",
+                wrap_in_div=False,
+            )
         )
         mock_env.get_template.assert_called_once_with(
             "partials/resume/_resume_list.html"
@@ -116,11 +119,13 @@ def test_generate_resume_list_html(test_resume):
         mock_env.get_template.return_value = mock_template
         resumes = [test_resume]
         _generate_resume_list_html(
-            base_resumes=resumes,
-            refined_resumes=[],
-            selected_resume_id=None,
-            sort_by="name_asc",
-            wrap_in_div=False,
+            GenerateResumeListHtmlParams(
+                base_resumes=resumes,
+                refined_resumes=[],
+                selected_resume_id=None,
+                sort_by="name_asc",
+                wrap_in_div=False,
+            )
         )
         mock_env.get_template.assert_called_once_with(
             "partials/resume/_resume_list.html"
@@ -147,11 +152,13 @@ def test_generate_resume_list_html_template(test_resume):
         resumes = [test_resume]
         selected_id = 1
         _generate_resume_list_html(
-            base_resumes=resumes,
-            refined_resumes=[],
-            selected_resume_id=selected_id,
-            sort_by="name_asc",
-            wrap_in_div=False,
+            GenerateResumeListHtmlParams(
+                base_resumes=resumes,
+                refined_resumes=[],
+                selected_resume_id=selected_id,
+                sort_by="name_asc",
+                wrap_in_div=False,
+            )
         )
         mock_env.get_template.assert_called_once_with(
             "partials/resume/_resume_list.html"
@@ -178,21 +185,25 @@ def test_generate_resume_list_html_output(test_resume, test_refined_resume):
 
     # Test without the wrapper div
     html_output_no_wrap = _generate_resume_list_html(
-        base_resumes=base_resumes,
-        refined_resumes=refined_resumes,
-        selected_resume_id=None,
-        sort_by="name_asc",
-        wrap_in_div=False,
+        GenerateResumeListHtmlParams(
+            base_resumes=base_resumes,
+            refined_resumes=refined_resumes,
+            selected_resume_id=None,
+            sort_by="name_asc",
+            wrap_in_div=False,
+        )
     )
     assert not html_output_no_wrap.startswith('<div id="resume-list">')
 
     # Test with the wrapper div
     html_output_with_wrap = _generate_resume_list_html(
-        base_resumes=base_resumes,
-        refined_resumes=refined_resumes,
-        selected_resume_id=None,
-        sort_by="name_asc",
-        wrap_in_div=True,
+        GenerateResumeListHtmlParams(
+            base_resumes=base_resumes,
+            refined_resumes=refined_resumes,
+            selected_resume_id=None,
+            sort_by="name_asc",
+            wrap_in_div=True,
+        )
     )
     assert html_output_with_wrap.startswith('<div id="resume-list">')
     assert html_output_with_wrap.endswith("</div>")
@@ -258,11 +269,13 @@ def test_generate_resume_list_html_output_no_dates(test_user):
     base_resume_no_dates.updated_at = None
 
     html_output = _generate_resume_list_html(
-        base_resumes=[base_resume_no_dates],
-        refined_resumes=[],
-        selected_resume_id=None,
-        sort_by="updated_at_desc",
-        wrap_in_div=False,
+        GenerateResumeListHtmlParams(
+            base_resumes=[base_resume_no_dates],
+            refined_resumes=[],
+            selected_resume_id=None,
+            sort_by="updated_at_desc",
+            wrap_in_div=False,
+        )
     )
 
     assert "Test Resume No Dates" in html_output
@@ -345,11 +358,13 @@ def test_generate_resume_list_html_with_refined(test_refined_resume):
         mock_env.get_template.return_value = mock_template
         resumes = [test_refined_resume]
         _generate_resume_list_html(
-            base_resumes=[],
-            refined_resumes=resumes,
-            selected_resume_id=None,
-            sort_by="name_asc",
-            wrap_in_div=False,
+            GenerateResumeListHtmlParams(
+                base_resumes=[],
+                refined_resumes=resumes,
+                selected_resume_id=None,
+                sort_by="name_asc",
+                wrap_in_div=False,
+            )
         )
         mock_env.get_template.assert_called_once_with(
             "partials/resume/_resume_list.html"
@@ -376,11 +391,13 @@ def test_generate_resume_list_html_with_both(test_resume, test_refined_resume):
         base_resumes = [test_resume]
         refined_resumes = [test_refined_resume]
         _generate_resume_list_html(
-            base_resumes=base_resumes,
-            refined_resumes=refined_resumes,
-            selected_resume_id=None,
-            sort_by="name_asc",
-            wrap_in_div=False,
+            GenerateResumeListHtmlParams(
+                base_resumes=base_resumes,
+                refined_resumes=refined_resumes,
+                selected_resume_id=None,
+                sort_by="name_asc",
+                wrap_in_div=False,
+            )
         )
         mock_env.get_template.assert_called_once_with(
             "partials/resume/_resume_list.html"

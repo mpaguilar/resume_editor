@@ -60,10 +60,8 @@ def job_description_fixture():
     return "Software Engineer with Python experience."
 
 
-
-
 @patch(
-    "resume_editor.app.llm.orchestration._invoke_chain_and_parse",
+    "resume_editor.app.llm.orchestration_banner._invoke_chain_and_parse",
     new_callable=MagicMock,
 )
 def test_generate_introduction_from_analysis_success(
@@ -75,7 +73,9 @@ def test_generate_introduction_from_analysis_success(
     _msg = "test_generate_introduction_from_analysis_success starting"
     log.debug(_msg)
 
-    job_analysis_json = '{"key_skills": ["Python"], "candidate_priorities": ["Backend"]}'
+    job_analysis_json = (
+        '{"key_skills": ["Python"], "candidate_priorities": ["Backend"]}'
+    )
     mock_invoke_chain_and_parse.side_effect = [
         CandidateAnalysis(
             analysis=[
@@ -122,7 +122,7 @@ def test_generate_introduction_from_analysis_success(
 
 
 @patch(
-    "resume_editor.app.llm.orchestration._invoke_chain_and_parse",
+    "resume_editor.app.llm.orchestration_banner._invoke_chain_and_parse",
     new_callable=MagicMock,
 )
 def test_generate_introduction_from_analysis_failure(
@@ -152,7 +152,7 @@ def test_generate_introduction_from_analysis_failure(
     log.debug(_msg)
 
 
-@patch("resume_editor.app.llm.orchestration._initialize_llm_client")
+@patch("resume_editor.app.llm.orchestration_banner.initialize_llm_client")
 def test_generate_introduction_from_resume_end_to_end_mocked(
     mock_init_llm,
     llm_config_fixture,
@@ -202,9 +202,11 @@ def test_generate_introduction_from_resume_end_to_end_mocked(
     log.debug(_msg)
 
 
-@patch("resume_editor.app.llm.orchestration._initialize_llm_client")
-@patch("resume_editor.app.llm.orchestration._generate_introduction_from_analysis")
-@patch("resume_editor.app.llm.orchestration._invoke_chain_and_parse")
+@patch("resume_editor.app.llm.orchestration_banner.initialize_llm_client")
+@patch(
+    "resume_editor.app.llm.orchestration_banner._generate_introduction_from_analysis"
+)
+@patch("resume_editor.app.llm.orchestration_banner._invoke_chain_and_parse")
 def test_generate_introduction_from_resume_success(
     mock_invoke_chain,
     mock_internal_generate,
@@ -241,8 +243,7 @@ def test_generate_introduction_from_resume_success(
     # Can't easily check chain object, so use ANY
     assert mock_invoke_chain.call_args.args[1] == JobKeyRequirements
     assert (
-        mock_invoke_chain.call_args.kwargs["job_description"]
-        == job_description_fixture
+        mock_invoke_chain.call_args.kwargs["job_description"] == job_description_fixture
     )
 
     mock_internal_generate.assert_called_once()
@@ -257,9 +258,11 @@ def test_generate_introduction_from_resume_success(
     log.debug(_msg)
 
 
-@patch("resume_editor.app.llm.orchestration._initialize_llm_client")
-@patch("resume_editor.app.llm.orchestration._invoke_chain_and_parse")
-@patch("resume_editor.app.llm.orchestration._generate_introduction_from_analysis")
+@patch("resume_editor.app.llm.orchestration_banner.initialize_llm_client")
+@patch("resume_editor.app.llm.orchestration_banner._invoke_chain_and_parse")
+@patch(
+    "resume_editor.app.llm.orchestration_banner._generate_introduction_from_analysis"
+)
 def test_generate_introduction_from_resume_job_analysis_fails(
     mock_generate_from_analysis,
     mock_invoke_chain_and_parse,
@@ -288,5 +291,3 @@ def test_generate_introduction_from_resume_job_analysis_fails(
 
     _msg = "test_generate_introduction_from_resume_job_analysis_fails returning"
     log.debug(_msg)
-
-

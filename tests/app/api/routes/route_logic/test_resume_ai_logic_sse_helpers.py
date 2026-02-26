@@ -45,9 +45,9 @@ def test_create_sse_progress_message_with_html():
     """Test create_sse_progress_message handles HTML escaping."""
     result = create_sse_progress_message("<p>In progress...</p>")
     assert (
-        result == "event: progress\ndata: <li>&lt;p&gt;In progress...&lt;/p&gt;</li>\n\n"
+        result
+        == "event: progress\ndata: <li>&lt;p&gt;In progress...&lt;/p&gt;</li>\n\n"
     )
-
 
 
 def test_create_sse_error_message_error():
@@ -100,8 +100,6 @@ def test_process_sse_event_in_progress():
     assert not refined_roles
 
 
-
-
 def test_process_sse_event_role_refined_validation_fails(caplog):
     """
     Test _process_sse_event for 'role_refined' where model validation fails.
@@ -150,8 +148,10 @@ def test_process_sse_event_unknown_event(caplog):
     assert "Unhandled SSE event received" in caplog.text
 
 
-@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.create_sse_error_message")
-@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.log")
+@patch(
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic_streaming.create_sse_error_message"
+)
+@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic_streaming.log")
 def test_handle_sse_exception_invalid_token(mock_log, mock_create_sse_error):
     """Test _handle_sse_exception for InvalidToken."""
     # Arrange
@@ -170,8 +170,10 @@ def test_handle_sse_exception_invalid_token(mock_log, mock_create_sse_error):
     mock_create_sse_error.assert_called_once_with(expected_msg)
 
 
-@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.create_sse_error_message")
-@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.log")
+@patch(
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic_streaming.create_sse_error_message"
+)
+@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic_streaming.log")
 def test_handle_sse_exception_authentication_error(mock_log, mock_create_sse_error):
     """Test _handle_sse_exception for AuthenticationError."""
     # Arrange
@@ -190,8 +192,10 @@ def test_handle_sse_exception_authentication_error(mock_log, mock_create_sse_err
     mock_create_sse_error.assert_called_once_with(expected_msg)
 
 
-@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.create_sse_error_message")
-@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.log")
+@patch(
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic_streaming.create_sse_error_message"
+)
+@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic_streaming.log")
 def test_handle_sse_exception_value_error(mock_log, mock_create_sse_error):
     """Test _handle_sse_exception for ValueError."""
     # Arrange
@@ -210,8 +214,10 @@ def test_handle_sse_exception_value_error(mock_log, mock_create_sse_error):
     mock_create_sse_error.assert_called_once_with(expected_msg)
 
 
-@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.create_sse_error_message")
-@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.log")
+@patch(
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic_streaming.create_sse_error_message"
+)
+@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic_streaming.log")
 def test_handle_sse_exception_generic_exception(mock_log, mock_create_sse_error):
     """Test _handle_sse_exception for a generic Exception."""
     # Arrange
@@ -228,5 +234,3 @@ def test_handle_sse_exception_generic_exception(mock_log, mock_create_sse_error)
     log_msg = f"SSE stream error for resume {resume_id}: {expected_msg}"
     mock_log.exception.assert_called_once_with(log_msg)
     mock_create_sse_error.assert_called_once_with(expected_msg)
-
-

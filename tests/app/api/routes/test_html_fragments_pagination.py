@@ -5,6 +5,7 @@ from unittest.mock import MagicMock, Mock, patch
 import pytest
 
 from resume_editor.app.api.routes.html_fragments import (
+    GenerateResumeListHtmlParams,
     _generate_resume_list_html,
 )
 from resume_editor.app.models.resume_model import Resume as DatabaseResume, ResumeData
@@ -69,17 +70,19 @@ class TestGenerateResumeListHtmlPagination:
             mock_env.get_template.return_value = mock_template
 
             _generate_resume_list_html(
-                base_resumes=[test_resume],
-                refined_resumes=[],
-                selected_resume_id=None,
-                sort_by="name_asc",
-                week_offset=-1,
-                has_older_resumes=True,
-                has_newer_resumes=True,
-                current_filter="engineer",
-                week_start=datetime(2026, 2, 18),
-                week_end=datetime(2026, 2, 25),
-                wrap_in_div=False,
+                GenerateResumeListHtmlParams(
+                    base_resumes=[test_resume],
+                    refined_resumes=[],
+                    selected_resume_id=None,
+                    sort_by="name_asc",
+                    week_offset=-1,
+                    has_older_resumes=True,
+                    has_newer_resumes=True,
+                    current_filter="engineer",
+                    week_start=datetime(2026, 2, 18),
+                    week_end=datetime(2026, 2, 25),
+                    wrap_in_div=False,
+                )
             )
 
             call_kwargs = mock_template.render.call_args[1]
@@ -97,8 +100,10 @@ class TestGenerateResumeListHtmlPagination:
             mock_env.get_template.return_value = mock_template
 
             _generate_resume_list_html(
-                base_resumes=[test_resume],
-                refined_resumes=[],
+                GenerateResumeListHtmlParams(
+                    base_resumes=[test_resume],
+                    refined_resumes=[],
+                )
             )
 
             call_kwargs = mock_template.render.call_args[1]
@@ -117,10 +122,12 @@ class TestGenerateResumeListHtmlPagination:
             mock_env.get_template.return_value = mock_template
 
             result = _generate_resume_list_html(
-                base_resumes=[test_resume],
-                refined_resumes=[],
-                week_offset=-2,
-                wrap_in_div=True,
+                GenerateResumeListHtmlParams(
+                    base_resumes=[test_resume],
+                    refined_resumes=[],
+                    week_offset=-2,
+                    wrap_in_div=True,
+                )
             )
 
             assert result == '<div id="resume-list"><div>content</div></div>'
@@ -132,10 +139,12 @@ class TestGenerateResumeListHtmlPagination:
             mock_env.get_template.return_value = mock_template
 
             _generate_resume_list_html(
-                base_resumes=[test_resume],
-                refined_resumes=[],
-                sort_by="created_at_desc",
-                week_offset=0,
+                GenerateResumeListHtmlParams(
+                    base_resumes=[test_resume],
+                    refined_resumes=[],
+                    sort_by="created_at_desc",
+                    week_offset=0,
+                )
             )
 
             call_kwargs = mock_template.render.call_args[1]

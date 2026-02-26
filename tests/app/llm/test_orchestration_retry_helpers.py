@@ -110,7 +110,7 @@ class TestLogFailedAttempt:
         analysis.model_dump_json.return_value = '{"key": "value"}'
         return analysis
 
-    @patch("resume_editor.app.llm.orchestration.log")
+    @patch("resume_editor.app.llm.orchestration_refinement.log")
     def test_logs_at_debug_level(self, mock_log, mock_role, mock_job_analysis):
         """Test that function logs at DEBUG level."""
         error = json.JSONDecodeError("test", "doc", 0)
@@ -123,7 +123,7 @@ class TestLogFailedAttempt:
         )
         mock_log.debug.assert_called_once()
 
-    @patch("resume_editor.app.llm.orchestration.log")
+    @patch("resume_editor.app.llm.orchestration_refinement.log")
     def test_log_includes_role_context(self, mock_log, mock_role, mock_job_analysis):
         """Test that log includes role context (company, title, original_index)."""
         error = json.JSONDecodeError("test", "doc", 0)
@@ -139,7 +139,7 @@ class TestLogFailedAttempt:
         assert "Software Engineer" in call_args
         assert "attempt 2" in call_args
 
-    @patch("resume_editor.app.llm.orchestration.log")
+    @patch("resume_editor.app.llm.orchestration_refinement.log")
     def test_log_includes_truncated_response(
         self, mock_log, mock_role, mock_job_analysis
     ):
@@ -156,7 +156,7 @@ class TestLogFailedAttempt:
         call_args = mock_log.debug.call_args[0][0]
         assert "..." in call_args  # Should be truncated
 
-    @patch("resume_editor.app.llm.orchestration.log")
+    @patch("resume_editor.app.llm.orchestration_refinement.log")
     def test_log_includes_error_type(self, mock_log, mock_role, mock_job_analysis):
         """Test that log includes error type."""
         error = json.JSONDecodeError("test", "doc", 0)
@@ -170,7 +170,7 @@ class TestLogFailedAttempt:
         call_args = mock_log.debug.call_args[0][0]
         assert "JSONDecodeError" in call_args
 
-    @patch("resume_editor.app.llm.orchestration.log")
+    @patch("resume_editor.app.llm.orchestration_refinement.log")
     def test_no_f_strings_in_log_call(self, mock_log, mock_role, mock_job_analysis):
         """Test that log is called without f-strings (per CONVENTIONS.md)."""
         error = json.JSONDecodeError("test", "doc", 0)

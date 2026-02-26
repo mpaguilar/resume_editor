@@ -19,9 +19,11 @@ from resume_editor.app.models.resume_model import (
 )
 
 
-@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.create_resume_db")
 @patch(
-    "resume_editor.app.api.routes.route_logic.resume_ai_logic.perform_pre_save_validation"
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic_helpers.create_resume_db"
+)
+@patch(
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic_helpers.perform_pre_save_validation"
 )
 def test_handle_save_as_new_refinement_success(
     mock_validate,
@@ -77,9 +79,11 @@ def test_handle_save_as_new_refinement_success(
     mock_create.assert_called_once_with(db=db, params=expected_create_params)
 
 
-@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.create_resume_db")
 @patch(
-    "resume_editor.app.api.routes.route_logic.resume_ai_logic.perform_pre_save_validation"
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic_helpers.create_resume_db"
+)
+@patch(
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic_helpers.perform_pre_save_validation"
 )
 def test_handle_save_as_new_refinement_failure_on_validation(
     mock_validate,

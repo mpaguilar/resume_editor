@@ -292,6 +292,47 @@ class VisaStatus(BaseModel):
             raise ValueError("work_authorization must not be empty")
         return v.strip()
 
+    @staticmethod
+    def _parse_sponsorship_string(value: str) -> bool:
+        """Parse a sponsorship string value to boolean.
+
+        Args:
+            value: The string value to parse ("yes" or "no").
+
+        Returns:
+            bool: True for "yes", False for "no".
+
+        Raises:
+            ValueError: If the string is not 'yes' or 'no'.
+
+        """
+        lowered = value.lower()
+        if lowered == "yes":
+            return True
+        if lowered == "no":
+            return False
+        raise ValueError("require_sponsorship string must be 'yes' or 'no'")
+
+    @staticmethod
+    def _normalize_sponsorship_value(value: bool | str | None) -> bool | None:
+        """Normalize sponsorship value to boolean or None.
+
+        Args:
+            value: The value to normalize. Can be bool, "yes"/"no" string, or None.
+
+        Returns:
+            bool | None: Normalized boolean value or None.
+
+        Raises:
+            ValueError: If string is not 'yes' or 'no', or if type is invalid.
+
+        """
+        if value is None or isinstance(value, bool):
+            return value
+        if isinstance(value, str):
+            return VisaStatus._parse_sponsorship_string(value)
+        raise ValueError("require_sponsorship must be a boolean, string, or None")
+
     @field_validator("require_sponsorship", mode="before")
     @classmethod
     def validate_require_sponsorship(cls, v: bool | str | None):
@@ -307,24 +348,11 @@ class VisaStatus(BaseModel):
             ValueError: If the require_sponsorship is not a boolean, string, or None, or if the string is not "yes" or "no".
 
         Notes:
-            1. Ensure require_sponsorship is a boolean, string ("yes"/"no"), or None.
-            2. If require_sponsorship is a string, convert "yes" to True and "no" to False.
-            3. If require_sponsorship is not None and not a string, assign it directly.
-            4. Otherwise, set require_sponsorship to None.
+            1. Normalize the sponsorship value using _normalize_sponsorship_value.
+            2. Return the normalized value.
 
         """
-        if v is None:
-            return v
-        if isinstance(v, bool):
-            return v
-        if isinstance(v, str):
-            if v.lower() == "yes":
-                return True
-            elif v.lower() == "no":
-                return False
-            else:
-                raise ValueError("require_sponsorship string must be 'yes' or 'no'")
-        raise ValueError("require_sponsorship must be a boolean, string, or None")
+        return cls._normalize_sponsorship_value(v)
 
 
 class Banner(BaseModel):

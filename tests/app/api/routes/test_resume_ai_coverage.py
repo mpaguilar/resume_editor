@@ -59,10 +59,10 @@ class TestCalculateEducationRelevanceThemeMatching:
 class TestInvokeBannerGenerationChainSuccess:
     """Tests for _invoke_banner_generation_chain success path - covers lines 1418-1423."""
 
-    @patch("resume_editor.app.llm.orchestration.GeneratedBanner")
-    @patch("resume_editor.app.llm.orchestration.ChatPromptTemplate")
-    @patch("resume_editor.app.llm.orchestration.StrOutputParser")
-    @patch("resume_editor.app.llm.orchestration._parse_json_with_fix")
+    @patch("resume_editor.app.llm.orchestration_banner.GeneratedBanner")
+    @patch("resume_editor.app.llm.orchestration_banner.ChatPromptTemplate")
+    @patch("langchain_core.output_parsers.StrOutputParser")
+    @patch("resume_editor.app.llm.orchestration_banner.parse_json_markdown")
     def test_invoke_banner_chain_successful_parse_and_validate(
         self,
         mock_parse_json,
@@ -71,7 +71,7 @@ class TestInvokeBannerGenerationChainSuccess:
         mock_banner_model,
     ):
         """Test successful banner generation covering lines 1418-1423."""
-        from resume_editor.app.llm.orchestration import (
+        from resume_editor.app.llm.orchestration_banner import (
             _invoke_banner_generation_chain,
         )
 
@@ -126,7 +126,7 @@ class TestRefineRoleAndPutOnQueueProgressCallback:
     """Tests for progress callback in _refine_role_and_put_on_queue - covers line 293."""
 
     @pytest.mark.asyncio
-    @patch("resume_editor.app.llm.orchestration.refine_role")
+    @patch("resume_editor.app.llm.orchestration_refinement.refine_role")
     async def test_progress_callback_called_during_role_refinement(
         self, mock_refine_role
     ):
@@ -134,7 +134,9 @@ class TestRefineRoleAndPutOnQueueProgressCallback:
         import asyncio
 
         from resume_editor.app.llm.models import LLMConfig, RoleRefinementJob
-        from resume_editor.app.llm.orchestration import _refine_role_and_put_on_queue
+        from resume_editor.app.llm.orchestration_refinement import (
+            _refine_role_and_put_on_queue,
+        )
         from resume_editor.app.models.resume.experience import (
             Role,
             RoleBasics,

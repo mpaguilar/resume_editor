@@ -32,9 +32,9 @@ class MockSaveAsNewForm:
 
 
 class TestHandleSaveAsNewRefinement:
-    @patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.create_resume_db")
+    @patch("resume_editor.app.api.routes.route_logic.resume_ai_logic_helpers.create_resume_db")
     @patch(
-        "resume_editor.app.api.routes.route_logic.resume_ai_logic.perform_pre_save_validation"
+        "resume_editor.app.api.routes.route_logic.resume_ai_logic_helpers.perform_pre_save_validation"
     )
     def test_saves_company_and_notes(self, mock_validate, mock_create_resume):
         mock_validate.return_value = Mock(is_valid=True, errors={})
@@ -69,7 +69,7 @@ class TestHandleSaveAsNewRefinement:
         assert create_params.notes == "Notes here"
 
     @patch(
-        "resume_editor.app.api.routes.route_logic.resume_ai_logic.perform_pre_save_validation"
+        "resume_editor.app.api.routes.route_logic.resume_ai_logic_helpers.perform_pre_save_validation"
     )
     def test_validation_failure_raises_exception(self, mock_validate):
         from fastapi import HTTPException

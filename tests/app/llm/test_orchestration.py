@@ -64,7 +64,7 @@ class _TestModel(BaseModel):
     number: int
 
 
-@patch("resume_editor.app.llm.orchestration._parse_json_with_fix")
+@patch("resume_editor.app.llm.orchestration_banner._parse_json_with_fix")
 def test_invoke_chain_and_parse_success(mock_parse_json_with_fix):
     """Test _invoke_chain_and_parse successfully parses and validates."""
     mock_chain = MagicMock()
@@ -80,7 +80,7 @@ def test_invoke_chain_and_parse_success(mock_parse_json_with_fix):
     assert result.number == 123
 
 
-@patch("resume_editor.app.llm.orchestration._parse_json_with_fix")
+@patch("resume_editor.app.llm.orchestration_banner._parse_json_with_fix")
 def test_invoke_chain_and_parse_parse_failure(mock_parse_json_with_fix):
     """Test _invoke_chain_and_parse raises ValueError on JSONDecodeError."""
     mock_chain = MagicMock()
@@ -95,7 +95,7 @@ def test_invoke_chain_and_parse_parse_failure(mock_parse_json_with_fix):
     mock_parse_json_with_fix.assert_called_once_with("invalid json")
 
 
-@patch("resume_editor.app.llm.orchestration._parse_json_with_fix")
+@patch("resume_editor.app.llm.orchestration_banner._parse_json_with_fix")
 def test_invoke_chain_and_parse_validation_failure(mock_parse_json_with_fix):
     """Test _invoke_chain_and_parse raises ValueError on ValidationError."""
     mock_chain = MagicMock()
@@ -146,9 +146,9 @@ def sample_llm_config():
 
 
 @pytest.mark.asyncio
-@patch("resume_editor.app.llm.orchestration._parse_json_with_fix")
-@patch("resume_editor.app.llm.orchestration._initialize_llm_client")
-@patch("resume_editor.app.llm.orchestration.ChatPromptTemplate")
+@patch("resume_editor.app.llm.orchestration_refinement.parse_json_markdown")
+@patch("resume_editor.app.llm.orchestration_refinement.initialize_llm_client")
+@patch("resume_editor.app.llm.orchestration_refinement.ChatPromptTemplate")
 async def test_refine_role_success(
     mock_prompt_template,
     mock_init_llm,
@@ -192,9 +192,9 @@ async def test_refine_role_success(
 
 
 @pytest.mark.asyncio
-@patch("resume_editor.app.llm.orchestration._parse_json_with_fix")
-@patch("resume_editor.app.llm.orchestration._initialize_llm_client")
-@patch("resume_editor.app.llm.orchestration.ChatPromptTemplate")
+@patch("resume_editor.app.llm.orchestration_refinement.parse_json_markdown")
+@patch("resume_editor.app.llm.orchestration_refinement.initialize_llm_client")
+@patch("resume_editor.app.llm.orchestration_refinement.ChatPromptTemplate")
 async def test_refine_role_parse_failure(
     mock_prompt_template,
     mock_init_llm,

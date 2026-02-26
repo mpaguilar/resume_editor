@@ -87,5 +87,22 @@ These are known mappings:
 - `resume_editor/app/api/routes/resume.py` -> `tests/app/api/routes/test_pagination_date_arithmetic.py`
 - `resume_editor/app/api/routes/resume.py` -> `tests/app/api/routes/test_resume_navigation_integration.py`
 
+## Orchestration Module Mappings
+- `resume_editor/app/llm/orchestration_client.py` -> `tests/app/llm/test_orchestration_client.py`
+- `resume_editor/app/llm/orchestration_models.py` -> `tests/app/llm/test_orchestration_models.py`
+- `resume_editor/app/llm/orchestration_analysis.py` -> `tests/app/llm/test_orchestration_analysis.py`
+- `resume_editor/app/llm/orchestration_refinement.py` -> `tests/app/llm/test_orchestration_refinement.py`
+- `resume_editor/app/llm/orchestration_banner.py` -> `tests/app/llm/test_orchestration_banner.py`
+- `resume_editor/app/llm/orchestration.py` -> (exports only, tested via sub-modules)
+
+## Resume AI Logic Module Mappings
+- `resume_editor/app/api/routes/route_logic/resume_ai_logic_params.py` -> `tests/app/api/routes/route_logic/test_resume_ai_logic_params.py`
+- `resume_editor/app/api/routes/route_logic/resume_ai_logic_sse.py` -> `tests/app/api/routes/route_logic/test_resume_ai_logic_sse.py`
+- `resume_editor/app/api/routes/route_logic/resume_ai_logic_extraction.py` -> `tests/app/api/routes/route_logic/test_resume_ai_logic_extraction.py`
+- `resume_editor/app/api/routes/route_logic/resume_ai_logic_reconstruction.py` -> `tests/app/api/routes/route_logic/test_resume_ai_logic_reconstruction.py`
+- `resume_editor/app/api/routes/route_logic/resume_ai_logic_streaming.py` -> `tests/app/api/routes/route_logic/test_resume_ai_logic_streaming.py`
+- `resume_editor/app/api/routes/route_logic/resume_ai_logic_helpers.py` -> `tests/app/api/routes/route_logic/test_resume_ai_logic_helpers.py`
+- `resume_editor/app/api/routes/route_logic/resume_ai_logic.py` -> (exports only, tested via sub-modules)
+
 Note:
 - In `resume_editor/app/api/routes/resume_ai.py`, the internal helper `_experience_refinement_stream` now receives a single `_ExperienceStreamParams` instance. Tests that patch this helper should assert the object's field values.

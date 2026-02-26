@@ -40,7 +40,11 @@ LLM_INIT_PARAMS = [
         None,
         "key",
         "custom-model",
-        {"model": "custom-model", "temperature": DEFAULT_LLM_TEMPERATURE, "api_key": "key"},
+        {
+            "model": "custom-model",
+            "temperature": DEFAULT_LLM_TEMPERATURE,
+            "api_key": "key",
+        },
     ),
     # Case 4: No endpoint, no API key (relies on env var)
     (
@@ -106,14 +110,15 @@ def mock_chain_invocations_for_analysis():
     """
     Fixture to mock the LangChain chain invocation for job analysis.
     """
-    with patch(
-        "resume_editor.app.llm.orchestration.ChatOpenAI"
-    ) as mock_chat_openai_class, patch(
-        "resume_editor.app.llm.orchestration.ChatPromptTemplate"
-    ) as mock_prompt_template_class, patch(
-        "resume_editor.app.llm.orchestration.PydanticOutputParser"
-    ), patch(
-        "resume_editor.app.llm.orchestration.StrOutputParser"
+    with (
+        patch(
+            "resume_editor.app.llm.orchestration_analysis.initialize_llm_client"
+        ) as mock_init_llm,
+        patch(
+            "resume_editor.app.llm.orchestration_analysis.ChatPromptTemplate"
+        ) as mock_prompt_template_class,
+        patch("resume_editor.app.llm.orchestration_analysis.PydanticOutputParser"),
+        patch("langchain_core.output_parsers.StrOutputParser"),
     ):
         mock_prompt_from_messages = MagicMock()
         mock_prompt_template_class.from_messages.return_value = (
@@ -136,7 +141,7 @@ def mock_chain_invocations_for_analysis():
         )
 
         yield {
-            "chat_openai": mock_chat_openai_class,
+            "init_llm": mock_init_llm,
             "final_chain": final_chain,
             "prompt_template": mock_prompt_template_class,
             "prompt_from_messages": mock_prompt_from_messages,
@@ -165,29 +170,41 @@ async def test_analyze_job_description(mock_chain_invocations_for_analysis):
     assert "some resume content" in invoke_args["resume_content_block"]
 
 
-@pytest.mark.parametrize("llm_endpoint, api_key, llm_model_name, expected_call_args", LLM_INIT_PARAMS)
+@pytest.mark.parametrize(
+    "llm_endpoint, api_key, llm_model_name",
+    [
+        ("http://fake.llm", "key", "custom-model"),
+        ("http://fake.llm", None, "custom-model"),
+        (None, "key", "custom-model"),
+        (None, None, "custom-model"),
+        ("http://fake.llm", "key", None),
+        ("http://fake.llm", "key", ""),
+        ("https://openrouter.ai/api/v1", "or-key", "openrouter/model"),
+        ("http://another.llm", None, "another-model"),
+    ],
+)
 @pytest.mark.asyncio
 async def test_analyze_job_description_llm_initialization(
     mock_chain_invocations_for_analysis,
     llm_endpoint,
     api_key,
     llm_model_name,
-    expected_call_args,
 ):
     """
-    Test that ChatOpenAI is initialized with the correct parameters for analysis.
+    Test that initialize_llm_client is called with the correct LLMConfig for analysis.
     """
+    llm_config = LLMConfig(
+        llm_endpoint=llm_endpoint,
+        api_key=api_key,
+        llm_model_name=llm_model_name,
+    )
     await analyze_job_description(
         job_description="some job description",
-        llm_config=LLMConfig(
-            llm_endpoint=llm_endpoint,
-            api_key=api_key,
-            llm_model_name=llm_model_name,
-        ),
+        llm_config=llm_config,
         resume_content_for_context="some resume content",
     )
-    mock_chat_openai = mock_chain_invocations_for_analysis["chat_openai"]
-    mock_chat_openai.assert_called_once_with(**expected_call_args)
+    mock_init_llm = mock_chain_invocations_for_analysis["init_llm"]
+    mock_init_llm.assert_called_once_with(llm_config)
 
 
 @pytest.mark.asyncio
@@ -195,14 +212,11 @@ async def test_analyze_job_description_json_decode_error(
     mock_chain_invocations_for_analysis,
 ):
     """
-    Test that a JSONDecodeError from the LLM call is handled gracefully in analysis.
+    Test that a JSONDecodeError from parsing the LLM response is handled gracefully in analysis.
     """
-    import json
-
     final_chain = mock_chain_invocations_for_analysis["final_chain"]
-    final_chain.ainvoke.side_effect = json.JSONDecodeError(
-        "Expecting value", "invalid json", 0
-    )
+    # Return invalid JSON that will cause JSONDecodeError during parsing
+    final_chain.ainvoke.return_value = "```json\n{ invalid json }\n```"
 
     with pytest.raises(
         ValueError,

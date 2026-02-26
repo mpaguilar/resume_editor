@@ -30,8 +30,15 @@ resume_editor/app/api/routes/
 ├── route_models.py        # Pydantic models and form classes
 └── route_logic/           # Business logic modules
     ├── resume_crud.py
-    ├── resume_ai_logic.py
+    ├── resume_ai_logic.py               # Main exports for AI logic
+    ├── resume_ai_logic_params.py        # Parameter dataclasses
+    ├── resume_ai_logic_sse.py           # SSE message helpers
+    ├── resume_ai_logic_helpers.py       # HTML generation helpers
+    ├── resume_ai_logic_extraction.py    # Section extraction
+    ├── resume_ai_logic_reconstruction.py  # Resume reconstruction
+    ├── resume_ai_logic_streaming.py     # Stream event handlers
     ├── resume_serialization.py
+    ├── resume_serialization_helpers.py
     ├── user_crud.py
     └── ...
 ```
@@ -194,7 +201,7 @@ async def update_resume(
 ## SSE (Server-Sent Events) Patterns
 
 ### Helper Functions
-Located in `route_logic/resume_ai_logic.py`:
+Located in `route_logic/resume_ai_logic_sse.py`:
 - `create_sse_message(event, data)` - Format SSE message
 - `create_sse_progress_message(message)` - Progress updates
 - `create_sse_error_message(message)` - Error notifications
@@ -388,7 +395,7 @@ The refinement process includes an **automatic retry mechanism** for transient L
 - Debug logging captures truncated LLM responses (first 500 chars) for troubleshooting
 
 **Implementation:**
-- Located in `refine_role()` in `resume_editor/app/llm/orchestration.py`
+- Located in `refine_role()` in `resume_editor/app/llm/orchestration_refinement.py`
 - Helper functions: `_is_retryable_error()`, `_handle_retry_delay()`, `_log_failed_attempt()`
 - Progress callbacks via `progress_callback` parameter for SSE updates
 
@@ -482,12 +489,31 @@ The dashboard (`/dashboard`) supports weekly date-based pagination and text filt
 - Empty states show context-aware messages
 - Sorting applies to current view (week or filtered results)
 
+### LLM Orchestration Module Structure
+
+The LLM orchestration layer has been modularized into focused modules:
+
+```
+resume_editor/app/llm/
+├── orchestration.py              # Main exports and coordination
+├── orchestration_client.py       # LLM client initialization
+├── orchestration_models.py       # Shared dataclasses (RefinementState, GeneratedBanner)
+├── orchestration_analysis.py     # Job description analysis
+├── orchestration_refinement.py   # Role refinement with retry logic
+└── orchestration_banner.py       # Banner generation with cross-section evidence
+```
+
 ### Key Files for AI Refinement
 
 ```
 resume_editor/app/api/routes/resume_ai.py              # SSE endpoints
-resume_editor/app/api/routes/route_logic/resume_ai_logic.py  # Core refinement logic
-resume_editor/app/llm/orchestration.py                 # LLM calls and concurrency
+resume_editor/app/api/routes/route_logic/resume_ai_logic.py  # Main exports for AI logic
+resume_editor/app/api/routes/route_logic/resume_ai_logic_streaming.py  # SSE streaming
+resume_editor/app/llm/orchestration.py                 # Main exports for orchestration
+resume_editor/app/llm/orchestration_client.py          # LLM client initialization
+resume_editor/app/llm/orchestration_analysis.py        # Job analysis
+resume_editor/app/llm/orchestration_refinement.py      # Role refinement with retry logic
+resume_editor/app/llm/orchestration_banner.py          # Banner generation
 resume_editor/app/templates/refine.html               # Refine page UI
 resume_editor/app/templates/partials/resume/_refine_sse_loader.html  # SSE progress UI
 resume_editor/app/templates/partials/resume/_refine_result.html      # Final result UI

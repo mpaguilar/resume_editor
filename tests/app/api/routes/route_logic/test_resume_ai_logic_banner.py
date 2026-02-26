@@ -73,19 +73,19 @@ class TestStreamFinalEventsWithRunningLog:
     """Tests for _stream_final_events with running_log parameter."""
 
     @patch(
-        "resume_editor.app.api.routes.route_logic.resume_ai_logic.generate_banner_from_running_log"
+        "resume_editor.app.api.routes.route_logic.resume_ai_logic_streaming.generate_banner_from_running_log"
     )
     @patch(
-        "resume_editor.app.api.routes.route_logic.resume_ai_logic._reconstruct_refined_resume_content"
+        "resume_editor.app.api.routes.route_logic.resume_ai_logic_streaming._reconstruct_refined_resume_content"
     )
     @patch(
-        "resume_editor.app.api.routes.route_logic.resume_ai_logic.extract_banner_text"
+        "resume_editor.app.api.routes.route_logic.resume_ai_logic_streaming.extract_banner_text"
     )
     @patch(
-        "resume_editor.app.api.routes.route_logic.resume_ai_logic.reconstruct_resume_with_new_introduction"
+        "resume_editor.app.api.routes.route_logic.resume_ai_logic_streaming.reconstruct_resume_with_new_introduction"
     )
     @patch(
-        "resume_editor.app.api.routes.route_logic.resume_ai_logic.process_refined_experience_result"
+        "resume_editor.app.api.routes.route_logic.resume_ai_logic_streaming.process_refined_experience_result"
     )
     async def test_uses_banner_from_running_log_when_available(
         self,
@@ -129,29 +129,27 @@ class TestStreamFinalEventsWithRunningLog:
         mock_generate_banner.assert_called_once()
         call_kwargs = mock_generate_banner.call_args.kwargs
         assert call_kwargs["running_log"] == running_log_fixture
-        assert (
-            call_kwargs["original_resume_content"]
-            == mock_params.original_resume_content
-        )
+        # The reconstructed resume content is passed, not the original
+        assert call_kwargs["original_resume_content"] == "# Refined Resume"
         assert call_kwargs["llm_config"] == llm_config_fixture
 
     @patch(
-        "resume_editor.app.api.routes.route_logic.resume_ai_logic.generate_introduction_from_resume"
+        "resume_editor.app.api.routes.route_logic.resume_ai_logic_streaming.generate_introduction_from_resume"
     )
     @patch(
-        "resume_editor.app.api.routes.route_logic.resume_ai_logic.generate_banner_from_running_log"
+        "resume_editor.app.api.routes.route_logic.resume_ai_logic_streaming.generate_banner_from_running_log"
     )
     @patch(
-        "resume_editor.app.api.routes.route_logic.resume_ai_logic._reconstruct_refined_resume_content"
+        "resume_editor.app.api.routes.route_logic.resume_ai_logic_streaming._reconstruct_refined_resume_content"
     )
     @patch(
-        "resume_editor.app.api.routes.route_logic.resume_ai_logic.extract_banner_text"
+        "resume_editor.app.api.routes.route_logic.resume_ai_logic_streaming.extract_banner_text"
     )
     @patch(
-        "resume_editor.app.api.routes.route_logic.resume_ai_logic.reconstruct_resume_with_new_introduction"
+        "resume_editor.app.api.routes.route_logic.resume_ai_logic_streaming.reconstruct_resume_with_new_introduction"
     )
     @patch(
-        "resume_editor.app.api.routes.route_logic.resume_ai_logic.process_refined_experience_result"
+        "resume_editor.app.api.routes.route_logic.resume_ai_logic_streaming.process_refined_experience_result"
     )
     async def test_falls_back_to_legacy_when_banner_generation_fails(
         self,
@@ -198,19 +196,19 @@ class TestStreamFinalEventsWithRunningLog:
         mock_generate_intro.assert_called_once()
 
     @patch(
-        "resume_editor.app.api.routes.route_logic.resume_ai_logic.generate_introduction_from_resume"
+        "resume_editor.app.api.routes.route_logic.resume_ai_logic_streaming.generate_introduction_from_resume"
     )
     @patch(
-        "resume_editor.app.api.routes.route_logic.resume_ai_logic._reconstruct_refined_resume_content"
+        "resume_editor.app.api.routes.route_logic.resume_ai_logic_streaming._reconstruct_refined_resume_content"
     )
     @patch(
-        "resume_editor.app.api.routes.route_logic.resume_ai_logic.extract_banner_text"
+        "resume_editor.app.api.routes.route_logic.resume_ai_logic_streaming.extract_banner_text"
     )
     @patch(
-        "resume_editor.app.api.routes.route_logic.resume_ai_logic.reconstruct_resume_with_new_introduction"
+        "resume_editor.app.api.routes.route_logic.resume_ai_logic_streaming.reconstruct_resume_with_new_introduction"
     )
     @patch(
-        "resume_editor.app.api.routes.route_logic.resume_ai_logic.process_refined_experience_result"
+        "resume_editor.app.api.routes.route_logic.resume_ai_logic_streaming.process_refined_experience_result"
     )
     async def test_uses_legacy_when_no_running_log(
         self,
@@ -254,22 +252,22 @@ class TestStreamFinalEventsWithRunningLog:
         # Banner generation from running log should not be called
 
     @patch(
-        "resume_editor.app.api.routes.route_logic.resume_ai_logic.generate_introduction_from_resume"
+        "resume_editor.app.api.routes.route_logic.resume_ai_logic_streaming.generate_introduction_from_resume"
     )
     @patch(
-        "resume_editor.app.api.routes.route_logic.resume_ai_logic.generate_banner_from_running_log"
+        "resume_editor.app.api.routes.route_logic.resume_ai_logic_streaming.generate_banner_from_running_log"
     )
     @patch(
-        "resume_editor.app.api.routes.route_logic.resume_ai_logic._reconstruct_refined_resume_content"
+        "resume_editor.app.api.routes.route_logic.resume_ai_logic_streaming._reconstruct_refined_resume_content"
     )
     @patch(
-        "resume_editor.app.api.routes.route_logic.resume_ai_logic.extract_banner_text"
+        "resume_editor.app.api.routes.route_logic.resume_ai_logic_streaming.extract_banner_text"
     )
     @patch(
-        "resume_editor.app.api.routes.route_logic.resume_ai_logic.reconstruct_resume_with_new_introduction"
+        "resume_editor.app.api.routes.route_logic.resume_ai_logic_streaming.reconstruct_resume_with_new_introduction"
     )
     @patch(
-        "resume_editor.app.api.routes.route_logic.resume_ai_logic.process_refined_experience_result"
+        "resume_editor.app.api.routes.route_logic.resume_ai_logic_streaming.process_refined_experience_result"
     )
     async def test_running_log_without_refined_roles_uses_legacy(
         self,
@@ -321,22 +319,22 @@ class TestStreamFinalEventsWithRunningLog:
         mock_generate_intro.assert_called_once()
 
     @patch(
-        "resume_editor.app.api.routes.route_logic.resume_ai_logic.generate_introduction_from_resume"
+        "resume_editor.app.api.routes.route_logic.resume_ai_logic_streaming.generate_introduction_from_resume"
     )
     @patch(
-        "resume_editor.app.api.routes.route_logic.resume_ai_logic.generate_banner_from_running_log"
+        "resume_editor.app.api.routes.route_logic.resume_ai_logic_streaming.generate_banner_from_running_log"
     )
     @patch(
-        "resume_editor.app.api.routes.route_logic.resume_ai_logic._reconstruct_refined_resume_content"
+        "resume_editor.app.api.routes.route_logic.resume_ai_logic_streaming._reconstruct_refined_resume_content"
     )
     @patch(
-        "resume_editor.app.api.routes.route_logic.resume_ai_logic.extract_banner_text"
+        "resume_editor.app.api.routes.route_logic.resume_ai_logic_streaming.extract_banner_text"
     )
     @patch(
-        "resume_editor.app.api.routes.route_logic.resume_ai_logic.reconstruct_resume_with_new_introduction"
+        "resume_editor.app.api.routes.route_logic.resume_ai_logic_streaming.reconstruct_resume_with_new_introduction"
     )
     @patch(
-        "resume_editor.app.api.routes.route_logic.resume_ai_logic.process_refined_experience_result"
+        "resume_editor.app.api.routes.route_logic.resume_ai_logic_streaming.process_refined_experience_result"
     )
     async def test_falls_back_to_legacy_when_banner_generation_raises_exception(
         self,
@@ -388,25 +386,25 @@ class TestStreamFinalEventsBannerIntegration:
     """Integration-style tests for banner generation in _stream_final_events."""
 
     @patch(
-        "resume_editor.app.api.routes.route_logic.resume_ai_logic.generate_banner_from_running_log"
+        "resume_editor.app.api.routes.route_logic.resume_ai_logic_streaming.generate_banner_from_running_log"
     )
     @patch(
-        "resume_editor.app.api.routes.route_logic.resume_ai_logic._reconstruct_refined_resume_content"
+        "resume_editor.app.api.routes.route_logic.resume_ai_logic_streaming._reconstruct_refined_resume_content"
     )
     @patch(
-        "resume_editor.app.api.routes.route_logic.resume_ai_logic.extract_banner_text"
+        "resume_editor.app.api.routes.route_logic.resume_ai_logic_streaming.extract_banner_text"
     )
     @patch(
-        "resume_editor.app.api.routes.route_logic.resume_ai_logic.reconstruct_resume_with_new_introduction"
+        "resume_editor.app.api.routes.route_logic.resume_ai_logic_streaming.reconstruct_resume_with_new_introduction"
     )
     @patch(
-        "resume_editor.app.api.routes.route_logic.resume_ai_logic.process_refined_experience_result"
+        "resume_editor.app.api.routes.route_logic.resume_ai_logic_streaming.process_refined_experience_result"
     )
     @patch(
-        "resume_editor.app.api.routes.route_logic.resume_ai_logic.create_sse_done_message"
+        "resume_editor.app.api.routes.route_logic.resume_ai_logic_streaming.create_sse_done_message"
     )
     @patch(
-        "resume_editor.app.api.routes.route_logic.resume_ai_logic.create_sse_progress_message"
+        "resume_editor.app.api.routes.route_logic.resume_ai_logic_streaming.create_sse_progress_message"
     )
     async def test_yields_progress_message(
         self,

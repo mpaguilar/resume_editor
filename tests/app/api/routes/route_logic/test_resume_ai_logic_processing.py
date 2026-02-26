@@ -35,7 +35,7 @@ def mock_resume() -> DatabaseResume:
 
 
 @patch(
-    "resume_editor.app.api.routes.route_logic.resume_ai_logic._create_refine_result_html"
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic_helpers._create_refine_result_html"
 )
 def test_process_refined_experience_result(
     mock_create_html: MagicMock, mock_resume: DatabaseResume
@@ -68,11 +68,13 @@ def test_process_refined_experience_result(
 
 
 @patch(
-    "resume_editor.app.api.routes.route_logic.resume_ai_logic.serialize_experience_to_markdown"
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic_reconstruction.serialize_experience_to_markdown"
 )
-@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic._extract_raw_section")
 @patch(
-    "resume_editor.app.api.routes.route_logic.resume_ai_logic.extract_experience_info"
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic_reconstruction._extract_raw_section"
+)
+@patch(
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic_reconstruction.extract_experience_info"
 )
 def test_reconstruct_refined_resume_content(
     mock_extract_experience: MagicMock,
@@ -198,11 +200,13 @@ Company: Old Co
 
 
 @patch(
-    "resume_editor.app.api.routes.route_logic.resume_ai_logic.serialize_experience_to_markdown"
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic_reconstruction.serialize_experience_to_markdown"
 )
-@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic._extract_raw_section")
 @patch(
-    "resume_editor.app.api.routes.route_logic.resume_ai_logic.extract_experience_info"
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic_extraction._extract_raw_section"
+)
+@patch(
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic_reconstruction.extract_experience_info"
 )
 def test_reconstruct_refined_resume_content_out_of_bounds_index(
     mock_extract_experience: MagicMock,
@@ -224,7 +228,9 @@ def test_reconstruct_refined_resume_content_out_of_bounds_index(
         roles=[
             Role(
                 basics=RoleBasics(
-                    company="Original Co", title="Original Role", start_date=date(2022, 1, 1)
+                    company="Original Co",
+                    title="Original Role",
+                    start_date=date(2022, 1, 1),
                 )
             )
         ],
@@ -291,9 +297,9 @@ Issuer: AWS
 (ID: 12345-ABC)
 Issued: 2023-01-01
 """
-    
+
     extracted = _extract_raw_section(resume_content, "certifications")
-    
+
     # Verify content matches
     assert extracted.strip() == expected_certifications.strip()
     # Verify specific formatting is preserved
@@ -318,9 +324,9 @@ It has multiple lines.
 GitHub: https://github.com/johndoe
 """
     new_intro = "New banner text."
-    
+
     updated = _update_banner_in_raw_personal(raw_personal, new_intro)
-    
+
     assert "Name: John Doe" in updated
     assert "Email: john@example.com" in updated
     assert "GitHub: https://github.com/johndoe" in updated
@@ -339,9 +345,9 @@ def test_update_banner_in_raw_personal_appends_new():
 Name: Jane Doe
 """
     new_intro = "This is a new banner."
-    
+
     updated = _update_banner_in_raw_personal(raw_personal, new_intro)
-    
+
     assert "Name: Jane Doe" in updated
     assert "## Banner" in updated
     assert "This is a new banner." in updated
@@ -400,5 +406,3 @@ def test_update_banner_in_raw_personal_append_with_trailing_newline():
     # Should not add an extra blank line before ## Banner because one exists
     # Expected: "# Personal\nName: Me\n\n## Banner\n\nIntro\n"
     assert result == "# Personal\nName: Me\n\n## Banner\n\nIntro\n"
-
-

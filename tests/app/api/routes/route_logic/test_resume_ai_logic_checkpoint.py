@@ -168,9 +168,11 @@ class TestCreateRefinedRoleRecord:
 
 @pytest.mark.asyncio
 @patch(
-    "resume_editor.app.api.routes.route_logic.resume_ai_logic.async_refine_experience_section"
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic_streaming.async_refine_experience_section"
 )
-@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.get_llm_config")
+@patch(
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic_streaming.get_llm_config"
+)
 async def test_stream_llm_events_with_running_log(
     mock_get_llm_config,
     mock_async_refine,
@@ -212,19 +214,25 @@ async def test_stream_llm_events_with_running_log(
     ):
         results.append(msg)
 
-    # Verify that async_refine_experience_section was called with job_analysis and skip_indices
+    # Verify that async_refine_experience_section was called with state containing job_analysis and skip_indices
     mock_async_refine.assert_called_once()
     call_kwargs = mock_async_refine.call_args.kwargs
-    assert call_kwargs.get("job_analysis") == job_analysis
-    assert call_kwargs.get("skip_indices") == set()
+    state = call_kwargs.get("state")
+    assert state is not None
+    assert state.job_analysis == job_analysis
+    assert state.skip_indices == set()
 
 
 @pytest.mark.asyncio
-@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.running_log_manager")
 @patch(
-    "resume_editor.app.api.routes.route_logic.resume_ai_logic.async_refine_experience_section"
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic_streaming.running_log_manager"
 )
-@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.get_llm_config")
+@patch(
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic_streaming.async_refine_experience_section"
+)
+@patch(
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic_streaming.get_llm_config"
+)
 async def test_stream_llm_events_adds_to_running_log(
     mock_get_llm_config,
     mock_async_refine,
@@ -285,10 +293,18 @@ async def test_stream_llm_events_adds_to_running_log(
 
 
 @pytest.mark.asyncio
-@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic._stream_llm_events")
-@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic._stream_final_events")
-@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.running_log_manager")
-@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.get_llm_config")
+@patch(
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic_streaming._stream_llm_events"
+)
+@patch(
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic_streaming._stream_final_events"
+)
+@patch(
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic_streaming.running_log_manager"
+)
+@patch(
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic_streaming.get_llm_config"
+)
 async def test_experience_refinement_sse_generator_yields_resuming_message(
     mock_get_llm_config,
     mock_log_manager,
@@ -349,10 +365,18 @@ async def test_experience_refinement_sse_generator_yields_resuming_message(
 
 
 @pytest.mark.asyncio
-@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic._stream_llm_events")
-@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic._stream_final_events")
-@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.running_log_manager")
-@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.get_llm_config")
+@patch(
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic_streaming._stream_llm_events"
+)
+@patch(
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic_streaming._stream_final_events"
+)
+@patch(
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic_streaming.running_log_manager"
+)
+@patch(
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic_streaming.get_llm_config"
+)
 async def test_experience_refinement_sse_generator_no_resuming_for_fresh_start(
     mock_get_llm_config,
     mock_log_manager,
@@ -404,10 +428,18 @@ async def test_experience_refinement_sse_generator_no_resuming_for_fresh_start(
 
 
 @pytest.mark.asyncio
-@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic._stream_llm_events")
-@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic._stream_final_events")
-@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.running_log_manager")
-@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.get_llm_config")
+@patch(
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic_streaming._stream_llm_events"
+)
+@patch(
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic_streaming._stream_final_events"
+)
+@patch(
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic_streaming.running_log_manager"
+)
+@patch(
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic_streaming.get_llm_config"
+)
 async def test_experience_refinement_sse_generator_no_resuming_when_no_log(
     mock_get_llm_config,
     mock_log_manager,
@@ -448,8 +480,12 @@ async def test_experience_refinement_sse_generator_no_resuming_when_no_log(
 
 
 @pytest.mark.asyncio
-@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.running_log_manager")
-@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.get_llm_config")
+@patch(
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic_streaming.running_log_manager"
+)
+@patch(
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic_streaming.get_llm_config"
+)
 async def test_experience_refinement_sse_generator_passes_running_log_to_stream(
     mock_get_llm_config,
     mock_log_manager,
@@ -475,10 +511,10 @@ async def test_experience_refinement_sse_generator_passes_running_log_to_stream(
 
     with (
         patch(
-            "resume_editor.app.api.routes.route_logic.resume_ai_logic._stream_llm_events"
+            "resume_editor.app.api.routes.route_logic.resume_ai_logic_streaming._stream_llm_events"
         ) as mock_stream,
         patch(
-            "resume_editor.app.api.routes.route_logic.resume_ai_logic._stream_final_events"
+            "resume_editor.app.api.routes.route_logic.resume_ai_logic_streaming._stream_final_events"
         ) as mock_final,
     ):
 
@@ -512,9 +548,11 @@ async def test_experience_refinement_sse_generator_passes_running_log_to_stream(
 
 @pytest.mark.asyncio
 @patch(
-    "resume_editor.app.api.routes.route_logic.resume_ai_logic.async_refine_experience_section"
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic_streaming.async_refine_experience_section"
 )
-@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.running_log_manager")
+@patch(
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic_streaming.running_log_manager"
+)
 async def test_stream_llm_events_logs_skip_indices(
     mock_log_manager,
     mock_async_refine,
@@ -573,17 +611,21 @@ async def test_stream_llm_events_logs_skip_indices(
     ):
         results.append(msg)
 
-    # Verify that async_refine_experience_section was called with skip_indices
+    # Verify that async_refine_experience_section was called with state containing skip_indices
     mock_async_refine.assert_called_once()
     call_kwargs = mock_async_refine.call_args.kwargs
-    assert call_kwargs.get("skip_indices") == {0, 2}
+    state = call_kwargs.get("state")
+    assert state is not None
+    assert state.skip_indices == {0, 2}
 
 
 @pytest.mark.asyncio
 @patch(
-    "resume_editor.app.api.routes.route_logic.resume_ai_logic.async_refine_experience_section"
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic_streaming.async_refine_experience_section"
 )
-@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.running_log_manager")
+@patch(
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic_streaming.running_log_manager"
+)
 async def test_stream_llm_events_stores_job_analysis(
     mock_log_manager,
     mock_async_refine,
@@ -652,9 +694,11 @@ async def test_stream_llm_events_stores_job_analysis(
 
 @pytest.mark.asyncio
 @patch(
-    "resume_editor.app.api.routes.route_logic.resume_ai_logic.async_refine_experience_section"
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic_streaming.async_refine_experience_section"
 )
-@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.running_log_manager")
+@patch(
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic_streaming.running_log_manager"
+)
 async def test_stream_llm_events_handles_job_analysis_storage_exception(
     mock_log_manager,
     mock_async_refine,
@@ -709,9 +753,11 @@ async def test_stream_llm_events_handles_job_analysis_storage_exception(
 
 @pytest.mark.asyncio
 @patch(
-    "resume_editor.app.api.routes.route_logic.resume_ai_logic.async_refine_experience_section"
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic_streaming.async_refine_experience_section"
 )
-@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.running_log_manager")
+@patch(
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic_streaming.running_log_manager"
+)
 async def test_stream_llm_events_handles_role_record_creation_exception(
     mock_log_manager,
     mock_async_refine,

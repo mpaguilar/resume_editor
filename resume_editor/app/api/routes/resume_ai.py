@@ -101,6 +101,70 @@ class RefineStreamQueryParams(BaseModel):
     limit_refinement_years: str | None = None
 
 
+@dataclass
+class RefineResumeStreamGetParams:
+    """Aggregated parameters for GET /{resume_id}/refine/stream endpoint.
+
+    Purpose:
+        Groups route dependency parameters to reduce function argument count.
+        Used internally to pass validated resources to the handler logic.
+
+    Attributes:
+        db (Session): Database session.
+        current_user (User): Authenticated user.
+        resume (DatabaseResume): The resume being refined.
+        query (RefineStreamQueryParams): Query parameters.
+        company (str | None): Optional company name.
+        notes (str | None): Optional notes.
+
+    Notes:
+        1. No side effects; this is a simple data container.
+        2. No I/O operations are performed.
+
+    """
+
+    db: Session
+    current_user: User
+    resume: DatabaseResume
+    query: RefineStreamQueryParams
+    company: str | None = None
+    notes: str | None = None
+
+
+class RefineStreamOptionalParams(BaseModel):
+    """Optional query parameters for GET /{resume_id}/refine/stream.
+
+    Attributes:
+        company (str | None): Optional company name for the refined resume.
+        notes (str | None): Optional notes for the refined resume.
+
+    Notes:
+        1. Groups optional parameters to reduce function argument count.
+        2. No side effects or I/O.
+
+    """
+
+    company: str | None = None
+    notes: str | None = None
+
+
+def get_refine_stream_optional(
+    company: Annotated[str | None, Query()] = None,
+    notes: Annotated[str | None, Query()] = None,
+) -> RefineStreamOptionalParams:
+    """Dependency to collect optional query parameters.
+
+    Args:
+        company (str | None): Optional company name.
+        notes (str | None): Optional notes.
+
+    Returns:
+        RefineStreamOptionalParams: Aggregated optional parameters.
+
+    """
+    return RefineStreamOptionalParams(company=company, notes=notes)
+
+
 def get_refine_stream_query(
     job_description: Annotated[str, Query(...)],
     limit_refinement_years: Annotated[str | None, Query()] = None,
@@ -401,6 +465,41 @@ async def _experience_refinement_stream(
         raise
 
 
+async def _get_raw_limit_from_request(
+    http_request: Request,
+    form_data: RefineForm,
+) -> str | None:
+    """Read raw limit value from request form when DI returns None.
+
+    Args:
+        http_request (Request): The incoming request to read raw form data.
+        form_data (RefineForm): The dependency-injected form data.
+
+    Returns:
+        str | None: The raw string value from the form, or None if not found.
+
+    Notes:
+        1. Only reads the request form when form_data.limit_refinement_years is None.
+        2. Returns None if reading the form fails.
+        3. Trims whitespace from the raw value.
+
+    """
+    if form_data.limit_refinement_years is not None:
+        return None
+
+    try:
+        form = await http_request.form()
+    except Exception as _e:
+        return None
+
+    raw_value = form.get("limit_refinement_years") if form is not None else None
+    if raw_value is None:
+        return None
+
+    raw_str = str(raw_value).strip()
+    return raw_str if raw_str != "" else None
+
+
 async def _extract_original_limit_str_from_post(
     http_request: Request,
     form_data: RefineForm,
@@ -425,17 +524,9 @@ async def _extract_original_limit_str_from_post(
 
     original_limit_str = form_data.limit_refinement_years
     if original_limit_str is None:
-        try:
-            form = await http_request.form()
-        except Exception as _e:
-            # If we cannot read the raw form, continue with None
-            form = None
-        else:
-            raw_value = None if form is None else form.get("limit_refinement_years")
-            if raw_value is not None:
-                raw_str = str(raw_value).strip()
-                if raw_str != "":
-                    original_limit_str = raw_str
+        raw_str = await _get_raw_limit_from_request(http_request, form_data)
+        if raw_str is not None:
+            original_limit_str = raw_str
 
     _msg = "extract_original_limit_str_from_post returning"
     log.debug(_msg)
@@ -484,14 +575,46 @@ def _validate_and_parse_limit_for_post(
     return parsed_limit_years, early_error_response
 
 
+def _validate_refinement_query(
+    query: RefineStreamQueryParams,
+    company: str | None,
+    notes: str | None,
+) -> StreamingResponse | None:
+    """Validate refinement query parameters.
+
+    Args:
+        query (RefineStreamQueryParams): The query parameters containing job_description.
+        company (str | None): Optional company name.
+        notes (str | None): Optional notes.
+
+    Returns:
+        StreamingResponse | None: Error response if validation fails, None if valid.
+
+    Notes:
+        1. Uses validate_refinement_form for validation logic.
+        2. Returns early error stream response on validation failure.
+
+    """
+    validation = validate_refinement_form(
+        job_description=query.job_description,
+        company=company,
+        notes=notes,
+    )
+    if not validation.is_valid:
+        error_messages = "; ".join(validation.errors.values())
+        return _make_early_error_stream_response(error_messages)
+    return None
+
+
 @router.get("/{resume_id}/refine/stream", response_class=StreamingResponse)
 async def refine_resume_stream_get(
     db: Annotated[Session, Depends(get_db)],
     current_user: Annotated[User, Depends(get_current_user_from_cookie)],
     resume: Annotated[DatabaseResume, Depends(get_resume_for_user)],
     query: Annotated[RefineStreamQueryParams, Depends(get_refine_stream_query)],
-    company: Annotated[str | None, Query()] = None,
-    notes: Annotated[str | None, Query()] = None,
+    optional: Annotated[
+        RefineStreamOptionalParams, Depends(get_refine_stream_optional)
+    ],
 ) -> StreamingResponse:
     """Refine a resume using an LLM stream via GET.
 
@@ -501,19 +624,12 @@ async def refine_resume_stream_get(
     _msg = "refine_resume_stream_get starting"
     log.debug(_msg)
 
-    # Validate company and notes
-    validation = validate_refinement_form(
-        job_description=query.job_description,
-        company=company,
-        notes=notes,
-    )
-    if not validation.is_valid:
-        error_messages = "; ".join(validation.errors.values())
+    error_response = _validate_refinement_query(query, optional.company, optional.notes)
+    if error_response is not None:
         _msg = "refine_resume_stream_get validation failed"
         log.debug(_msg)
-        return _make_early_error_stream_response(error_messages)
+        return error_response
 
-    # Early validation of limit_refinement_years with immediate SSE error response on failure
     parsed_limit_years, early_error_response = _parse_limit_years_for_stream(
         query.limit_refinement_years,
     )
@@ -522,19 +638,19 @@ async def refine_resume_stream_get(
         log.debug(_msg)
         return early_error_response
 
+    params = _ExperienceStreamParams(
+        resume=resume,
+        parsed_limit_years=parsed_limit_years,
+        db=db,
+        current_user=current_user,
+        job_description=query.job_description,
+        limit_refinement_years=query.limit_refinement_years,
+        company=optional.company,
+        notes=optional.notes,
+    )
+
     result = StreamingResponse(
-        _experience_refinement_stream(
-            params=_ExperienceStreamParams(
-                resume=resume,
-                parsed_limit_years=parsed_limit_years,
-                db=db,
-                current_user=current_user,
-                job_description=query.job_description,
-                limit_refinement_years=query.limit_refinement_years,
-                company=company,
-                notes=notes,
-            ),
-        ),
+        _experience_refinement_stream(params=params),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",
@@ -545,6 +661,78 @@ async def refine_resume_stream_get(
     _msg = "refine_resume_stream_get returning"
     log.debug(_msg)
     return result
+
+
+def _build_validation_error_html(validation_errors: dict[str, str]) -> str:
+    """Build HTML error response for HTMX validation failures.
+
+    Args:
+        validation_errors (dict[str, str]): Dictionary of field names to error messages.
+
+    Returns:
+        str: HTML error message div.
+
+    Notes:
+        1. Creates a red-styled div with error paragraphs.
+        2. No I/O operations.
+
+    """
+    error_html = "<div class='text-red-500 p-2'>"
+    for error in validation_errors.values():
+        error_html += f"<p>{error}</p>"
+    error_html += "</div>"
+    return error_html
+
+
+def _handle_htmx_validation_error(
+    http_request: Request,
+    validation_errors: dict[str, str],
+) -> HTMLResponse | None:
+    """Handle validation error for HTMX requests.
+
+    Args:
+        http_request (Request): The HTTP request to check for HTMX header.
+        validation_errors (dict[str, str]): Dictionary of validation errors.
+
+    Returns:
+        HTMLResponse | None: HTML error response if HTMX request, None otherwise.
+
+    Notes:
+        1. Checks for HX-Request header.
+        2. Returns None for non-HTMX requests.
+
+    """
+    if "HX-Request" not in http_request.headers:
+        return None
+    error_html = _build_validation_error_html(validation_errors)
+    return HTMLResponse(content=error_html)
+
+
+def _create_refinement_stream_response(
+    params: _ExperienceStreamParams,
+) -> StreamingResponse:
+    """Create the SSE streaming response for refinement.
+
+    Args:
+        params (_ExperienceStreamParams): Parameters for the refinement stream.
+
+    Returns:
+        StreamingResponse: Configured SSE streaming response.
+
+    Notes:
+        1. Wraps the refinement generator in a StreamingResponse.
+        2. Sets appropriate SSE headers.
+
+    """
+    return StreamingResponse(
+        _experience_refinement_stream(params=params),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 @router.post("/{resume_id}/refine/stream", response_class=StreamingResponse)
@@ -568,25 +756,18 @@ async def refine_resume_stream(
     _msg = "refine_resume_stream starting"
     log.debug(_msg)
 
-    # Validate form data including company and notes
     validation = validate_refinement_form(
         job_description=form_data.job_description,
         company=form_data.company,
         notes=form_data.notes,
     )
     if not validation.is_valid:
-        # Return error for HTMX requests
-        if "HX-Request" in http_request.headers:
-            error_html = "<div class='text-red-500 p-2'>"
-            for field, error in validation.errors.items():
-                error_html += f"<p>{error}</p>"
-            error_html += "</div>"
-            return HTMLResponse(content=error_html)
-        # Return SSE error for direct requests
+        htmx_error = _handle_htmx_validation_error(http_request, validation.errors)
+        if htmx_error is not None:
+            return htmx_error
         error_messages = "; ".join(validation.errors.values())
         return _make_early_error_stream_response(error_messages)
 
-    # If HTMX posts directly to this endpoint, return the loader fragment so the browser opens a GET EventSource.
     if "HX-Request" in http_request.headers:
         result = templates.TemplateResponse(
             http_request,
@@ -603,13 +784,11 @@ async def refine_resume_stream(
         log.debug(_msg)
         return result
 
-    # Obtain the original limit string, preserving user input when DI coerces unexpected values to None.
     original_limit_str = await _extract_original_limit_str_from_post(
         http_request=http_request,
         form_data=form_data,
     )
 
-    # POST-specific parsing: treat non-numeric as None; numeric <= 0 yields early error.
     parsed_limit_years, early_error_response = _validate_and_parse_limit_for_post(
         original_limit_str=original_limit_str,
     )
@@ -618,26 +797,17 @@ async def refine_resume_stream(
         log.debug(_msg)
         return early_error_response
 
-    result = StreamingResponse(
-        _experience_refinement_stream(
-            params=_ExperienceStreamParams(
-                resume=resume,
-                parsed_limit_years=parsed_limit_years,
-                db=db,
-                current_user=current_user,
-                job_description=form_data.job_description,
-                limit_refinement_years=original_limit_str,
-                company=form_data.company,
-                notes=form_data.notes,
-            ),
-        ),
-        media_type="text/event-stream",
-        headers={
-            "Cache-Control": "no-cache",
-            "Connection": "keep-alive",
-            "X-Accel-Buffering": "no",
-        },
+    params = _ExperienceStreamParams(
+        resume=resume,
+        parsed_limit_years=parsed_limit_years,
+        db=db,
+        current_user=current_user,
+        job_description=form_data.job_description,
+        limit_refinement_years=original_limit_str,
+        company=form_data.company,
+        notes=form_data.notes,
     )
+    result = _create_refinement_stream_response(params=params)
     _msg = "refine_resume_stream returning"
     log.debug(_msg)
     return result

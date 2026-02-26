@@ -1,4 +1,5 @@
 import logging
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
@@ -22,6 +23,23 @@ class RefineResultParams(BaseModel):
     notes: str | None = None
 
 
+@dataclass
+class GenerateResumeListHtmlParams:
+    """Parameters for _generate_resume_list_html function."""
+
+    base_resumes: list[DatabaseResume]
+    refined_resumes: list[DatabaseResume]
+    selected_resume_id: int | None = None
+    sort_by: str | None = None
+    week_offset: int = 0
+    has_older_resumes: bool = False
+    has_newer_resumes: bool = False
+    current_filter: str | None = None
+    week_start: datetime | None = None
+    week_end: datetime | None = None
+    wrap_in_div: bool = False
+
+
 TEMPLATES_DIR = Path(__file__).resolve().parent.parent.parent / "templates"
 env = Environment(loader=FileSystemLoader(str(TEMPLATES_DIR)), autoescape=True)
 
@@ -38,32 +56,12 @@ env.filters["strftime"] = _date_format_filter
 
 
 def _generate_resume_list_html(
-    base_resumes: list[DatabaseResume],
-    refined_resumes: list[DatabaseResume],
-    selected_resume_id: int | None = None,
-    sort_by: str | None = None,
-    week_offset: int = 0,
-    has_older_resumes: bool = False,
-    has_newer_resumes: bool = False,
-    current_filter: str | None = None,
-    week_start: datetime | None = None,
-    week_end: datetime | None = None,
-    wrap_in_div: bool = False,
+    params: GenerateResumeListHtmlParams,
 ) -> str:
     """Generates HTML for a list of resumes, optionally marking one as selected.
 
     Args:
-        base_resumes: The list of base resumes to display.
-        refined_resumes: The list of refined resumes to display.
-        selected_resume_id: The ID of the resume to mark as selected.
-        sort_by: The current sorting key applied to the resume list, if any.
-        week_offset: The current week offset for pagination (0 = current week).
-        has_older_resumes: Whether there are older resumes to navigate to.
-        has_newer_resumes: Whether there are newer resumes to navigate to.
-        current_filter: The current search filter value, if any.
-        week_start: The start date of the current week range.
-        week_end: The end date of the current week range.
-        wrap_in_div: If True, wrap the generated HTML in a div with id 'resume-list'.
+        params: The parameters for generating the resume list HTML.
 
     Returns:
         str: HTML string for the resume list.
@@ -76,18 +74,18 @@ def _generate_resume_list_html(
     """
     template = env.get_template("partials/resume/_resume_list.html")
     rendered_html = template.render(
-        base_resumes=base_resumes,
-        refined_resumes=refined_resumes,
-        selected_resume_id=selected_resume_id,
-        sort_by=sort_by,
-        week_offset=week_offset,
-        has_older_resumes=has_older_resumes,
-        has_newer_resumes=has_newer_resumes,
-        current_filter=current_filter,
-        week_start=week_start,
-        week_end=week_end,
+        base_resumes=params.base_resumes,
+        refined_resumes=params.refined_resumes,
+        selected_resume_id=params.selected_resume_id,
+        sort_by=params.sort_by,
+        week_offset=params.week_offset,
+        has_older_resumes=params.has_older_resumes,
+        has_newer_resumes=params.has_newer_resumes,
+        current_filter=params.current_filter,
+        week_start=params.week_start,
+        week_end=params.week_end,
     )
-    if wrap_in_div:
+    if params.wrap_in_div:
         return f'<div id="resume-list">{rendered_html}</div>'
     return rendered_html
 

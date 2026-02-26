@@ -312,12 +312,16 @@ def test_update_resume_htmx(
         db=ANY, user_id=test_user.id, sort_by=expected_sort_by_val
     )
 
+    from resume_editor.app.api.routes.html_fragments import GenerateResumeListHtmlParams
+
     mock_gen_list_html.assert_called_once_with(
-        base_resumes=[test_resume],
-        refined_resumes=[],
-        selected_resume_id=test_resume.id,
-        sort_by=expected_sort_by_val,
-        wrap_in_div=False,
+        GenerateResumeListHtmlParams(
+            base_resumes=[test_resume],
+            refined_resumes=[],
+            selected_resume_id=test_resume.id,
+            sort_by=expected_sort_by_val,
+            wrap_in_div=False,
+        )
     )
 
     mock_gen_detail_html.assert_called_once_with(resume=test_resume)

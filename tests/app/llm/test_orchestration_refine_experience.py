@@ -71,12 +71,14 @@ def create_mock_refined_role() -> RefinedRole:
 
 
 @pytest.mark.asyncio
-@patch("resume_editor.app.llm.orchestration.refine_role", new_callable=AsyncMock)
 @patch(
-    "resume_editor.app.llm.orchestration.analyze_job_description",
+    "resume_editor.app.llm.orchestration_refinement.refine_role", new_callable=AsyncMock
+)
+@patch(
+    "resume_editor.app.llm.orchestration_analysis.analyze_job_description",
     new_callable=AsyncMock,
 )
-@patch("resume_editor.app.llm.orchestration.extract_experience_info")
+@patch("resume_editor.app.llm.orchestration_refinement.extract_experience_info")
 async def test_async_refine_experience_section_execution(
     mock_extract_experience,
     mock_analyze_job,
@@ -156,28 +158,32 @@ async def test_async_refine_experience_section_execution(
     # Order of results is not guaranteed. Extract index and data, then sort by index.
     result_events = [e for e in events if e.get("status") == "role_refined"]
     received_results = sorted(
-        [(e["original_index"], json.dumps(e["data"], sort_keys=True)) for e in result_events]
+        [
+            (e["original_index"], json.dumps(e["data"], sort_keys=True))
+            for e in result_events
+        ]
     )
     expected_refined_data = [
         mock_refined_role1.model_dump(mode="json"),
         mock_refined_role2.model_dump(mode="json"),
     ]
     expected_results = [
-        (i, json.dumps(data, sort_keys=True)) for i, data in enumerate(expected_refined_data)
+        (i, json.dumps(data, sort_keys=True))
+        for i, data in enumerate(expected_refined_data)
     ]
     assert received_results == expected_results
 
 
 @pytest.mark.asyncio
 @patch(
-    "resume_editor.app.llm.orchestration._refine_role_and_put_on_queue",
+    "resume_editor.app.llm.orchestration_refinement._refine_role_and_put_on_queue",
     new_callable=AsyncMock,
 )
 @patch(
-    "resume_editor.app.llm.orchestration.analyze_job_description",
+    "resume_editor.app.llm.orchestration_analysis.analyze_job_description",
     new_callable=AsyncMock,
 )
-@patch("resume_editor.app.llm.orchestration.extract_experience_info")
+@patch("resume_editor.app.llm.orchestration_refinement.extract_experience_info")
 async def test_refine_experience_does_not_yield_introduction_event(
     mock_extract_experience,
     mock_analyze_job,
@@ -225,10 +231,10 @@ async def test_refine_experience_does_not_yield_introduction_event(
 
 @pytest.mark.asyncio
 @patch(
-    "resume_editor.app.llm.orchestration.analyze_job_description",
+    "resume_editor.app.llm.orchestration_analysis.analyze_job_description",
     new_callable=AsyncMock,
 )
-@patch("resume_editor.app.llm.orchestration.extract_experience_info")
+@patch("resume_editor.app.llm.orchestration_refinement.extract_experience_info")
 async def test_async_refine_experience_section_no_roles(
     mock_extract_experience: MagicMock,
     mock_analyze_job: AsyncMock,
@@ -267,16 +273,16 @@ async def test_async_refine_experience_section_no_roles(
 
 
 @pytest.mark.asyncio
-@patch("resume_editor.app.llm.orchestration.asyncio.TaskGroup")
+@patch("resume_editor.app.llm.orchestration_refinement.asyncio.TaskGroup")
 @patch(
-    "resume_editor.app.llm.orchestration._refine_role_and_put_on_queue",
+    "resume_editor.app.llm.orchestration_refinement._refine_role_and_put_on_queue",
     new_callable=AsyncMock,
 )
 @patch(
-    "resume_editor.app.llm.orchestration.analyze_job_description",
+    "resume_editor.app.llm.orchestration_analysis.analyze_job_description",
     new_callable=AsyncMock,
 )
-@patch("resume_editor.app.llm.orchestration.extract_experience_info")
+@patch("resume_editor.app.llm.orchestration_refinement.extract_experience_info")
 async def test_async_refine_experience_schedules_tasks_only_once(
     mock_extract_experience: MagicMock,
     mock_analyze_job: AsyncMock,
@@ -303,7 +309,9 @@ async def test_async_refine_experience_schedules_tasks_only_once(
     # Mock extract_experience to return two roles
     mock_role1 = create_mock_role()
     mock_role2 = create_mock_role()
-    mock_experience_info = ExperienceResponse(roles=[mock_role1, mock_role2], projects=[])
+    mock_experience_info = ExperienceResponse(
+        roles=[mock_role1, mock_role2], projects=[]
+    )
     mock_extract_experience.return_value = mock_experience_info
 
     # Mock analyze_job_description to return analysis and no intro
@@ -335,12 +343,14 @@ async def test_async_refine_experience_schedules_tasks_only_once(
 
 
 @pytest.mark.asyncio
-@patch("resume_editor.app.llm.orchestration.refine_role", new_callable=AsyncMock)
 @patch(
-    "resume_editor.app.llm.orchestration.analyze_job_description",
+    "resume_editor.app.llm.orchestration_refinement.refine_role", new_callable=AsyncMock
+)
+@patch(
+    "resume_editor.app.llm.orchestration_analysis.analyze_job_description",
     new_callable=AsyncMock,
 )
-@patch("resume_editor.app.llm.orchestration.extract_experience_info")
+@patch("resume_editor.app.llm.orchestration_refinement.extract_experience_info")
 async def test_async_refine_experience_section_concurrency(
     mock_extract_experience,
     mock_analyze_job,
@@ -394,9 +404,9 @@ async def test_async_refine_experience_section_concurrency(
 
     # Assert
     # 1. Concurrency limit was respected
-    assert (
-        max_observed_concurrency <= max_concurrency
-    ), f"Expected concurrency <= {max_concurrency}, but observed {max_observed_concurrency}"
+    assert max_observed_concurrency <= max_concurrency, (
+        f"Expected concurrency <= {max_concurrency}, but observed {max_observed_concurrency}"
+    )
 
     # 2. All roles were processed
     assert mock_refine_role.call_count == num_roles
@@ -405,12 +415,14 @@ async def test_async_refine_experience_section_concurrency(
 
 
 @pytest.mark.asyncio
-@patch("resume_editor.app.llm.orchestration.refine_role", new_callable=AsyncMock)
 @patch(
-    "resume_editor.app.llm.orchestration.analyze_job_description",
+    "resume_editor.app.llm.orchestration_refinement.refine_role", new_callable=AsyncMock
+)
+@patch(
+    "resume_editor.app.llm.orchestration_analysis.analyze_job_description",
     new_callable=AsyncMock,
 )
-@patch("resume_editor.app.llm.orchestration.extract_experience_info")
+@patch("resume_editor.app.llm.orchestration_refinement.extract_experience_info")
 async def test_async_refine_experience_section_role_refinement_fails(
     mock_extract_experience,
     mock_analyze_job,
@@ -447,10 +459,10 @@ async def test_async_refine_experience_section_role_refinement_fails(
 
 @pytest.mark.asyncio
 @patch(
-    "resume_editor.app.llm.orchestration.analyze_job_description",
+    "resume_editor.app.llm.orchestration_analysis.analyze_job_description",
     new_callable=AsyncMock,
 )
-@patch("resume_editor.app.llm.orchestration.extract_experience_info")
+@patch("resume_editor.app.llm.orchestration_refinement.extract_experience_info")
 async def test_async_refine_experience_section_job_analysis_fails(
     mock_extract_experience,
     mock_analyze_job,
@@ -497,7 +509,9 @@ async def test_async_refine_experience_does_not_yield_introduction():
         primary_duties=["develop things"],
         themes=["agile"],
     ).model_dump()
-    mock_job_analysis_response = AIMessage(content=json.dumps(mock_job_analysis_content))
+    mock_job_analysis_response = AIMessage(
+        content=json.dumps(mock_job_analysis_content)
+    )
 
     # analyze_job_description uses ainvoke
     # This is called once inside async_refine_experience_section -> analyze_job_description
@@ -510,16 +524,20 @@ async def test_async_refine_experience_does_not_yield_introduction():
     # Mock refine_role to avoid actual LLM calls for role refinement part
     mock_refined_role = create_mock_refined_role()
 
-    with patch(
-        "resume_editor.app.llm.orchestration._initialize_llm_client",
-        return_value=mock_llm_instance,
-    ), patch(
-        "resume_editor.app.llm.orchestration.extract_experience_info",
-        return_value=mock_experience_info,
-    ), patch(
-        "resume_editor.app.llm.orchestration.refine_role",
-        new_callable=AsyncMock,
-        return_value=mock_refined_role,
+    with (
+        patch(
+            "resume_editor.app.llm.orchestration_analysis.initialize_llm_client",
+            return_value=mock_llm_instance,
+        ),
+        patch(
+            "resume_editor.app.llm.orchestration_refinement.extract_experience_info",
+            return_value=mock_experience_info,
+        ),
+        patch(
+            "resume_editor.app.llm.orchestration_refinement.refine_role",
+            new_callable=AsyncMock,
+            return_value=mock_refined_role,
+        ),
     ):
         # Act
         events = []
@@ -549,12 +567,14 @@ async def test_async_refine_experience_does_not_yield_introduction():
 
 
 @pytest.mark.asyncio
-@patch("resume_editor.app.llm.orchestration.refine_role", new_callable=AsyncMock)
 @patch(
-    "resume_editor.app.llm.orchestration.analyze_job_description",
+    "resume_editor.app.llm.orchestration_refinement.refine_role", new_callable=AsyncMock
+)
+@patch(
+    "resume_editor.app.llm.orchestration_analysis.analyze_job_description",
     new_callable=AsyncMock,
 )
-@patch("resume_editor.app.llm.orchestration.extract_experience_info")
+@patch("resume_editor.app.llm.orchestration_refinement.extract_experience_info")
 async def test_async_refine_experience_section_multiple_failures_raises_exception_group(
     mock_extract_experience,
     mock_analyze_job,
@@ -593,7 +613,10 @@ class MockCancelledError(Exception):
     pass
 
 
-@patch("resume_editor.app.llm.orchestration.asyncio.CancelledError", MockCancelledError)
+@patch(
+    "resume_editor.app.llm.orchestration_refinement.asyncio.CancelledError",
+    MockCancelledError,
+)
 def test_unwrap_exception_group_single_error():
     """Test that _unwrap_exception_group unwraps a single non-cancellation error."""
     exc_group = ExceptionGroup("test group", [ValueError("fail"), MockCancelledError()])
@@ -601,7 +624,10 @@ def test_unwrap_exception_group_single_error():
         _unwrap_exception_group(exc_group)
 
 
-@patch("resume_editor.app.llm.orchestration.asyncio.CancelledError", MockCancelledError)
+@patch(
+    "resume_editor.app.llm.orchestration_refinement.asyncio.CancelledError",
+    MockCancelledError,
+)
 def test_unwrap_exception_group_multiple_errors():
     """Test that _unwrap_exception_group re-raises multiple non-cancellation errors."""
     exc_group = ExceptionGroup(
@@ -612,10 +638,15 @@ def test_unwrap_exception_group_multiple_errors():
     assert excinfo.value is exc_group
 
 
-@patch("resume_editor.app.llm.orchestration.asyncio.CancelledError", MockCancelledError)
+@patch(
+    "resume_editor.app.llm.orchestration_refinement.asyncio.CancelledError",
+    MockCancelledError,
+)
 def test_unwrap_exception_group_only_cancelled():
     """Test that _unwrap_exception_group re-raises only cancellation errors."""
-    exc_group = ExceptionGroup("test group", [MockCancelledError(), MockCancelledError()])
+    exc_group = ExceptionGroup(
+        "test group", [MockCancelledError(), MockCancelledError()]
+    )
     with pytest.raises(ExceptionGroup) as excinfo:
         _unwrap_exception_group(exc_group)
     assert excinfo.value is exc_group
@@ -630,12 +661,14 @@ def test_unwrap_exception_group_non_group_exception():
 
 
 @pytest.mark.asyncio
-@patch("resume_editor.app.llm.orchestration.refine_role", new_callable=AsyncMock)
 @patch(
-    "resume_editor.app.llm.orchestration.analyze_job_description",
+    "resume_editor.app.llm.orchestration_refinement.refine_role", new_callable=AsyncMock
+)
+@patch(
+    "resume_editor.app.llm.orchestration_analysis.analyze_job_description",
     new_callable=AsyncMock,
 )
-@patch("resume_editor.app.llm.orchestration.extract_experience_info")
+@patch("resume_editor.app.llm.orchestration_refinement.extract_experience_info")
 async def test_job_analysis_complete_event_includes_job_analysis_data(
     mock_extract_experience,
     mock_analyze_job,
@@ -666,5 +699,8 @@ async def test_job_analysis_complete_event_includes_job_analysis_data(
     assert job_analysis_event is not None
     assert "job_analysis" in job_analysis_event
     assert job_analysis_event["job_analysis"]["key_skills"] == job_analysis.key_skills
-    assert job_analysis_event["job_analysis"]["primary_duties"] == job_analysis.primary_duties
+    assert (
+        job_analysis_event["job_analysis"]["primary_duties"]
+        == job_analysis.primary_duties
+    )
     assert job_analysis_event["job_analysis"]["themes"] == job_analysis.themes

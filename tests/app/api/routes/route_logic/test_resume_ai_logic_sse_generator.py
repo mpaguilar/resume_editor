@@ -25,18 +25,20 @@ from resume_editor.app.models.resume.experience import (
 
 @pytest.mark.asyncio
 @patch(
-    "resume_editor.app.api.routes.route_logic.resume_ai_logic.reconstruct_resume_with_new_introduction"
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic_streaming.reconstruct_resume_with_new_introduction"
 )
 @patch(
-    "resume_editor.app.api.routes.route_logic.resume_ai_logic.generate_introduction_from_resume"
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic_streaming.generate_introduction_from_resume"
 )
 @patch(
-    "resume_editor.app.api.routes.route_logic.resume_ai_logic.process_refined_experience_result"
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic_streaming.process_refined_experience_result"
 )
 @patch(
-    "resume_editor.app.api.routes.route_logic.resume_ai_logic.async_refine_experience_section"
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic_streaming.async_refine_experience_section"
 )
-@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.get_llm_config")
+@patch(
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic_streaming.get_llm_config"
+)
 async def test_sse_generator_processes_multiple_roles(
     mock_get_llm_config,
     mock_async_refine_experience,
@@ -123,23 +125,27 @@ async def test_sse_generator_processes_multiple_roles(
 
 
 @pytest.mark.asyncio
-@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.extract_banner_text")
 @patch(
-    "resume_editor.app.api.routes.route_logic.resume_ai_logic.reconstruct_resume_with_new_introduction"
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic_streaming.extract_banner_text"
 )
 @patch(
-    "resume_editor.app.api.routes.route_logic.resume_ai_logic._reconstruct_refined_resume_content"
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic_streaming.reconstruct_resume_with_new_introduction"
 )
 @patch(
-    "resume_editor.app.api.routes.route_logic.resume_ai_logic.generate_introduction_from_resume"
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic_streaming._reconstruct_refined_resume_content"
 )
 @patch(
-    "resume_editor.app.api.routes.route_logic.resume_ai_logic.process_refined_experience_result"
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic_streaming.generate_introduction_from_resume"
 )
 @patch(
-    "resume_editor.app.api.routes.route_logic.resume_ai_logic.async_refine_experience_section"
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic_streaming.process_refined_experience_result"
 )
-@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.get_llm_config")
+@patch(
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic_streaming.async_refine_experience_section"
+)
+@patch(
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic_streaming.get_llm_config"
+)
 async def test_sse_generator_generates_introduction_at_end(
     mock_get_llm_config,
     mock_async_refine_experience,
@@ -276,11 +282,15 @@ def test_process_refined_role_event_malformed(bad_event):
 
 
 @pytest.mark.asyncio
-@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic._handle_sse_exception")
 @patch(
-    "resume_editor.app.api.routes.route_logic.resume_ai_logic.async_refine_experience_section"
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic_streaming._handle_sse_exception"
 )
-@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.get_llm_config")
+@patch(
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic_streaming.async_refine_experience_section"
+)
+@patch(
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic_streaming.get_llm_config"
+)
 async def test_experience_refinement_sse_generator_orchestration_error(
     mock_get_llm_config,
     mock_async_refine_experience,
@@ -325,15 +335,17 @@ async def test_experience_refinement_sse_generator_orchestration_error(
     ],
 )
 @patch(
-    "resume_editor.app.api.routes.route_logic.resume_ai_logic.generate_introduction_from_resume"
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic_streaming.generate_introduction_from_resume"
 )
 @patch(
-    "resume_editor.app.api.routes.route_logic.resume_ai_logic.process_refined_experience_result"
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic_streaming.process_refined_experience_result"
 )
 @patch(
-    "resume_editor.app.api.routes.route_logic.resume_ai_logic.async_refine_experience_section"
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic_streaming.async_refine_experience_section"
 )
-@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.get_llm_config")
+@patch(
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic_streaming.get_llm_config"
+)
 async def test_experience_refinement_sse_generator_malformed_events(
     mock_get_llm_config,
     mock_async_refine_experience,
@@ -376,15 +388,17 @@ async def test_experience_refinement_sse_generator_malformed_events(
 
 @pytest.mark.asyncio
 @patch(
-    "resume_editor.app.api.routes.route_logic.resume_ai_logic.generate_introduction_from_resume"
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic_streaming.generate_introduction_from_resume"
 )
 @patch(
-    "resume_editor.app.api.routes.route_logic.resume_ai_logic.process_refined_experience_result"
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic_streaming.process_refined_experience_result"
 )
 @patch(
-    "resume_editor.app.api.routes.route_logic.resume_ai_logic.async_refine_experience_section"
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic_streaming.async_refine_experience_section"
 )
-@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.get_llm_config")
+@patch(
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic_streaming.get_llm_config"
+)
 async def test_experience_refinement_sse_generator_empty_generator(
     mock_get_llm_config,
     mock_async_refine_experience,
@@ -427,8 +441,12 @@ async def test_experience_refinement_sse_generator_empty_generator(
 
 
 @pytest.mark.asyncio
-@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic._handle_sse_exception")
-@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.get_llm_config")
+@patch(
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic_streaming._handle_sse_exception"
+)
+@patch(
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic_streaming.get_llm_config"
+)
 async def test_experience_refinement_sse_generator_invalid_token(
     mock_get_llm_config, mock_handle_exception, test_user, test_resume
 ):
@@ -457,11 +475,15 @@ async def test_experience_refinement_sse_generator_invalid_token(
 
 
 @pytest.mark.asyncio
-@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic._handle_sse_exception")
 @patch(
-    "resume_editor.app.api.routes.route_logic.resume_ai_logic.async_refine_experience_section"
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic_streaming._handle_sse_exception"
 )
-@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.get_llm_config")
+@patch(
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic_streaming.async_refine_experience_section"
+)
+@patch(
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic_streaming.get_llm_config"
+)
 async def test_experience_refinement_sse_generator_auth_error(
     mock_get_llm_config,
     mock_async_refine_experience,
@@ -495,11 +517,15 @@ async def test_experience_refinement_sse_generator_auth_error(
 
 
 @pytest.mark.asyncio
-@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic._handle_sse_exception")
 @patch(
-    "resume_editor.app.api.routes.route_logic.resume_ai_logic.async_refine_experience_section"
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic_streaming._handle_sse_exception"
 )
-@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.get_llm_config")
+@patch(
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic_streaming.async_refine_experience_section"
+)
+@patch(
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic_streaming.get_llm_config"
+)
 async def test_experience_refinement_sse_generator_generic_exception(
     mock_get_llm_config,
     mock_async_refine_experience,
@@ -548,19 +574,21 @@ def test_process_sse_event_handles_job_analysis_complete():
 
 @pytest.mark.asyncio
 @patch(
-    "resume_editor.app.api.routes.route_logic.resume_ai_logic.create_sse_close_message",
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic_streaming.create_sse_close_message",
     return_value="not a close message",
 )
 @patch(
-    "resume_editor.app.api.routes.route_logic.resume_ai_logic.generate_introduction_from_resume"
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic_streaming.generate_introduction_from_resume"
 )
 @patch(
-    "resume_editor.app.api.routes.route_logic.resume_ai_logic.process_refined_experience_result"
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic_streaming.process_refined_experience_result"
 )
 @patch(
-    "resume_editor.app.api.routes.route_logic.resume_ai_logic.async_refine_experience_section"
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic_streaming.async_refine_experience_section"
 )
-@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.get_llm_config")
+@patch(
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic_streaming.get_llm_config"
+)
 async def test_generator_with_progress_but_no_refined_roles(
     mock_get_llm_config,
     mock_async_refine_experience,
@@ -611,9 +639,11 @@ async def test_generator_with_progress_but_no_refined_roles(
 
 @pytest.mark.asyncio
 @patch(
-    "resume_editor.app.api.routes.route_logic.resume_ai_logic.async_refine_experience_section"
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic_streaming.async_refine_experience_section"
 )
-@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.get_llm_config")
+@patch(
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic_streaming.get_llm_config"
+)
 async def test_generator_handles_client_disconnect_gracefully(
     mock_get_llm_config,
     mock_async_refine_experience,
@@ -669,15 +699,17 @@ async def test_generator_handles_client_disconnect_gracefully(
 
 @pytest.mark.asyncio
 @patch(
-    "resume_editor.app.api.routes.route_logic.resume_ai_logic.generate_introduction_from_resume"
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic_streaming.generate_introduction_from_resume"
 )
 @patch(
-    "resume_editor.app.api.routes.route_logic.resume_ai_logic.process_refined_experience_result"
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic_streaming.process_refined_experience_result"
 )
 @patch(
-    "resume_editor.app.api.routes.route_logic.resume_ai_logic.async_refine_experience_section"
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic_streaming.async_refine_experience_section"
 )
-@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.get_llm_config")
+@patch(
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic_streaming.get_llm_config"
+)
 async def test_generator_with_slow_llm_stream(
     mock_get_llm_config,
     mock_async_refine_experience,
@@ -729,23 +761,27 @@ async def test_generator_with_slow_llm_stream(
 
 
 @pytest.mark.asyncio
-@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.extract_banner_text")
 @patch(
-    "resume_editor.app.api.routes.route_logic.resume_ai_logic.reconstruct_resume_with_new_introduction"
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic_streaming.extract_banner_text"
 )
 @patch(
-    "resume_editor.app.api.routes.route_logic.resume_ai_logic._reconstruct_refined_resume_content"
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic_streaming.reconstruct_resume_with_new_introduction"
 )
 @patch(
-    "resume_editor.app.api.routes.route_logic.resume_ai_logic.generate_introduction_from_resume"
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic_streaming._reconstruct_refined_resume_content"
 )
 @patch(
-    "resume_editor.app.api.routes.route_logic.resume_ai_logic.process_refined_experience_result"
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic_streaming.generate_introduction_from_resume"
 )
 @patch(
-    "resume_editor.app.api.routes.route_logic.resume_ai_logic.async_refine_experience_section"
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic_streaming.process_refined_experience_result"
 )
-@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.get_llm_config")
+@patch(
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic_streaming.async_refine_experience_section"
+)
+@patch(
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic_streaming.get_llm_config"
+)
 async def test_sse_generator_intro_generation_retries_on_failure(
     mock_get_llm_config,
     mock_async_refine_experience,
@@ -799,23 +835,27 @@ async def test_sse_generator_intro_generation_retries_on_failure(
 
 
 @pytest.mark.asyncio
-@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.extract_banner_text")
 @patch(
-    "resume_editor.app.api.routes.route_logic.resume_ai_logic.reconstruct_resume_with_new_introduction"
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic_streaming.extract_banner_text"
 )
 @patch(
-    "resume_editor.app.api.routes.route_logic.resume_ai_logic._reconstruct_refined_resume_content"
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic_streaming.reconstruct_resume_with_new_introduction"
 )
 @patch(
-    "resume_editor.app.api.routes.route_logic.resume_ai_logic.generate_introduction_from_resume"
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic_streaming._reconstruct_refined_resume_content"
 )
 @patch(
-    "resume_editor.app.api.routes.route_logic.resume_ai_logic.process_refined_experience_result"
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic_streaming.generate_introduction_from_resume"
 )
 @patch(
-    "resume_editor.app.api.routes.route_logic.resume_ai_logic.async_refine_experience_section"
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic_streaming.process_refined_experience_result"
 )
-@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.get_llm_config")
+@patch(
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic_streaming.async_refine_experience_section"
+)
+@patch(
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic_streaming.get_llm_config"
+)
 async def test_sse_generator_intro_generation_retries_on_empty_string(
     mock_get_llm_config,
     mock_async_refine_experience,
@@ -868,23 +908,27 @@ async def test_sse_generator_intro_generation_retries_on_empty_string(
 
 
 @pytest.mark.asyncio
-@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.extract_banner_text")
 @patch(
-    "resume_editor.app.api.routes.route_logic.resume_ai_logic.reconstruct_resume_with_new_introduction"
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic_streaming.extract_banner_text"
 )
 @patch(
-    "resume_editor.app.api.routes.route_logic.resume_ai_logic._reconstruct_refined_resume_content"
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic_streaming.reconstruct_resume_with_new_introduction"
 )
 @patch(
-    "resume_editor.app.api.routes.route_logic.resume_ai_logic.generate_introduction_from_resume"
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic_streaming._reconstruct_refined_resume_content"
 )
 @patch(
-    "resume_editor.app.api.routes.route_logic.resume_ai_logic.process_refined_experience_result"
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic_streaming.generate_introduction_from_resume"
 )
 @patch(
-    "resume_editor.app.api.routes.route_logic.resume_ai_logic.async_refine_experience_section"
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic_streaming.process_refined_experience_result"
 )
-@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.get_llm_config")
+@patch(
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic_streaming.async_refine_experience_section"
+)
+@patch(
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic_streaming.get_llm_config"
+)
 async def test_sse_generator_intro_generation_fallback_on_total_failure(
     mock_get_llm_config,
     mock_async_refine_experience,
@@ -940,23 +984,27 @@ async def test_sse_generator_intro_generation_fallback_on_total_failure(
 
 
 @pytest.mark.asyncio
-@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.extract_banner_text")
 @patch(
-    "resume_editor.app.api.routes.route_logic.resume_ai_logic.reconstruct_resume_with_new_introduction"
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic_streaming.extract_banner_text"
 )
 @patch(
-    "resume_editor.app.api.routes.route_logic.resume_ai_logic._reconstruct_refined_resume_content"
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic_streaming.reconstruct_resume_with_new_introduction"
 )
 @patch(
-    "resume_editor.app.api.routes.route_logic.resume_ai_logic.generate_introduction_from_resume"
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic_streaming._reconstruct_refined_resume_content"
 )
 @patch(
-    "resume_editor.app.api.routes.route_logic.resume_ai_logic.process_refined_experience_result"
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic_streaming.generate_introduction_from_resume"
 )
 @patch(
-    "resume_editor.app.api.routes.route_logic.resume_ai_logic.async_refine_experience_section"
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic_streaming.process_refined_experience_result"
 )
-@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.get_llm_config")
+@patch(
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic_streaming.async_refine_experience_section"
+)
+@patch(
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic_streaming.get_llm_config"
+)
 async def test_sse_generator_e2e_refine_then_introduce_workflow(
     mock_get_llm_config,
     mock_async_refine_experience,

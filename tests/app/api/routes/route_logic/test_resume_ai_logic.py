@@ -12,10 +12,11 @@ from resume_editor.app.models.resume.personal import Banner
 from resume_editor.app.models.resume_model import Resume as DatabaseResume
 
 
-
-@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.create_resume_db")
 @patch(
-    "resume_editor.app.api.routes.route_logic.resume_ai_logic.perform_pre_save_validation"
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic_helpers.create_resume_db"
+)
+@patch(
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic_helpers.perform_pre_save_validation"
 )
 def test_handle_save_as_new_refinement_uses_user_provided_introduction(
     mock_validate: MagicMock,
@@ -47,9 +48,11 @@ def test_handle_save_as_new_refinement_uses_user_provided_introduction(
     assert create_params.introduction == "User provided introduction"
 
 
-@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.create_resume_db")
 @patch(
-    "resume_editor.app.api.routes.route_logic.resume_ai_logic.perform_pre_save_validation"
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic_helpers.create_resume_db"
+)
+@patch(
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic_helpers.perform_pre_save_validation"
 )
 def test_handle_save_as_new_refinement_no_introduction(
     mock_validate: MagicMock,
@@ -81,9 +84,11 @@ def test_handle_save_as_new_refinement_no_introduction(
     assert create_params.introduction is None
 
 
-@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.create_resume_db")
 @patch(
-    "resume_editor.app.api.routes.route_logic.resume_ai_logic.perform_pre_save_validation"
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic_helpers.create_resume_db"
+)
+@patch(
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic_helpers.perform_pre_save_validation"
 )
 def test_handle_save_as_new_refinement_with_no_intro_or_jd(
     mock_validate: MagicMock,
@@ -133,8 +138,12 @@ def test_reconstruct_resume_with_new_introduction_whitespace_introduction() -> N
     assert result == original_content
 
 
-@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic._update_banner_in_raw_personal")
-@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic._extract_raw_section")
+@patch(
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic_extraction._update_banner_in_raw_personal"
+)
+@patch(
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic_extraction._extract_raw_section"
+)
 def test_reconstruct_resume_with_new_introduction_success(
     mock_extract_raw: MagicMock,
     mock_update_banner: MagicMock,
@@ -169,25 +178,23 @@ def test_reconstruct_resume_with_new_introduction_success(
     assert result == expected_content
 
 
-@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic._update_banner_in_raw_personal")
-@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic._extract_raw_section")
-def test_reconstruct_resume_with_new_introduction_appends_when_no_personal_section(
+@patch(
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic_extraction._update_banner_in_raw_personal"
+)
+@patch(
+    "resume_editor.app.api.routes.route_logic.resume_ai_logic_extraction._extract_raw_section"
+)
+def test_reconstruct_resume_with_new_introduction_returns_original_when_no_personal_section(
     mock_extract_raw: MagicMock,
     mock_update_banner: MagicMock,
 ) -> None:
-    """Test that a personal section is appended if one does not exist."""
+    """Test that original content is returned when no personal section exists."""
     # Arrange
     original_content = "# Experience\nDeveloper at a company"
     new_introduction = "This is a new introduction"
 
     # When no personal section is found, _extract_raw_section returns an empty string.
     mock_extract_raw.return_value = ""
-
-    # _update_banner_in_raw_personal will create a new personal section from scratch.
-    updated_personal_section = (
-        "# Personal\n\n## Banner\n\nThis is a new introduction\n"
-    )
-    mock_update_banner.return_value = updated_personal_section
 
     # Act
     result = reconstruct_resume_with_new_introduction(
@@ -198,22 +205,23 @@ def test_reconstruct_resume_with_new_introduction_appends_when_no_personal_secti
     # Verify that the logic tried to find a personal section
     mock_extract_raw.assert_called_once_with(original_content, "personal")
 
-    # Verify that the banner update logic was called with an empty string
-    mock_update_banner.assert_called_once_with("", new_introduction)
+    # Verify that the banner update logic was NOT called (returns early)
+    mock_update_banner.assert_not_called()
 
-    # Verify that the new personal section was appended to the original content
-    expected_content = (
-        original_content.rstrip() + "\n\n" + updated_personal_section.strip() + "\n"
-    )
-    assert result == expected_content
+    # Verify that the original content is returned unchanged
+    assert result == original_content
 
 
 def test_update_banner_in_raw_personal_replaces_content_with_correct_spacing():
     """Test banner replacement provides correct spacing for Markdown."""
-    raw_personal = "# Personal\n\n## Contact\n\n## Banner\nOld banner content\n\n## Websites\n"
+    raw_personal = (
+        "# Personal\n\n## Contact\n\n## Banner\nOld banner content\n\n## Websites\n"
+    )
     introduction = "* Point A\n* Point B"
     result = _update_banner_in_raw_personal(raw_personal, introduction)
-    expected_output = "# Personal\n\n## Contact\n\n## Banner\n\n* Point A\n* Point B\n\n## Websites\n"
+    expected_output = (
+        "# Personal\n\n## Contact\n\n## Banner\n\n* Point A\n* Point B\n\n## Websites\n"
+    )
 
     assert result == expected_output
 
@@ -223,9 +231,7 @@ def test_update_banner_in_raw_personal_appends_content_with_correct_spacing():
     raw_personal = "# Personal\n\n## Contact\nEmail: a@b.com\n"
     introduction = "* Point A\n* Point B"
     result = _update_banner_in_raw_personal(raw_personal, introduction)
-    expected_output = (
-        "# Personal\n\n## Contact\nEmail: a@b.com\n\n## Banner\n\n* Point A\n* Point B\n"
-    )
+    expected_output = "# Personal\n\n## Contact\nEmail: a@b.com\n\n## Banner\n\n* Point A\n* Point B\n"
 
     assert result == expected_output
 

@@ -302,6 +302,98 @@ def update_user_settings(
     )
 
 
+def _validate_password_change(
+    new: str,
+    confirm: str,
+) -> tuple[bool, str | None]:
+    """Validate password change request.
+
+    Args:
+        new: The new password.
+        confirm: The confirmation of the new password.
+
+    Returns:
+        tuple[bool, str | None]: A tuple where the first element is True if valid,
+            False otherwise, and the second element is an error message if invalid.
+
+    """
+    if new != confirm:
+        return False, "New passwords do not match."
+    return True, None
+
+
+def _handle_password_change_error(
+    request: Request,
+    current_user: User,
+    error_detail: str,
+    status_code: int,
+) -> Response:
+    """Handle password change error with appropriate response format.
+
+    Args:
+        request: The request object.
+        current_user: The authenticated user.
+        error_detail: The error message to display.
+        status_code: The HTTP status code.
+
+    Returns:
+        Response: A response appropriate for the request type.
+
+    """
+    is_json_request = "application/json" in request.headers.get("accept", "")
+    is_partial_htmx = request.headers.get("hx-target") == "password-notification"
+
+    log.warning(error_detail)
+    if is_json_request:
+        raise HTTPException(status_code=status_code, detail=error_detail)
+
+    error_snippet = f'<div class="p-4 mb-4 text-sm text-red-800 rounded-lg bg-red-50" role="alert"><span class="font-medium">Error!</span> {error_detail}</div>'
+    if is_partial_htmx:
+        return HTMLResponse(content=error_snippet, status_code=status_code)
+
+    is_forced_change = (
+        current_user.attributes is not None
+        and current_user.attributes.get("force_password_change", False)
+    )
+    context = {
+        "user": current_user,
+        "error": error_detail,
+        "is_forced_change": is_forced_change,
+    }
+    return templates.TemplateResponse(
+        request,
+        "pages/change_password.html",
+        context,
+        status_code=status_code,
+    )
+
+
+def _handle_password_change_success(request: Request) -> Response:
+    """Handle successful password change with appropriate response format.
+
+    Args:
+        request: The request object.
+
+    Returns:
+        Response: A response appropriate for the request type.
+
+    """
+    is_partial_htmx = request.headers.get("hx-target") == "password-notification"
+
+    if is_partial_htmx:
+        return HTMLResponse(
+            '<div class="p-4 mb-4 text-sm text-green-800 rounded-lg bg-green-50" role="alert"><span class="font-medium">Success!</span> Your password has been changed.</div>',
+        )
+
+    redirect_url = "/dashboard"
+    if "hx-request" in request.headers:
+        response = Response(status_code=status.HTTP_200_OK)
+        response.headers["HX-Redirect"] = redirect_url
+        return response
+
+    return RedirectResponse(url=redirect_url, status_code=status.HTTP_303_SEE_OTHER)
+
+
 @router.post("/change-password")
 def change_password(
     request: Request,
@@ -331,14 +423,12 @@ def change_password(
     _msg = "Changing password for current user"
     log.debug(_msg)
 
-    is_json_request = "application/json" in request.headers.get("accept", "")
-    is_partial_htmx = request.headers.get("hx-target") == "password-notification"
+    is_valid, error_detail = _validate_password_change(
+        new=form_data.new_password,
+        confirm=form_data.confirm_new_password,
+    )
 
-    error_detail = None
-    status_code = status.HTTP_400_BAD_REQUEST
-    if form_data.new_password != form_data.confirm_new_password:
-        error_detail = "New passwords do not match."
-    else:
+    if is_valid:
         try:
             user_logic.change_password(
                 db=db,
@@ -347,50 +437,26 @@ def change_password(
                 current_password=form_data.current_password,
             )
         except HTTPException as e:
-            error_detail = e.detail
-            status_code = e.status_code
+            return _handle_password_change_error(
+                request=request,
+                current_user=current_user,
+                error_detail=e.detail,
+                status_code=e.status_code,
+            )
 
     if error_detail:
-        log.warning(error_detail)
-        if is_json_request:
-            raise HTTPException(status_code=status_code, detail=error_detail)
-
-        error_snippet = f'<div class="p-4 mb-4 text-sm text-red-800 rounded-lg bg-red-50" role="alert"><span class="font-medium">Error!</span> {error_detail}</div>'
-        if is_partial_htmx:
-            return HTMLResponse(content=error_snippet, status_code=status_code)
-        else:
-            is_forced_change = (
-                current_user.attributes is not None
-                and current_user.attributes.get("force_password_change", False)
-            )
-            context = {
-                "user": current_user,
-                "error": error_detail,
-                "is_forced_change": is_forced_change,
-            }
-            return templates.TemplateResponse(
-                request,
-                "pages/change_password.html",
-                context,
-                status_code=status_code,
-            )
+        return _handle_password_change_error(
+            request=request,
+            current_user=current_user,
+            error_detail=error_detail,
+            status_code=status.HTTP_400_BAD_REQUEST,
+        )
 
     # Success
     _msg = "Password updated successfully"
     log.debug(_msg)
 
-    if is_partial_htmx:
-        return HTMLResponse(
-            '<div class="p-4 mb-4 text-sm text-green-800 rounded-lg bg-green-50" role="alert"><span class="font-medium">Success!</span> Your password has been changed.</div>',
-        )
-
-    redirect_url = "/dashboard"
-    if "hx-request" in request.headers:
-        response = Response(status_code=status.HTTP_200_OK)
-        response.headers["HX-Redirect"] = redirect_url
-        return response
-    else:
-        return RedirectResponse(url=redirect_url, status_code=status.HTTP_303_SEE_OTHER)
+    return _handle_password_change_success(request)
 
 
 @router.get(

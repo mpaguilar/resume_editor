@@ -399,6 +399,27 @@ def create_resume(
     return resume
 
 
+def _apply_resume_field_update(
+    resume: DatabaseResume,
+    field_name: str,
+    value: str | None,
+) -> None:
+    """Apply a single field update to a resume if value is not None.
+
+    Args:
+        resume (DatabaseResume): The resume to update.
+        field_name (str): The name of the field to update.
+        value (str | None): The new value, or None to skip.
+
+    Notes:
+        1. If value is None, do nothing.
+        2. Otherwise, set the specified field on the resume to the value.
+
+    """
+    if value is not None:
+        setattr(resume, field_name, value)
+
+
 def update_resume(
     db: Session,
     resume: DatabaseResume,
@@ -415,26 +436,18 @@ def update_resume(
         DatabaseResume: The updated resume object.
 
     Notes:
-        1. If a new name is provided (not None), update the resume's name attribute.
-        2. If new content is provided (not None), update the resume's content attribute.
-        3. If an introduction is provided (not None), update the resume's introduction attribute.
-        4. If new notes are provided (not None), update the resume's notes attribute.
-        5. Commit the transaction to save the changes to the database.
-        6. Refresh the resume object to ensure it reflects the latest state from the database.
-        7. Return the updated resume.
-        8. This function performs a database write operation.
+        1. Apply updates for each field using _apply_resume_field_update.
+        2. Commit the transaction to save the changes to the database.
+        3. Refresh the resume object to ensure it reflects the latest state.
+        4. Return the updated resume.
+        5. This function performs a database write operation.
 
     """
-    if params.name is not None:
-        resume.name = params.name
-    if params.content is not None:
-        resume.content = params.content
-    if params.introduction is not None:
-        resume.introduction = params.introduction
-    if params.notes is not None:
-        resume.notes = params.notes
-    if params.company is not None:
-        resume.company = params.company
+    _apply_resume_field_update(resume, "name", params.name)
+    _apply_resume_field_update(resume, "content", params.content)
+    _apply_resume_field_update(resume, "introduction", params.introduction)
+    _apply_resume_field_update(resume, "notes", params.notes)
+    _apply_resume_field_update(resume, "company", params.company)
     db.commit()
     db.refresh(resume)
     return resume

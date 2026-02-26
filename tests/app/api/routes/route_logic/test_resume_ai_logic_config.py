@@ -7,8 +7,8 @@ from resume_editor.app.api.routes.route_logic.resume_ai_logic import get_llm_con
 from resume_editor.app.models.user_settings import UserSettings
 
 
-@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.decrypt_data")
-@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.get_user_settings")
+@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic_helpers.decrypt_data")
+@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic_helpers.get_user_settings")
 def test_get_llm_config_with_key(mock_get_user_settings, mock_decrypt_data):
     """Test get_llm_config when user settings and API key exist."""
     # Arrange
@@ -34,8 +34,8 @@ def test_get_llm_config_with_key(mock_get_user_settings, mock_decrypt_data):
     mock_decrypt_data.assert_called_once_with("encrypted_key")
 
 
-@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.decrypt_data")
-@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.get_user_settings")
+@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic_helpers.decrypt_data")
+@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic_helpers.get_user_settings")
 def test_get_llm_config_no_key(mock_get_user_settings, mock_decrypt_data):
     """Test get_llm_config when user settings exist but no API key."""
     # Arrange
@@ -60,7 +60,7 @@ def test_get_llm_config_no_key(mock_get_user_settings, mock_decrypt_data):
     mock_decrypt_data.assert_not_called()
 
 
-@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.get_user_settings")
+@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic_helpers.get_user_settings")
 def test_get_llm_config_no_settings(mock_get_user_settings):
     """Test get_llm_config when user has no settings."""
     # Arrange
@@ -78,8 +78,8 @@ def test_get_llm_config_no_settings(mock_get_user_settings):
     mock_get_user_settings.assert_called_once_with(mock_db, user_id)
 
 
-@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.decrypt_data")
-@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic.get_user_settings")
+@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic_helpers.decrypt_data")
+@patch("resume_editor.app.api.routes.route_logic.resume_ai_logic_helpers.get_user_settings")
 def test_get_llm_config_decryption_error(mock_get_user_settings, mock_decrypt_data):
     """Test get_llm_config raises InvalidToken on decryption failure."""
     # Arrange

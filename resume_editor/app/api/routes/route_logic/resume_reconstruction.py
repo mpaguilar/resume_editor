@@ -1,4 +1,5 @@
 import logging
+from typing import Any, Callable
 
 from resume_editor.app.api.routes.route_models import (
     CertificationsResponse,
@@ -8,6 +9,95 @@ from resume_editor.app.api.routes.route_models import (
 )
 
 log = logging.getLogger(__name__)
+
+
+def _serialize_section_if_present(
+    section_data: Any,
+    serializer: Callable[[Any], str],
+) -> str | None:
+    """Serialize a resume section if data is present.
+
+    Args:
+        section_data (Any): The section data to serialize, or None.
+        serializer (Callable): The function to serialize the section.
+
+    Returns:
+        str | None: The serialized section string, or None if section_data is None or empty.
+
+    Notes:
+        1. If section_data is None, return None.
+        2. Otherwise, call the serializer function with section_data.
+        3. Return the result if it's truthy, otherwise return None.
+
+    """
+    if section_data is None:
+        return None
+    serialized = serializer(section_data)
+    return serialized if serialized else None
+
+
+def _collect_resume_sections(
+    personal_info: PersonalInfoResponse | None,
+    education: EducationResponse | None,
+    certifications: CertificationsResponse | None,
+    experience: ExperienceResponse | None,
+) -> list[str]:
+    """Collect all non-empty resume sections into a list.
+
+    Args:
+        personal_info (PersonalInfoResponse | None): Personal information data.
+        education (EducationResponse | None): Education information data.
+        certifications (CertificationsResponse | None): Certifications information data.
+        experience (ExperienceResponse | None): Experience information data.
+
+    Returns:
+        list[str]: A list of serialized section strings.
+
+    Notes:
+        1. Import serialization functions.
+        2. Serialize each section if present using _serialize_section_if_present.
+        3. Collect all non-None results into a list.
+        4. Return the list of serialized sections.
+
+    """
+    from resume_editor.app.api.routes.route_logic.resume_serialization import (
+        serialize_certifications_to_markdown,
+        serialize_education_to_markdown,
+        serialize_experience_to_markdown,
+        serialize_personal_info_to_markdown,
+    )
+
+    sections = []
+
+    personal_section = _serialize_section_if_present(
+        personal_info,
+        serialize_personal_info_to_markdown,
+    )
+    if personal_section:
+        sections.append(personal_section)
+
+    education_section = _serialize_section_if_present(
+        education,
+        serialize_education_to_markdown,
+    )
+    if education_section:
+        sections.append(education_section)
+
+    certifications_section = _serialize_section_if_present(
+        certifications,
+        serialize_certifications_to_markdown,
+    )
+    if certifications_section:
+        sections.append(certifications_section)
+
+    experience_section = _serialize_section_if_present(
+        experience,
+        serialize_experience_to_markdown,
+    )
+    if experience_section:
+        sections.append(experience_section)
+
+    return sections
 
 
 def reconstruct_resume_markdown(
@@ -28,46 +118,20 @@ def reconstruct_resume_markdown(
         str: A complete Markdown formatted resume document with all provided sections joined by double newlines.
 
     Notes:
-        1. Initialize an empty list to collect resume sections.
-        2. Serialize each provided section using the corresponding serialization function.
-        3. Append each serialized section to the sections list if it is not empty.
-        4. Filter out any empty strings and strip whitespace from each section.
-        5. Join all sections with double newlines to ensure proper spacing.
-        6. Return the complete Markdown resume content.
-        7. No network, disk, or database access is performed.
+        1. Collect all sections using _collect_resume_sections.
+        2. Filter out any empty strings and strip whitespace from each section.
+        3. Join all sections with double newlines to ensure proper spacing.
+        4. Return the complete Markdown resume content.
+        5. No network, disk, or database access is performed.
 
     """
-    from resume_editor.app.api.routes.route_logic.resume_serialization import (
-        serialize_certifications_to_markdown,
-        serialize_education_to_markdown,
-        serialize_experience_to_markdown,
-        serialize_personal_info_to_markdown,
+    sections = _collect_resume_sections(
+        personal_info,
+        education,
+        certifications,
+        experience,
     )
 
-    sections = []
-
-    # Serialize each section if provided
-    if personal_info is not None:
-        personal_section = serialize_personal_info_to_markdown(personal_info)
-        if personal_section:
-            sections.append(personal_section)
-
-    if education is not None:
-        education_section = serialize_education_to_markdown(education)
-        if education_section:
-            sections.append(education_section)
-
-    if certifications is not None:
-        certifications_section = serialize_certifications_to_markdown(certifications)
-        if certifications_section:
-            sections.append(certifications_section)
-
-    if experience is not None:
-        experience_section = serialize_experience_to_markdown(experience)
-        if experience_section:
-            sections.append(experience_section)
-
-    # Join all sections with proper spacing
     return "\n\n".join(filter(None, [s.strip() for s in sections]))
 
 

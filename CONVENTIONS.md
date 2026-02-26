@@ -209,3 +209,43 @@ There are several cases where test files may not be named exactly the same as th
 
 * Known mappings are found in `code_test_mappings.md`. 
 * ALWAYS Update `code_test_mappings.md` as new mappings are discovered or created.
+
+# Ruff Linting Rules
+
+The following ruff rules are enforced via configuration in `pyproject.toml`. All rules are checked during quality checks.
+
+## Enabled Rules
+
+* **A002** - Argument shadows a Python built-in (e.g., naming a parameter `id` or `list`)
+* **ANN201** - Missing return type annotation on public functions
+* **ANN001** - Missing type annotation for function arguments
+* **ARG001** - Unused function argument
+* **ARG002** - Unused method argument (self/cls excluded)
+* **F841** - Unused local variable
+* **RUF006** - Store a reference to the return value of `asyncio.create_task`
+* **TC002** - Move third-party import into a type-checking block
+* **FAST** - FastAPI-specific linting errors (e.g., FAST002 for non-Annotated Depends)
+* **D417** - Missing argument description in the docstring
+* **C** - McCabe complexity check (cyclomatic complexity)
+* **PLR0913** - Too many arguments in function definition
+
+## McCabe Complexity
+
+Maximum cyclomatic complexity is set to 5. Functions with complexity above this threshold will be flagged for refactoring.
+
+## Running Quality Checks
+
+Run ruff directly to check code quality:
+
+```bash
+# Show all violations
+uv run ruff check
+
+# Automatically fix violations where possible
+uv run ruff check --fix
+
+# Check specific file or directory
+uv run ruff check resume_editor/app/models.py
+```
+
+Always run quality checks before committing to ensure code standards are met.

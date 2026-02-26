@@ -25,40 +25,18 @@ from resume_editor.app.web.pages import router as web_pages_router
 log = logging.getLogger(__name__)
 
 
-def create_app() -> FastAPI:
-    """Create and configure the FastAPI application.
+def _setup_middleware(app: FastAPI) -> None:
+    """Configure and add middleware to app.
 
     Args:
-        None
-
-    Returns:
-        FastAPI: The configured FastAPI application instance.
+        app: The FastAPI application instance.
 
     Notes:
-        1. Initialize the FastAPI application with the title "Resume Editor API".
-        2. Add CORS middleware to allow requests from any origin (for development only).
-        3. Include the user router to handle user-related API endpoints.
-        4. Include the resume router to handle resume-related API endpoints.
-        5. Include the admin router to handle administrative API endpoints.
-        6. Define a health check endpoint at "/health" that returns a JSON object with status "ok".
-        7. Add static file serving for CSS/JS assets.
-        8. Add template rendering for HTML pages.
-        9. Define dashboard routes for the HTMX-based interface.
-        10. Log a success message indicating the application was created.
+        1. Add refresh session middleware.
+        2. Add setup check middleware to redirect to setup page if no users exist.
+        3. Add CORS middleware for cross-origin requests.
 
     """
-    _msg = "Creating FastAPI application"
-    log.debug(_msg)
-
-    # Download required NLTK data on startup to prevent slow first-request parsing
-    # This "warms up" each worker process.
-    try:
-        nltk.data.find("tokenizers/punkt")
-    except LookupError:
-        nltk.download("punkt")
-
-    app = FastAPI(title="Resume Editor API")
-
     app.middleware("http")(refresh_session_middleware)
 
     @app.middleware("http")
@@ -109,6 +87,18 @@ def create_app() -> FastAPI:
 
     app.add_middleware(BaseHTTPMiddleware, dispatch=refresh_session_middleware)
 
+
+def _register_routes(app: FastAPI) -> None:
+    """Register all API routes.
+
+    Args:
+        app: The FastAPI application instance.
+
+    Notes:
+        1. Mount static files for CSS/JS assets.
+        2. Include all API routers.
+
+    """
     # Mount static files
     STATIC_DIR = Path(__file__).resolve().parent / "static"
     app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
@@ -123,6 +113,44 @@ def create_app() -> FastAPI:
     app.include_router(admin_forms_router)
     app.include_router(setup_router)
     app.include_router(web_pages_router)
+
+
+def create_app() -> FastAPI:
+    """Create and configure the FastAPI application.
+
+    Args:
+        None
+
+    Returns:
+        FastAPI: The configured FastAPI application instance.
+
+    Notes:
+        1. Initialize the FastAPI application with the title "Resume Editor API".
+        2. Add CORS middleware to allow requests from any origin (for development only).
+        3. Include the user router to handle user-related API endpoints.
+        4. Include the resume router to handle resume-related API endpoints.
+        5. Include the admin router to handle administrative API endpoints.
+        6. Define a health check endpoint at "/health" that returns a JSON object with status "ok".
+        7. Add static file serving for CSS/JS assets.
+        8. Add template rendering for HTML pages.
+        9. Define dashboard routes for the HTMX-based interface.
+        10. Log a success message indicating the application was created.
+
+    """
+    _msg = "Creating FastAPI application"
+    log.debug(_msg)
+
+    # Download required NLTK data on startup to prevent slow first-request parsing
+    # This "warms up" each worker process.
+    try:
+        nltk.data.find("tokenizers/punkt")
+    except LookupError:
+        nltk.download("punkt")
+
+    app = FastAPI(title="Resume Editor API")
+
+    _setup_middleware(app)
+    _register_routes(app)
 
     _msg = "FastAPI application created successfully"
     log.debug(_msg)

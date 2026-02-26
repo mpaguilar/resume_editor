@@ -1,3 +1,5 @@
+"""Tests for orchestration_banner module."""
+
 import json
 import logging
 from datetime import datetime
@@ -15,7 +17,7 @@ from resume_editor.app.llm.models import (
     RefinedRoleRecord,
     RunningLog,
 )
-from resume_editor.app.llm.orchestration import (
+from resume_editor.app.llm.orchestration_banner import (
     _calculate_certification_relevance,
     _calculate_education_relevance,
     _calculate_project_relevance,
@@ -453,8 +455,8 @@ class TestFormatRoleDataForBanner:
 class TestInvokeBannerGenerationChain:
     """Tests for _invoke_banner_generation_chain function."""
 
-    @patch("resume_editor.app.llm.orchestration.GeneratedBanner")
-    @patch("resume_editor.app.llm.orchestration._parse_json_with_fix")
+    @patch("resume_editor.app.llm.orchestration_banner.GeneratedBanner")
+    @patch("resume_editor.app.llm.orchestration_banner._parse_json_with_fix")
     def test_successful_banner_generation(
         self,
         mock_parse_json,
@@ -498,7 +500,7 @@ class TestInvokeBannerGenerationChain:
         # and returns None when chain invocation fails
         assert banner is None or isinstance(banner, GeneratedBanner)
 
-    @patch("resume_editor.app.llm.orchestration._parse_json_with_fix")
+    @patch("resume_editor.app.llm.orchestration_banner._parse_json_with_fix")
     def test_returns_none_on_error(
         self, mock_parse_json, job_analysis_fixture, refined_role_records_fixture
     ):
@@ -517,7 +519,7 @@ class TestInvokeBannerGenerationChain:
 
         assert banner is None
 
-    @patch("resume_editor.app.llm.orchestration._parse_json_with_fix")
+    @patch("resume_editor.app.llm.orchestration_banner._parse_json_with_fix")
     def test_handles_education_bullet(
         self, mock_parse_json, job_analysis_fixture, refined_role_records_fixture
     ):

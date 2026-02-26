@@ -15,6 +15,59 @@ from resume_editor.app.api.routes.route_logic.resume_serialization import (
 log = logging.getLogger(__name__)
 
 
+def _find_first_valid_header_index(lines: list[str], valid_headers: set[str]) -> int:
+    """Find the index of the first valid top-level section header.
+
+    Args:
+        lines (list[str]): The lines of Markdown content to search.
+        valid_headers (set[str]): A set of valid header names (lowercase).
+
+    Returns:
+        int: The index of the first valid header, or -1 if none found.
+
+    Notes:
+        1. Iterate through each line.
+        2. Check if line starts with "# " but not "##" (top-level header).
+        3. Extract header name and check if it's in valid_headers.
+        4. Return the index of the first match, or -1 if no match found.
+
+    """
+    for i, line in enumerate(lines):
+        stripped_line = line.strip()
+        if stripped_line.startswith("# ") and not stripped_line.startswith("##"):
+            header_name = stripped_line[2:].lower()
+            if header_name in valid_headers:
+                return i
+    return -1
+
+
+def _has_valid_resume_sections(parsed_resume: WriterResume) -> bool:
+    """Check if the parsed resume has any valid sections.
+
+    Args:
+        parsed_resume (WriterResume): The parsed resume object to check.
+
+    Returns:
+        bool: True if at least one section (personal, education, experience, certifications) exists.
+
+    Notes:
+        1. Check if personal section exists.
+        2. Check if education section exists.
+        3. Check if experience section exists.
+        4. Check if certifications section exists.
+        5. Return True if any section exists, False otherwise.
+
+    """
+    return any(
+        [
+            parsed_resume.personal,
+            parsed_resume.education,
+            parsed_resume.experience,
+            parsed_resume.certifications,
+        ],
+    )
+
+
 def parse_resume_to_writer_object(markdown_content: str) -> WriterResume:
     """Parse Markdown resume content into a resume_writer Resume object.
 
@@ -25,50 +78,29 @@ def parse_resume_to_writer_object(markdown_content: str) -> WriterResume:
         WriterResume: The parsed resume object from the resume_writer library, containing structured data for personal info, experience, education, certifications, etc.
 
     Raises:
-        ValueError: If the parsed content contains no valid resume sections (e.g., no personal, education, experience, or certifications data).
+        ValueError: If the parsed content contains no valid resume sections.
 
     Notes:
         1. Split the input Markdown content into individual lines.
-        2. Skip any lines before the first valid top-level section header (i.e., lines starting with "# " but not "##").
-        3. Identify valid section headers by checking against the keys in WriterResume.expected_blocks().
-        4. If a valid header is found, truncate the lines list to start from that header.
-        5. Create a ParseContext object using the processed lines and indentation level 1.
-        6. Use the Resume.parse method to parse the content into a WriterResume object.
-        7. Check if any of the main resume sections (personal, education, experience, certifications) were successfully parsed.
-        8. Raise ValueError if no valid sections were parsed.
-        9. Return the fully parsed WriterResume object.
+        2. Find the first valid section header using _find_first_valid_header_index.
+        3. Truncate lines to start from the valid header if found.
+        4. Create a ParseContext and parse into a WriterResume object.
+        5. Validate that at least one section was parsed using _has_valid_resume_sections.
+        6. Raise ValueError if no valid sections were parsed.
+        7. Return the fully parsed WriterResume object.
 
     """
     lines = markdown_content.split("\n")
+    valid_headers = set(WriterResume.expected_blocks().keys())
 
-    # To make parsing more robust, skip any content before the first valid section header
-    first_valid_line_index = -1
-    valid_headers = WriterResume.expected_blocks().keys()
-
-    for i, line in enumerate(lines):
-        stripped_line = line.strip()
-        if stripped_line.startswith("# ") and not stripped_line.startswith("##"):
-            # Extract header name
-            header_name = stripped_line[2:].lower()
-            if header_name in valid_headers:
-                first_valid_line_index = i
-                break
-
-    if first_valid_line_index != -1:
-        lines = lines[first_valid_line_index:]
+    first_valid_index = _find_first_valid_header_index(lines, valid_headers)
+    if first_valid_index != -1:
+        lines = lines[first_valid_index:]
 
     parse_context = ParseContext(lines, 1)
     parsed_resume = WriterResume.parse(parse_context)
 
-    # Check if parsing resulted in any content
-    if not any(
-        [
-            parsed_resume.personal,
-            parsed_resume.education,
-            parsed_resume.experience,
-            parsed_resume.certifications,
-        ],
-    ):
+    if not _has_valid_resume_sections(parsed_resume):
         raise ValueError("No valid resume sections found in content.")
 
     return parsed_resume

@@ -42,6 +42,79 @@ def _parse_resume(resume_content: str) -> WriterResume:
         raise ValueError(_msg) from e
 
 
+def _is_section_start(line: str, section_header: str) -> bool:
+    """Check if line is the section header.
+
+    Args:
+        line (str): The line to check.
+        section_header (str): The section header to match.
+
+    Returns:
+        bool: True if line matches section header.
+
+    """
+    return line.strip().lower() == section_header
+
+
+def _is_next_section(line: str) -> bool:
+    """Check if line is the start of a new section.
+
+    Args:
+        line (str): The line to check.
+
+    Returns:
+        bool: True if line starts a new section.
+
+    """
+    return line.strip().lower().startswith("# ")
+
+
+def _scan_section_for_content(lines: list[str], section_header: str) -> bool:
+    """Scan lines for content within a specific section.
+
+    Args:
+        lines (list[str]): The content lines to search.
+        section_header (str): The section header to find.
+
+    Returns:
+        bool: True if content is found in the section.
+
+    Notes:
+        1. Iterate through lines to find the section header.
+        2. Once inside the section, check for any non-empty lines before next section.
+        3. Return True if content is found, False otherwise.
+
+    """
+    in_section = False
+
+    for line in lines:
+        if not in_section:
+            in_section = _is_section_start(line, section_header)
+        elif _is_next_section(line):
+            break
+        elif line.strip():
+            return True
+
+    return False
+
+
+def _find_content_in_section(lines: list[str], section_header: str) -> bool:
+    """Check if any content exists in a section.
+
+    Args:
+        lines (list[str]): The content lines to search.
+        section_header (str): The section header to find.
+
+    Returns:
+        bool: True if content is found in the section.
+
+    Notes:
+        1. Delegate to scanning function to check for content.
+
+    """
+    return _scan_section_for_content(lines, section_header)
+
+
 def _check_for_unparsed_content(
     resume_content: str,
     section_name: str,
@@ -59,9 +132,8 @@ def _check_for_unparsed_content(
 
     Notes:
         1. If 'parsed_section' is not empty, return.
-        2. Iterate through 'resume_content' lines to find the section header.
-        3. Once inside the section, check for any non-empty lines before the next top-level section.
-        4. If any content is found, log a warning and raise a ValueError.
+        2. Search for content in the section using helper function.
+        3. If any content is found, log a warning and raise a ValueError.
 
     """
     log.debug("_check_for_unparsed_content starting")
@@ -70,22 +142,9 @@ def _check_for_unparsed_content(
         return
 
     lines = resume_content.splitlines()
-    in_section = False
-    content_found = False
     section_header = f"# {section_name.lower()}"
+    content_found = _find_content_in_section(lines, section_header)
 
-    for line in lines:
-        stripped_line = line.strip()
-        if stripped_line.lower() == section_header:
-            in_section = True
-            continue
-
-        if in_section:
-            if stripped_line.lower().startswith("# "):
-                break  # Next section
-            if stripped_line:
-                content_found = True
-                break
     if content_found:
         _msg = f"Failed to parse {section_name} info from resume content."
         log.warning(
@@ -96,29 +155,18 @@ def _check_for_unparsed_content(
     log.debug("_check_for_unparsed_content returning")
 
 
-def _extract_data_from_personal_section(personal: any) -> dict:
-    """Extract data from a parsed personal section into a dictionary.
+def _extract_contact_info(data: dict, personal: any) -> None:
+    """Extract contact info from personal section.
+
     Args:
-        personal (any): The parsed personal section from resume_writer.
-    Returns:
-        dict: A dictionary of personal information.
+        data (dict): The dictionary to populate.
+        personal (any): The parsed personal section.
+
     Notes:
-        1. If `personal` is None, returns an empty dictionary.
-        2. Extracts contact info: name, email, phone, location.
-        3. Extracts websites: website, github, linkedin, twitter.
-        4. Extracts visa status: work_authorization, require_sponsorship.
-        5. Extracts banner text.
-        6. Extracts note text.
-        7. Returns a dictionary containing all extracted data.
+        1. Gets contact_info attribute from personal.
+        2. If contact_info exists, extracts name, email, phone, location.
 
     """
-    log.debug("_extract_data_from_personal_section starting")
-    if not personal:
-        log.debug("_extract_data_from_personal_section returning empty dict")
-        return {}
-
-    data = {}
-
     contact_info = getattr(personal, "contact_info", None)
     if contact_info is not None:
         data["name"] = getattr(contact_info, "name", None)
@@ -126,6 +174,19 @@ def _extract_data_from_personal_section(personal: any) -> dict:
         data["phone"] = getattr(contact_info, "phone", None)
         data["location"] = getattr(contact_info, "location", None)
 
+
+def _extract_websites(data: dict, personal: any) -> None:
+    """Extract websites from personal section.
+
+    Args:
+        data (dict): The dictionary to populate.
+        personal (any): The parsed personal section.
+
+    Notes:
+        1. Gets websites attribute from personal.
+        2. If websites exists, extracts website, github, linkedin, twitter.
+
+    """
     websites = getattr(personal, "websites", None)
     if websites is not None:
         data["website"] = getattr(websites, "website", None)
@@ -133,6 +194,19 @@ def _extract_data_from_personal_section(personal: any) -> dict:
         data["linkedin"] = getattr(websites, "linkedin", None)
         data["twitter"] = getattr(websites, "twitter", None)
 
+
+def _extract_visa_status(data: dict, personal: any) -> None:
+    """Extract visa status from personal section.
+
+    Args:
+        data (dict): The dictionary to populate.
+        personal (any): The parsed personal section.
+
+    Notes:
+        1. Gets visa_status attribute from personal.
+        2. If visa_status exists, extracts work_authorization and require_sponsorship.
+
+    """
     visa_status = getattr(personal, "visa_status", None)
     if visa_status is not None:
         data["work_authorization"] = getattr(
@@ -146,6 +220,19 @@ def _extract_data_from_personal_section(personal: any) -> dict:
             None,
         )
 
+
+def _extract_banner_and_note(data: dict, personal: any) -> None:
+    """Extract banner and note from personal section.
+
+    Args:
+        data (dict): The dictionary to populate.
+        personal (any): The parsed personal section.
+
+    Notes:
+        1. Gets banner attribute and extracts text if it exists.
+        2. Gets note attribute and extracts text if it exists.
+
+    """
     banner = getattr(personal, "banner", None)
     if banner and hasattr(banner, "text"):
         data["banner"] = banner.text
@@ -153,6 +240,32 @@ def _extract_data_from_personal_section(personal: any) -> dict:
     note = getattr(personal, "note", None)
     if note and hasattr(note, "text"):
         data["note"] = note.text
+
+
+def _extract_data_from_personal_section(personal: any) -> dict:
+    """Extract data from a parsed personal section into a dictionary.
+    Args:
+        personal (any): The parsed personal section from resume_writer.
+    Returns:
+        dict: A dictionary of personal information.
+    Notes:
+        1. If `personal` is None, returns an empty dictionary.
+        2. Extracts contact info, websites, visa status, banner, and note.
+        3. Returns a dictionary containing all extracted data.
+
+    """
+    log.debug("_extract_data_from_personal_section starting")
+    if not personal:
+        log.debug("_extract_data_from_personal_section returning empty dict")
+        return {}
+
+    data = {}
+
+    _extract_contact_info(data, personal)
+    _extract_websites(data, personal)
+    _extract_visa_status(data, personal)
+    _extract_banner_and_note(data, personal)
+
     log.debug("_extract_data_from_personal_section returning")
     return data
 
@@ -272,6 +385,47 @@ def _convert_writer_project_to_dict(project: any) -> dict:
     return project_dict
 
 
+def _has_contact_info(personal_info: PersonalInfoResponse) -> bool:
+    """Check if any contact info fields are present.
+
+    Args:
+        personal_info (PersonalInfoResponse): The personal info data.
+
+    Returns:
+        bool: True if any contact field exists.
+
+    Notes:
+        1. Checks name, email, phone, and location fields.
+        2. Returns True if any field has a value.
+
+    """
+    contact_fields = ["name", "email", "phone", "location"]
+    return any(getattr(personal_info, field, None) for field in contact_fields)
+
+
+def _append_contact_fields(
+    personal_info: PersonalInfoResponse, lines: list[str]
+) -> None:
+    """Append each contact field to lines if it exists.
+
+    Args:
+        personal_info (PersonalInfoResponse): The personal info data.
+        lines (list[str]): The list of lines to append to.
+
+    Notes:
+        1. Checks each contact field and appends formatted line if present.
+
+    """
+    if personal_info.name:
+        lines.append(f"Name: {personal_info.name}")
+    if personal_info.email:
+        lines.append(f"Email: {personal_info.email}")
+    if personal_info.phone:
+        lines.append(f"Phone: {personal_info.phone}")
+    if personal_info.location:
+        lines.append(f"Location: {personal_info.location}")
+
+
 def _add_contact_info_markdown(
     personal_info: PersonalInfoResponse,
     lines: list[str],
@@ -288,19 +442,52 @@ def _add_contact_info_markdown(
 
     """
     log.debug("_add_contact_info_markdown starting")
-    contact_fields = ["name", "email", "phone", "location"]
-    if any(getattr(personal_info, field, None) for field in contact_fields):
+    if _has_contact_info(personal_info):
         lines.extend(["## Contact Information", ""])
-        if personal_info.name:
-            lines.append(f"Name: {personal_info.name}")
-        if personal_info.email:
-            lines.append(f"Email: {personal_info.email}")
-        if personal_info.phone:
-            lines.append(f"Phone: {personal_info.phone}")
-        if personal_info.location:
-            lines.append(f"Location: {personal_info.location}")
+        _append_contact_fields(personal_info, lines)
         lines.append("")
     log.debug("_add_contact_info_markdown returning")
+
+
+def _has_website_info(personal_info: PersonalInfoResponse) -> bool:
+    """Check if any website fields are present.
+
+    Args:
+        personal_info (PersonalInfoResponse): The personal info data.
+
+    Returns:
+        bool: True if any website field exists.
+
+    Notes:
+        1. Checks github, linkedin, website, and twitter fields.
+        2. Returns True if any field has a value.
+
+    """
+    website_fields = ["github", "linkedin", "website", "twitter"]
+    return any(getattr(personal_info, field, None) for field in website_fields)
+
+
+def _append_website_fields(
+    personal_info: PersonalInfoResponse, lines: list[str]
+) -> None:
+    """Append each website field to lines if it exists.
+
+    Args:
+        personal_info (PersonalInfoResponse): The personal info data.
+        lines (list[str]): The list of lines to append to.
+
+    Notes:
+        1. Checks each website field and appends formatted line if present.
+
+    """
+    if personal_info.github:
+        lines.append(f"GitHub: {personal_info.github}")
+    if personal_info.linkedin:
+        lines.append(f"LinkedIn: {personal_info.linkedin}")
+    if personal_info.website:
+        lines.append(f"Website: {personal_info.website}")
+    if personal_info.twitter:
+        lines.append(f"Twitter: {personal_info.twitter}")
 
 
 def _add_websites_markdown(
@@ -319,17 +506,9 @@ def _add_websites_markdown(
 
     """
     log.debug("_add_websites_markdown starting")
-    website_fields = ["github", "linkedin", "website", "twitter"]
-    if any(getattr(personal_info, field, None) for field in website_fields):
+    if _has_website_info(personal_info):
         lines.extend(["## Websites", ""])
-        if personal_info.github:
-            lines.append(f"GitHub: {personal_info.github}")
-        if personal_info.linkedin:
-            lines.append(f"LinkedIn: {personal_info.linkedin}")
-        if personal_info.website:
-            lines.append(f"Website: {personal_info.website}")
-        if personal_info.twitter:
-            lines.append(f"Twitter: {personal_info.twitter}")
+        _append_website_fields(personal_info, lines)
         lines.append("")
     log.debug("_add_websites_markdown returning")
 
@@ -417,6 +596,64 @@ def _add_note_markdown(personal_info: PersonalInfoResponse, lines: list[str]) ->
     log.debug("_add_note_markdown returning")
 
 
+def _format_overview_string_field(overview: any, field: str, label: str) -> str | None:
+    """Format a string field from overview if it exists.
+
+    Args:
+        overview (any): The parsed project overview.
+        field (str): The attribute name to get.
+        label (str): The display label.
+
+    Returns:
+        str | None: Formatted field string or None if not present.
+
+    """
+    value = getattr(overview, field, None)
+    return f"{label}: {value}" if value else None
+
+
+def _format_overview_date_field(overview: any, field: str, label: str) -> str | None:
+    """Format a date field from overview if it exists.
+
+    Args:
+        overview (any): The parsed project overview.
+        field (str): The attribute name to get.
+        label (str): The display label.
+
+    Returns:
+        str | None: Formatted date string or None if not present.
+
+    """
+    value = getattr(overview, field, None)
+    return f"{label}: {value.strftime('%m/%Y')}" if value else None
+
+
+def _collect_overview_fields(overview: any) -> list[str]:
+    """Collect all non-empty overview fields.
+
+    Args:
+        overview (any): The parsed project overview from resume_writer.
+
+    Returns:
+        list[str]: List of formatted field strings.
+
+    Notes:
+        1. Collects string fields using helper.
+        2. Collects date fields using helper.
+        3. Returns combined list of non-None values.
+
+    """
+    fields = [
+        _format_overview_string_field(overview, "title", "Title"),
+        _format_overview_string_field(overview, "url", "Url"),
+        _format_overview_string_field(overview, "url_description", "Url Description"),
+        _format_overview_date_field(overview, "start_date", "Start date"),
+        _format_overview_date_field(overview, "end_date", "End date"),
+    ]
+
+    return [f for f in fields if f is not None]
+
+
 def _add_project_overview_markdown(overview: any, lines: list[str]) -> None:
     """Adds project overview Markdown to a list of lines.
     Args:
@@ -430,17 +667,7 @@ def _add_project_overview_markdown(overview: any, lines: list[str]) -> None:
 
     """
     log.debug("_add_project_overview_markdown starting")
-    overview_content = []
-    if getattr(overview, "title", None):
-        overview_content.append(f"Title: {overview.title}")
-    if getattr(overview, "url", None):
-        overview_content.append(f"Url: {overview.url}")
-    if getattr(overview, "url_description", None):
-        overview_content.append(f"Url Description: {overview.url_description}")
-    if getattr(overview, "start_date", None):
-        overview_content.append(f"Start date: {overview.start_date.strftime('%m/%Y')}")
-    if getattr(overview, "end_date", None):
-        overview_content.append(f"End date: {overview.end_date.strftime('%m/%Y')}")
+    overview_content = _collect_overview_fields(overview)
 
     if overview_content:
         lines.extend(["#### Overview", ""])
@@ -485,23 +712,20 @@ def _add_project_skills_markdown(skills: any, lines: list[str]) -> None:
     log.debug("_add_project_skills_markdown returning")
 
 
-def _add_role_basics_markdown(basics: any, lines: list[str]) -> None:
-    """Adds role basics Markdown to a list of lines.
+def _collect_string_basics(basics: any) -> list[str]:
+    """Collect formatted string fields from role basics.
+
     Args:
         basics (any): The parsed role basics from resume_writer.
-        lines (list[str]): The list of lines to append to.
+
+    Returns:
+        list[str]: List of formatted string field lines.
+
     Notes:
-        1. Defines mappings for string and date fields to their labels.
-        2. Iterates through the field mappings to collect basics info.
-        3. Formats date fields to 'MM/YYYY'.
-        4. If any data is collected, adds a "Basics" section header.
-        5. Appends each non-empty field.
-        6. Adds a trailing blank line.
+        1. Defines mapping of attribute names to display labels.
+        2. Iterates through mapping and collects non-empty fields.
 
     """
-    log.debug("_add_role_basics_markdown starting")
-    basics_content = []
-
     string_fields = {
         "company": "Company",
         "title": "Title",
@@ -511,20 +735,58 @@ def _add_role_basics_markdown(basics: any, lines: list[str]) -> None:
         "reason_for_change": "Reason for change",
         "location": "Location",
     }
-    date_fields = {
-        "start_date": "Start date",
-        "end_date": "End date",
-    }
+    result = []
 
     for attr, label in string_fields.items():
         value = getattr(basics, attr, None)
         if value:
-            basics_content.append(f"{label}: {value}")
+            result.append(f"{label}: {value}")
+
+    return result
+
+
+def _collect_date_basics(basics: any) -> list[str]:
+    """Collect formatted date fields from role basics.
+
+    Args:
+        basics (any): The parsed role basics from resume_writer.
+
+    Returns:
+        list[str]: List of formatted date field lines.
+
+    Notes:
+        1. Defines mapping of date attribute names to display labels.
+        2. Formats dates to 'MM/YYYY' format.
+
+    """
+    date_fields = {
+        "start_date": "Start date",
+        "end_date": "End date",
+    }
+    result = []
 
     for attr, label in date_fields.items():
         value = getattr(basics, attr, None)
         if value:
-            basics_content.append(f"{label}: {value.strftime('%m/%Y')}")
+            result.append(f"{label}: {value.strftime('%m/%Y')}")
+
+    return result
+
+
+def _add_role_basics_markdown(basics: any, lines: list[str]) -> None:
+    """Adds role basics Markdown to a list of lines.
+    Args:
+        basics (any): The parsed role basics from resume_writer.
+        lines (list[str]): The list of lines to append to.
+    Notes:
+        1. Collects string and date fields using helper functions.
+        2. If any data is collected, adds a "Basics" section header.
+        3. Appends each non-empty field.
+        4. Adds a trailing blank line.
+
+    """
+    log.debug("_add_role_basics_markdown starting")
+    basics_content = _collect_string_basics(basics) + _collect_date_basics(basics)
 
     if basics_content:
         lines.extend(["#### Basics", ""])

@@ -5,7 +5,7 @@ from fastapi import Depends, HTTPException, Request, status
 from jose import JWTError, jwt
 from sqlalchemy.orm import Session
 
-from resume_editor.app.core.config import get_settings
+from resume_editor.app.core.config import Settings, get_settings
 from resume_editor.app.core.security import oauth2_scheme
 from resume_editor.app.database.database import get_db
 from resume_editor.app.models.user import User
@@ -77,6 +77,120 @@ def get_current_user(
     return user
 
 
+def _handle_auth_failure(
+    request: Request,
+    prefers_html: bool,
+    credentials_exception: HTTPException,
+) -> None:
+    """Handle authentication failure with redirect or 401.
+
+    Args:
+        request: The request object.
+        prefers_html: Whether the request prefers HTML (browser) vs JSON (API).
+        credentials_exception: The exception to raise for API requests.
+
+    Raises:
+        HTTPException: Either a redirect (307) for browsers or 401 for APIs.
+
+    """
+    if prefers_html:
+        login_url = request.url_for("login_page")
+        raise HTTPException(
+            status_code=status.HTTP_307_TEMPORARY_REDIRECT,
+            headers={"Location": str(login_url)},
+            detail="Not authenticated, redirecting to login.",
+        )
+    raise credentials_exception
+
+
+def _validate_auth_token(
+    token: str,
+    settings: Settings,
+) -> dict | None:
+    """Validate authentication token and return payload.
+
+    Args:
+        token: The JWT token string.
+        settings: Application settings containing secret key and algorithm.
+
+    Returns:
+        dict | None: The decoded token payload, or None if invalid.
+
+    """
+    try:
+        payload = jwt.decode(
+            token,
+            settings.secret_key,
+            algorithms=[settings.algorithm],
+        )
+        if payload.get("sub") is None:
+            return None
+        return payload
+    except JWTError:
+        return None
+
+
+def _lookup_user_by_token(
+    db: Session,
+    token_data: dict,
+) -> User | None:
+    """Lookup user by validated token data.
+
+    Args:
+        db: Database session.
+        token_data: The decoded token payload containing the username.
+
+    Returns:
+        User | None: The user if found, None otherwise.
+
+    """
+    username: str = token_data.get("sub")
+    return db.query(User).filter(User.username == username).first()
+
+
+def _check_force_password_redirect(
+    request: Request,
+    user: User,
+) -> None:
+    """Check if user needs to be redirected for forced password change.
+
+    Args:
+        request: The request object.
+        user: The authenticated user.
+
+    Raises:
+        HTTPException: Redirect to change password page if required.
+
+    """
+    if not user.attributes or not user.attributes.get("force_password_change"):
+        return
+
+    path = request.url.path
+    # Allow access to the change password page, logout, and static assets
+    allowed_paths = [
+        "/api/users/change-password",
+        "/logout",
+    ]
+    if any(path.startswith(p) for p in allowed_paths) or path.startswith("/static"):
+        return
+
+    redirect_url = request.url_for("change_password_page")
+    # For HTMX requests, we can't send a normal redirect.
+    # Instead, we send a special header to trigger a client-side redirect.
+    # For regular requests, we send a 307 Temporary Redirect.
+    if "hx-request" in request.headers:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            headers={"HX-Redirect": str(redirect_url)},
+            detail="Password change required",
+        )
+    raise HTTPException(
+        status_code=status.HTTP_307_TEMPORARY_REDIRECT,
+        headers={"Location": str(redirect_url)},
+        detail="Password change required",
+    )
+
+
 def get_current_user_from_cookie(
     request: Request,
     db: Session = Depends(get_db),
@@ -120,66 +234,44 @@ def get_current_user_from_cookie(
         headers={},
     )
 
-    # Check if request prefers HTML over JSON. If the client does not explicitly ask for
-    # JSON, we assume it's a browser and can handle a redirect.
+    # Check if request prefers HTML over JSON
     accept_header = request.headers.get("Accept", "")
     prefers_html = "application/json" not in accept_header
 
-    def handle_auth_failure():
-        if prefers_html:
-            login_url = request.url_for("login_page")
-            raise HTTPException(
-                status_code=status.HTTP_307_TEMPORARY_REDIRECT,
-                headers={"Location": str(login_url)},
-                detail="Not authenticated, redirecting to login.",
-            )
-        raise credentials_exception
-
     token = request.cookies.get("access_token")
     if not token:
-        handle_auth_failure()
-
-    try:
-        payload = jwt.decode(
-            token,
-            settings.secret_key,
-            algorithms=[settings.algorithm],
+        _handle_auth_failure(
+            request=request,
+            prefers_html=prefers_html,
+            credentials_exception=credentials_exception,
         )
-        username: str = payload.get("sub")
-        if username is None:
-            handle_auth_failure()
-    except JWTError:
-        handle_auth_failure()
 
-    user = db.query(User).filter(User.username == username).first()
+    payload = _validate_auth_token(
+        token=token,
+        settings=settings,
+    )
+    if payload is None:
+        _handle_auth_failure(
+            request=request,
+            prefers_html=prefers_html,
+            credentials_exception=credentials_exception,
+        )
+
+    user = _lookup_user_by_token(
+        db=db,
+        token_data=payload,
+    )
     if user is None:
-        handle_auth_failure()
+        _handle_auth_failure(
+            request=request,
+            prefers_html=prefers_html,
+            credentials_exception=credentials_exception,
+        )
 
-    if user.attributes and user.attributes.get("force_password_change"):
-        path = request.url.path
-        # Allow access to the change password page, logout, and static assets
-        allowed_paths = [
-            "/api/users/change-password",
-            "/logout",
-        ]
-        if not any(path.startswith(p) for p in allowed_paths) and not path.startswith(
-            "/static",
-        ):
-            redirect_url = request.url_for("change_password_page")
-            # For HTMX requests, we can't send a normal redirect.
-            # Instead, we send a special header to trigger a client-side redirect.
-            # For regular requests, we send a 307 Temporary Redirect.
-            if "hx-request" in request.headers:
-                raise HTTPException(
-                    status_code=status.HTTP_401_UNAUTHORIZED,
-                    headers={"HX-Redirect": str(redirect_url)},
-                    detail="Password change required",
-                )
-            raise HTTPException(
-                status_code=status.HTTP_307_TEMPORARY_REDIRECT,
-                headers={"Location": str(redirect_url)},
-                detail="Password change required",
-            )
+    _check_force_password_redirect(
+        request=request,
+        user=user,
+    )
 
     return user
 

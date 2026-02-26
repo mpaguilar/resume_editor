@@ -1,4 +1,5 @@
 import logging
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Annotated
 
@@ -249,14 +250,102 @@ async def get_resume_view_page(
     )
 
 
+class ResumeViewUpdateForm:
+    """Form data for resume view updates.
+
+    Attributes:
+        introduction: The updated introduction (optional).
+        notes: The updated notes (optional).
+        company: The updated company (optional).
+
+    """
+
+    def __init__(
+        self,
+        introduction: Annotated[str | None, Form()] = None,
+        notes: Annotated[str | None, Form()] = None,
+        company: Annotated[str | None, Form()] = None,
+    ):
+        self.introduction = introduction
+        self.notes = notes
+        self.company = company
+
+
+@dataclass
+class HandleResumeViewUpdateParams:
+    """Parameters for handling resume view updates.
+
+    Attributes:
+        request: The HTTP request.
+        resume: The resume being viewed.
+        db: The database session.
+        form_data: The form data containing company, notes, and introduction.
+
+    """
+
+    request: Request
+    resume: DatabaseResume
+    db: Session
+    form_data: ResumeViewUpdateForm
+
+
+def _validate_view_update_params(
+    params: HandleResumeViewUpdateParams,
+) -> tuple[bool, str | None]:
+    """Validate view update parameters.
+
+    Args:
+        params: The parameters to validate.
+
+    Returns:
+        tuple[bool, str | None]: A tuple of (is_valid, error_message).
+
+    """
+    validation = validate_company_and_notes(
+        params.form_data.company,
+        params.form_data.notes,
+    )
+    if not validation.is_valid:
+        error_message = "; ".join(validation.errors.values())
+        return False, error_message
+    return True, None
+
+
+def _handle_validation_error(
+    params: HandleResumeViewUpdateParams,
+    error_message: str,
+) -> HTMLResponse:
+    """Handle validation error with appropriate response.
+
+    Args:
+        params: The update parameters.
+        error_message: The error message to display.
+
+    Returns:
+        HTMLResponse: Error HTML or redirect response.
+
+    """
+    _msg = "Validation failed for company or notes"
+    log.debug(_msg)
+
+    # Return error for HTMX requests
+    if "HX-Request" in params.request.headers:
+        error_html = f"<div class='text-red-500 p-2'><p>{error_message}</p></div>"
+        return HTMLResponse(content=error_html)
+
+    # For regular requests, redirect
+    return RedirectResponse(
+        url=f"/resumes/{params.resume.id}/view",
+        status_code=status.HTTP_303_SEE_OTHER,
+    )
+
+
 @router.post("/resumes/{resume_id}/view", response_class=HTMLResponse)
 async def handle_resume_view_update(
     request: Request,
     resume: Annotated[DatabaseResume, Depends(get_resume_for_user)],
     db: Annotated[Session, Depends(get_db)],
-    introduction: Annotated[str | None, Form()] = None,
-    notes: Annotated[str | None, Form()] = None,
-    company: Annotated[str | None, Form()] = None,
+    form_data: Annotated[ResumeViewUpdateForm, Depends()],
 ) -> HTMLResponse:
     """Handle updates to the view page (introduction, notes, company).
 
@@ -267,9 +356,7 @@ async def handle_resume_view_update(
         request: The HTTP request.
         resume: The resume being viewed.
         db: The database session.
-        introduction: The updated introduction (optional).
-        notes: The updated notes (optional).
-        company: The updated company (optional).
+        form_data: The form data containing introduction, notes, and company.
 
     Returns:
         HTMLResponse: Redirect to view page or error message.
@@ -286,35 +373,28 @@ async def handle_resume_view_update(
     _msg = f"handle_resume_view_update starting for resume {resume.id}"
     log.debug(_msg)
 
-    # Validate company and notes
-    validation = validate_company_and_notes(company, notes)
-    if not validation.is_valid:
-        _msg = "Validation failed for company or notes"
-        log.debug(_msg)
-        # Return error for HTMX requests
-        if "HX-Request" in request.headers:
-            error_html = "<div class='text-red-500 p-2'>"
-            for error in validation.errors.values():
-                error_html += f"<p>{error}</p>"
-            error_html += "</div>"
-            return HTMLResponse(content=error_html)
-        # For regular requests, redirect
-        return RedirectResponse(
-            url=f"/resumes/{resume.id}/view",
-            status_code=status.HTTP_303_SEE_OTHER,
-        )
+    params = HandleResumeViewUpdateParams(
+        request=request,
+        resume=resume,
+        db=db,
+        form_data=form_data,
+    )
+
+    is_valid, error_message = _validate_view_update_params(params)
+    if not is_valid:
+        return _handle_validation_error(params, error_message)
 
     # Reconstruct resume content with new introduction
     new_content = reconstruct_resume_with_new_introduction(
         resume_content=str(resume.content),
-        introduction=introduction,
+        introduction=form_data.introduction,
     )
 
     # Update the resume
     update_params = ResumeUpdateParams(
-        introduction=introduction,
-        notes=notes,
-        company=company,
+        introduction=form_data.introduction,
+        notes=form_data.notes,
+        company=form_data.company,
         content=new_content,
     )
     update_resume(

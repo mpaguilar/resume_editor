@@ -148,13 +148,13 @@ def mock_chain_invocations_for_role_refine():
     """
     with (
         patch(
-            "resume_editor.app.llm.orchestration.ChatOpenAI"
-        ) as mock_chat_openai_class,
+            "resume_editor.app.llm.orchestration_refinement.initialize_llm_client"
+        ) as mock_init_llm,
         patch(
-            "resume_editor.app.llm.orchestration.ChatPromptTemplate"
+            "resume_editor.app.llm.orchestration_refinement.ChatPromptTemplate"
         ) as mock_prompt_template_class,
-        patch("resume_editor.app.llm.orchestration.PydanticOutputParser"),
-        patch("resume_editor.app.llm.orchestration.StrOutputParser"),
+        patch("resume_editor.app.llm.orchestration_refinement.PydanticOutputParser"),
+        patch("langchain_core.output_parsers.StrOutputParser"),
     ):
         mock_prompt_from_messages = MagicMock()
         mock_prompt_template_class.from_messages.return_value = (
@@ -194,11 +194,10 @@ def mock_chain_invocations_for_role_refine():
         )
 
         yield {
-            "chat_openai": mock_chat_openai_class,
+            "init_llm": mock_init_llm,
             "final_chain": final_chain,
             "prompt_template": mock_prompt_template_class,
             "prompt_from_messages": mock_prompt_from_messages,
-            "mock_chat_openai_instance": mock_chat_openai_class.return_value,
         }
 
 
@@ -317,7 +316,17 @@ async def test_refine_role_prompt_content(mock_chain_invocations_for_role_refine
 
 
 @pytest.mark.parametrize(
-    "llm_endpoint, api_key, llm_model_name, expected_call_args", LLM_INIT_PARAMS
+    "llm_endpoint, api_key, llm_model_name",
+    [
+        ("http://fake.llm", "key", "custom-model"),
+        ("http://fake.llm", None, "custom-model"),
+        (None, "key", "custom-model"),
+        (None, None, "custom-model"),
+        ("http://fake.llm", "key", None),
+        ("http://fake.llm", "key", ""),
+        ("https://openrouter.ai/api/v1", "or-key", "openrouter/model"),
+        ("http://another.llm", None, "another-model"),
+    ],
 )
 @pytest.mark.asyncio
 async def test_refine_role_llm_initialization(
@@ -325,22 +334,22 @@ async def test_refine_role_llm_initialization(
     llm_endpoint,
     api_key,
     llm_model_name,
-    expected_call_args,
 ):
     """
-    Test that ChatOpenAI is initialized with the correct parameters for role refinement.
+    Test that initialize_llm_client is called with the correct LLMConfig for role refinement.
     """
+    llm_config = LLMConfig(
+        llm_endpoint=llm_endpoint,
+        api_key=api_key,
+        llm_model_name=llm_model_name,
+    )
     await refine_role(
         role=create_mock_role(),
         job_analysis=create_mock_job_analysis(),
-        llm_config=LLMConfig(
-            llm_endpoint=llm_endpoint,
-            api_key=api_key,
-            llm_model_name=llm_model_name,
-        ),
+        llm_config=llm_config,
     )
-    mock_chat_openai = mock_chain_invocations_for_role_refine["chat_openai"]
-    mock_chat_openai.assert_called_once_with(**expected_call_args)
+    mock_init_llm = mock_chain_invocations_for_role_refine["init_llm"]
+    mock_init_llm.assert_called_once_with(llm_config)
 
 
 @pytest.mark.asyncio
@@ -417,7 +426,9 @@ async def test_refine_role_success_on_second_attempt(
     mock_role = create_mock_role()
     mock_job_analysis = create_mock_job_analysis()
 
-    with patch("resume_editor.app.llm.orchestration.asyncio.sleep") as mock_sleep:
+    with patch(
+        "resume_editor.app.llm.orchestration_refinement.asyncio.sleep"
+    ) as mock_sleep:
         mock_sleep.return_value = None
 
         result = await refine_role(
@@ -471,7 +482,9 @@ async def test_refine_role_success_on_third_attempt(
     mock_role = create_mock_role()
     mock_job_analysis = create_mock_job_analysis()
 
-    with patch("resume_editor.app.llm.orchestration.asyncio.sleep") as mock_sleep:
+    with patch(
+        "resume_editor.app.llm.orchestration_refinement.asyncio.sleep"
+    ) as mock_sleep:
         mock_sleep.return_value = None
 
         result = await refine_role(
@@ -531,7 +544,9 @@ async def test_refine_role_semaphore_release_during_retry(
     mock_semaphore.release = MagicMock()
     mock_semaphore.acquire = AsyncMock()
 
-    with patch("resume_editor.app.llm.orchestration.asyncio.sleep") as mock_sleep:
+    with patch(
+        "resume_editor.app.llm.orchestration_refinement.asyncio.sleep"
+    ) as mock_sleep:
         mock_sleep.return_value = None
 
         result = await refine_role(
@@ -590,7 +605,9 @@ async def test_refine_role_progress_callback_during_retry(
     # Create mock progress callback
     progress_callback = AsyncMock()
 
-    with patch("resume_editor.app.llm.orchestration.asyncio.sleep") as mock_sleep:
+    with patch(
+        "resume_editor.app.llm.orchestration_refinement.asyncio.sleep"
+    ) as mock_sleep:
         mock_sleep.return_value = None
 
         result = await refine_role(

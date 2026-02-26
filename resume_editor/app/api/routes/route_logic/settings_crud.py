@@ -34,6 +34,78 @@ def get_user_settings(db: Session, user_id: int) -> UserSettings | None:
     return db.query(UserSettings).filter(UserSettings.user_id == user_id).first()
 
 
+def _get_or_create_user_settings(
+    db: Session,
+    user_id: int,
+) -> UserSettings:
+    """Get existing settings or create new ones for a user.
+
+    Args:
+        db (Session): The database session.
+        user_id (int): The user ID to get or create settings for.
+
+    Returns:
+        UserSettings: The existing or newly created settings object.
+
+    Notes:
+        1. Attempt to retrieve existing settings using get_user_settings.
+        2. If not found, create a new UserSettings object and add to session.
+        3. Return the settings object.
+
+    """
+    settings = get_user_settings(db=db, user_id=user_id)
+    if not settings:
+        _msg = f"No settings found for user_id: {user_id}. Creating new settings."
+        log.debug(_msg)
+        settings = UserSettings(user_id=user_id)
+        db.add(settings)
+    return settings
+
+
+def _update_optional_string_field(
+    settings: UserSettings,
+    field_name: str,
+    value: str | None,
+) -> None:
+    """Update a string field if value is not None.
+
+    Args:
+        settings (UserSettings): The settings object to update.
+        field_name (str): The name of the field to update.
+        value (str | None): The new value, or None to skip.
+
+    Notes:
+        1. If value is None, do nothing (field remains unchanged).
+        2. If value is an empty string, set field to None.
+        3. Otherwise, set field to the value.
+
+    """
+    if value is not None:
+        if value:
+            setattr(settings, field_name, value)
+        else:
+            setattr(settings, field_name, None)
+
+
+def _update_api_key_if_present(
+    settings: UserSettings,
+    api_key: str | None,
+) -> None:
+    """Update the encrypted API key if a non-empty value is provided.
+
+    Args:
+        settings (UserSettings): The settings object to update.
+        api_key (str | None): The API key to encrypt and store.
+
+    Notes:
+        1. If api_key is None or empty, do nothing.
+        2. Otherwise, encrypt the API key and store it.
+
+    """
+    if api_key:
+        settings.encrypted_api_key = encrypt_data(data=api_key)
+
+
 def update_user_settings(
     db: Session,
     user_id: int,
@@ -50,43 +122,29 @@ def update_user_settings(
         UserSettings: The updated or newly created UserSettings object.
 
     Notes:
-        1. Attempts to retrieve existing settings for the given user_id using get_user_settings.
-        2. If no settings are found, creates a new UserSettings object with the provided user_id and adds it to the session.
-        3. Updates the llm_endpoint field if settings_data.llm_endpoint is provided and not None.
-        4. Updates the llm_model_name field if settings_data.llm_model_name is provided and not None.
-        5. If a non-empty `settings_data.api_key` is provided, encrypts the API key using `encrypt_data` and stores it. An empty or `None` API key in the request will not change a pre-existing key.
-        6. Commits the transaction to the database.
-        7. Refreshes the session to ensure the returned object has the latest data from the database.
-        8. This function performs a database read and possibly a write operation.
+        1. Get or create settings using _get_or_create_user_settings.
+        2. Update llm_endpoint using _update_optional_string_field.
+        3. Update llm_model_name using _update_optional_string_field if present.
+        4. Update API key using _update_api_key_if_present.
+        5. Commit the transaction and refresh the settings object.
+        6. This function performs a database read and possibly a write operation.
 
     """
     _msg = f"Updating settings for user_id: {user_id}"
     log.debug(_msg)
 
-    settings = get_user_settings(db=db, user_id=user_id)
-    if not settings:
-        _msg = f"No settings found for user_id: {user_id}. Creating new settings."
-        log.debug(_msg)
-        settings = UserSettings(user_id=user_id)
-        db.add(settings)
+    settings = _get_or_create_user_settings(db, user_id)
 
-    if settings_data.llm_endpoint is not None:
-        if settings_data.llm_endpoint:
-            settings.llm_endpoint = settings_data.llm_endpoint
-        else:
-            settings.llm_endpoint = None
+    _update_optional_string_field(settings, "llm_endpoint", settings_data.llm_endpoint)
 
-    if (
-        hasattr(settings_data, "llm_model_name")
-        and settings_data.llm_model_name is not None
-    ):
-        if settings_data.llm_model_name:
-            settings.llm_model_name = settings_data.llm_model_name
-        else:
-            settings.llm_model_name = None
+    if hasattr(settings_data, "llm_model_name"):
+        _update_optional_string_field(
+            settings,
+            "llm_model_name",
+            settings_data.llm_model_name,
+        )
 
-    if settings_data.api_key:
-        settings.encrypted_api_key = encrypt_data(data=settings_data.api_key)
+    _update_api_key_if_present(settings, settings_data.api_key)
 
     db.commit()
     db.refresh(settings)
