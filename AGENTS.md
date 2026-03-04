@@ -232,6 +232,11 @@ The AI-generated banner uses a **role-centric evidence extraction** approach:
 - Encrypted storage for API keys and sensitive settings
 - Middleware enforces initial setup if no users exist
 - User impersonation available for admins
+- **Session Timeout**: Configurable per-user (15-1440 minutes, default 600 minutes / 10 hours)
+  - Global default: 600 minutes (10 hours) via `ACCESS_TOKEN_EXPIRE_MINUTES` env var
+  - Per-user setting stored in `user_settings.access_token_expire_minutes`
+  - Users can configure their timeout in Settings page
+  - Automatic token refresh on each request (session extension)
 
 ## Further Reading
 

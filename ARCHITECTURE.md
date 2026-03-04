@@ -102,6 +102,11 @@ resume_editor/app/api/routes/
 - Middleware enforces initial setup if no users exist
 - Password change workflow can be mandatory
 - User impersonation available for admins
+- **Session Timeout Configuration**:
+  - Global default: 600 minutes (10 hours) via `ACCESS_TOKEN_EXPIRE_MINUTES` env var in `config.py`
+  - Per-user override: Stored in `user_settings.access_token_expire_minutes` (Integer, nullable)
+  - Valid range: 15-1440 minutes (enforced in `settings_crud.py`)
+  - Session refresh: Middleware extends session on each request via `refresh_session_middleware`
 
 ## HTMX Patterns
 

@@ -553,7 +553,22 @@ def login_user(
 
     _msg = f"Creating access token for user: {form_data.username}"
     log.debug(_msg)
-    access_token = create_access_token(data={"sub": user.username}, settings=settings)
+
+    # Get user's session timeout preference
+    from resume_editor.app.api.routes.route_logic.settings_crud import get_user_settings
+
+    user_settings = get_user_settings(db, user.id)
+    expires_delta = None
+    if user_settings and user_settings.access_token_expire_minutes:
+        from datetime import timedelta
+
+        expires_delta = timedelta(minutes=user_settings.access_token_expire_minutes)
+
+    access_token = create_access_token(
+        data={"sub": user.username},
+        settings=settings,
+        expires_delta=expires_delta,
+    )
 
     _msg = f"Returning access token for user: {form_data.username}"
     log.debug(_msg)

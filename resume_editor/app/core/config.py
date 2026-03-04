@@ -77,7 +77,7 @@ class Settings(BaseSettings):
     )
     algorithm: str = Field(default="HS256", validation_alias="ALGORITHM")
     access_token_expire_minutes: int = Field(
-        default=120,
+        default=600,
         validation_alias="ACCESS_TOKEN_EXPIRE_MINUTES",
     )
 

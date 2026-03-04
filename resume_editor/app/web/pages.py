@@ -32,6 +32,7 @@ from resume_editor.app.api.routes.route_logic.settings_crud import (
     get_user_settings,
     update_user_settings,
 )
+from resume_editor.app.api.routes.route_models import SettingsUpdateForm
 from resume_editor.app.core.auth import get_current_user_from_cookie
 from resume_editor.app.core.config import Settings, get_settings
 from resume_editor.app.core.security import (
@@ -129,9 +130,18 @@ async def login_for_access_token(
             status_code=status.HTTP_401_UNAUTHORIZED,
         )
 
+    # Get user's session timeout preference
+    user_settings = get_user_settings(db, user.id)
+    expires_delta = None
+    if user_settings and user_settings.access_token_expire_minutes:
+        from datetime import timedelta
+
+        expires_delta = timedelta(minutes=user_settings.access_token_expire_minutes)
+
     access_token = create_access_token(
         data={"sub": user.username},
         settings=settings,
+        expires_delta=expires_delta,
     )
     response = RedirectResponse(
         url="/dashboard",
@@ -521,6 +531,9 @@ async def settings_page(
         "llm_endpoint": user_settings.llm_endpoint if user_settings else None,
         "llm_model_name": user_settings.llm_model_name if user_settings else None,
         "api_key_is_set": bool(user_settings and user_settings.encrypted_api_key),
+        "access_token_expire_minutes": user_settings.access_token_expire_minutes
+        if user_settings
+        else None,
     }
     return templates.TemplateResponse(request, "settings.html", context=context)
 
@@ -529,46 +542,67 @@ async def settings_page(
 async def update_settings(
     db: Annotated[Session, Depends(get_db)],
     current_user: Annotated[User, Depends(get_current_user_from_cookie)],
-    llm_endpoint: Annotated[str | None, Form()] = None,
-    llm_model_name: Annotated[str | None, Form()] = None,
-    api_key: Annotated[str | None, Form()] = None,
+    form_data: Annotated[SettingsUpdateForm, Depends()],
 ) -> HTMLResponse:
     """Handle user settings update.
 
     Args:
-        llm_endpoint (str | None): The LLM endpoint from the form.
-            None means no change.
-        llm_model_name (str | None): The LLM model name from the form.
-            None means no change.
-        api_key (str | None): The API key from the form.
-            None or empty means no change.
+        form_data (SettingsUpdateForm): The form data containing settings values.
         db (Session): The database session.
         current_user: The authenticated user.
 
     Returns:
-        HTMLResponse: A success message snippet on success.
+        HTMLResponse: A success message snippet on success, or an error message
+            if validation fails.
 
     Notes:
         1. Depends on `get_current_user_from_cookie` for authentication.
-        2. Construct a UserSettingsUpdateRequest object from form data.
-        3. Call update_user_settings to persist changes.
-        4. Return an HTML snippet with a success message.
+        2. Validate the access_token_expire_minutes value if provided.
+        3. Construct a UserSettingsUpdateRequest object from form data.
+        4. Call update_user_settings to persist changes.
+        5. Return an HTML snippet with a success or error message.
 
     """
     _msg = "Settings update submitted"
     log.debug(_msg)
 
+    # Parse and validate access_token_expire_minutes
+    timeout_minutes: int | None = None
+    if (
+        form_data.access_token_expire_minutes
+        and form_data.access_token_expire_minutes.strip()
+    ):
+        try:
+            timeout_minutes = int(form_data.access_token_expire_minutes)
+            if timeout_minutes < 15 or timeout_minutes > 1440:
+                _msg = "Login timeout must be between 15 minutes and 24 hours (1440 minutes)."
+                return HTMLResponse(
+                    content=f'<div class="p-4 mb-4 text-sm text-red-800 rounded-lg bg-red-50" role="alert"><span class="font-medium">Error!</span> {_msg}</div>',
+                )
+        except ValueError:
+            _msg = "Login timeout must be a valid number."
+            return HTMLResponse(
+                content=f'<div class="p-4 mb-4 text-sm text-red-800 rounded-lg bg-red-50" role="alert"><span class="font-medium">Error!</span> {_msg}</div>',
+            )
+
     settings_data = UserSettingsUpdateRequest(
-        llm_endpoint=llm_endpoint,
-        llm_model_name=llm_model_name,
-        api_key=api_key,
+        llm_endpoint=form_data.llm_endpoint,
+        llm_model_name=form_data.llm_model_name,
+        api_key=form_data.api_key,
+        access_token_expire_minutes=timeout_minutes,
     )
 
-    update_user_settings(
-        db=db,
-        user_id=current_user.id,
-        settings_data=settings_data,
-    )
+    try:
+        update_user_settings(
+            db=db,
+            user_id=current_user.id,
+            settings_data=settings_data,
+        )
+    except ValueError as e:
+        _msg = str(e)
+        return HTMLResponse(
+            content=f'<div class="p-4 mb-4 text-sm text-red-800 rounded-lg bg-red-50" role="alert"><span class="font-medium">Error!</span> {_msg}</div>',
+        )
 
     return HTMLResponse(
         '<div class="p-4 mb-4 text-sm text-green-800 rounded-lg bg-green-50" role="alert"><span class="font-medium">Success!</span> Your settings have been updated.</div>',

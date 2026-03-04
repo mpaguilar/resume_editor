@@ -120,8 +120,9 @@ def test_get_login_page():
     app.dependency_overrides.clear()
 
 
+@patch("resume_editor.app.web.pages.get_user_settings")
 @patch("resume_editor.app.web.pages.authenticate_user")
-def test_login_for_access_token_success(mock_authenticate_user):
+def test_login_for_access_token_success(mock_authenticate_user, mock_get_user_settings):
     """
     GIVEN a user provides correct credentials
     WHEN they submit the login form
@@ -144,6 +145,7 @@ def test_login_for_access_token_success(mock_authenticate_user):
         )
     )
     mock_authenticate_user.return_value = mock_user
+    mock_get_user_settings.return_value = None
 
     response = client.post(
         "/login",
@@ -155,7 +157,7 @@ def test_login_for_access_token_success(mock_authenticate_user):
     assert response.headers["location"] == "/dashboard"
     assert "access_token" in response.cookies
     mock_authenticate_user.assert_called_with(
-        db=mock_db, username="testuser", password="password"
+        db=ANY, username="testuser", password="password"
     )
     app.dependency_overrides.clear()
 

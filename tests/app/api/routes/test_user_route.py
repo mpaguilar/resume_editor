@@ -125,8 +125,14 @@ def test_register_user_duplicate_email(
 @patch("resume_editor.app.main.user_crud.user_count", return_value=1)
 @patch("resume_editor.app.main.get_session_local")
 @patch("resume_editor.app.api.routes.user.datetime")
+@patch("resume_editor.app.api.routes.user.settings_crud.get_user_settings")
 def test_login_success(
-    mock_datetime, mock_get_session_local, mock_user_count, client_with_db, test_user
+    mock_get_user_settings,
+    mock_datetime,
+    mock_get_session_local,
+    mock_user_count,
+    client_with_db,
+    test_user,
 ):
     """Test successful user login and `last_login_at` update."""
     mock_session = Mock(spec=Session)
@@ -138,6 +144,7 @@ def test_login_success(
     test_user.last_login_at = None
     test_now = datetime(2025, 1, 1, tzinfo=timezone.utc)
     mock_datetime.now.return_value = test_now
+    mock_get_user_settings.return_value = None
 
     query_result_mock = Mock()
     query_result_mock.filter.return_value.first.return_value = test_user
@@ -206,14 +213,16 @@ def test_login_failure_wrong_password(
     mock_user_count.assert_called_once()
 
 
-
-
-
 # Tests for auth flow
 @patch("resume_editor.app.main.user_crud.user_count", return_value=1)
 @patch("resume_editor.app.main.get_session_local")
+@patch("resume_editor.app.api.routes.user.settings_crud.get_user_settings")
 def test_access_protected_route_with_token(
-    mock_get_session_local, mock_user_count, client_with_db, test_user
+    mock_get_user_settings,
+    mock_get_session_local,
+    mock_user_count,
+    client_with_db,
+    test_user,
 ):
     """Test accessing a protected route with a valid JWT token."""
     mock_session = Mock(spec=Session)
@@ -221,6 +230,9 @@ def test_access_protected_route_with_token(
     client, mock_db = client_with_db
 
     test_settings = get_settings()
+
+    # Mock get_user_settings to return None (no custom timeout set)
+    mock_get_user_settings.return_value = None
 
     # Mock the database call for login and for get_current_user
     # We set up a mock that will be returned every time `query` is called.
@@ -237,16 +249,11 @@ def test_access_protected_route_with_token(
     token = login_response.json()["access_token"]
     assert token
 
+    # Reset mock to track calls during the protected route access
+    mock_get_user_settings.reset_mock()
+
     # 2. Access a protected route with the token
-    with (
-        patch(
-            "resume_editor.app.api.routes.user.settings_crud.get_user_settings",
-        ) as mock_get_user_settings,
-        patch("resume_editor.app.core.auth.get_settings") as mock_auth_get_settings,
-    ):
-        mock_get_user_settings.return_value = (
-            None  # We don't care about the return value
-        )
+    with patch("resume_editor.app.core.auth.get_settings") as mock_auth_get_settings:
         mock_auth_get_settings.return_value = test_settings
 
         headers = {"Authorization": f"Bearer {token}"}
@@ -412,5 +419,3 @@ def test_user_response_schema_with_data():
     assert len(user_response.roles) == 1
     assert user_response.roles[0].id == 1
     assert user_response.roles[0].name == "admin"
-
-

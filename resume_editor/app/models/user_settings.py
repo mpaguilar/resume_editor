@@ -17,6 +17,7 @@ class UserSettings(Base):
         llm_endpoint (str | None): Custom LLM API endpoint URL.
         llm_model_name (str | None): The user-specified LLM model name.
         encrypted_api_key (str | None): Encrypted API key for the LLM service.
+        access_token_expire_minutes (int | None): User's preferred session timeout in minutes.
         user (User): Relationship to the User model.
 
     """
@@ -28,6 +29,7 @@ class UserSettings(Base):
     llm_endpoint = Column(String, nullable=True)
     llm_model_name = Column(String, nullable=True)
     encrypted_api_key = Column(String, nullable=True)
+    access_token_expire_minutes = Column(Integer, nullable=True)
 
     user = relationship("User", back_populates="settings")
 
@@ -37,6 +39,7 @@ class UserSettings(Base):
         llm_endpoint: str | None = None,
         llm_model_name: str | None = None,
         encrypted_api_key: str | None = None,
+        access_token_expire_minutes: int | None = None,
     ):
         """Initialize a UserSettings instance.
 
@@ -45,6 +48,7 @@ class UserSettings(Base):
             llm_endpoint (str | None): Custom LLM API endpoint URL.
             llm_model_name (str | None): The user-specified LLM model name.
             encrypted_api_key (str | None): Encrypted API key for the LLM service.
+            access_token_expire_minutes (int | None): User's preferred session timeout in minutes.
 
         Returns:
             None
@@ -62,3 +66,4 @@ class UserSettings(Base):
         self.llm_endpoint = llm_endpoint
         self.llm_model_name = llm_model_name
         self.encrypted_api_key = encrypted_api_key
+        self.access_token_expire_minutes = access_token_expire_minutes

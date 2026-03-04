@@ -4,31 +4,16 @@
         {% if job_description %}<input type="hidden" name="job_description" value="{{ job_description }}">{% endif %}
         {% if limit_refinement_years %}<input type="hidden" name="limit_refinement_years" value="{{ limit_refinement_years }}">{% endif %}
 
+        <!-- Company and Notes are managed in the main refine form above -->
+        <input type="hidden" name="company" value="{{ company or '' }}">
+        <input type="hidden" name="notes" value="{{ notes or '' }}">
+
         {% if introduction %}
         <div class="mb-4">
             <label for="introduction" class="block font-semibold text-md mb-1">Introduction</label>
             <textarea id="introduction" name="introduction" class="w-full h-24 p-2 border rounded font-mono text-sm">{{ introduction }}</textarea>
         </div>
         {% endif %}
-
-        <!-- NEW: Company field (editable on result page) -->
-        <div class="mb-4">
-            <label for="company" class="block font-semibold text-md mb-1">Company</label>
-            <input type="text" id="company" name="company" maxlength="255"
-                   value="{{ company or '' }}"
-                   class="w-full p-2 border rounded font-mono text-sm"
-                   placeholder="Target company name">
-            <p class="text-xs text-gray-500 mt-1">Maximum 255 characters</p>
-        </div>
-
-        <!-- NEW: Notes field (editable on result page) -->
-        <div class="mb-4">
-            <label for="notes" class="block font-semibold text-md mb-1">Notes</label>
-            <textarea id="notes" name="notes" maxlength="5000" rows="4"
-                      class="w-full p-2 border rounded font-mono text-sm"
-                      placeholder="Add notes about this refinement...">{{ notes or '' }}</textarea>
-            <p class="text-xs text-gray-500 mt-1">Maximum 5000 characters</p>
-        </div>
 
         <h4 class="font-semibold text-md mb-1">Refined 'experience' section</h4>
         <textarea name="refined_content" class="w-full h-48 p-2 border rounded font-mono text-sm">{{ refined_content }}</textarea>

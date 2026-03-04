@@ -33,7 +33,11 @@ def test_get_user_settings_when_no_settings_exist(settings_client):
     mock_db.query.return_value.filter.return_value.first.return_value = None
     response = client.get("/api/users/settings")
     assert response.status_code == 200
-    assert response.json() == {"llm_endpoint": None, "api_key_is_set": False}
+    assert response.json() == {
+        "llm_endpoint": None,
+        "api_key_is_set": False,
+        "access_token_expire_minutes": None,
+    }
 
 
 def test_put_to_create_user_settings(settings_client):
@@ -77,6 +81,7 @@ def test_get_user_settings_when_settings_exist(settings_client):
     assert response.json() == {
         "llm_endpoint": "http://existing.com",
         "api_key_is_set": True,
+        "access_token_expire_minutes": None,
     }
 
 

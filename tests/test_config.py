@@ -22,7 +22,7 @@ def test_settings_default_values():
         # Test security settings
         assert settings.secret_key == "your-secret-key-change-in-production"
         assert settings.algorithm == "HS256"
-        assert settings.access_token_expire_minutes == 120
+        assert settings.access_token_expire_minutes == 600
 
         # Test API keys
         assert settings.llm_api_key is None

@@ -405,6 +405,30 @@ class ChangePasswordForm:
         self.current_password = current_password
 
 
+class SettingsUpdateForm:
+    """Form data for updating user settings.
+
+    Attributes:
+        llm_endpoint (str | None): Custom LLM endpoint URL.
+        llm_model_name (str | None): The user-specified LLM model name.
+        api_key (str | None): Plaintext API key for the LLM service.
+        access_token_expire_minutes (str | None): Session timeout in minutes.
+
+    """
+
+    def __init__(
+        self,
+        llm_endpoint: str | None = Form(None),
+        llm_model_name: str | None = Form(None),
+        api_key: str | None = Form(None),
+        access_token_expire_minutes: str | None = Form(None),
+    ) -> None:
+        self.llm_endpoint = llm_endpoint
+        self.llm_model_name = llm_model_name
+        self.api_key = api_key
+        self.access_token_expire_minutes = access_token_expire_minutes
+
+
 class RefineResponse(BaseModel):
     """Response model for refined resume content.
 

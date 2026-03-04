@@ -7,6 +7,12 @@
     <div class="flex justify-between items-center mb-4">
         <h1 class="text-2xl font-bold">Viewing Resume: {{ resume.name }}</h1>
         <div class="flex items-center gap-2">
+            <button
+                type="button"
+                onclick="document.getElementById('export-modal-{{ resume.id }}').classList.remove('hidden')"
+                class="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded text-sm">
+                Export
+            </button>
             {% if not resume.is_base %}
                 {% if resume.parent_id %}
                     <a href="/resumes/{{ resume.parent_id }}/refine" class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded text-sm">
@@ -18,12 +24,6 @@
                     </button>
                 {% endif %}
             {% endif %}
-             <button
-                type="button"
-                onclick="document.getElementById('export-modal-{{ resume.id }}').classList.remove('hidden')"
-                class="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded text-sm">
-                Export
-            </button>
             <a href="/dashboard" class="text-blue-500 hover:underline">Back to Dashboard</a>
         </div>
     </div>

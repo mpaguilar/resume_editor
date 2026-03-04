@@ -270,28 +270,32 @@ class TokenData(BaseModel):
 class UserSettingsUpdateRequest(BaseModel):
     """Schema for updating user settings.
 
-    This schema is used to update the user's LLM service configuration.
+    This schema is used to update the user's LLM service configuration and session timeout.
 
     Args:
         llm_endpoint (str | None): Custom LLM endpoint URL.
         llm_model_name (str | None): The user-specified LLM model name.
         api_key (str | None): Plaintext API key for the LLM service.
+        access_token_expire_minutes (int | None): Session timeout in minutes (15-1440).
 
     Attributes:
         llm_endpoint (str | None): Custom LLM endpoint URL.
         llm_model_name (str | None): The user-specified LLM model name.
         api_key (str | None): Plaintext API key for the LLM service.
+        access_token_expire_minutes (int | None): Session timeout in minutes (15-1440).
 
     Notes:
         1. The API key is not returned in the response for security.
         2. The settings are stored in the user database.
         3. Network access may occur when the LLM service is accessed using the endpoint.
+        4. Session timeout must be between 15 and 1440 minutes (24 hours).
 
     """
 
     llm_endpoint: str | None = None
     llm_model_name: str | None = None
     api_key: str | None = None
+    access_token_expire_minutes: int | None = None
 
 
 class UserSettingsResponse(BaseModel):
@@ -302,10 +306,12 @@ class UserSettingsResponse(BaseModel):
     Args:
         llm_endpoint (str | None): Custom LLM endpoint URL.
         api_key_is_set (bool): Whether an API key has been set.
+        access_token_expire_minutes (int | None): Session timeout in minutes.
 
     Attributes:
         llm_endpoint (str | None): Custom LLM endpoint URL.
         api_key_is_set (bool): Whether an API key has been set.
+        access_token_expire_minutes (int | None): Session timeout in minutes.
 
     Notes:
         1. The API key is not returned in the response.
@@ -316,5 +322,6 @@ class UserSettingsResponse(BaseModel):
 
     llm_endpoint: str | None = None
     api_key_is_set: bool = False
+    access_token_expire_minutes: int | None = None
 
     model_config = ConfigDict(from_attributes=True)

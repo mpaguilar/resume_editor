@@ -106,6 +106,32 @@ def _update_api_key_if_present(
         settings.encrypted_api_key = encrypt_data(data=api_key)
 
 
+def _update_access_token_expire_minutes(
+    settings: UserSettings,
+    value: int | None,
+) -> None:
+    """Update the access token expiration time if value is not None.
+
+    Args:
+        settings (UserSettings): The settings object to update.
+        value (int | None): The timeout in minutes, or None to skip.
+
+    Notes:
+        1. If value is None, do nothing (field remains unchanged).
+        2. If value is outside the valid range (15-1440), a ValueError is raised.
+        3. Otherwise, set the field to the value.
+
+    """
+    if value is not None:
+        if value < 15 or value > 1440:
+            _msg = (
+                f"access_token_expire_minutes must be between 15 and 1440, got {value}"
+            )
+            log.error(_msg)
+            raise ValueError(_msg)
+        settings.access_token_expire_minutes = value
+
+
 def update_user_settings(
     db: Session,
     user_id: int,
@@ -145,6 +171,12 @@ def update_user_settings(
         )
 
     _update_api_key_if_present(settings, settings_data.api_key)
+
+    if hasattr(settings_data, "access_token_expire_minutes"):
+        _update_access_token_expire_minutes(
+            settings,
+            settings_data.access_token_expire_minutes,
+        )
 
     db.commit()
     db.refresh(settings)

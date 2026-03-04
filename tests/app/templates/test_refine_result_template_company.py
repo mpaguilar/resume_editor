@@ -15,8 +15,8 @@ class TestRefineResultTemplate:
         templates_dir = Path("resume_editor/app/templates")
         return Environment(loader=FileSystemLoader(str(templates_dir)))
 
-    def test_template_includes_company_input(self, template_env):
-        """Test that template includes company input field."""
+    def test_template_includes_company_hidden_field(self, template_env):
+        """Test that template includes company as hidden field."""
         template = template_env.get_template("partials/resume/_refine_result.html")
         html = template.render(
             resume_id=1,
@@ -25,12 +25,13 @@ class TestRefineResultTemplate:
             notes="Notes here",
         )
 
-        assert 'id="company"' in html
+        # Company is now a hidden field, not a visible input
         assert 'name="company"' in html
+        assert 'type="hidden"' in html
         assert 'value="Acme Corp"' in html
 
-    def test_template_includes_notes_textarea(self, template_env):
-        """Test that template includes notes textarea."""
+    def test_template_includes_notes_hidden_field(self, template_env):
+        """Test that template includes notes as hidden field."""
         template = template_env.get_template("partials/resume/_refine_result.html")
         html = template.render(
             resume_id=1,
@@ -39,9 +40,10 @@ class TestRefineResultTemplate:
             notes="Notes here",
         )
 
-        assert 'id="notes"' in html
+        # Notes is now a hidden field, not a visible textarea
         assert 'name="notes"' in html
-        assert "Notes here" in html
+        assert 'type="hidden"' in html
+        assert 'value="Notes here"' in html
 
     def test_template_handles_null_values(self, template_env):
         """Test that template handles null company/notes gracefully."""
@@ -53,5 +55,7 @@ class TestRefineResultTemplate:
             notes=None,
         )
 
-        assert 'id="company"' in html
-        assert 'id="notes"' in html
+        # Hidden fields should still exist with empty string values
+        assert 'name="company"' in html
+        assert 'name="notes"' in html
+        assert 'value=""' in html

@@ -23,7 +23,7 @@ def mock_settings():
         _mock_settings = MagicMock()
         _mock_settings.secret_key = "test-secret-key"
         _mock_settings.algorithm = "HS256"
-        _mock_settings.access_token_expire_minutes = 120
+        _mock_settings.access_token_expire_minutes = 600
         _mock_settings.encryption_key = TEST_FERNET_KEY
         mock_get_settings.return_value = _mock_settings
         yield mock_get_settings
@@ -138,3 +138,45 @@ def test_decrypt_invalid_data_raises_error(mock_settings):
     """Test decryption of invalid data raises InvalidToken."""
     with pytest.raises(InvalidToken):
         security_module.decrypt_data("this-is-not-a-valid-fernet-token")
+
+
+def test_create_access_token_with_user_specific_timeout(mock_settings):
+    """Test JWT access token creation with user-specific timeout."""
+    data = {"sub": "testuser"}
+    user_timeout_minutes = 120
+    expires_delta = timedelta(minutes=user_timeout_minutes)
+    settings = mock_settings.return_value
+    token = security_module.create_access_token(
+        data,
+        settings,
+        expires_delta=expires_delta,
+    )
+    decoded_payload = jwt.decode(
+        token,
+        settings.secret_key,
+        algorithms=[settings.algorithm],
+    )
+    assert decoded_payload["sub"] == "testuser"
+    expires_at = datetime.fromtimestamp(decoded_payload["exp"], tz=UTC)
+    now = datetime.now(UTC)
+    expected_expires_at = now + expires_delta
+    # Allow a few seconds of tolerance for execution time
+    assert abs((expires_at - expected_expires_at).total_seconds()) < 5
+
+
+def test_create_access_token_uses_global_default_when_no_user_timeout(mock_settings):
+    """Test JWT access token uses global default when no user-specific timeout."""
+    data = {"sub": "testuser"}
+    settings = mock_settings.return_value
+    # Don't pass expires_delta - should use global default (600 minutes)
+    token = security_module.create_access_token(data, settings)
+    decoded_payload = jwt.decode(
+        token,
+        settings.secret_key,
+        algorithms=[settings.algorithm],
+    )
+    expires_at = datetime.fromtimestamp(decoded_payload["exp"], tz=UTC)
+    now = datetime.now(UTC)
+    expected_expires_at = now + timedelta(minutes=600)
+    # Allow a few seconds of tolerance for execution time
+    assert abs((expires_at - expected_expires_at).total_seconds()) < 5
