@@ -1,10 +1,6 @@
 # General
 * Imports **always** should be at the top of the file, **never** inline
-* The main files are in a subdirectory directory named `./resume_editor`.
 * The root folder is for project configuration files, only.
-* `uv` is used for dependency management
-    * `python` related commands are prefixed with `uv run`, for example `uv run pytest tests`
-    * New dependencies are added with `uv add <package>`
 * Functions **must** be short, and serve a single purpose. Avoid long functions, create new functions as needed.
 * Functions **must** be easily mocked, avoid complexity.
 * All text output for questions and answers **must** be in Markdown format
@@ -13,21 +9,19 @@
 
 * Do NOT empty files, delete them.
 
+# Git Practices
+
+* **Respect `.gitignore`** - Never force add files that are excluded by `.gitignore`
+* Do NOT use `git add -f` or `--force` to add ignored files
+* If a file is in `.gitignore`, it should stay out of the repository
+* This applies to directories like `_agent/`, `.venv/`, `__pycache__/`, etc.
+
 # Preferred libraries
 
 * `click` for command line parsing.
-* `langchain` and related libraries for LLM processing.
 * `pathlib` for file operations
 * `pytest` for unit testing
 * `httpx` for web-related calls, unless a specific library is offered
-* `langchain_community.retrievers.WikipediaRetriever` for Wikipedia searches
-* `htmx` for web page rendering
-    
-# LLM calls
-* All calls to an LLM **must** use a `PydanticOutputParser` object
-* All messages formatted for the LLM **must** include the `format_instructions` parameter
-* All messages received from the LLM **must** use `langchain_core.utils.json.parse_json_markdown`
-* The API key for LLM calls is in the environment variable `LLM_API_KEY`
 
 # Variable conventions
 
@@ -112,7 +106,6 @@
 # HTML considerations
 * Prefer putting HTML into templates
 * Putting HTML into Python code is discouraged
-* Template and HTML are kept in `resume_editor/app/templates`
 
 # Context management
 It is **important** to keep the size of individual files manageable.
@@ -147,16 +140,25 @@ async def read_items(commons: Annotated[dict, Depends(common_parameters)]):
 
 Due to some versioning conflicts, using `TemplateResponse` as a return type is currently broken.
 
-Set `response_class=HTMLResponse` and `response_model
+Set `response_class=HTMLResponse` and `response_model=None` when returning templates:
+```python
+@router.get("/dashboard", response_class=HTMLResponse, response_model=None)
+async def dashboard(request: Request) -> HTMLResponse:
+    return templates.TemplateResponse(request, "dashboard.html", {})
+```
 
 # Unit tests
 * Unit tests are run with `pytest`.
-* Tests are located in `./tests` and its subdirectories.
-    * NEVER create a directory named `./resume_editor/tests`
 * Tests should be written as functions, do **not** use test classes.
 * Each `*.py` file should have its own test file.
+* Tests **must** be placed in a top-level `./tests` directory
+    * NEVER create tests inside the source directory (e.g., no `./myapp/tests/`)
+    * The `./tests` directory should mirror the structure of the source code
 * Unit tests should be run with a logging level of DEBUG
 * Unit tests should be written before the code, and they should fail if the code is incorrect.
+* **100% test coverage is required, including branch coverage**
+    * Run with: `pytest --cov=myapp --cov-branch --cov-report=term-missing`
+    * All code paths and branches must be tested
 * IMPORTANT: Do not use duplicate file names for tests, even in separate paths. This causes errors.
     * All test files **must** have unique filenames
 
@@ -164,23 +166,12 @@ Set `response_class=HTMLResponse` and `response_model
 
 To successfully mock FastAPI route calls with dependency injection, `app.dependency_overrides` **must** be used.
 
-For example, for a route like this:
-```
+For example:
+```python
+from myapp.app.api.routes.my_module import get_db
 
-```
-@router.get("", response_model=list[str])
-async def some_function(
-    request: Request,
-    db: Session = Depends(get_db), 
-    current_user: User = Depends(get_current_user),
-):
-
-```
-# Note that we import `get_db` so we can override it
-from resume_editor.app.api.routes.resume import get_db
-
-@patch("resume_editor.app.api.routes.resume.get_current_user")
-@patch("resume_editor.app.api.routes.resume.get_db")
+@patch("myapp.app.api.routes.my_module.get_current_user")
+@patch("myapp.app.api.routes.my_module.get_db")
 def test_something():
     app = create_app()
     client = TestClient(app)
@@ -188,7 +179,7 @@ def test_something():
     mock_db = Mock()
 
     # mock the return value
-    mock_db.query.return_value.filter.return_value.<first/all>.return_value = <correct answer>
+    mock_db.query.return_value.filter.return_value.first.return_value = mock_result
 
     # These next lines are **very** important
     def get_mock_db():
@@ -205,10 +196,10 @@ def test_something():
 
 ## Test file name exception
 
-There are several cases where test files may not be named exactly the same as the python file. For example, the tests for `app/api/routes/user.py` are in `tests/app/api/routes/test_user_route.py`, not in `tests/app/api/routes/test_user.py`. This is to prevent a naming collision which causes errors during test collection. 
+There are cases where test files cannot be named exactly like the source file due to naming collisions. For example:
+- `user.py` → `test_user_route.py` (not `test_user.py`)
 
-* Known mappings are found in `code_test_mappings.md`. 
-* ALWAYS Update `code_test_mappings.md` as new mappings are discovered or created.
+Keep a mappings file to track these exceptions. ALWAYS update it as new mappings are discovered or created.
 
 # Ruff Linting Rules
 
@@ -245,7 +236,7 @@ uv run ruff check
 uv run ruff check --fix
 
 # Check specific file or directory
-uv run ruff check resume_editor/app/models.py
+uv run ruff check myapp/app/models.py
 ```
 
 Always run quality checks before committing to ensure code standards are met.
