@@ -335,6 +335,33 @@ resume_editor/app/templates/partials/resume/_refine_sse_loader.html  # SSE progr
 resume_editor/app/templates/partials/resume/_refine_result.html      # Final result UI
 ```
 
+### Job Analysis Extraction
+
+The job analysis extraction feature automatically extracts structured job details during the refinement process:
+
+**Data Model:**
+- `JobAnalysis` pydantic model in `resume_editor/app/llm/models.py` includes extracted fields:
+  - `company_name`, `job_title`, `pay_rate`, `contact_info`
+  - `work_arrangement`, `location`, `special_instructions`
+
+**Database Schema:**
+- Resume model includes extracted fields: `extracted_company_name`, `extracted_job_title`, etc.
+- Migration: `alembic/versions/20260304_add_extracted_job_details.py`
+
+**Flow:**
+1. `analyze_job_description()` in `orchestration_analysis.py` extracts fields via LLM
+2. Extracted data flows through SSE stream in `resume_ai_logic_streaming.py`
+3. `RefineResultParams` passes data to `_refine_result.html` template
+4. Template displays editable textboxes for each extracted field
+5. `SaveAsNewForm` captures edited values
+6. `handle_save_as_new_refinement()` persists fields to database
+
+**Key Implementation Points:**
+- Company field pre-populated with `extracted_company_name` on refine result page
+- Special instructions appended to notes field
+- Form handling uses `_get_str_field_from_form()` helper to handle `Form(None)` defaults in tests
+- All extracted fields optional - null if not found in job description
+
 ## Common Tasks
 
 ### Adding a New Resume Section

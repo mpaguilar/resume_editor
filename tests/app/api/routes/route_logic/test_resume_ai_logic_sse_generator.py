@@ -233,6 +233,13 @@ async def test_sse_generator_generates_introduction_at_end(
         limit_refinement_years=None,
         company=None,
         notes=None,
+        extracted_company_name=None,
+        extracted_job_title=None,
+        extracted_pay_rate=None,
+        extracted_contact_info=None,
+        extracted_work_arrangement=None,
+        extracted_location=None,
+        extracted_special_instructions=None,
     )
 
 
@@ -831,6 +838,13 @@ async def test_sse_generator_intro_generation_retries_on_failure(
         limit_refinement_years=None,
         company=None,
         notes=None,
+        extracted_company_name=None,
+        extracted_job_title=None,
+        extracted_pay_rate=None,
+        extracted_contact_info=None,
+        extracted_work_arrangement=None,
+        extracted_location=None,
+        extracted_special_instructions=None,
     )
 
 
@@ -904,6 +918,13 @@ async def test_sse_generator_intro_generation_retries_on_empty_string(
         limit_refinement_years=None,
         company=None,
         notes=None,
+        extracted_company_name=None,
+        extracted_job_title=None,
+        extracted_pay_rate=None,
+        extracted_contact_info=None,
+        extracted_work_arrangement=None,
+        extracted_location=None,
+        extracted_special_instructions=None,
     )
 
 
@@ -1105,4 +1126,11 @@ async def test_sse_generator_e2e_refine_then_introduce_workflow(
         limit_refinement_years=None,
         company=None,
         notes=None,
+        extracted_company_name=None,
+        extracted_job_title=None,
+        extracted_pay_rate=None,
+        extracted_contact_info=None,
+        extracted_work_arrangement=None,
+        extracted_location=None,
+        extracted_special_instructions=None,
     )

@@ -6,6 +6,15 @@ JOB_ANALYSIS_SYSTEM_PROMPT = """As a professional resume writer and career coach
 3.  **Identify Relevant Themes:** From the `Job Description`, identify high-level themes (e.g., "fast-paced environment," "data-driven decisions," "strong collaboration") that are also supported by the candidate's experience in the `Resume Content`.
 4.  **Infer Implicit Themes:** Analyze the job description language, tone, and subtext to infer implicit themes that aren't explicitly stated but are suggested by the wording. Examples include "leadership potential," "entrepreneurial mindset," "collaborative culture," "autonomy and ownership."
 
+**Instructions for Job Detail Extraction (extract these specific fields):**
+5.  **Extract Company Name:** Look for the company name in headers, "About Us" sections, or the organization posting the job (e.g., "Acme Corporation", "TechStart Inc.").
+6.  **Extract Job Title:** Identify the specific position title (e.g., "Senior Software Engineer", "Product Manager", "Marketing Director").
+7.  **Extract Pay Rate:** Look for salary ranges, hourly rates, or compensation information (e.g., "$150,000-$200,000", "$50-75/hour", "Competitive salary").
+8.  **Extract Contact Information:** Find email addresses, phone numbers, or application URLs for submitting applications (e.g., "careers@company.com", "(555) 123-4567").
+9.  **Extract Work Arrangement:** Identify if the position is Remote, Hybrid, Onsite, or Remote-friendly.
+10. **Extract Location:** Note the job location including city, state, or "Fully Remote" / "Nationwide".
+11. **Extract Special Instructions:** Look for unique application requirements like cover letter requests, portfolio submissions, specific subject lines, referral codes, or special tasks to complete.
+
 **Output Format:**
 Your response MUST be a single JSON object enclosed in ```json ... ```, conforming to the following schema.
 

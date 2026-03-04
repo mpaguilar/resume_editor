@@ -28,6 +28,13 @@ class ResumeData:
     export_settings_include_projects: bool = True
     export_settings_render_projects_first: bool = False
     export_settings_include_education: bool = True
+    extracted_company_name: str | None = None
+    extracted_job_title: str | None = None
+    extracted_pay_rate: str | None = None
+    extracted_contact_info: str | None = None
+    extracted_work_arrangement: str | None = None
+    extracted_location: str | None = None
+    extracted_special_instructions: str | None = None
 
 
 class Resume(Base):
@@ -49,6 +56,13 @@ class Resume(Base):
         notes (str | None): User-provided notes for the resume.
         introduction (str | None): AI-generated introduction for the resume.
         company (str | None): Company name associated with the resume.
+        extracted_company_name (str | None): Company name extracted from job description.
+        extracted_job_title (str | None): Job title extracted from job description.
+        extracted_pay_rate (str | None): Pay rate extracted from job description.
+        extracted_contact_info (str | None): Contact info extracted from job description.
+        extracted_work_arrangement (str | None): Work arrangement extracted from job description.
+        extracted_location (str | None): Location extracted from job description.
+        extracted_special_instructions (str | None): Special instructions extracted from job description.
 
     """
 
@@ -76,6 +90,15 @@ class Resume(Base):
     notes = Column(Text, nullable=True)
     introduction = Column(Text, nullable=True)
     company = Column(String(255), nullable=True)
+
+    # Extracted job details from job description analysis
+    extracted_company_name = Column(String(255), nullable=True)
+    extracted_job_title = Column(String(255), nullable=True)
+    extracted_pay_rate = Column(String(100), nullable=True)
+    extracted_contact_info = Column(String(500), nullable=True)
+    extracted_work_arrangement = Column(String(50), nullable=True)
+    extracted_location = Column(String(255), nullable=True)
+    extracted_special_instructions = Column(Text, nullable=True)
 
     export_settings_include_projects = Column(
         Boolean,
@@ -141,3 +164,10 @@ class Resume(Base):
             data.export_settings_render_projects_first
         )
         self.export_settings_include_education = data.export_settings_include_education
+        self.extracted_company_name = data.extracted_company_name
+        self.extracted_job_title = data.extracted_job_title
+        self.extracted_pay_rate = data.extracted_pay_rate
+        self.extracted_contact_info = data.extracted_contact_info
+        self.extracted_work_arrangement = data.extracted_work_arrangement
+        self.extracted_location = data.extracted_location
+        self.extracted_special_instructions = data.extracted_special_instructions

@@ -556,6 +556,18 @@ async def _stream_final_events(
             is_warning=True,
         )
 
+    # Extract job details from running_log if available
+    job_analysis = running_log.job_analysis if running_log else None
+    extracted_company_name = job_analysis.company_name if job_analysis else None
+    extracted_job_title = job_analysis.job_title if job_analysis else None
+    extracted_pay_rate = job_analysis.pay_rate if job_analysis else None
+    extracted_contact_info = job_analysis.contact_info if job_analysis else None
+    extracted_work_arrangement = job_analysis.work_arrangement if job_analysis else None
+    extracted_location = job_analysis.location if job_analysis else None
+    extracted_special_instructions = (
+        job_analysis.special_instructions if job_analysis else None
+    )
+
     result_html = process_refined_experience_result(
         resume_id=params.resume.id,
         final_content=final_content,
@@ -564,6 +576,13 @@ async def _stream_final_events(
         limit_refinement_years=limit_years_int,
         company=params.company,
         notes=params.notes,
+        extracted_company_name=extracted_company_name,
+        extracted_job_title=extracted_job_title,
+        extracted_pay_rate=extracted_pay_rate,
+        extracted_contact_info=extracted_contact_info,
+        extracted_work_arrangement=extracted_work_arrangement,
+        extracted_location=extracted_location,
+        extracted_special_instructions=extracted_special_instructions,
     )
     yield create_sse_done_message(result_html)
 

@@ -212,6 +212,31 @@ The AI-generated banner uses a **role-centric evidence extraction** approach:
 - Company associations shown in parenthetical format with **italicized** company names
 - Job-relevant skills prioritized and appear first
 
+## Job Analysis Extraction
+
+During the refinement process, the LLM automatically extracts structured job details from the job description:
+
+**Extracted Fields:**
+- **company_name**: The hiring company (e.g., "Acme Corporation")
+- **job_title**: The position title (e.g., "Senior Software Engineer")
+- **pay_rate**: Salary or compensation information (e.g., "$150k-$200k")
+- **contact_info**: Application contact details (e.g., "careers@company.com")
+- **work_arrangement**: Remote/hybrid/onsite status (e.g., "Remote friendly")
+- **location**: Job location (e.g., "Austin, TX")
+- **special_instructions**: Unique application requirements (e.g., "Include portfolio link")
+
+**Field Usage:**
+- All fields are extracted automatically during job analysis (first step of refinement)
+- Extracted values appear as editable textboxes on the refine result page
+- **Company field** is pre-populated with `extracted_company_name` if available
+- **Notes field** has `special_instructions` appended to it
+- All extracted fields are persisted when saving the refined resume
+
+**Edge Cases:**
+- Fields that cannot be extracted appear as empty/null (not errors)
+- User can edit all extracted values before saving
+- Maximum lengths enforced: company_name (255), job_title (255), pay_rate (100), contact_info (500), work_arrangement (50), location (255), special_instructions (5000)
+
 ## Export Formats
 
 - **Markdown**: Validated raw format

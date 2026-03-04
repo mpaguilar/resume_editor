@@ -48,6 +48,34 @@ class JobAnalysis(BaseModel):
         default_factory=list,
         description="Implicit themes inferred from job description language, tone, and subtext (e.g., 'leadership potential,' 'collaborative culture').",
     )
+    company_name: str | None = Field(
+        None,
+        description="The company name as stated in the job description (e.g., 'Acme Corporation', 'TechStart Inc.'). Look in headers or 'About' sections.",
+    )
+    job_title: str | None = Field(
+        None,
+        description="The job title or position name as stated in the job description (e.g., 'Senior Software Engineer', 'Product Manager').",
+    )
+    pay_rate: str | None = Field(
+        None,
+        description="Salary range, hourly rate, or compensation information (e.g., '$150k-$200k', '$50-75/hour').",
+    )
+    contact_info: str | None = Field(
+        None,
+        description="Contact email, phone number, or application URL (e.g., 'careers@company.com', 'https://jobs.company.com/apply').",
+    )
+    work_arrangement: str | None = Field(
+        None,
+        description="Work arrangement type (e.g., 'Remote', 'Hybrid', 'Onsite', 'Remote friendly').",
+    )
+    location: str | None = Field(
+        None,
+        description="Job location (e.g., 'Austin, TX', 'New York', 'Fully Remote').",
+    )
+    special_instructions: str | None = Field(
+        None,
+        description="Special application requirements, cover letter requests, portfolio submissions, or other unique instructions (e.g., 'Include portfolio link', 'Mention referral code').",
+    )
 
 
 class RefinedRole(BaseModel):

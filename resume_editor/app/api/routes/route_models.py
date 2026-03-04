@@ -157,6 +157,13 @@ class ResumeResponse(BaseModel):
         notes (str | None): User-provided notes for the resume.
         introduction (str | None): AI-generated introduction for the resume.
         company (str | None): The company associated with the resume.
+        extracted_company_name (str | None): Company name extracted from job description.
+        extracted_job_title (str | None): Job title extracted from job description.
+        extracted_pay_rate (str | None): Pay rate extracted from job description.
+        extracted_contact_info (str | None): Contact info extracted from job description.
+        extracted_work_arrangement (str | None): Work arrangement extracted from job description.
+        extracted_location (str | None): Location extracted from job description.
+        extracted_special_instructions (str | None): Special instructions extracted from job description.
 
     Args:
         id (int): The unique database ID assigned to the resume.
@@ -164,6 +171,13 @@ class ResumeResponse(BaseModel):
         notes (str | None): User-provided notes for the resume.
         introduction (str | None): AI-generated introduction for the resume.
         company (str | None): The company associated with the resume.
+        extracted_company_name (str | None): Company name extracted from job description.
+        extracted_job_title (str | None): Job title extracted from job description.
+        extracted_pay_rate (str | None): Pay rate extracted from job description.
+        extracted_contact_info (str | None): Contact info extracted from job description.
+        extracted_work_arrangement (str | None): Work arrangement extracted from job description.
+        extracted_location (str | None): Location extracted from job description.
+        extracted_special_instructions (str | None): Special instructions extracted from job description.
 
     Returns:
         ResumeResponse: An instance of the model containing the resume ID and name.
@@ -179,6 +193,13 @@ class ResumeResponse(BaseModel):
     notes: str | None = None
     introduction: str | None = None
     company: str | None = None
+    extracted_company_name: str | None = None
+    extracted_job_title: str | None = None
+    extracted_pay_rate: str | None = None
+    extracted_contact_info: str | None = None
+    extracted_work_arrangement: str | None = None
+    extracted_location: str | None = None
+    extracted_special_instructions: str | None = None
 
 
 class ResumeDetailResponse(BaseModel):
@@ -191,6 +212,13 @@ class ResumeDetailResponse(BaseModel):
         notes (str | None): User-provided notes for the resume.
         introduction (str | None): AI-generated introduction for the resume.
         company (str | None): The company associated with the resume.
+        extracted_company_name (str | None): Company name extracted from job description.
+        extracted_job_title (str | None): Job title extracted from job description.
+        extracted_pay_rate (str | None): Pay rate extracted from job description.
+        extracted_contact_info (str | None): Contact info extracted from job description.
+        extracted_work_arrangement (str | None): Work arrangement extracted from job description.
+        extracted_location (str | None): Location extracted from job description.
+        extracted_special_instructions (str | None): Special instructions extracted from job description.
 
     Args:
         id (int): The unique database ID assigned to the resume.
@@ -199,6 +227,13 @@ class ResumeDetailResponse(BaseModel):
         notes (str | None): User-provided notes for the resume.
         introduction (str | None): AI-generated introduction for the resume.
         company (str | None): The company associated with the resume.
+        extracted_company_name (str | None): Company name extracted from job description.
+        extracted_job_title (str | None): Job title extracted from job description.
+        extracted_pay_rate (str | None): Pay rate extracted from job description.
+        extracted_contact_info (str | None): Contact info extracted from job description.
+        extracted_work_arrangement (str | None): Work arrangement extracted from job description.
+        extracted_location (str | None): Location extracted from job description.
+        extracted_special_instructions (str | None): Special instructions extracted from job description.
 
     Returns:
         ResumeDetailResponse: An instance of the model containing the resume ID, name, and content.
@@ -215,6 +250,13 @@ class ResumeDetailResponse(BaseModel):
     notes: str | None = None
     introduction: str | None = None
     company: str | None = None
+    extracted_company_name: str | None = None
+    extracted_job_title: str | None = None
+    extracted_pay_rate: str | None = None
+    extracted_contact_info: str | None = None
+    extracted_work_arrangement: str | None = None
+    extracted_location: str | None = None
+    extracted_special_instructions: str | None = None
 
 
 class PersonalInfoUpdateRequest(BaseModel):
@@ -374,12 +416,19 @@ class RefinementContext:
 class SaveAsNewForm:
     """Form data for saving a refined resume as a new one."""
 
-    def __init__(
+    def __init__(  # noqa: PLR0913
         self,
         refined_content: str = Form(...),
         new_resume_name: str | None = Form(None),
         company: str | None = Form(None),
         notes: str | None = Form(None),
+        extracted_company_name: str | None = Form(None),
+        extracted_job_title: str | None = Form(None),
+        extracted_pay_rate: str | None = Form(None),
+        extracted_contact_info: str | None = Form(None),
+        extracted_work_arrangement: str | None = Form(None),
+        extracted_location: str | None = Form(None),
+        extracted_special_instructions: str | None = Form(None),
         context: RefinementContext = Depends(),
     ) -> None:
         self.refined_content = refined_content
@@ -389,6 +438,13 @@ class SaveAsNewForm:
         self.job_description = context.job_description
         self.introduction = context.introduction
         self.limit_refinement_years = context.limit_refinement_years
+        self.extracted_company_name = extracted_company_name
+        self.extracted_job_title = extracted_job_title
+        self.extracted_pay_rate = extracted_pay_rate
+        self.extracted_contact_info = extracted_contact_info
+        self.extracted_work_arrangement = extracted_work_arrangement
+        self.extracted_location = extracted_location
+        self.extracted_special_instructions = extracted_special_instructions
 
 
 class ChangePasswordForm:
@@ -706,3 +762,10 @@ class ExperienceRefinementParams(BaseModel):
     running_log: Any = None
     company: str | None = None
     notes: str | None = None
+    extracted_company_name: str | None = None
+    extracted_job_title: str | None = None
+    extracted_pay_rate: str | None = None
+    extracted_contact_info: str | None = None
+    extracted_work_arrangement: str | None = None
+    extracted_location: str | None = None
+    extracted_special_instructions: str | None = None

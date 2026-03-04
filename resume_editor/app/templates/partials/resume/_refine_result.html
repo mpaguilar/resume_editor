@@ -5,8 +5,66 @@
         {% if limit_refinement_years %}<input type="hidden" name="limit_refinement_years" value="{{ limit_refinement_years }}">{% endif %}
 
         <!-- Company and Notes are managed in the main refine form above -->
-        <input type="hidden" name="company" value="{{ company or '' }}">
+        <!-- Use extracted_company_name as default if company is not already set -->
+        <input type="hidden" name="company" value="{{ company or extracted_company_name or '' }}">
         <input type="hidden" name="notes" value="{{ notes or '' }}">
+
+        <!-- Extracted Job Details Section -->
+        <div class="mb-4 p-3 bg-blue-50 border border-blue-200 rounded">
+            <h5 class="font-semibold text-sm mb-2 text-blue-800">Extracted Job Details</h5>
+            <p class="text-xs text-blue-600 mb-3">These details were extracted from the job description and can be edited before saving.</p>
+
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label for="extracted_company_name" class="block text-xs font-medium mb-1">Company Name</label>
+                    <input type="text" id="extracted_company_name" name="extracted_company_name"
+                           value="{{ extracted_company_name or '' }}"
+                           class="w-full px-2 py-1 border rounded text-sm"
+                           placeholder="e.g., Acme Corporation">
+                </div>
+                <div>
+                    <label for="extracted_job_title" class="block text-xs font-medium mb-1">Job Title</label>
+                    <input type="text" id="extracted_job_title" name="extracted_job_title"
+                           value="{{ extracted_job_title or '' }}"
+                           class="w-full px-2 py-1 border rounded text-sm"
+                           placeholder="e.g., Senior Engineer">
+                </div>
+                <div>
+                    <label for="extracted_pay_rate" class="block text-xs font-medium mb-1">Pay Rate</label>
+                    <input type="text" id="extracted_pay_rate" name="extracted_pay_rate"
+                           value="{{ extracted_pay_rate or '' }}"
+                           class="w-full px-2 py-1 border rounded text-sm"
+                           placeholder="e.g., $150k-$200k">
+                </div>
+                <div>
+                    <label for="extracted_work_arrangement" class="block text-xs font-medium mb-1">Work Arrangement</label>
+                    <input type="text" id="extracted_work_arrangement" name="extracted_work_arrangement"
+                           value="{{ extracted_work_arrangement or '' }}"
+                           class="w-full px-2 py-1 border rounded text-sm"
+                           placeholder="e.g., Remote, Hybrid">
+                </div>
+                <div>
+                    <label for="extracted_location" class="block text-xs font-medium mb-1">Location</label>
+                    <input type="text" id="extracted_location" name="extracted_location"
+                           value="{{ extracted_location or '' }}"
+                           class="w-full px-2 py-1 border rounded text-sm"
+                           placeholder="e.g., Austin, TX">
+                </div>
+                <div>
+                    <label for="extracted_contact_info" class="block text-xs font-medium mb-1">Contact Info</label>
+                    <input type="text" id="extracted_contact_info" name="extracted_contact_info"
+                           value="{{ extracted_contact_info or '' }}"
+                           class="w-full px-2 py-1 border rounded text-sm"
+                           placeholder="e.g., hiring@company.com">
+                </div>
+            </div>
+            <div class="mt-3">
+                <label for="extracted_special_instructions" class="block text-xs font-medium mb-1">Special Instructions</label>
+                <textarea id="extracted_special_instructions" name="extracted_special_instructions"
+                          class="w-full h-16 px-2 py-1 border rounded text-sm"
+                          placeholder="Any special application requirements...">{{ extracted_special_instructions or '' }}</textarea>
+            </div>
+        </div>
 
         {% if introduction %}
         <div class="mb-4">

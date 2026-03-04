@@ -21,6 +21,12 @@ class ValidationResult:
 # Constants for validation
 MAX_COMPANY_LENGTH = 255
 MAX_NOTES_LENGTH = 5000
+MAX_JOB_TITLE_LENGTH = 255
+MAX_PAY_RATE_LENGTH = 100
+MAX_CONTACT_INFO_LENGTH = 500
+MAX_WORK_ARRANGEMENT_LENGTH = 50
+MAX_LOCATION_LENGTH = 255
+MAX_SPECIAL_INSTRUCTIONS_LENGTH = 5000
 
 
 def validate_company_and_notes(
@@ -65,6 +71,117 @@ def validate_company_and_notes(
     is_valid = len(errors) == 0
 
     _msg = f"validate_company_and_notes returning: is_valid={is_valid}"
+    log.debug(_msg)
+    return ValidationResult(is_valid=is_valid, errors=errors)
+
+
+def _validate_single_field(
+    field_value: str | None,
+    field_name: str,
+    max_length: int,
+    errors: dict[str, str],
+) -> None:
+    """Validate a single field against max length.
+
+    Args:
+        field_value: The value to validate.
+        field_name: The name of the field for error messages.
+        max_length: The maximum allowed length.
+        errors: Dictionary to add errors to.
+
+    """
+    if field_value is None:
+        return
+
+    if len(field_value) > max_length:
+        _msg = (
+            f"Field {field_name} exceeds max length: {len(field_value)} > {max_length}"
+        )
+        log.warning(_msg)
+        errors[field_name] = (
+            f"{field_name.replace('_', ' ').title()} must be {max_length} characters or less"
+        )
+
+
+def validate_extracted_job_details(  # noqa: PLR0913
+    extracted_company_name: str | None,
+    extracted_job_title: str | None,
+    extracted_pay_rate: str | None,
+    extracted_contact_info: str | None,
+    extracted_work_arrangement: str | None,
+    extracted_location: str | None,
+    extracted_special_instructions: str | None,
+) -> ValidationResult:
+    """Validate extracted job detail fields.
+
+    Args:
+        extracted_company_name: The extracted company name (optional).
+        extracted_job_title: The extracted job title (optional).
+        extracted_pay_rate: The extracted pay rate (optional).
+        extracted_contact_info: The extracted contact info (optional).
+        extracted_work_arrangement: The extracted work arrangement (optional).
+        extracted_location: The extracted location (optional).
+        extracted_special_instructions: The extracted special instructions (optional).
+
+    Returns:
+        ValidationResult: Object containing is_valid boolean and errors dict.
+            Errors dict has field names as keys and error messages as values.
+
+    Notes:
+        1. All fields are optional (None or empty string is valid).
+        2. Fields that exceed max length are truncated with a warning logged.
+        3. Returns all validation errors, not just the first one.
+
+    """
+    _msg = "validate_extracted_job_details starting"
+    log.debug(_msg)
+
+    errors: dict[str, str] = {}
+
+    # Validate all fields using helper function
+    _validate_single_field(
+        extracted_company_name,
+        "extracted_company_name",
+        MAX_COMPANY_LENGTH,
+        errors,
+    )
+    _validate_single_field(
+        extracted_job_title,
+        "extracted_job_title",
+        MAX_JOB_TITLE_LENGTH,
+        errors,
+    )
+    _validate_single_field(
+        extracted_pay_rate, "extracted_pay_rate", MAX_PAY_RATE_LENGTH, errors
+    )
+    _validate_single_field(
+        extracted_contact_info,
+        "extracted_contact_info",
+        MAX_CONTACT_INFO_LENGTH,
+        errors,
+    )
+    _validate_single_field(
+        extracted_work_arrangement,
+        "extracted_work_arrangement",
+        MAX_WORK_ARRANGEMENT_LENGTH,
+        errors,
+    )
+    _validate_single_field(
+        extracted_location,
+        "extracted_location",
+        MAX_LOCATION_LENGTH,
+        errors,
+    )
+    _validate_single_field(
+        extracted_special_instructions,
+        "extracted_special_instructions",
+        MAX_SPECIAL_INSTRUCTIONS_LENGTH,
+        errors,
+    )
+
+    is_valid = len(errors) == 0
+
+    _msg = f"validate_extracted_job_details returning: is_valid={is_valid}"
     log.debug(_msg)
     return ValidationResult(is_valid=is_valid, errors=errors)
 

@@ -69,6 +69,56 @@ def get_llm_config(
     return result
 
 
+def _get_str_field_from_form(form_data: object, field_name: str) -> str | None:
+    """Extract a string field from form data, handling Mock and Form objects.
+
+    Args:
+        form_data: The form data object.
+        field_name: The name of the field to extract.
+
+    Returns:
+        The field value as a string, or None if it's a Mock, Form(None), or not present.
+
+    """
+    value = getattr(form_data, field_name, None)
+    if isinstance(value, Mock):
+        return None
+    # Handle FastAPI Form/Default objects (when form is instantiated directly in tests)
+    # These have 'default' attribute containing the actual default value
+    type_name = type(value).__name__
+    if type_name in ("Default", "Form") or hasattr(value, "default"):
+        try:
+            # Get the actual default value
+            actual_value = value.default
+            return actual_value if actual_value is not None else None
+        except (AttributeError, TypeError):
+            pass
+    return value
+
+
+def _build_notes_with_special_instructions(
+    notes: str | None,
+    special_instructions: str | None,
+) -> str | None:
+    """Append special instructions to notes if present.
+
+    Args:
+        notes: The existing notes.
+        special_instructions: The special instructions to append.
+
+    Returns:
+        The combined notes string, or None if both inputs are None.
+
+    """
+    if not special_instructions:
+        return notes
+
+    if notes:
+        return f"{notes}\n\nSpecial Instructions from Job Description:\n{special_instructions}"
+
+    return f"Special Instructions from Job Description:\n{special_instructions}"
+
+
 def process_refined_experience_result(  # noqa: PLR0913
     resume_id: int,
     final_content: str,
@@ -77,6 +127,13 @@ def process_refined_experience_result(  # noqa: PLR0913
     limit_refinement_years: int | None,
     company: str | None = None,
     notes: str | None = None,
+    extracted_company_name: str | None = None,
+    extracted_job_title: str | None = None,
+    extracted_pay_rate: str | None = None,
+    extracted_contact_info: str | None = None,
+    extracted_work_arrangement: str | None = None,
+    extracted_location: str | None = None,
+    extracted_special_instructions: str | None = None,
 ) -> str:
     """Generates the final HTML result for a refined experience.
 
@@ -91,6 +148,13 @@ def process_refined_experience_result(  # noqa: PLR0913
         limit_refinement_years: The year limit used for filtering.
         company: The company name for the refined resume.
         notes: The notes for the refined resume.
+        extracted_company_name: Company name extracted from job description.
+        extracted_job_title: Job title extracted from job description.
+        extracted_pay_rate: Pay rate extracted from job description.
+        extracted_contact_info: Contact info extracted from job description.
+        extracted_work_arrangement: Work arrangement extracted from job description.
+        extracted_location: Location extracted from job description.
+        extracted_special_instructions: Special instructions extracted from job description.
 
     Returns:
         The complete HTML content for the body of the `done` event.
@@ -113,6 +177,13 @@ def process_refined_experience_result(  # noqa: PLR0913
         limit_refinement_years=limit_refinement_years,
         company=company,
         notes=notes,
+        extracted_company_name=extracted_company_name,
+        extracted_job_title=extracted_job_title,
+        extracted_pay_rate=extracted_pay_rate,
+        extracted_contact_info=extracted_contact_info,
+        extracted_work_arrangement=extracted_work_arrangement,
+        extracted_location=extracted_location,
+        extracted_special_instructions=extracted_special_instructions,
     )
     result_html = _create_refine_result_html(params=result_html_params)
 
@@ -122,7 +193,67 @@ def process_refined_experience_result(  # noqa: PLR0913
     return result_html
 
 
-def handle_save_as_new_refinement(params: SaveAsNewParams) -> DatabaseResume:
+def _extract_form_data(params: SaveAsNewParams) -> dict:
+    """Extract all relevant fields from form data.
+
+    Args:
+        params: The parameters containing form data.
+
+    Returns:
+        Dictionary with all extracted fields.
+
+    """
+    form_data = params.form_data
+    return {
+        "final_content": form_data.refined_content,
+        "job_description_val": form_data.job_description,
+        "introduction": form_data.introduction,
+        "new_resume_name": form_data.new_resume_name,
+        "company": _get_str_field_from_form(form_data, "company"),
+        "notes": _get_str_field_from_form(form_data, "notes"),
+        "extracted_company_name": _get_str_field_from_form(
+            form_data, "extracted_company_name"
+        ),
+        "extracted_job_title": _get_str_field_from_form(
+            form_data, "extracted_job_title"
+        ),
+        "extracted_pay_rate": _get_str_field_from_form(form_data, "extracted_pay_rate"),
+        "extracted_contact_info": _get_str_field_from_form(
+            form_data, "extracted_contact_info"
+        ),
+        "extracted_work_arrangement": _get_str_field_from_form(
+            form_data, "extracted_work_arrangement"
+        ),
+        "extracted_location": _get_str_field_from_form(form_data, "extracted_location"),
+        "extracted_special_instructions": _get_str_field_from_form(
+            form_data, "extracted_special_instructions"
+        ),
+    }
+
+
+def _validate_refinement_data(data: dict) -> None:
+    """Validate refinement data before saving.
+
+    Args:
+        data: Dictionary containing form data fields.
+
+    Raises:
+        HTTPException: If validation fails.
+
+    """
+    # Validate resume content
+    perform_pre_save_validation(data["final_content"])
+
+    # Validate company and notes
+    validation_result = validate_company_and_notes(
+        data["company"],
+        data["notes"],
+    )
+    if not validation_result.is_valid:
+        raise HTTPException(status_code=400, detail=validation_result.errors)
+
+
+def handle_save_as_new_refinement(params: SaveAsNewParams) -> DatabaseResume:  # noqa: C901
     """Orchestrates saving a refined resume as a new resume.
 
     This function takes the full refined resume content, validates it, and
@@ -149,24 +280,17 @@ def handle_save_as_new_refinement(params: SaveAsNewParams) -> DatabaseResume:
     log.debug(_msg)
 
     try:
-        final_content = params.form_data.refined_content
-        job_description_val = params.form_data.job_description
-        introduction = params.form_data.introduction
-        new_resume_name = params.form_data.new_resume_name
+        # Extract all form data
+        data = _extract_form_data(params)
 
-        # Handle company and notes, being careful with mocks in tests
-        _company = getattr(params.form_data, "company", None)
-        _notes = getattr(params.form_data, "notes", None)
-        company = None if isinstance(_company, Mock) else _company
-        notes = None if isinstance(_notes, Mock) else _notes
+        # Append special_instructions to notes if present
+        data["notes"] = _build_notes_with_special_instructions(
+            data["notes"],
+            data["extracted_special_instructions"],
+        )
 
-        # Validate resume content
-        perform_pre_save_validation(final_content)
-
-        # Validate company and notes
-        validation_result = validate_company_and_notes(company, notes)
-        if not validation_result.is_valid:
-            raise HTTPException(status_code=400, detail=validation_result.errors)
+        # Validate the data
+        _validate_refinement_data(data)
     except HTTPException:
         # Re-raise HTTPExceptions as-is (includes validation failures)
         raise
@@ -176,17 +300,24 @@ def handle_save_as_new_refinement(params: SaveAsNewParams) -> DatabaseResume:
         log.exception(_msg)
         raise HTTPException(status_code=422, detail=_msg)
 
-    # Create the new resume record, passing the determined introduction.
+    # Create the new resume record
     create_params = ResumeCreateParams(
         user_id=params.user.id,
-        name=new_resume_name,
-        content=final_content,
+        name=data["new_resume_name"],
+        content=data["final_content"],
         is_base=False,
         parent_id=params.resume.id,
-        job_description=job_description_val,
-        introduction=introduction,
-        company=company,
-        notes=notes,
+        job_description=data["job_description_val"],
+        introduction=data["introduction"],
+        company=data["company"],
+        notes=data["notes"],
+        extracted_company_name=data["extracted_company_name"],
+        extracted_job_title=data["extracted_job_title"],
+        extracted_pay_rate=data["extracted_pay_rate"],
+        extracted_contact_info=data["extracted_contact_info"],
+        extracted_work_arrangement=data["extracted_work_arrangement"],
+        extracted_location=data["extracted_location"],
+        extracted_special_instructions=data["extracted_special_instructions"],
     )
     new_resume = create_resume_db(
         db=params.db,

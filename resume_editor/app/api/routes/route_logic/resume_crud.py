@@ -55,6 +55,13 @@ class ResumeCreateParams(BaseModel):
     introduction: str | None = None
     company: str | None = None
     notes: str | None = None
+    extracted_company_name: str | None = None
+    extracted_job_title: str | None = None
+    extracted_pay_rate: str | None = None
+    extracted_contact_info: str | None = None
+    extracted_work_arrangement: str | None = None
+    extracted_location: str | None = None
+    extracted_special_instructions: str | None = None
 
 
 class ResumeUpdateParams(BaseModel):
@@ -65,6 +72,13 @@ class ResumeUpdateParams(BaseModel):
     introduction: str | None = None
     notes: str | None = None
     company: str | None = None
+    extracted_company_name: str | None = None
+    extracted_job_title: str | None = None
+    extracted_pay_rate: str | None = None
+    extracted_contact_info: str | None = None
+    extracted_work_arrangement: str | None = None
+    extracted_location: str | None = None
+    extracted_special_instructions: str | None = None
 
 
 def get_week_range(week_offset: int = 0) -> DateRange:
@@ -391,6 +405,13 @@ def create_resume(
         introduction=params.introduction,
         company=params.company,
         notes=params.notes,
+        extracted_company_name=params.extracted_company_name,
+        extracted_job_title=params.extracted_job_title,
+        extracted_pay_rate=params.extracted_pay_rate,
+        extracted_contact_info=params.extracted_contact_info,
+        extracted_work_arrangement=params.extracted_work_arrangement,
+        extracted_location=params.extracted_location,
+        extracted_special_instructions=params.extracted_special_instructions,
     )
     resume = DatabaseResume(data=resume_data)
     db.add(resume)
@@ -448,6 +469,23 @@ def update_resume(
     _apply_resume_field_update(resume, "introduction", params.introduction)
     _apply_resume_field_update(resume, "notes", params.notes)
     _apply_resume_field_update(resume, "company", params.company)
+    _apply_resume_field_update(
+        resume, "extracted_company_name", params.extracted_company_name
+    )
+    _apply_resume_field_update(
+        resume, "extracted_job_title", params.extracted_job_title
+    )
+    _apply_resume_field_update(resume, "extracted_pay_rate", params.extracted_pay_rate)
+    _apply_resume_field_update(
+        resume, "extracted_contact_info", params.extracted_contact_info
+    )
+    _apply_resume_field_update(
+        resume, "extracted_work_arrangement", params.extracted_work_arrangement
+    )
+    _apply_resume_field_update(resume, "extracted_location", params.extracted_location)
+    _apply_resume_field_update(
+        resume, "extracted_special_instructions", params.extracted_special_instructions
+    )
     db.commit()
     db.refresh(resume)
     return resume

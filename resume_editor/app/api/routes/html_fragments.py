@@ -21,6 +21,13 @@ class RefineResultParams(BaseModel):
     limit_refinement_years: int | None = None
     company: str | None = None
     notes: str | None = None
+    extracted_company_name: str | None = None
+    extracted_job_title: str | None = None
+    extracted_pay_rate: str | None = None
+    extracted_contact_info: str | None = None
+    extracted_work_arrangement: str | None = None
+    extracted_location: str | None = None
+    extracted_special_instructions: str | None = None
 
 
 @dataclass

@@ -87,7 +87,17 @@ def test_job_analysis_with_inferred_themes():
         "inferred_themes": ["leadership potential", "collaborative culture"],
     }
     instance = JobAnalysis(**data)
-    assert instance.model_dump() == data
+    expected_output = {
+        **data,
+        "company_name": None,
+        "job_title": None,
+        "pay_rate": None,
+        "contact_info": None,
+        "work_arrangement": None,
+        "location": None,
+        "special_instructions": None,
+    }
+    assert instance.model_dump() == expected_output
     assert instance.inferred_themes == ["leadership potential", "collaborative culture"]
 
 
@@ -100,6 +110,8 @@ def test_job_analysis_default_inferred_themes():
     }
     instance = JobAnalysis(**data)
     assert instance.inferred_themes == []
+    assert instance.company_name is None
+    assert instance.job_title is None
 
 
 def test_cross_section_evidence_instantiation():
